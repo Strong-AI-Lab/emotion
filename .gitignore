@@ -1,0 +1,26 @@
+# Datasets
+/cafe
+/crema-d
+/demos
+/emodb
+/emofilm
+/enterface
+/iemocap
+/jl
+/msp-improv
+/portuguese
+/ravdess
+/results
+/savee
+/semaine
+/shemo
+/smartkom
+/tess
+
+__pycache__
+
+/build
+/logs
+/venv
+.vscode
+.ipynb_checkpoints

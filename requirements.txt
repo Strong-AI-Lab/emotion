@@ -1,0 +1,14 @@
+flake8
+tensorflow-gpu
+tensorflow-probability
+tensorboard
+numpy
+pandas
+matplotlib
+scipy
+liac-arff
+tqdm
+jupyterlab
+librosa
+PyWave
+autopep8
