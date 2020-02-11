@@ -49,6 +49,7 @@ else:
 configs = [f for f in os.listdir(CONFIG_DIR)]
 configs += ['gemaps/' + f
             for f in os.listdir(os.path.join(CONFIG_DIR, 'gemaps'))]
+configs += ['config/' + f for f in os.listdir('config')]
 configs = [c[:-5] for c in configs if c.endswith('.conf')]
 configs = '\n'.join(sorted(configs))
 
@@ -87,19 +88,17 @@ def read_arff(file: str):
 def main():
     args = parser.parse_args()
 
-    conf_file = args.config + '.conf'
     if os.path.exists(args.config):
-        config = args.config
-    elif os.path.exists(conf_file):
-        config = conf_file
+        config_file = args.config
     else:
-        config = os.path.join(CONFIG_DIR, conf_file)
-        if not os.path.exists(config):
-            raise FileNotFoundError("Config file doesn't exist")
+        config_file = args.config + '.conf'
+        if not os.path.exists(config_file):
+            config_file = os.path.join(CONFIG_DIR, config_file)
+            if not os.path.exists(config_file):
+                raise FileNotFoundError("Config file doesn't exist")
+    config = os.path.splitext(os.path.basename(args.config))[0]
 
-    output_prefix = args.prefix or args.config
-    if output_prefix.startswith('gemaps/'):
-        output_prefix = output_prefix[7:]
+    output_prefix = args.prefix or config
 
     allowed_types = ['regression', 'classification']
     if args.type not in allowed_types:
@@ -141,7 +140,7 @@ def main():
 
                 smile_args = [
                     OPENSMILE_BIN,
-                    '-C', config,
+                    '-C', config_file,
                     '-I', filepath,
                     '-O', output_file,
                     '-classes', '{{{}}}'.format(emotions),
