@@ -1,7 +1,6 @@
-from collections import namedtuple
 import os
 import re
-from collections import Counter
+from collections import Counter, namedtuple
 from glob import glob
 
 import arff
@@ -15,9 +14,9 @@ from .binary_arff import decode as decode_arff
 __all__ = [
     'UtteranceDataset',
     'FrameDataset',
+    'RawDataset',
     'read_annotations',
-    'corpora',
-    'RawDataset'
+    'corpora'
 ]
 
 Corpus = namedtuple(
@@ -63,8 +62,10 @@ corpora = {
             'negative': ['anger', 'guilt', 'disgust', 'fear', 'sadness'],
             'positive': ['happiness', 'neutral', 'surprise']
         },
-        ['02', '03', '04', '05', '08', '09', '10', '11', '12', '14', '15', '16', '18', '19', '23', '24', '25', '26', '27',
-            '28', '30', '33', '34', '39', '41', '50', '51', '52', '53', '58', '59', '63', '64', '65', '66', '67', '68', '69'],
+        ['02', '03', '04', '05', '08', '09', '10', '11', '12', '14', '15',
+            '16', '18', '19', '23', '24', '25', '26', '27', '28', '30', '33',
+            '34', '39', '41', '50', '51', '52', '53', '58', '59', '63', '64',
+            '65', '66', '67', '68', '69'],
         ['01', '17', '21', '22', '29', '31', '36', '37', '38', '40', '43',
             '45', '46', '47', '49', '54', '55', '56', '57', '60', '61'],
         None,
@@ -309,19 +310,88 @@ def read_annotations(annot_file):
 class Dataset():
     def __init__(self, corpus, normaliser=StandardScaler(),
                  normalise_method='speaker'):
-        self.classes = list(corpora[corpus].emotion_map.values())
+        if corpus not in corpora:
+            raise NotImplementedError(
+                "Corpus {} hasn't been implemented yet.".format(corpus))
+        self.corpus = corpus
+
+        self.classes = list(corpora[self.corpus].emotion_map.values())
         self.class_to_int = {c: self.classes.index(c) for c in self.classes}
         self.n_classes = len(self.classes)
 
-        self.features = ['pcm']
-        self.n_features = 1
+        self.n_instances = len(self.names)
+        self.n_features = len(self.features)
+
         self.normaliser = normaliser
         self.normalise_method = normalise_method
 
+        self.speakers = corpora[self.corpus].speakers
+        self.sp_get = corpora[self.corpus].get_speaker
+        self.speaker_indices = np.array(
+            [self.speakers.index(self.sp_get(n)) for n in self.names],
+            dtype=int
+        )
+
+        if self.corpus == 'iemocap':
+            speaker_indices_to_group = np.array(
+                [0, 1, 2, 3, 4, 0, 1, 2, 3, 4])
+            self.speaker_group_indices = speaker_indices_to_group[
+                self.speaker_indices]
+        elif self.corpus == 'msp-improv':
+            speaker_indices_to_group = np.array(
+                [0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5])
+            self.speaker_group_indices = speaker_indices_to_group[
+                self.speaker_indices]
+        else:
+            self.speaker_group_indices = self.speaker_indices
+
+        self.gender_indices = {'all': np.arange(self.n_instances)}
+        if (corpora[self.corpus].male_speakers is not None
+                and corpora[self.corpus].female_speakers):
+            self.male_speakers = corpora[self.corpus].male_speakers
+            self.female_speakers = corpora[self.corpus].female_speakers
+            self.m_indices = np.array([i for i in range(self.n_instances)
+                                       if self.sp_get(self.names[i])
+                                       in self.male_speakers], dtype=int)
+            self.f_indices = np.array([i for i in range(self.n_instances)
+                                       if self.sp_get(self.names[i])
+                                       in self.female_speakers], dtype=int)
+            self.gender_indices['m'] = self.m_indices
+            self.gender_indices['f'] = self.f_indices
+
+        self.create_data()
+        self.binary_y = label_binarize(self.y, np.arange(self.n_classes))
+        self.labels = {
+            'all': self.y,
+            **{c: self.binary_y[:, c] for c in range(self.n_classes)}
+        }
+
+        if (corpora[corpus].arousal_map is not None
+                and corpora[corpus].valence_map is not None):
+            print("Binarising arousal and valence")
+            class_arousal = corpora[corpus].arousal_map
+            arousal_map = np.array([1 if c in class_arousal['positive'] else 0
+                                    for c in self.classes])
+            class_valence = corpora[corpus].valence_map
+            valence_map = np.array([1 if c in class_valence['positive'] else 0
+                                    for c in self.classes])
+            self.arousal_y = np.array(arousal_map[self.y], dtype=np.float32)
+            self.valence_y = np.array(valence_map[self.y], dtype=np.float32)
+            self.labels['arousal'] = self.arousal_y
+            self.labels['valence'] = self.valence_y
+
+        print('Corpus: {}'.format(corpus))
+        print('Classes: {} {}'.format(self.n_classes, tuple(self.classes)))
+        print('{} speakers'.format(len(self.speakers)))
+        print('Normalisation function: {}'.format(self.normaliser.__class__))
+        print('Normalise method: {}'.format(self.normalise_method))
+        print()
+
     def __getitem__(self, idx):
-        if isinstance(self.x, list):
-            return [self.x[i] for i in idx], self.y[idx]
         return self.x[idx], self.y[idx]
+
+    def create_data(self):
+        return NotImplementedError()
 
     def cross_validation(self, mode='all', c=None, g='all', group=None,
                          splitter=KFold(10), splits=False, indices=False):
@@ -354,14 +424,12 @@ class Dataset():
                 if indices:
                     yield idx[train], idx[test]
                 else:
-                    if isinstance(x, list):
-                        x_train = [x[i] for i in train]
-                        x_test = [x[i] for i in test]
-                        if self.normalise_method in ['train', 'train_test']:
-                            raise NotImplementedError("normalise_method")
+                    x_train = x[train]
+                    x_test = x[test]
+                    if (isinstance(x, list) and self.normalise_method
+                            in ['train', 'train_test']):
+                        raise NotImplementedError("normalise_method")
                     else:
-                        x_train = x[train]
-                        x_test = x[test]
                         if self.normalise_method == 'train':
                             x_train = self.normaliser.fit_transform(x_train)
                             x_test = self.normaliser.transform(x_test)
@@ -371,77 +439,42 @@ class Dataset():
                     yield (x_train, y[train]), (x_test, y[test])
 
 
-class RawDataset():
+class RawDataset(Dataset):
     def __init__(self, directory, corpus, normaliser=StandardScaler(),
                  normalise_method='speaker'):
-        self.classes = list(corpora[corpus].emotion_map.values())
-        self.class_to_int = {c: self.classes.index(c) for c in self.classes}
-        self.n_classes = len(self.classes)
+        self.directory = directory
 
         self.features = ['pcm']
-        self.n_features = 1
-        self.normaliser = normaliser
-        self.normalise_method = normalise_method
 
         self.names = []
-        self.x = []
-        self.y = []
         for filename in glob(os.path.join(directory, '*.wav')):
             name = os.path.basename(filename)
             name = os.path.splitext(name)[0]
             self.names.append(name)
 
-            f = corpora[corpus].get_emotion
-            emotion = corpora[corpus].emotion_map[f(name)]
-            self.y.append(self.class_to_int[emotion])
+        super().__init__(corpus, normaliser=normaliser,
+                         normalise_method=normalise_method)
+
+        del self.directory
+
+    def create_data(self):
+        self.x = np.empty(self.n_instances, dtype=object)
+        self.y = np.empty(self.n_instances, dtype=np.float32)
+        for i, filename in enumerate(
+                glob(os.path.join(self.directory, '*.wav'))):
+            name = os.path.basename(filename)
+            name = os.path.splitext(name)[0]
+
+            emotion = corpora[self.corpus].get_emotion(name)
+            emotion = corpora[self.corpus].emotion_map[emotion]
+            self.y[i] = self.class_to_int[emotion]
 
             audio, sr = soundfile.read(filename, dtype=np.float32)
             audio = np.expand_dims(audio, axis=1)
-            self.x.append(audio)
-        self.y = np.array(self.y, dtype=np.float32)
-        self.binary_y = label_binarize(self.y, np.arange(self.n_classes))
-        self.n_instances = len(self.names)
-
-        speaker_indices_to_group = None
-        if corpus == 'iemocap':
-            speaker_indices_to_group = np.array(
-                [0, 1, 2, 3, 4, 0, 1, 2, 3, 4])
-        elif corpus == 'msp-improv':
-            speaker_indices_to_group = np.array(
-                [0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5])
-
-        self.speakers = corpora[corpus].speakers
-        self.sp_get = corpora[corpus].get_speaker
-        self.speaker_indices = np.array(
-            [self.speakers.index(self.sp_get(n)) for n in self.names],
-            dtype=int
-        )
-        if speaker_indices_to_group is not None:
-            self.speaker_group_indices = speaker_indices_to_group[self.speaker_indices]
-        if (corpora[corpus].male_speakers is not None
-                and corpora[corpus].female_speakers):
-            self.male_speakers = corpora[corpus].male_speakers
-            self.female_speakers = corpora[corpus].female_speakers
-            self.m_indices = np.array([i for i in range(self.n_instances)
-                                       if self.sp_get(self.names[i])
-                                       in self.male_speakers], dtype=int)
-            self.f_indices = np.array([i for i in range(self.n_instances)
-                                       if self.sp_get(self.names[i])
-                                       in self.female_speakers], dtype=int)
-            self.gender_indices = {'all': np.arange(
-                self.n_instances), 'm': self.m_indices, 'f': self.f_indices}
-        else:
-            self.gender_indices = {'all': np.arange(self.n_instances)}
-
-        self.corpus = corpus
-
-        self.labels = {
-            'all': self.y,
-            **{c: self.binary_y[:, c] for c in range(self.n_classes)}
-        }
+            self.x[i] = audio
 
 
-class ArffDataset:
+class ArffDataset(Dataset):
     def __init__(self, path, normaliser=StandardScaler(),
                  normalise_method='speaker'):
         if path.endswith('.bin'):
@@ -453,159 +486,31 @@ class ArffDataset:
 
         self.raw_data = data['data']
         self.names = [x[0] for x in self.raw_data]
-        self.n_instances = len(self.names)
-
         self.features = [x[0] for x in data['attributes'][1:-1]]
-        self.n_features = len(self.features)  # Ignore class and name attrs
-        self.normaliser = normaliser
-        self.normalise_method = normalise_method
-
-        self.classes = list(data['attributes'][-1][1])
-        self.class_to_int = {c: self.classes.index(c) for c in self.classes}
-        self.n_classes = len(self.classes)
 
         corpus = data['relation']
-        self.corpus = corpus
-        if corpus not in corpora:
-            raise NotImplementedError(
-                "Corpus {} hasn't been implemented yet.".format(corpus))
-
-        speaker_indices_to_group = None
-        if corpus == 'iemocap':
-            speaker_indices_to_group = np.array(
-                [0, 1, 2, 3, 4, 0, 1, 2, 3, 4])
-        elif corpus == 'msp-improv':
-            speaker_indices_to_group = np.array(
-                [0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5])
-
-        self.speakers = corpora[corpus].speakers
-        self.sp_get = corpora[corpus].get_speaker
-        self.speaker_indices = np.array(
-            [self.speakers.index(self.sp_get(n)) for n in self.names],
-            dtype=int
-        )
-        if speaker_indices_to_group is not None:
-            self.speaker_group_indices = speaker_indices_to_group[self.speaker_indices]
-        if (corpora[corpus].male_speakers is not None
-                and corpora[corpus].female_speakers):
-            self.male_speakers = corpora[corpus].male_speakers
-            self.female_speakers = corpora[corpus].female_speakers
-            self.m_indices = np.array([i for i in range(self.n_instances)
-                                       if self.sp_get(self.names[i])
-                                       in self.male_speakers], dtype=int)
-            self.f_indices = np.array([i for i in range(self.n_instances)
-                                       if self.sp_get(self.names[i])
-                                       in self.female_speakers], dtype=int)
-            self.gender_indices = {'all': np.arange(
-                self.n_instances), 'm': self.m_indices, 'f': self.f_indices}
-        else:
-            self.gender_indices = {'all': np.arange(self.n_instances)}
-
-        print('Corpus: {}'.format(corpus))
-        print('Classes: {} {}'.format(self.n_classes, tuple(self.classes)))
-        print('{} speakers'.format(len(self.speakers)))
-        print('Normalisation function: {}'.format(self.normaliser.__class__))
-        print('Normalise method: {}'.format(self.normalise_method))
-        print()
-
-        self.x = []
-        self.y = []
-        for inst in self.raw_data:
-            self.x.append(np.array(inst[1:-1]))
-            self.y.append(self.class_to_int[inst[-1]])
-        self.x = np.array(self.x, dtype=np.float32)
-        self.y = np.array(self.y, dtype=np.float32)
-
-        if self.normalise_method == 'all':
-            self.x = self.normaliser.fit_transform(self.x)
-        elif self.normalise_method == 'speaker':
-            for sp in range(len(self.speakers)):
-                indices = self.speaker_indices == sp
-                self.x[indices] = self.normaliser.fit_transform(
-                    self.x[indices])
-        self.binary_y = label_binarize(self.y, np.arange(self.n_classes))
-
-        if (corpora[corpus].arousal_map is not None
-                and corpora[corpus].valence_map is not None):
-            print("Binarising arousal and valence")
-            self.class_arousal = corpora[corpus].arousal_map
-            self.class_valence = corpora[corpus].valence_map
-            self.arousal_y = []
-            self.valence_y = []
-            for inst in self.raw_data:
-                self.arousal_y.append(
-                    int(inst[-1] in self.class_arousal['positive']))
-                self.valence_y.append(
-                    int(inst[-1] in self.class_valence['positive']))
-            self.arousal_y = np.array(self.arousal_y, dtype=np.float32)
-            self.valence_y = np.array(self.valence_y, dtype=np.float32)
-            self.labels = {
-                'all': self.y,
-                'arousal': self.arousal_y,
-                'valence': self.valence_y,
-                **{c: self.binary_y[:, c] for c in range(self.n_classes)}
-            }
-        else:
-            self.labels = {
-                'all': self.y,
-                **{c: self.binary_y[:, c] for c in range(self.n_classes)}
-            }
+        super().__init__(corpus, normaliser=normaliser,
+                         normalise_method=normalise_method)
 
         del self.raw_data
 
     def __getitem__(self, idx):
         return self.x[idx], self.y[idx]
 
-    def cross_validation(self, mode='all', c=None, g='all', group=None,
-                         splitter=KFold(10), splits=False, indices=False):
-        if mode == 'ovr':
-            y = self.labels[c]
-        else:
-            y = self.labels[mode]
+    def create_data(self):
+        self.x = np.empty((self.n_instances, self.n_features),
+                          dtype=np.float32)
+        self.y = np.empty(self.n_instances, dtype=np.float32)
+        for i, inst in enumerate(self.raw_data):
+            self.x[i, :] = inst[1:-1]
+            self.y[i] = self.class_to_int[inst[-1]]
 
-        idx = self.gender_indices[g]
-
-        if isinstance(self.x, list):
-            x = [self.x[i] for i in idx]
-        else:
-            x = self.x[idx]
-        y = y[idx]
-        if group == 'group':
-            groups = self.speaker_group_indices[idx]
-        else:
-            groups = self.speaker_indices[idx]
-
-        if splits:
-            if splitter is None:
-                return 1
-            else:
-                return splitter.get_n_splits(x, y, groups)
-
-        if splitter is None:
-            if indices:
-                yield idx, idx
-            else:
-                yield (x, y), (x, y)
-        else:
-            for train, test in splitter.split(x, y, groups):
-                if indices:
-                    yield idx[train], idx[test]
-                else:
-                    if isinstance(x, list):
-                        x_train = [x[i] for i in train]
-                        x_test = [x[i] for i in test]
-                        if self.normalise_method in ['train', 'train_test']:
-                            raise NotImplementedError("normalise_method")
-                    else:
-                        x_train = x[train]
-                        x_test = x[test]
-                        if self.normalise_method == 'train':
-                            x_train = self.normaliser.fit_transform(x_train)
-                            x_test = self.normaliser.transform(x_test)
-                        elif self.normalise_method == 'train_test':
-                            x_train = self.normaliser.fit_transform(x_train)
-                            x_test = self.normaliser.fit_transform(x_test)
-                    yield (x_train, y[train]), (x_test, y[test])
+        if self.normalise_method == 'all':
+            self.x = self.normaliser.fit_transform(self.x)
+        elif self.normalise_method == 'speaker':
+            for sp in range(len(self.speakers)):
+                idx = self.speaker_indices == sp
+                self.x[idx] = self.normaliser.fit_transform(self.x[idx])
 
 
 class UtteranceDataset(ArffDataset):
@@ -632,54 +537,47 @@ class FrameDataset(ArffDataset):
         names = Counter(self.names)  # Ordered by insertion in Python 3.7+
         self.names = list(names.keys())
         self.n_instances = len(self.names)
-        self.lengths = np.array(list(names.values()))
-        indices = np.cumsum([0] + list(names.values()))
-        self.speaker_indices = self.speaker_indices[indices[:-1]]
+
+        idx = np.cumsum([0] + list(names.values()))
+        self.speaker_indices = self.speaker_indices[idx[:-1]]
         if hasattr(self, 'speaker_group_indices'):
-            self.speaker_group_indices = self.speaker_group_indices[indices[:-1]]
+            self.speaker_group_indices = self.speaker_group_indices[idx[:-1]]
         self.gender_indices = {'all': np.arange(self.n_instances)}
 
-        self.x = [self.x[indices[i]:indices[i + 1]]
-                  for i in range(self.n_instances)]
-        self.y = self.y[indices[:-1]]
+        self.x = np.array([self.x[idx[i]:idx[i + 1]]
+                           for i in range(self.n_instances)], dtype=object)
+        self.y = self.y[idx[:-1]]
 
         self.labels = {
             'all': self.y,
             **{c: self.binary_y[:, c] for c in range(self.n_classes)}
         }
 
-        print("{} sequences of vectors of size {}".format(
-            self.n_instances, self.n_features))
+        print("{} sequences of vectors of size {}".format(self.n_instances,
+                                                          self.n_features))
 
-    def __getitem__(self, idx):
-        return [self.x[i] for i in idx], self.y[idx]
-
-    def pad_arrays(self, pad=32):
+    def pad_arrays(self, pad: int = 32):
         for i in range(len(self.x)):
             x = self.x[i]
             padding = int(np.ceil(x.shape[0] / pad)) * pad - x.shape[0]
             self.x[i] = np.pad(x, ((0, padding), (0, 0)))
 
-        self.lengths = [x.shape[0] for x in self.x]
-        unique, indices, num = np.unique(
-            self.lengths, return_inverse=True, return_counts=True)
-
     @staticmethod
     def batch_arrays(arrays_x, y):
         sizes = [x.shape[0] for x in arrays_x]
-        unique, indices, num = np.unique(
+        lengths, indices, num = np.unique(
             sizes, return_inverse=True, return_counts=True)
 
-        x_list = []
-        y_list = []
-        for i in range(len(unique)):
-            arr = np.zeros(
-                (num[i], unique[i], arrays_x[0].shape[1]), dtype=np.float32)
+        x_list = np.array(len(lengths), dtype=object)
+        y_list = np.array(len(lengths), dtype=object)
+        for i in range(len(lengths)):
+            arr = np.zeros((num[i], lengths[i], arrays_x[0].shape[1]),
+                           dtype=np.float32)
             idx = np.arange(len(arrays_x))[indices == i]
             for k, j in enumerate(idx):
                 arr[k, :, :] = arrays_x[j]
-            x_list.append(arr)
-            y_list.append(y[idx])
+            x_list[i] = arr
+            y_list[i] = y[idx]
         return x_list, y_list
 
     def cross_validation_folds(self, mode='all', c=None, g=None,

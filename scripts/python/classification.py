@@ -1,19 +1,22 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
+from typing import Callable
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import precision_score, recall_score
 from sklearn.model_selection import KFold
 from sklearn.svm import SVC
+from tensorflow import keras
 
-from .dataset import ArffDataset
+from .dataset import Dataset
+from .tensorflow import tf_classification_metrics
 
 __all__ = [
     'test_one_vs_rest',
-    'test_classifier',
-    'grid_classifier',
+    'test_model',
+    'cross_validate',
     'print_results',
     'PrecomputedSVC',
     'record_metrics'
@@ -42,20 +45,9 @@ def rbf_kernel(x, y, gamma='scale'):
     return np.exp(-gamma * (D - 2 * M))
 
 
-class Classifier():
-    def __init__(self):
-        pass
-
-    def fit(self):
-        pass
-
-    def predict(self):
-        pass
-
-
-class PrecomputedSVC(SVC):
+class PrecomputedSVC:
     def __init__(self, C=1, kernel='rbf', degree=3, gamma='scale', coef0=0,
-                 class_weight=None, max_iter=-1):
+                 **clf_kwargs):
         if kernel == 'linear':
             self.kernel_func = linear_kernel
         elif kernel == 'poly':
@@ -66,76 +58,194 @@ class PrecomputedSVC(SVC):
             raise ValueError(
                 "kernel must be in {{'linear', 'poly', 'rbf'}}, got '{}'"
                 .format(kernel))
-        self.kernel_name = kernel
+        self.clf = SVC(C=C, kernel='precomputed', **clf_kwargs)
 
-        super().__init__(C=C, kernel='precomputed', degree=degree, gamma=gamma,
-                         coef0=coef0, class_weight=class_weight,
-                         max_iter=max_iter)
+    def fit(self, x_train, y_train, x_valid, y_valid, sample_weight=None,
+            **kwargs):
+        self.x_train = x_train
+        K = self.kernel_func(x_train, x_train)
+        return self.clf.fit(K, y_train, sample_weight=sample_weight, **kwargs)
 
-    @property
-    def _pairwise(self):
-        return False
+    def predict(self, x_test, y_test, **kwargs):
+        K = self.kernel_func(x_test, self.x_train)
+        return self.clf.predict(K)
 
-    def get_params(self, deep=True):
-        params = super().get_params(deep=deep)
-        params['kernel'] = self.kernel_name
-        # params = {
-        #     'C': self.C,
-        #     'kernel': self.kernel_name,
-        #     'degree': self.degree,
-        #     'gamma': self.gamma,
-        #     'coef0': self.coef0,
-        #     'class_weight': self.class_weight
-        # }
-        return params
 
-    def set_params(self, **params):
-        if not params:
-            return self
-        kernel = params.get('kernel', self.kernel_name)
-        degree = params.get('degree', self.degree)
-        coef0 = params.get('coef0', self.coef0)
-        gamma = params.get('gamma', self.gamma)
+class Classifier():
+    def __init__(self, model_fn: Callable):
+        self.model_fn = model_fn
 
-        if kernel == 'linear':
-            self.kernel_func = linear_kernel
-        elif kernel == 'poly':
-            self.kernel_func = partial(poly_kernel, d=degree, r=coef0)
-        elif kernel == 'rbf':
-            self.kernel_func = partial(rbf_kernel, gamma=gamma)
+    def fit(self, x_train, y_train, x_valid, y_valid, **kwargs):
+        return NotImplementedError()
+
+    def predict(self, x_test, y_test, **kwargs):
+        return NotImplementedError()
+
+
+class SKLearnClassifier(Classifier):
+    def fit(self, x_train, y_train, x_valid, y_valid, param_grid=None,
+            **kwargs):
+        if param_grid:
+            score_fn = partial(recall_score, average='macro')
+            self.clf = cross_validate(param_grid, self.model_fn, score_fn,
+                                      x_train, y_train, x_valid, y_valid,
+                                      **kwargs)
         else:
-            raise ValueError(
-                "kernel must be in {{'linear', 'poly', 'rbf'}}, got '{}'"
-                .format(kernel))
+            self.clf = self.model_fn()
+            self.clf.fit(x_train, y_train, **kwargs)
 
-        return super().set_params(**params)
+    def predict(self, x_test, y_test, **kwargs):
+        return self.clf.predict(x_test)
 
-    def fit(self, X, y, sample_weight=None):
-        self.x_train = X
-        K = self.kernel_func(X, X)
-        return super().fit(K, y, sample_weight=sample_weight)
 
-    def predict(self, X):
-        K = self.kernel_func(X, self.x_train)
-        return super().predict(K)
+class TFClassifier(Classifier):
+    def fit(self, x_train, y_train, x_valid, y_valid, n_epochs=50,
+            class_weight=None, data_fn=None, callbacks=[],
+            loss: keras.losses.Loss
+            = keras.losses.SparseCategoricalCrossentropy(),
+            optimizer: keras.optimizers.Optimizer = keras.optimizers.Adam(),
+            verbose=0,
+            **kwargs):
+        keras.backend.clear_session()
+        # Reset optimiser and loss
+        optimizer = optimizer.from_config(optimizer.get_config())
+        loss = loss.from_config(loss.get_config())
+
+        self.model = self.model_fn()
+        self.model.compile(loss=loss, optimizer=optimizer,
+                           metrics=tf_classification_metrics())
+
+        train_data = data_fn(x_train, y_train, shuffle=True)
+        valid_data = data_fn(x_valid, y_valid, shuffle=True)
+        self.model.fit(
+            train_data,
+            epochs=n_epochs,
+            class_weight=class_weight,
+            validation_data=valid_data,
+            callbacks=callbacks,
+            verbose=verbose,
+            **kwargs
+        )
+
+    def predict(self, x_test, y_test, data_fn=None, **kwargs):
+        test_data = data_fn(x_test, y_test, shuffle=False)
+        return np.argmax(self.model.predict(test_data), axis=1)
+
+
+def test_model(model,
+               dataset: Dataset,
+               mode='all',
+               genders=['all'],
+               reps=1,
+               splitter=KFold(10),
+               **kwargs):
+    if mode == 'all':
+        labels = sorted([x[:3] for x in dataset.classes])
+    else:
+        labels = ['neg', 'pos']
+
+    df = pd.DataFrame(
+        index=pd.RangeIndex(splitter.get_n_splits(
+            dataset.x, dataset.labels[mode], dataset.speaker_indices)),
+        columns=pd.MultiIndex.from_product(
+            [METRICS, genders, labels, range(reps)],
+            names=['metric', 'gender', 'class', 'rep']))
+    for gender in genders:
+        gender_indices = dataset.gender_indices[gender]
+        speaker_indices = dataset.speaker_indices[gender_indices]
+        groups = dataset.speaker_group_indices[gender_indices]
+        x = dataset.x[gender_indices]
+        y = dataset.labels[mode][gender_indices]
+        for rep in range(reps):
+            for fold, (train, test) in enumerate(splitter.split(x, y, groups)):
+                x_train = x[train]
+                y_train = y[train]
+                x_test = x[test]
+                y_test = y[test]
+
+                n_splits = splitter.get_n_splits(x_test, y_test,
+                                                 speaker_indices[test])
+                if n_splits > 1:
+                    for i, (valid, test) in enumerate(splitter.split(
+                            x_test, y_test, speaker_indices[test])):
+                        subfold = n_splits * fold + i
+                        print("Fold {}".format(subfold))
+
+                        x_valid = x_test[valid]
+                        y_valid = y_test[valid]
+                        x_test2 = x_test[test]
+                        y_test2 = y_test[test]
+
+                        model.fit(x_train, y_train, x_valid, y_valid,
+                                  **kwargs)
+                        y_pred = model.predict(x_test2, y_test2, **kwargs)
+                        record_metrics(df, subfold, rep, y_test2, y_pred,
+                                       len(labels))
+                else:
+                    print("Fold {}".format(fold))
+                    model.fit(x_train, y_train, x_valid, y_valid, **kwargs)
+                    y_pred = model.predict(x_test, y_test, **kwargs)
+                    record_metrics(df, fold, rep, y_test, y_pred, len(labels))
+    return df
+
+
+def test_one_vs_rest(model_fn,
+                     dataset: Dataset,
+                     gendered=False,
+                     reps=1,
+                     param_grid=None,
+                     splitter=KFold(10)) -> pd.DataFrame:
+    genders = ['all', 'f', 'm'] if gendered else ['all']
+    labels = sorted([x[:3] for x in dataset.classes])
+
+    rec = pd.DataFrame(
+        index=pd.RangeIndex(splitter.get_n_splits(
+            dataset.x, dataset.labels[0], dataset.speaker_indices)),
+        columns=pd.MultiIndex.from_product(
+            [['prec', 'rec'], genders, labels, list(range(reps))],
+            names=['metric', 'gender', 'class', 'rep']))
+    for gender in genders:
+        groups = dataset.speaker_indices[dataset.gender_indices[gender]]
+        x = dataset.x[dataset.gender_indices[gender]]
+        for idx in range(dataset.n_classes):
+            y = dataset.labels[idx][dataset.gender_indices[gender]]
+            for rep in range(reps):
+                for fold, (train, test) in enumerate(
+                        splitter.split(x, y, groups)):
+                    x_train, y_train = x[train], y[train]
+                    x_test, y_test = x[test], y[test]
+
+                    if param_grid:
+                        classifier = cross_validate(param_grid, model_fn,
+                                                    recall_score, x_train,
+                                                    y_train, x_test, y_test)
+                    else:
+                        classifier = model_fn()
+
+                    y_pred = classifier.predict(x_test)
+                    rec[('prec', gender, labels[idx], rep)][fold] \
+                        = precision_score(y_test, y_pred)
+                    rec[('rec', gender, labels[idx], rep)][fold] \
+                        = recall_score(y_test, y_pred)
+    return rec
 
 
 def grid_classifier(params, klass, score_fn, x_train, y_train, x_valid,
-                    y_valid):
+                    y_valid, **kwargs):
     classifier = klass(**params)
-    classifier.fit(x_train, y_train)
+    classifier.fit(x_train, y_train, x_valid, y_valid, **kwargs)
     y_pred = classifier.predict(x_valid)
     score = score_fn(y_valid, y_pred)
     return classifier, score
 
 
 def cross_validate(param_grid, klass, score_fn, x_train, y_train, x_valid,
-                   y_valid):
+                   y_valid, **kwargs):
     with ThreadPoolExecutor(max_workers=len(os.sched_getaffinity())) as pool:
         max_score = 0
         func = partial(grid_classifier, klass=klass, score_fn=score_fn,
                        x_train=x_train, y_train=y_train, x_valid=x_valid,
-                       y_valid=y_valid)
+                       y_valid=y_valid, **kwargs)
         for clf, score in pool.map(func, param_grid):
             if score > max_score:
                 max_score = score
@@ -161,11 +271,14 @@ def print_results(df: pd.DataFrame):
     metrics = df.axes[1].get_level_values('metric').unique()
     labels = df.axes[1].get_level_values('class').unique()
     for gender in genders:
+        print()
         print("Metrics: mean +- std. dev. over folds")
         print("Across reps:")
-        print('                ' + ' '.join(['{:<12}'.format(c) for c in labels]))
+        print('                ' + ' '.join(
+            ['{:<12}'.format(c) for c in labels]))
         for metric in metrics:
-            print('{:<4s} ({}) {}'.format(metric, gender, ' '.join(['{:<4.2f} +- {:<4.2f}'.format(
+            print('{:<4s} ({}) {}'.format(metric, gender, ' '.join(
+                ['{:<4.2f} +- {:<4.2f}'.format(
                   df[(metric, gender, c)].mean().mean(),
                   df[(metric, gender, c)].std().mean()) for c in labels])))
         print()
@@ -178,84 +291,3 @@ def print_results(df: pd.DataFrame):
                 df[(metric, gender)].max().max()))
         print("")
         print()
-
-
-def test_one_vs_rest(classifier_fn,
-                     dataset: ArffDataset,
-                     gendered=False,
-                     reps=1,
-                     param_grid=None,
-                     splitter=KFold(10)) -> pd.DataFrame:
-    genders = ['all', 'f', 'm'] if gendered else ['all']
-    labels = sorted([x[:3] for x in dataset.classes])
-
-    rec = pd.DataFrame(
-        index=pd.RangeIndex(splitter.get_n_splits(dataset.x, dataset.labels[0], dataset.speaker_indices)),
-        columns=pd.MultiIndex.from_product(
-            [['prec', 'rec'], genders, labels, list(range(reps))],
-            names=['metric', 'gender', 'class', 'rep']))
-    for gender in genders:
-        groups = dataset.speaker_indices[dataset.gender_indices[gender]]
-        x = dataset.x[dataset.gender_indices[gender]]
-        for idx in range(dataset.n_classes):
-            y = dataset.labels[idx][dataset.gender_indices[gender]]
-            for rep in range(reps):
-                for fold, (train, test) in enumerate(splitter.split(x, y, groups)):
-                    x_train, y_train = x[train], y[train]
-                    x_test, y_test = x[test], y[test]
-
-                    if param_grid:
-                        classifier = cross_validate(param_grid, classifier_fn,
-                                                    recall_score, x_train,
-                                                    y_train, x_test, y_test)
-                    else:
-                        classifier = classifier_fn()
-
-                    y_pred = classifier.predict(x_test)
-                    rec[('prec', gender, labels[idx], rep)][fold] = precision_score(y_test, y_pred)
-                    rec[('rec', gender, labels[idx], rep)][fold] = recall_score(y_test, y_pred)
-    return rec
-
-
-def test_classifier(classifier_fn,
-                    dataset: ArffDataset,
-                    mode='all',
-                    gendered=False,
-                    reps=1,
-                    param_grid=None,
-                    splitter=KFold(10)) -> pd.DataFrame:
-    if mode == 'all':
-        labels = sorted([x[:3] for x in dataset.classes])
-    else:
-        labels = ['neg', 'pos']
-
-    genders = ['all', 'f', 'm'] if gendered else ['all']
-
-    df = pd.DataFrame(
-        index=pd.RangeIndex(splitter.get_n_splits(
-            dataset.x, dataset.labels[mode], dataset.speaker_indices)),
-        columns=pd.MultiIndex.from_product(
-            [METRICS, genders, labels, range(reps)],
-            names=['metric', 'gender', 'class', 'rep']))
-    for gender in genders:
-        groups = dataset.speaker_indices[dataset.gender_indices[gender]]
-        x = dataset.x[dataset.gender_indices[gender]]
-        y = dataset.labels[mode]
-        for rep in range(reps):
-            for fold, (train, test) in enumerate(splitter.split(x, y, groups)):
-                x_train, y_train = x[train], y[train]
-                x_test, y_test = x[test], y[test]
-
-                if param_grid:
-                    score_fn = partial(recall_score, average='macro')
-                    classifier = cross_validate(param_grid, classifier_fn,
-                                                score_fn, x_train, y_train,
-                                                x_test, y_test)
-                else:
-                    classifier = classifier_fn()
-
-                classifier.fit(x_train, y_train)
-                y_pred = classifier.predict(x_test)
-
-                record_metrics(df, fold, rep, y_test, y_pred, len(labels))
-    return df

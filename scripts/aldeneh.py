@@ -16,7 +16,6 @@ from sklearn.metrics import recall_score
 from sklearn.model_selection import LeaveOneGroupOut, ParameterGrid
 from sklearn.preprocessing import StandardScaler
 from tensorflow import keras
-from tensorflow.keras import layers
 
 from python.classification import (METRICS, PrecomputedSVC, cross_validate,
                                    print_results, record_metrics)
@@ -28,54 +27,60 @@ RESULTS_DIR = 'results/aldeneh2017'
 
 
 def aldeneh_dense_model(n_features, n_classes):
-    inputs = layers.Input(shape=(n_features,), name='input')
-    x = layers.Dense(1024, activation='relu', kernel_initializer='he_normal',
-                     name='dense_1')(inputs)
-    x = layers.Dense(1024, activation='relu', kernel_initializer='he_normal',
-                     name='dense_2')(x)
-    x = layers.Dense(n_classes, activation='softmax',
-                     kernel_initializer='he_normal',
-                     name='emotion_prediction')(x)
+    inputs = keras.layers.Input(shape=(n_features,), name='input')
+    x = keras.layers.Dense(1024, activation='relu',
+                           kernel_initializer='he_normal',
+                           name='dense_1')(inputs)
+    x = keras.layers.Dense(1024, activation='relu',
+                           kernel_initializer='he_normal', name='dense_2')(x)
+    x = keras.layers.Dense(n_classes, activation='softmax',
+                           kernel_initializer='he_normal',
+                           name='emotion_prediction')(x)
     return keras.Model(inputs=inputs, outputs=x, name='aldeneh_dense_model')
 
 
 def aldeneh_conv_model(n_features, n_classes, n_filters=128, kernel_size=8):
-    inputs = layers.Input(shape=(None, n_features), name='input')
-    x = layers.Conv1D(n_filters, kernel_size, activation='relu',
-                      kernel_initializer='he_normal', name='conv')(inputs)
-    x = layers.GlobalMaxPool1D(name='maxpool')(x)
-    x = layers.Dense(1024, activation='relu', kernel_initializer='he_normal',
-                     name='dense_1')(x)
-    x = layers.Dense(1024, activation='relu', kernel_initializer='he_normal',
-                     name='dense_2')(x)
-    x = layers.Dense(n_classes, activation='softmax',
-                     kernel_initializer='he_normal',
-                     name='emotion_prediction')(x)
+    inputs = keras.layers.Input(shape=(None, n_features), name='input')
+    x = keras.layers.Conv1D(n_filters, kernel_size, activation='relu',
+                            kernel_initializer='he_normal',
+                            name='conv')(inputs)
+    x = keras.layers.GlobalMaxPool1D(name='maxpool')(x)
+    x = keras.layers.Dense(1024, activation='relu',
+                           kernel_initializer='he_normal', name='dense_1')(x)
+    x = keras.layers.Dense(1024, activation='relu',
+                           kernel_initializer='he_normal', name='dense_2')(x)
+    x = keras.layers.Dense(n_classes, activation='softmax',
+                           kernel_initializer='he_normal',
+                           name='emotion_prediction')(x)
     return keras.Model(inputs=inputs, outputs=x, name='aldeneh_conv_model')
 
 
 def aldeneh_full_model(n_features, n_classes):
-    inputs = layers.Input(shape=(None, n_features), name='input')
-    x = layers.Conv1D(384, 8, activation='relu',
-                      kernel_initializer='he_normal', name='conv8')(inputs)
-    c1 = layers.GlobalMaxPool1D(name='maxpool_1')(x)
-    x = layers.Conv1D(384, 16, activation='relu',
-                      kernel_initializer='he_normal', name='conv16')(inputs)
-    c2 = layers.GlobalMaxPool1D(name='maxpool_2')(x)
-    x = layers.Conv1D(384, 32, activation='relu',
-                      kernel_initializer='he_normal', name='conv32')(inputs)
-    c3 = layers.GlobalMaxPool1D(name='maxpool_3')(x)
-    x = layers.Conv1D(384, 64, activation='relu',
-                      kernel_initializer='he_normal', name='conv64')(inputs)
-    c4 = layers.GlobalMaxPool1D(name='maxpool_4')(x)
-    x = layers.Concatenate(name='concatenate')([c1, c2, c3, c4])
-    x = layers.Dense(1024, activation='relu', kernel_initializer='he_normal',
-                     name='dense_1')(x)
-    x = layers.Dense(1024, activation='relu', kernel_initializer='he_normal',
-                     name='dense_2')(x)
-    x = layers.Dense(n_classes, activation='softmax',
-                     kernel_initializer='he_normal',
-                     name='emotion_prediction')(x)
+    inputs = keras.layers.Input(shape=(None, n_features), name='input')
+    x = keras.layers.Conv1D(384, 8, activation='relu',
+                            kernel_initializer='he_normal',
+                            name='conv8')(inputs)
+    c1 = keras.layers.GlobalMaxPool1D(name='maxpool_1')(x)
+    x = keras.layers.Conv1D(384, 16, activation='relu',
+                            kernel_initializer='he_normal',
+                            name='conv16')(inputs)
+    c2 = keras.layers.GlobalMaxPool1D(name='maxpool_2')(x)
+    x = keras.layers.Conv1D(384, 32, activation='relu',
+                            kernel_initializer='he_normal',
+                            name='conv32')(inputs)
+    c3 = keras.layers.GlobalMaxPool1D(name='maxpool_3')(x)
+    x = keras.layers.Conv1D(384, 64, activation='relu',
+                            kernel_initializer='he_normal',
+                            name='conv64')(inputs)
+    c4 = keras.layers.GlobalMaxPool1D(name='maxpool_4')(x)
+    x = keras.layers.Concatenate(name='concatenate')([c1, c2, c3, c4])
+    x = keras.layers.Dense(1024, activation='relu',
+                           kernel_initializer='he_normal', name='dense_1')(x)
+    x = keras.layers.Dense(1024, activation='relu',
+                           kernel_initializer='he_normal', name='dense_2')(x)
+    x = keras.layers.Dense(n_classes, activation='softmax',
+                           kernel_initializer='he_normal',
+                           name='emotion_prediction')(x)
     return keras.Model(inputs=inputs, outputs=x, name='aldeneh_conv_model')
 
 
@@ -102,7 +107,8 @@ def test_svm_models():
     score_fn = partial(recall_score, average='macro')
 
     for corpus in ['iemocap', 'msp-improv']:
-        for config in ['IS09_emotion', 'IS13_IS09_func', 'GeMAPSv01a', 'eGeMAPSv01a']:
+        for config in ['IS09_emotion', 'IS13_IS09_func', 'GeMAPSv01a',
+                       'eGeMAPSv01a']:
             print(config)
             dataset = UtteranceDataset(
                 '{}/output/{}.arff'.format(corpus, config),
