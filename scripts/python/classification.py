@@ -6,7 +6,7 @@ from typing import Callable
 import numpy as np
 import pandas as pd
 from sklearn.metrics import precision_score, recall_score
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, BaseCrossValidator
 from sklearn.svm import SVC
 from tensorflow import keras
 
@@ -66,16 +66,25 @@ class PrecomputedSVC:
         K = self.kernel_func(x_train, x_train)
         return self.clf.fit(K, y_train, sample_weight=sample_weight, **kwargs)
 
-    def predict(self, x_test, y_test, **kwargs):
+    def predict(self, x_test, **kwargs):
         K = self.kernel_func(x_test, self.x_train)
         return self.clf.predict(K)
 
 
-class Classifier():
+class Classifier:
+    """Base class for classifiers used in test_model().
+
+    Parameters:
+    -----------
+    model_fn: Callable
+        A callable that returns a new proper classifier that can be trained
+    """
+
     def __init__(self, model_fn: Callable):
         self.model_fn = model_fn
 
     def fit(self, x_train, y_train, x_valid, y_valid, **kwargs):
+        """Fits this model to the training data."""
         return NotImplementedError()
 
     def predict(self, x_test, y_test, **kwargs):
@@ -83,11 +92,28 @@ class Classifier():
 
 
 class SKLearnClassifier(Classifier):
+    """Class wrapper for a scikit-learn classifier instance."""
+
     def fit(self, x_train, y_train, x_valid, y_valid, param_grid=None,
-            **kwargs):
+            cv_score_fn=None, **kwargs):
+        """
+        Parameters:
+        -----------
+        x_train, y_train: numpy.ndarray
+            Training data.
+        x_test, y_test: numpy.ndarray
+            Testing data.
+        param_grid: dict or None, optional
+            Parameter grid for optimising hyperparameters.
+        cv_score_fn: Callable, optional
+            The score to optimize for parameter search. Only required if
+            param_grid is not None.
+        kwargs: dicts
+            Parameters passed to the fit() method of the classifier.
+        """
+
         if param_grid:
-            score_fn = partial(recall_score, average='macro')
-            self.clf = cross_validate(param_grid, self.model_fn, score_fn,
+            self.clf = cross_validate(param_grid, self.model_fn, cv_score_fn,
                                       x_train, y_train, x_valid, y_valid,
                                       **kwargs)
         else:
@@ -95,17 +121,49 @@ class SKLearnClassifier(Classifier):
             self.clf.fit(x_train, y_train, **kwargs)
 
     def predict(self, x_test, y_test, **kwargs):
-        return self.clf.predict(x_test)
+        return self.clf.predict(x_test), y_test
 
 
 class TFClassifier(Classifier):
+    """Class wrapper for a TensorFlow Keras classifier model."""
+
     def fit(self, x_train, y_train, x_valid, y_valid, n_epochs=50,
             class_weight=None, data_fn=None, callbacks=[],
             loss: keras.losses.Loss
             = keras.losses.SparseCategoricalCrossentropy(),
             optimizer: keras.optimizers.Optimizer = keras.optimizers.Adam(),
-            verbose=0,
+            verbose: bool = False,
             **kwargs):
+        """
+        Parameters:
+        -----------
+        x_train, y_train: numpy.ndarray
+            Training data.
+        x_test, y_test: numpy.ndarray
+            Testing data.
+        n_epochs: int, optional
+            Maximum number of epochs to train for. Default is 50.
+        class_weight: dict or None, optional
+            A dictionary mapping class IDs to weights. Default is to ignore
+            class weights.
+        data_fn: Callable
+            Callable that takes x and y as input and returns a
+            tensorflow.keras.Sequence object or a tensorflow.data.Dataset
+            object.
+        callbacks: list, optional
+            A list of tensorflow.keras.callbacks.Callback objects to use during
+            training. Default is an empty list, so that the default Keras
+            callbacks are used.
+        loss: keras.losses.Loss, optional
+            The loss to use. Default is
+            tensorflow.keras.losses.SparseCategoricalCrossentropy.
+        optimizer: keras.optimizers.Optimizer, optional
+            The optimizer to use. Default is tensorflow.keras.optimizers.Adam.
+        verbose: bool, optional
+            Whether to output details per epoch. Default is False.
+        """
+
+        # Clear graph
         keras.backend.clear_session()
         # Reset optimiser and loss
         optimizer = optimizer.from_config(optimizer.get_config())
@@ -123,22 +181,50 @@ class TFClassifier(Classifier):
             class_weight=class_weight,
             validation_data=valid_data,
             callbacks=callbacks,
-            verbose=verbose,
+            verbose=int(verbose),
             **kwargs
         )
 
     def predict(self, x_test, y_test, data_fn=None, **kwargs):
         test_data = data_fn(x_test, y_test, shuffle=False)
-        return np.argmax(self.model.predict(test_data), axis=1)
+        y_true = np.concatenate([y for x, y in test_data])
+        return np.argmax(self.model.predict(test_data), axis=1), y_true
 
 
-def test_model(model,
+def test_model(model: Classifier,
                dataset: Dataset,
                mode='all',
                genders=['all'],
                reps=1,
-               splitter=KFold(10),
+               splitter: BaseCrossValidator = KFold(10),
                **kwargs):
+    """Tests a `Classifier` instance on the given dataset.
+
+    Parameters:
+    -----------
+    model: Classifier
+        The classifier to test.
+    dataset: Dataset
+        The dataset to test on.
+    mode: {'all', 'valence', 'arousal'}, optional
+        The kind of classification data to use from the dataset.
+    genders: list, optional
+        Which gendered data to perform the test on: 'm' for male, 'f' for
+        female, and 'all' for combined. Default is ['all'].
+    reps: int, optional
+        The number of repetitions, default is 1 for a single run.
+    splitter: sklearn.model_selection.BaseCrossValidator, optional
+        A splitter used for cross-validation. Default is KFold(10) for 10 fold
+        cross-validation.
+    kwargs: dict, optional
+        Other arguments passed on to model.fit() and model.predict().
+
+    Returns:
+    --------
+    df: pandas.DataFrame
+        A dataframe holding the results from all runs with this model.
+    """
+
     if mode == 'all':
         labels = sorted([x[:3] for x in dataset.classes])
     else:
@@ -178,8 +264,11 @@ def test_model(model,
 
                         model.fit(x_train, y_train, x_valid, y_valid,
                                   **kwargs)
-                        y_pred = model.predict(x_test2, y_test2, **kwargs)
-                        record_metrics(df, subfold, rep, y_test2, y_pred,
+                        # We need to return y_true just in case the order is
+                        # modified by batching.
+                        y_pred, y_true = model.predict(x_test2, y_test2,
+                                                       **kwargs)
+                        record_metrics(df, subfold, rep, y_true, y_pred,
                                        len(labels))
                 else:
                     print("Fold {}".format(fold))
@@ -241,7 +330,7 @@ def grid_classifier(params, klass, score_fn, x_train, y_train, x_valid,
 
 def cross_validate(param_grid, klass, score_fn, x_train, y_train, x_valid,
                    y_valid, **kwargs):
-    with ThreadPoolExecutor(max_workers=len(os.sched_getaffinity())) as pool:
+    with ThreadPoolExecutor(max_workers=len(os.sched_getaffinity(0))) as pool:
         max_score = 0
         func = partial(grid_classifier, klass=klass, score_fn=score_fn,
                        x_train=x_train, y_train=y_train, x_valid=x_valid,

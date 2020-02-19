@@ -563,21 +563,25 @@ class FrameDataset(ArffDataset):
             self.x[i] = np.pad(x, ((0, padding), (0, 0)))
 
     @staticmethod
-    def batch_arrays(arrays_x, y):
+    def batch_arrays(arrays_x, y, batch_size=32):
         sizes = [x.shape[0] for x in arrays_x]
-        lengths, indices, num = np.unique(
-            sizes, return_inverse=True, return_counts=True)
+        lengths, indices, num = np.unique(sizes, return_inverse=True,
+                                          return_counts=True)
 
-        x_list = np.array(len(lengths), dtype=object)
-        y_list = np.array(len(lengths), dtype=object)
-        for i in range(len(lengths)):
-            arr = np.zeros((num[i], lengths[i], arrays_x[0].shape[1]),
-                           dtype=np.float32)
-            idx = np.arange(len(arrays_x))[indices == i]
-            for k, j in enumerate(idx):
-                arr[k, :, :] = arrays_x[j]
-            x_list[i] = arr
-            y_list[i] = y[idx]
+        x_list = []
+        y_list = []
+        for l in range(len(lengths)):
+            idx = np.arange(len(arrays_x))[indices == l]
+            for b in range(0, len(idx), batch_size):
+                b_idx = idx[b:b + batch_size]
+                arr = np.zeros((len(b_idx), lengths[l], arrays_x[0].shape[1]),
+                               dtype=np.float32)
+                for k, j in enumerate(b_idx):
+                    arr[k, :, :] = arrays_x[j]
+                x_list.append(arr)
+                y_list.append(y[b_idx])
+        x_list = np.array(x_list, dtype=object)
+        y_list = np.array(y_list, dtype=object)
         return x_list, y_list
 
     def cross_validation_folds(self, mode='all', c=None, g=None,

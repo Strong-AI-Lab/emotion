@@ -31,14 +31,16 @@ class BalancedSparseCategoricalAccuracy(
 
 
 class BatchedFrameSequence(keras.utils.Sequence):
-    def __init__(self, x, y, prebatched=False):
+    def __init__(self, x, y, prebatched=False, batch_size=32, shuffle=True):
         self.x = x
         self.y = y
         if not prebatched:
-            self.x, self.y = FrameDataset.batch_arrays(self.x, self.y)
-        perm = np.random.permutation(len(self.x))
-        self.x = self.x[perm]
-        self.y = self.y[perm]
+            self.x, self.y = FrameDataset.batch_arrays(self.x, self.y,
+                                                       batch_size=batch_size)
+        if shuffle:
+            perm = np.random.permutation(len(self.x))
+            self.x = self.x[perm]
+            self.y = self.y[perm]
 
     def __len__(self):
         return len(self.x)
@@ -48,13 +50,14 @@ class BatchedFrameSequence(keras.utils.Sequence):
 
 
 class BatchedSequence(keras.utils.Sequence):
-    def __init__(self, x, y, batch_size=32):
+    def __init__(self, x, y, batch_size=32, shuffle=True):
         self.x = x
         self.y = y
         self.batch_size = batch_size
-        perm = np.random.permutation(len(self.x))
-        self.x = self.x[perm]
-        self.y = self.y[perm]
+        if shuffle:
+            perm = np.random.permutation(len(self.x))
+            self.x = self.x[perm]
+            self.y = self.y[perm]
 
     def __len__(self):
         return int(np.ceil(len(self.x) / self.batch_size))

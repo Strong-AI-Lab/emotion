@@ -6,16 +6,11 @@ Conference on Acoustics, Speech and Signal Processing (ICASSP), Shanghai,
 2016, pp. 5200–5204, doi: 10.1109/ICASSP.2016.7472669.
 """
 
-import os
-from glob import glob
-
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
 from tensorflow import keras
-
-from python.tensorflow import BalancedSparseCategoricalAccuracy
 
 
 class CCCLoss(keras.losses.Loss):
@@ -27,7 +22,8 @@ class CCCLoss(keras.losses.Loss):
 
         phi = var_x + var_y + (mu_x - mu_y)**2
         phi_inv = tf.math.reciprocal_no_nan(phi)
-        cov = tfp.stats.covariance(y_true, y_pred, sample_axis=-1, event_axis=None)
+        cov = tfp.stats.covariance(y_true, y_pred, sample_axis=-1,
+                                   event_axis=None)
         return 1.0 - (2.0 * cov * phi_inv)
 
 
@@ -50,7 +46,8 @@ class HalfWaveRectifier(keras.layers.Layer):
         super().build(input_shape)
 
     def call(self, inputs, **kwargs):
-        return tf.where(tf.less_equal(inputs, 0.0), 0.0, inputs, name='rectifier')
+        return tf.where(tf.less_equal(inputs, 0.0), 0.0, inputs,
+                        name='rectifier')
 
 
 class EvenSplit(keras.layers.Layer):
@@ -68,30 +65,41 @@ def get_model():
     inputs = keras.layers.Input((96000, 1), name='input')
 
     noise = keras.layers.GaussianNoise(0.1)(inputs)
-    conv1 = keras.layers.Conv1D(40, 80, padding='same', activation='linear', use_bias=False, name='conv_1')(noise)
+    conv1 = keras.layers.Conv1D(40, 80, padding='same', activation='linear',
+                                use_bias=False, name='conv_1')(noise)
     dropout1 = keras.layers.Dropout(0.5)(conv1)
     rectifier = HalfWaveRectifier(name='halfwave_rectifier')(dropout1)
     maxpool_time = keras.layers.MaxPool1D(2, name='maxpool_time')(rectifier)
 
-    conv2 = keras.layers.Conv1D(40, 4000, padding='same', activation='linear', use_bias=False, name='conv_2')(maxpool_time)
+    conv2 = keras.layers.Conv1D(40, 4000, padding='same', activation='linear',
+                                use_bias=False, name='conv_2')(maxpool_time)
     dropout2 = keras.layers.Dropout(0.5)(conv2)
-    maxpool_channels = keras.layers.MaxPool1D(20, data_format='channels_first', name='maxpool_channels')(dropout2)
+    maxpool_channels = keras.layers.MaxPool1D(
+        20, data_format='channels_first', name='maxpool_channels')(dropout2)
 
-    # split = EvenSplit()(maxpool_channels)
+    split = keras.layers.Reshape(
+        (150, 320, 2), name='split150')(maxpool_channels)
 
-    # blstm = keras.layers.Bidirectional(keras.layers.RNN(keras.layers.StackedRNNCells([
-    #     keras.layers.LSTMCell(128),
-    #     keras.layers.LSTMCell(128)
-    # ])), name='blstm')(maxpool_channels)
+    # blstm = keras.layers.Bidirectional(keras.layers.RNN(
+    #     keras.layers.StackedRNNCells([
+    #         keras.layers.LSTMCell(128),
+    #         keras.layers.LSTMCell(128)
+    #     ])),
+    #     name='blstm'
+    # )(maxpool_channels)
 
-    # recurrent = keras.layers.Bidirectional(keras.layers.LSTM(128, return_sequences=True, input_shape=), name='blstm_1')
-    # recurrent = keras.layers.Bidirectional(keras.layers.LSTM(128), name='blstm_2')(recurrent)
+    # recurrent = keras.layers.Bidirectional(keras.layers.LSTM(
+    #     128, return_sequences=True), name='blstm_1')
+    # recurrent = keras.layers.Bidirectional(keras.layers.LSTM(128),
+    #                                        name='blstm_2')(recurrent)
 
-    split = keras.layers.Reshape((150, 320, 2), name='split150')(maxpool_channels)
-    blstm = keras.layers.TimeDistributed(keras.layers.Bidirectional(keras.layers.RNN(keras.layers.StackedRNNCells([
-        keras.layers.LSTMCell(128),
-        keras.layers.LSTMCell(128)
-    ])), name='blstm'))(split)
+    blstm = keras.layers.TimeDistributed(keras.layers.Bidirectional(
+        keras.layers.RNN(keras.layers.StackedRNNCells([
+            keras.layers.LSTMCell(128),
+            keras.layers.LSTMCell(128)
+        ])),
+        name='blstm'
+    ))(split)
     x = keras.layers.Dense(1, activation='tanh')(blstm)
     x = keras.layers.Flatten()(x)
     return keras.Model(inputs=inputs, outputs=x)
@@ -110,7 +118,8 @@ def main():
         audio, sr = tf.audio.decode_wav(fid.read(), desired_channels=1)
     for i in range(160):
         arr.append(tf.constant(audio[i * 96000:(i + 1) * 96000]))
-        time_range = slice(pd.Timedelta(i * 6, 's'), pd.Timedelta((i + 1) * 6, 's'))
+        time_range = slice(pd.Timedelta(i * 6, 's'),
+                           pd.Timedelta((i + 1) * 6, 's'))
         annot.append(df['Activation'][time_range].astype(np.float32))
 
     model = get_model()
@@ -123,7 +132,8 @@ def main():
     )
     model.summary()
 
-    audio_data = tf.data.Dataset.from_tensor_slices((arr, annot)).shuffle(5000).batch(4)
+    audio_data = tf.data.Dataset.from_tensor_slices(
+        (arr, annot)).shuffle(5000).batch(4)
     model.fit(audio_data)
 
 
