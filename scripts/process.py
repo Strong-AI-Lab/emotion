@@ -1,42 +1,17 @@
 #!/usr/bin/python3
 
+"""Batch process a list of files in a dataset using the Opensmile Toolkit."""
+
 import argparse
 import os
 import subprocess
 import sys
 from concurrent.futures import ProcessPoolExecutor
-from threading import Lock
 
 import arff
-import tqdm
+from tqdm import tqdm
 
 from python.dataset import read_annotations, corpora
-
-
-class ProgressUpdater:
-    """Class used for displaying a progress bar in terminal using tqdm.
-
-    Args:
-        total: the maximum value of the progress bar
-        desc: a description to display in the progress bar
-    """
-    def __init__(self, total: int, desc: str, length=30, unit='files'):
-        self.pbar = tqdm.tqdm(total=total, desc=desc, unit=unit)
-        self.count = 0
-        self.total = total
-        self.length = length
-        self.format = '>{}s'.format(self.length)
-        self.lock = Lock()
-
-    def __call__(self, name):
-        with self.lock:
-            if self.count < self.total:
-                self.count += 1
-                self.pbar.update(1)
-                self.pbar.set_postfix_str(
-                    format(name[-self.length:], self.format))
-                if self.count == self.total:
-                    self.pbar.close()
 
 
 if sys.platform == 'win32':
@@ -46,38 +21,29 @@ else:
     CONFIG_DIR = '/usr/share/opensmile/config'
     OPENSMILE_BIN = '/usr/bin/SMILExtract'
 
-configs = [f for f in os.listdir(CONFIG_DIR)]
-configs += ['gemaps/' + f
-            for f in os.listdir(os.path.join(CONFIG_DIR, 'gemaps'))]
-configs += ['config/' + f for f in os.listdir('config')]
-configs = [c[:-5] for c in configs if c.endswith('.conf')]
-configs = '\n'.join(sorted(configs))
-
-DESCRIPTION = """Processes audio data using OpenSMILE.
-
-Available configs:
-""" + configs
-
 parser = argparse.ArgumentParser(
-    description=DESCRIPTION,
-    formatter_class=argparse.RawDescriptionHelpFormatter)
-parser.add_argument('corpus', help="Corpus to process")
-parser.add_argument('config', help="Config file to use")
+    description="Processes audio data using OpenSMILE.")
+required_args = parser.add_argument_group('Required args')
+required_args.add_argument('--corpus', help="Corpus to process",
+                           required=True)
+required_args.add_argument('--config', help="Config file to use",
+                           required=True)
+required_args.add_argument(
+    '--input_list', help="File containing list of filenames", required=True)
+
 
 parser.add_argument('--debug', help="For debugging", default=False,
                     action='store_true')
-parser.add_argument('-s', '--skip', help="Skip audio processing",
+parser.add_argument('--skip', help="Skip audio processing",
                     default=False, action='store_true')
-parser.add_argument('-i', '--individual', help="Individual output",
+parser.add_argument('--individual', help="Individual output",
                     default=False, action='store_true')
 
-parser.add_argument('-a', '--annot_file', help="Annotations file")
-parser.add_argument('-o', '--out_dir', help="Directory to write data")
-parser.add_argument('-p', '--prefix', help="Output file prefix")
-parser.add_argument('-t', '--type', help="Type of annotations",
+parser.add_argument('--annotations', help="Annotations file")
+parser.add_argument('--out_dir', help="Directory to write data")
+parser.add_argument('--prefix', help="Output file prefix")
+parser.add_argument('--type', help="Type of annotations",
                     default='classification')
-parser.add_argument('-w', '--wav_dir',
-                    help="Directory to search for WAV files")
 
 
 def read_arff(file: str):
@@ -88,17 +54,14 @@ def read_arff(file: str):
 def main():
     args = parser.parse_args()
 
-    if os.path.exists(args.config):
-        config_file = args.config
-    else:
-        config_file = args.config + '.conf'
-        if not os.path.exists(config_file):
-            config_file = os.path.join(CONFIG_DIR, config_file)
-            if not os.path.exists(config_file):
-                raise FileNotFoundError("Config file doesn't exist")
+    if not os.path.exists(args.config):
+        raise FileNotFoundError("Config file doesn't exist")
     config = os.path.splitext(os.path.basename(args.config))[0]
-
     output_prefix = args.prefix or config
+
+    with open(args.input_list) as fid:
+        input_list = [x.strip() for x in fid.readlines()]
+    names = [os.path.splitext(os.path.basename(f))[0] for f in input_list]
 
     allowed_types = ['regression', 'classification']
     if args.type not in allowed_types:
@@ -110,28 +73,22 @@ def main():
     tmp_dir = os.path.join(args.corpus, 'tmp')
 
     if not args.skip:
-        wav_dir = args.wav_dir or os.path.join(args.corpus, 'wav_corpus')
-        if not os.path.exists(wav_dir):
-            raise FileNotFoundError(
-                "Directory does not exist: {}".format(wav_dir))
         os.makedirs(tmp_dir, exist_ok=True)
 
         with ProcessPoolExecutor() as pool:
+            emotions = 'unknown'
+            if args.type == 'classification':
+                emotions = ','.join(corpora[args.corpus].emotion_map.values())
+            label = 'unknown'
+
             futures = {}
-            wav_files = [f for f in os.listdir(wav_dir)
-                         if f.endswith('.wav') or f.endswith('.WAV')]
-            emotions = ','.join(corpora[args.corpus].emotion_map.values())
-            for file in wav_files:
-                name = os.path.splitext(file)[0]
-                filepath = os.path.join(wav_dir, file)
+            for filename in input_list:
+                name = os.path.splitext(os.path.basename(filename))[0]
                 if args.type == 'classification':
                     emotion = corpora[args.corpus].get_emotion(name)
                     if emotion not in corpora[args.corpus].emotion_map:
                         continue
                     label = corpora[args.corpus].emotion_map[emotion]
-                else:
-                    emotions = 'unknown'
-                    label = 'unknown'
 
                 output_file = os.path.join(
                     tmp_dir, '{}_{}.arff'.format(output_prefix, name))
@@ -140,8 +97,8 @@ def main():
 
                 smile_args = [
                     OPENSMILE_BIN,
-                    '-C', config_file,
-                    '-I', filepath,
+                    '-C', args.config,
+                    '-I', filename,
                     '-O', output_file,
                     '-classes', '{{{}}}'.format(emotions),
                     '-class', label,
@@ -157,50 +114,40 @@ def main():
                     stdout=stdout,
                     stderr=stdout)
 
-            pbar = ProgressUpdater(len(wav_files), "Processing audio")
+            pbar = tqdm(futures.items(), desc="Processing audio", unit='files')
             try:
-                for name, future in futures.items():
+                for name, future in pbar:
                     future.result()
-                    pbar(name)
             except KeyboardInterrupt:
                 print("Cancelling...")
                 for future in futures.values():
                     future.cancel()
+                pbar.close()
                 sys.exit(1)
 
     with ProcessPoolExecutor() as pool:
         futures = {}
-        tmp_files = [file for file in os.listdir(tmp_dir)
-                     if file.startswith(output_prefix)]
-        for file in tmp_files:
-            name = os.path.splitext(file)[0]
-            filepath = os.path.join(tmp_dir, file)
-            futures[name] = pool.submit(read_arff, filepath)
+        tmp_files = [
+            os.path.join(tmp_dir, '{}_{}.arff'.format(output_prefix, name))
+            for name in names
+        ]
+        tmp_files.sort()
+        for filename in tmp_files:
+            name = os.path.splitext(os.path.basename(filename))[0]
+            futures[name] = pool.submit(read_arff, filename)
 
-        pbar = ProgressUpdater(len(tmp_files), "Processing data")
+        pbar = tqdm(futures.items(), desc="Processing data", unit='files')
         data_list = []
-        try:
-            for name, future in sorted(futures.items()):
-                data_list.append(future.result())
-                pbar(name)
-        except KeyboardInterrupt:
-            print("Cancelling...")
-            for future in futures.values():
-                future.cancel()
-            for future in futures.values():
-                if future.running():
-                    future.result()
-            sys.exit(1)
+        for name, future in pbar:
+            data_list.append(future.result())
 
     output_dir = args.out_dir or os.path.join(args.corpus, 'output')
     os.makedirs(output_dir, exist_ok=True)
 
-    annot_file = args.annot_file or os.path.join(args.corpus, 'annot.txt')
-
     full_data = data_list[0]
     full_data['relation'] = args.corpus
     if args.type == 'regression':
-        annotations = read_annotations(annot_file)
+        annotations = read_annotations(args.annotations)
         del full_data['attributes'][-1]
         keys = sorted(next(iter(annotations.values())).keys())
         full_data['attributes'].extend(
