@@ -145,8 +145,8 @@ def test_dense_model():
             corpus), normaliser=StandardScaler(), normalise_method='speaker')
         print()
 
-        class_weight = dataset.n_instances / \
-            (dataset.n_classes * np.bincount(dataset.y.astype(np.int)))
+        class_weight = ((dataset.n_instances / dataset.n_classes)
+                        / np.bincount(dataset.y.astype(np.int)))
         class_weight = dict(zip(range(dataset.n_classes), class_weight))
 
         df = test_model(
@@ -181,8 +181,8 @@ def test_conv_models():
         dataset.pad_arrays(32)
         print()
 
-        class_weight = dataset.n_instances / \
-            (dataset.n_classes * np.bincount(dataset.y.astype(np.int)))
+        class_weight = ((dataset.n_instances / dataset.n_classes)
+                        / np.bincount(dataset.y.astype(np.int)))
         class_weight = dict(zip(range(dataset.n_classes), class_weight))
 
         for n_filters, kernel_size in [(384, 8), (288, 16), (208, 32),
@@ -223,8 +223,8 @@ def test_full_model():
         dataset.pad_arrays(32)
         print()
 
-        class_weight = dataset.n_instances / \
-            (dataset.n_classes * np.bincount(dataset.y.astype(np.int)))
+        class_weight = ((dataset.n_instances / dataset.n_classes)
+                        / np.bincount(dataset.y.astype(np.int)))
         class_weight = dict(zip(range(dataset.n_classes), class_weight))
 
         df = test_model(

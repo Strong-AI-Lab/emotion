@@ -309,7 +309,7 @@ def read_annotations(annot_file):
 
 class Dataset():
     def __init__(self, corpus, normaliser=StandardScaler(),
-                 normalise_method='speaker'):
+                 normalise_method='speaker', binarise=False):
         if corpus not in corpora:
             raise NotImplementedError(
                 "Corpus {} hasn't been implemented yet.".format(corpus))
@@ -326,6 +326,7 @@ class Dataset():
         self.normalise_method = normalise_method
 
         self.speakers = corpora[self.corpus].speakers
+        self.n_speakers = len(self.speakers)
         self.sp_get = corpora[self.corpus].get_speaker
         self.speaker_indices = np.array(
             [self.speakers.index(self.sp_get(n)) for n in self.names],
@@ -360,25 +361,31 @@ class Dataset():
             self.gender_indices['f'] = self.f_indices
 
         self.create_data()
-        self.binary_y = label_binarize(self.y, np.arange(self.n_classes))
-        self.labels = {
-            'all': self.y,
-            **{c: self.binary_y[:, c] for c in range(self.n_classes)}
-        }
+        self.labels = {'all': self.y}
+        if binarise:
+            self.binary_y = label_binarize(self.y, np.arange(self.n_classes))
+            self.labels.update(
+                {c: self.binary_y[:, c] for c in range(self.n_classes)})
 
-        if (corpora[corpus].arousal_map is not None
-                and corpora[corpus].valence_map is not None):
-            print("Binarising arousal and valence")
-            class_arousal = corpora[corpus].arousal_map
-            arousal_map = np.array([1 if c in class_arousal['positive'] else 0
-                                    for c in self.classes])
-            class_valence = corpora[corpus].valence_map
-            valence_map = np.array([1 if c in class_valence['positive'] else 0
-                                    for c in self.classes])
-            self.arousal_y = np.array(arousal_map[self.y], dtype=np.float32)
-            self.valence_y = np.array(valence_map[self.y], dtype=np.float32)
-            self.labels['arousal'] = self.arousal_y
-            self.labels['valence'] = self.valence_y
+            if (corpora[corpus].arousal_map is not None
+                    and corpora[corpus].valence_map is not None):
+                print("Binarising arousal and valence")
+                class_arousal = corpora[corpus].arousal_map
+                arousal_map = np.array([
+                    1 if c in class_arousal['positive'] else 0
+                    for c in self.classes
+                ])
+                class_valence = corpora[corpus].valence_map
+                valence_map = np.array([
+                    1 if c in class_valence['positive'] else 0
+                    for c in self.classes
+                ])
+                self.arousal_y = np.array(arousal_map[self.y.astype(int)],
+                                          dtype=np.float32)
+                self.valence_y = np.array(valence_map[self.y.astype(int)],
+                                          dtype=np.float32)
+                self.labels['arousal'] = self.arousal_y
+                self.labels['valence'] = self.valence_y
 
         print('Corpus: {}'.format(corpus))
         print('Classes: {} {}'.format(self.n_classes, tuple(self.classes)))

@@ -6,7 +6,7 @@ from typing import Callable
 import numpy as np
 import pandas as pd
 from sklearn.metrics import precision_score, recall_score
-from sklearn.model_selection import KFold, BaseCrossValidator
+from sklearn.model_selection import KFold, BaseCrossValidator, LeaveOneGroupOut
 from sklearn.svm import SVC
 from tensorflow import keras
 
@@ -29,29 +29,31 @@ def linear_kernel(x, y):
     return np.matmul(x, y.T)
 
 
-def poly_kernel(x, y, d=2, r=0):
+def poly_kernel(x, y, d=2, r=0, gamma='auto'):
     M = linear_kernel(x, y)
-    gamma = 1 / x.shape[1]
+    if gamma == 'auto':
+        gamma = 1 / x.shape[1]
     return (gamma * M + r)**d
 
 
-def rbf_kernel(x, y, gamma='scale'):
+def rbf_kernel(x, y, gamma='auto'):
     M = linear_kernel(x, y)
     xx = np.sum(x**2, axis=1)
     yy = np.sum(y**2, axis=1)
     D = xx[:, np.newaxis] + yy[np.newaxis, :]
-    if gamma == 'scale':
+    if gamma == 'auto':
         gamma = 1 / x.shape[1]
     return np.exp(-gamma * (D - 2 * M))
 
 
 class PrecomputedSVC:
-    def __init__(self, C=1, kernel='rbf', degree=3, gamma='scale', coef0=0,
+    def __init__(self, C=1, kernel='rbf', degree=3, gamma='auto', coef0=0,
                  **clf_kwargs):
         if kernel == 'linear':
             self.kernel_func = linear_kernel
         elif kernel == 'poly':
-            self.kernel_func = partial(poly_kernel, d=degree, r=coef0)
+            self.kernel_func = partial(poly_kernel, d=degree, r=coef0,
+                                       gamma=gamma)
         elif kernel == 'rbf':
             self.kernel_func = partial(rbf_kernel, gamma=gamma)
         else:
@@ -60,7 +62,7 @@ class PrecomputedSVC:
                 .format(kernel))
         self.clf = SVC(C=C, kernel='precomputed', **clf_kwargs)
 
-    def fit(self, x_train, y_train, x_valid, y_valid, sample_weight=None,
+    def fit(self, x_train, y_train, sample_weight=None,
             **kwargs):
         self.x_train = x_train
         K = self.kernel_func(x_train, x_train)
@@ -127,7 +129,7 @@ class SKLearnClassifier(Classifier):
 class TFClassifier(Classifier):
     """Class wrapper for a TensorFlow Keras classifier model."""
 
-    def fit(self, x_train, y_train, x_valid, y_valid, n_epochs=50,
+    def fit(self, x_train, y_train, x_valid, y_valid, fold=0, n_epochs=50,
             class_weight=None, data_fn=None, callbacks=[],
             loss: keras.losses.Loss
             = keras.losses.SparseCategoricalCrossentropy(),
@@ -141,8 +143,10 @@ class TFClassifier(Classifier):
             Training data.
         x_test, y_test: numpy.ndarray
             Testing data.
-        n_epochs: int, optional
-            Maximum number of epochs to train for. Default is 50.
+        fold: int, optional, default = 0
+            The current fold, for logging purposes.
+        n_epochs: int, optional, default = 50
+            Maximum number of epochs to train for.
         class_weight: dict or None, optional
             A dictionary mapping class IDs to weights. Default is to ignore
             class weights.
@@ -150,7 +154,7 @@ class TFClassifier(Classifier):
             Callable that takes x and y as input and returns a
             tensorflow.keras.Sequence object or a tensorflow.data.Dataset
             object.
-        callbacks: list, optional
+        callbacks: list, optional, default = []
             A list of tensorflow.keras.callbacks.Callback objects to use during
             training. Default is an empty list, so that the default Keras
             callbacks are used.
@@ -159,8 +163,8 @@ class TFClassifier(Classifier):
             tensorflow.keras.losses.SparseCategoricalCrossentropy.
         optimizer: keras.optimizers.Optimizer, optional
             The optimizer to use. Default is tensorflow.keras.optimizers.Adam.
-        verbose: bool, optional
-            Whether to output details per epoch. Default is False.
+        verbose: bool, optional, default = False
+            Whether to output details per epoch.
         """
 
         # Clear graph
@@ -168,6 +172,9 @@ class TFClassifier(Classifier):
         # Reset optimiser and loss
         optimizer = optimizer.from_config(optimizer.get_config())
         loss = loss.from_config(loss.get_config())
+        for cb in callbacks:
+            if isinstance(cb, keras.callbacks.TensorBoard):
+                cb.log_dir = os.path.join(cb.log_dir, str(fold))
 
         self.model = self.model_fn()
         self.model.compile(loss=loss, optimizer=optimizer,
@@ -251,7 +258,7 @@ def test_model(model: Classifier,
 
                 n_splits = splitter.get_n_splits(x_test, y_test,
                                                  speaker_indices[test])
-                if n_splits > 1:
+                if n_splits > 1 and isinstance(splitter, LeaveOneGroupOut):
                     for i, (valid, test) in enumerate(splitter.split(
                             x_test, y_test, speaker_indices[test])):
                         subfold = n_splits * fold + i
@@ -263,7 +270,7 @@ def test_model(model: Classifier,
                         y_test2 = y_test[test]
 
                         model.fit(x_train, y_train, x_valid, y_valid,
-                                  **kwargs)
+                                  fold=fold, **kwargs)
                         # We need to return y_true just in case the order is
                         # modified by batching.
                         y_pred, y_true = model.predict(x_test2, y_test2,
@@ -272,9 +279,10 @@ def test_model(model: Classifier,
                                        len(labels))
                 else:
                     print("Fold {}".format(fold))
-                    model.fit(x_train, y_train, x_valid, y_valid, **kwargs)
-                    y_pred = model.predict(x_test, y_test, **kwargs)
-                    record_metrics(df, fold, rep, y_test, y_pred, len(labels))
+                    model.fit(x_train, y_train, x_test, y_test, fold=fold,
+                              **kwargs)
+                    y_pred, y_true = model.predict(x_test, y_test, **kwargs)
+                    record_metrics(df, fold, rep, y_true, y_pred, len(labels))
     return df
 
 
@@ -322,7 +330,7 @@ def test_one_vs_rest(model_fn,
 def grid_classifier(params, klass, score_fn, x_train, y_train, x_valid,
                     y_valid, **kwargs):
     classifier = klass(**params)
-    classifier.fit(x_train, y_train, x_valid, y_valid, **kwargs)
+    classifier.fit(x_train, y_train, **kwargs)
     y_pred = classifier.predict(x_valid)
     score = score_fn(y_valid, y_pred)
     return classifier, score

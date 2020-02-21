@@ -60,7 +60,7 @@ def main():
             )
         ], class_weight=class_weight,
         loss=keras.losses.SparseCategoricalCrossentropy(),
-        optimizer=keras.optimizers.Adam(learning_rate=0.001), verbose=0
+        optimizer=keras.optimizers.Adam(learning_rate=0.001), verbose=False
     )
     print_results(df)
 
