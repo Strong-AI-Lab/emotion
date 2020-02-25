@@ -9,6 +9,7 @@ from sklearn.metrics import precision_score, recall_score
 from sklearn.model_selection import KFold, BaseCrossValidator, LeaveOneGroupOut
 from sklearn.svm import SVC
 from tensorflow import keras
+from tqdm.keras import TqdmCallback
 
 from .dataset import Dataset
 from .tensorflow import tf_classification_metrics
@@ -97,7 +98,7 @@ class SKLearnClassifier(Classifier):
     """Class wrapper for a scikit-learn classifier instance."""
 
     def fit(self, x_train, y_train, x_valid, y_valid, param_grid=None,
-            cv_score_fn=None, **kwargs):
+            cv_score_fn=None, fold=None, **kwargs):
         """
         Parameters:
         -----------
@@ -112,6 +113,11 @@ class SKLearnClassifier(Classifier):
             param_grid is not None.
         kwargs: dicts
             Parameters passed to the fit() method of the classifier.
+
+        Other Parameters:
+        -----------------
+        fold: None
+            Unused.
         """
 
         if param_grid:
@@ -174,7 +180,9 @@ class TFClassifier(Classifier):
         loss = loss.from_config(loss.get_config())
         for cb in callbacks:
             if isinstance(cb, keras.callbacks.TensorBoard):
-                cb.log_dir = os.path.join(cb.log_dir, str(fold))
+                cb.log_dir = os.path.join(cb.log_dir, os.path.pardir,
+                                          str(fold))
+        callbacks = callbacks + [TqdmCallback(epochs=n_epochs, verbose=0)]
 
         self.model = self.model_fn()
         self.model.compile(loss=loss, optimizer=optimizer,
