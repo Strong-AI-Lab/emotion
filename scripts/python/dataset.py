@@ -1,9 +1,9 @@
 import os
 import re
 from collections import Counter, namedtuple
-from glob import glob
 
 import arff
+import netCDF4
 import numpy as np
 import soundfile
 from sklearn.model_selection import KFold
@@ -131,7 +131,7 @@ corpora = {
         },
         None,
         None,
-        ['s' + str(i) for i in range(1, 45)],
+        ['s' + str(i) for i in range(1, 45) if i != 6],
         lambda n: n[-4:-2],
         lambda n: n[:n.find('_')]
     ),
@@ -446,44 +446,82 @@ class Dataset():
                     yield (x_train, y[train]), (x_test, y[test])
 
 
-class RawDataset(Dataset):
-    def __init__(self, directory, corpus, normaliser=StandardScaler(),
-                 normalise_method='speaker'):
-        self.directory = directory
+class NetCDFDataset(Dataset):
+    def __init__(self, file, corpus, normaliser=StandardScaler(),
+                 normalise_method='speaker', binarise=False):
+        self.dataset = dataset = netCDF4.Dataset(file)
+        self.names = [os.path.splitext(f)[0]
+                      for f in dataset.variables['filename']]
+        self.features = ['representation_{}'.format(i + 1)
+                         for i in range(dataset.dimensions['generated'].size)]
 
+        super().__init__(corpus, normaliser=normaliser,
+                         normalise_method=normalise_method, binarise=binarise)
+
+        print('{} instances x {} features'.format(self.n_instances,
+                                                  self.n_features))
+        speakers, counts = np.unique([self.sp_get(n) for n in self.names],
+                                     return_counts=True)
+        print("Speaker counts:")
+        print(' '.join([format(s, '<5s') for s in speakers]))
+        print(' '.join([format(x, '<5d') for x in counts]))
+
+        self.dataset.close()
+        del self.dataset
+
+    def create_data(self):
+        self.x = np.array(self.dataset.variables['features'])
+        self.y = np.empty(self.n_instances, dtype=np.float32)
+        for i, name in enumerate(self.names):
+            emotion = corpora[self.corpus].get_emotion(name)
+            emotion = corpora[self.corpus].emotion_map[emotion]
+            self.y[i] = self.class_to_int[emotion]
+        sort = np.argsort(self.names)
+        self.x = self.x[sort]
+        self.y = self.y[sort]
+        self.names = [self.names[i] for i in sort]
+
+
+class RawDataset(Dataset):
+    def __init__(self, file, corpus, normaliser=StandardScaler(),
+                 normalise_method='speaker', binarise=False):
         self.features = ['pcm']
 
         self.names = []
-        for filename in glob(os.path.join(directory, '*.wav')):
-            name = os.path.basename(filename)
-            name = os.path.splitext(name)[0]
-            self.names.append(name)
+        self.filenames = []
+        with open(file) as fid:
+            for line in fid:
+                filename = line.strip()
+                self.filenames.append(filename)
+                name = os.path.basename(filename)
+                name = os.path.splitext(name)[0]
+                self.names.append(name)
 
         super().__init__(corpus, normaliser=normaliser,
-                         normalise_method=normalise_method)
+                         normalise_method=normalise_method, binarise=binarise)
 
-        del self.directory
+        print("{} audio files".format(self.n_instances))
+
+        del self.filenames
 
     def create_data(self):
         self.x = np.empty(self.n_instances, dtype=object)
         self.y = np.empty(self.n_instances, dtype=np.float32)
-        for i, filename in enumerate(
-                glob(os.path.join(self.directory, '*.wav'))):
-            name = os.path.basename(filename)
-            name = os.path.splitext(name)[0]
-
-            emotion = corpora[self.corpus].get_emotion(name)
-            emotion = corpora[self.corpus].emotion_map[emotion]
-            self.y[i] = self.class_to_int[emotion]
-
+        for i, filename in enumerate(self.filenames):
             audio, sr = soundfile.read(filename, dtype=np.float32)
             audio = np.expand_dims(audio, axis=1)
             self.x[i] = audio
 
+            name = os.path.basename(filename)
+            name = os.path.splitext(name)[0]
+            emotion = corpora[self.corpus].get_emotion(name)
+            emotion = corpora[self.corpus].emotion_map[emotion]
+            self.y[i] = self.class_to_int[emotion]
+
 
 class ArffDataset(Dataset):
     def __init__(self, path, normaliser=StandardScaler(),
-                 normalise_method='speaker'):
+                 normalise_method='speaker', binarise=False):
         if path.endswith('.bin'):
             with open(path, 'rb') as fid:
                 data = decode_arff(fid)
@@ -497,7 +535,7 @@ class ArffDataset(Dataset):
 
         corpus = data['relation']
         super().__init__(corpus, normaliser=normaliser,
-                         normalise_method=normalise_method)
+                         normalise_method=normalise_method, binarise=binarise)
 
         del self.raw_data
 
@@ -522,14 +560,14 @@ class ArffDataset(Dataset):
 
 class UtteranceDataset(ArffDataset):
     def __init__(self, path, normaliser=StandardScaler(),
-                 normalise_method='speaker'):
+                 normalise_method='speaker', binarise=False):
         super().__init__(path, normaliser=StandardScaler(),
-                         normalise_method='speaker')
+                         normalise_method='speaker', binarise=binarise)
 
-        print('{} instances x {} features'.format(
-            self.n_instances, self.n_features))
-        speakers, counts = np.unique([self.sp_get(n)
-                                      for n in self.names], return_counts=True)
+        print('{} instances x {} features'.format(self.n_instances,
+                                                  self.n_features))
+        speakers, counts = np.unique([self.sp_get(n) for n in self.names],
+                                     return_counts=True)
         print("Speaker counts:")
         print(' '.join([format(s, '<5s') for s in speakers]))
         print(' '.join([format(x, '<5d') for x in counts]))
@@ -537,9 +575,9 @@ class UtteranceDataset(ArffDataset):
 
 class FrameDataset(ArffDataset):
     def __init__(self, path, normaliser=StandardScaler(),
-                 normalise_method='speaker'):
+                 normalise_method='speaker', binarise=False):
         super().__init__(path, normaliser=normaliser,
-                         normalise_method=normalise_method)
+                         normalise_method=normalise_method, binarise=binarise)
 
         names = Counter(self.names)  # Ordered by insertion in Python 3.7+
         self.names = list(names.keys())
@@ -555,10 +593,10 @@ class FrameDataset(ArffDataset):
                            for i in range(self.n_instances)], dtype=object)
         self.y = self.y[idx[:-1]]
 
-        self.labels = {
-            'all': self.y,
-            **{c: self.binary_y[:, c] for c in range(self.n_classes)}
-        }
+        self.labels = {'all': self.y}
+        if binarise:
+            self.labels.update({c: self.binary_y[:, c]
+                                for c in range(self.n_classes)})
 
         print("{} sequences of vectors of size {}".format(self.n_instances,
                                                           self.n_features))

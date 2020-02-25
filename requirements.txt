@@ -9,6 +9,8 @@ scipy
 liac-arff
 tqdm
 jupyterlab
+ipywidgets
 librosa
 PyWave
 autopep8
+netCDF4
