@@ -85,7 +85,7 @@ def get_full_model(n_features, n_classes):
     x = keras.layers.Dense(n_classes, activation='softmax',
                            kernel_initializer='he_normal',
                            name='emotion_prediction')(x)
-    return keras.Model(inputs=inputs, outputs=x, name='aldeneh_conv_model')
+    return keras.Model(inputs=inputs, outputs=x, name='aldeneh_full_model')
 
 
 def optimizer_fn():
@@ -99,6 +99,25 @@ def callbacks_fn():
         keras.callbacks.ReduceLROnPlateau(monitor='val_uar', factor=1 / 1.4,
                                           patience=0, mode='max')
     ]
+
+
+def get_tf_dataset(x: np.ndarray, y: np.ndarray, shuffle=True, batch_size=50):
+    def ragged_to_dense(x, y):
+        return x.to_tensor(), y
+
+    # Sort according to length
+    perm = np.argsort([len(a) for a in x])
+    x = x[perm]
+    y = y[perm]
+
+    ragged = tf.RaggedTensor.from_row_lengths(np.concatenate(list(x)),
+                                              [len(a) for a in x])
+    data = tf.data.Dataset.from_tensor_slices((ragged, y))
+    # Group similar lengths in batches, then shuffle batches
+    data = data.batch(batch_size)
+    if shuffle:
+        data = data.shuffle(500)
+    return data.map(ragged_to_dense)
 
 
 def test_svm_models():
@@ -157,7 +176,7 @@ def test_dense_model():
             splitter=LeaveOneGroupOut(),
             n_epochs=50,
             class_weight=class_weight,
-            data_fn=partial(BatchedSequence, batch_size=50),
+            data_fn=get_tf_dataset,
             callbacks=callbacks_fn(),
             optimizer=optimizer_fn(),
             verbose=False
@@ -235,7 +254,7 @@ def test_full_model():
             splitter=LeaveOneGroupOut(),
             n_epochs=50,
             class_weight=class_weight,
-            data_fn=BatchedFrameSequence,
+            data_fn=get_tf_dataset,
             callbacks=callbacks_fn(),
             optimizer=optimizer_fn(),
             verbose=False
