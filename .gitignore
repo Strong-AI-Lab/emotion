@@ -18,6 +18,7 @@
 !/semaine/extract_turns.py
 /shemo/*
 /smartkom/*
+!/smartkom/preprocess.py
 /tess/*
 
 /audeep
