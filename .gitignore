@@ -18,6 +18,7 @@
 /smartkom/*
 /tess/*
 
+/audeep
 /results
 
 __pycache__

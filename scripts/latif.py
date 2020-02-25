@@ -62,9 +62,7 @@ def get_tf_dataset(x: np.ndarray, y: np.ndarray, shuffle=True, batch_size=16):
         return x.to_tensor(), y
 
     # Sort according to length
-    lengths = [len(a) for a in x]
-    perm = np.argsort(lengths)
-
+    perm = np.argsort([len(a) for a in x])
     x = x[perm]
     y = y[perm]
 
@@ -99,7 +97,9 @@ def main():
 
         df = test_model(
             TFClassifier(partial(get_model, dataset.n_classes)),
-            dataset, splitter=LeaveOneGroupOut(), data_fn=get_tf_dataset,
+            dataset,
+            splitter=LeaveOneGroupOut(),
+            data_fn=get_tf_dataset,
             callbacks=[
                 keras.callbacks.EarlyStopping(
                     monitor='val_uar', patience=20, restore_best_weights=True,
@@ -108,7 +108,8 @@ def main():
                 keras.callbacks.ReduceLROnPlateau(
                     monitor='val_uar', factor=0.5, patience=5, mode='max')
             ],
-            optimizer=keras.optimizers.RMSprop(learning_rate=0.0001), verbose=1
+            optimizer=keras.optimizers.RMSprop(learning_rate=0.0001),
+            verbose=True
         )
         print_results(df)
         df.to_csv(os.path.join(RESULTS_DIR, corpus, 'logmel_func.csv'))
