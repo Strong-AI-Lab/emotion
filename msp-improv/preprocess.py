@@ -1,22 +1,22 @@
 #!/usr/bin/python3
 
 import argparse
-import os
 import re
-import shutil
+from pathlib import Path
 
+DIGIT = r'\d+\.\d+|NaN'
 REGEX = (r'^UTD-IMPROV-([A-Z0-9-]+)\.avi; ([A-Z]); '
-         r'A:(\d+\.\d+); V:(\d+\.\d+); D:(\d+\.\d+) ; N:(\d+\.\d+);$')
+         r'A:({0}); V:({0}); D:({0}) ; N:({0});$'.format(DIGIT))
 
 parser = argparse.ArgumentParser()
-parser.add_argument('dir', help="MSP-IMPROV annotations file",
+parser.add_argument('annot', help="MSP-IMPROV annotations file",
                     default='Evalution.txt', type=str)
-parser.add_argument('--annotations', help="File to write annotations to",
-                    default='annot.txt', type=str)
-parser.add_argument('--wav_in', help="Directory storing WAV files",
-                    default='all', type=str)
-parser.add_argument('--wav_out', help="Directory to output renamed files",
-                    default='wav_corpus', type=str)
+parser.add_argument('--regression', type=str,
+                    help="File to write regression annotations to")
+parser.add_argument('--classification', type=str,
+                    help="File to write classification annotations to")
+parser.add_argument('--wav_in', help="Directory storing WAV files", type=str)
+parser.add_argument('--list_out', help="File to write filenames", type=str)
 
 
 def main():
@@ -25,7 +25,7 @@ def main():
     regex = re.compile(REGEX)
     dimensions = {}
     labels = {}
-    with open(args.dir) as fid:
+    with open(args.annot) as fid:
         for line in fid:
             line = line.strip()
             match = regex.match(line)
@@ -34,16 +34,24 @@ def main():
                                               for i in [3, 4, 5, 6]]
                 labels[match.group(1)] = match.group(2)
 
-    with open(args.annotations, 'w') as fid:
-        for name, (a, v, d, n) in dimensions.items():
-            print('{}, A: {}, V: {}, D: {}, N: {}'.format(name, a, v, d, n),
-                  file=fid)
+    if args.regression:
+        with open(args.regression, 'w') as fid:
+            for name, (a, v, d, n) in dimensions.items():
+                print('{}, A: {}, V: {}, D: {}, N: {}'.format(
+                    name, a, v, d, n), file=fid)
 
-    if args.wav_in and args.wav_out:
-        for name, emo in labels.items():
-            src = os.path.join(args.wav_in, '{}.wav'.format(name))
-            dst = os.path.join(args.wav_out, '{}-{}.wav'.format(name, emo))
-            shutil.copy(src, dst)
+    if args.classification:
+        with open(args.classification, 'w') as fid:
+            for name, emo in labels.items():
+                print('{}, {}'.format(name, emo), file=fid)
+
+    if args.wav_in and args.list_out:
+        with open(args.list_out, 'w') as fid:
+            for name, emo in labels.items():
+                if emo not in 'AHSN':
+                    continue
+                src = Path(args.wav_in) / '{}.wav'.format(name)
+                print(Path(src).resolve(), file=fid)
 
 
 if __name__ == "__main__":
