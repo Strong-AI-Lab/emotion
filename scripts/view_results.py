@@ -20,6 +20,7 @@ def main():
     dirs = sorted([Path(d) for d in args.directory])
     uar_list = []
     for d in dirs:
+        print("Reading", d)
         table = {}
         df_list = {}
         for filename in sorted(d.glob('**/*.csv')):
@@ -64,11 +65,25 @@ def main():
     print(df.max(level=1))
 
     if args.output:
-        df.to_latex(Path(args.output) / 'combined.tex')
-        df.mean(level=0).to_latex(Path(args.output) / 'mean_clf.tex')
-        df.mean(level=1).to_latex(Path(args.output) / 'mean_config.tex')
-        df.max(level=0).to_latex(Path(args.output) / 'max_clf.tex')
-        df.max(level=1).to_latex(Path(args.output) / 'max_config.tex')
+        fmt = '{:0.3f}'.format
+        df.to_latex(Path(args.output) / 'combined.tex', float_format=fmt,
+                    caption="Combined results table")
+        df.mean(level=0).to_latex(
+            Path(args.output) / 'mean_clf.tex', float_format=fmt,
+            caption="Mean across classifiers"
+        )
+        df.mean(level=1).to_latex(
+            Path(args.output) / 'mean_config.tex', float_format=fmt,
+            caption="Mean across configs"
+        )
+        df.max(level=0).to_latex(
+            Path(args.output) / 'max_clf.tex', float_format=fmt,
+            caption="Maximum across classifiers"
+        )
+        df.max(level=1).to_latex(
+            Path(args.output) / 'max_config.tex', float_format=fmt,
+            caption="Maximum across configs"
+        )
     if args.show:
         plt.show()
 
