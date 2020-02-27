@@ -36,18 +36,18 @@ def main():
 
     if args.regression:
         with open(args.regression, 'w') as fid:
-            for name, (a, v, d, n) in dimensions.items():
+            for name, (a, v, d, n) in sorted(dimensions.items()):
                 print('{}, A: {}, V: {}, D: {}, N: {}'.format(
                     name, a, v, d, n), file=fid)
 
     if args.classification:
         with open(args.classification, 'w') as fid:
-            for name, emo in labels.items():
+            for name, emo in sorted(labels.items()):
                 print('{}, {}'.format(name, emo), file=fid)
 
     if args.wav_in and args.list_out:
         with open(args.list_out, 'w') as fid:
-            for name, emo in labels.items():
+            for name, emo in sorted(labels.items()):
                 if emo not in 'AHSN':
                     continue
                 src = Path(args.wav_in) / '{}.wav'.format(name)

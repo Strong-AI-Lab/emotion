@@ -38,13 +38,13 @@ def main():
 
     if args.regression:
         with open(args.regression, 'w') as fid:
-            for name, (v, a, d) in dimensions.items():
+            for name, (v, a, d) in sorted(dimensions.items()):
                 print('{}, V: {}, A: {}, D: {}'.format(name, v, a, d),
                       file=fid)
 
     if args.classification:
         with open(args.classification, 'w') as fid:
-            for name, emo in labels.items():
+            for name, emo in sorted(labels.items()):
                 if emo == 'exc':
                     # Merge happiness and excitement
                     emo = 'hap'
@@ -52,7 +52,7 @@ def main():
 
     if args.wav_in and args.list_out:
         with open(args.list_out, 'w') as fid:
-            for name, emo in labels.items():
+            for name, emo in sorted(labels.items()):
                 if emo not in ['ang', 'hap', 'neu', 'sad', 'exc']:
                     continue
                 src = Path(args.wav_in) / '{}.wav'.format(name)
