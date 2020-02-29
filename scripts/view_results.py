@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import argparse
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -8,10 +9,11 @@ from matplotlib import pyplot as plt
 
 parser = argparse.ArgumentParser()
 parser.add_argument('directory', nargs='+')
-parser.add_argument('--show', help="Show matplotlib figures",
+parser.add_argument('--plot', help="Show matplotlib figures",
                     action='store_true')
 parser.add_argument('-o', '--output', type=str,
                     help="Directory to write output summary tables.")
+parser.add_argument('-r', '--regex', type=str, default='.*')
 
 
 def main():
@@ -23,7 +25,8 @@ def main():
         print("Reading", d)
         table = {}
         df_list = {}
-        for filename in sorted(d.glob('**/*.csv')):
+        for filename in [x for x in sorted(d.glob('**/*.csv'))
+                         if re.search(args.regex, str(x))]:
             name = filename.relative_to(d).with_suffix('')
             df_list[name] = pd.read_csv(filename, header=[0, 1, 2, 3],
                                         index_col=0)
@@ -34,57 +37,70 @@ def main():
         for name in df_list:
             config = Path(name).name
             clf = str(Path(name).parent)
-            table[(clf, config)] = uar[name].mean()
+            table[(clf, config)] = (uar[name].mean(), uar[name].std())
 
-        fig: plt.Figure = plt.figure()
-        ax: plt.Axes = fig.add_subplot(1, 1, 1)
-        ax.set_title(d.name)
-        ax.boxplot(uar.values(), labels=uar.keys(), notch=True, bootstrap=1000)
-        ax.set_xticklabels(uar.keys(), rotation=90)
-        ax.set_xlabel('Config')
-        ax.set_ylabel('UAR')
-        fig.tight_layout()
+        if args.plot:
+            fig: plt.Figure = plt.figure()
+            ax: plt.Axes = fig.add_subplot(1, 1, 1)
+            ax.set_title(d.name)
+            ax.boxplot(uar.values(), labels=uar.keys(), notch=True,
+                       bootstrap=1000)
+            ax.set_xticklabels(uar.keys(), rotation=90)
+            ax.set_xlabel('Config')
+            ax.set_ylabel('UAR')
+            fig.tight_layout()
 
-        df_uar = pd.Series(list(table.values()), index=table.keys())
+        df_uar = pd.DataFrame(list(table.values()), index=table.keys(),
+                              columns=['mean', 'std'])
         uar_list.append(df_uar)
-    df = pd.concat(uar_list, keys=[d.name for d in dirs],
-                   names=['corpus', 'classifier', 'config']).unstack(0)
+
+    if not uar_list:
+        raise FileNotFoundError("No valid files found matching regex.")
+
+    df = pd.concat(
+        uar_list, keys=[d.name for d in dirs],
+        names=['corpus', 'classifier', 'config']
+    ).unstack(0).swaplevel(axis=1)
+
+    FMT = '{:0.3f}'.format
+
     print("Data table:")
-    print(df)
+    print(df.to_string(float_format=FMT))
     print()
-    print("Mean across classifiers:")
-    print(df.mean(level=0))
+    print(df.swaplevel().sort_index().to_string(float_format=FMT))
     print()
-    print("Mean across configs:")
-    print(df.mean(level=1))
+    print("Mean average UAR across configs and corpora:")
+    print(df.mean(level=0).to_string(float_format=FMT))
     print()
-    print("Max across configs:")
-    print(df.max(level=0))
+    print("Mean average UAR across classifiers and corpora:")
+    print(df.mean(level=1).to_string(float_format=FMT))
     print()
-    print("Max across configs:")
-    print(df.max(level=1))
+    print("Maximum average UAR across configs and corpora:")
+    print(df.max(level=0).to_string(float_format=FMT))
+    print()
+    print("Maximum average UAR across classifiers and corpora:")
+    print(df.max(level=1).to_string(float_format=FMT))
 
     if args.output:
-        fmt = '{:0.3f}'.format
-        df.to_latex(Path(args.output) / 'combined.tex', float_format=fmt,
+        df.to_latex(Path(args.output) / 'combined.tex', float_format=FMT,
                     caption="Combined results table")
         df.mean(level=0).to_latex(
-            Path(args.output) / 'mean_clf.tex', float_format=fmt,
-            caption="Mean across classifiers"
+            Path(args.output) / 'mean_clf.tex', float_format=FMT,
+            caption="Mean average UAR across configs and corpora"
         )
         df.mean(level=1).to_latex(
-            Path(args.output) / 'mean_config.tex', float_format=fmt,
-            caption="Mean across configs"
+            Path(args.output) / 'mean_config.tex', float_format=FMT,
+            caption="Mean average UAR across classifiers and corpora"
         )
         df.max(level=0).to_latex(
-            Path(args.output) / 'max_clf.tex', float_format=fmt,
-            caption="Maximum across classifiers"
+            Path(args.output) / 'max_clf.tex', float_format=FMT,
+            caption="Maximum average UAR across configs and corpora"
         )
         df.max(level=1).to_latex(
-            Path(args.output) / 'max_config.tex', float_format=fmt,
-            caption="Maximum across configs"
+            Path(args.output) / 'max_config.tex', float_format=FMT,
+            caption="Maximum average UAR across classifiers and corpora"
         )
-    if args.show:
+    if args.plot:
         plt.show()
 
 
