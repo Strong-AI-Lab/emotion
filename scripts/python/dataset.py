@@ -15,7 +15,8 @@ __all__ = [
     'UtteranceDataset',
     'FrameDataset',
     'RawDataset',
-    'read_annotations',
+    'parse_regression_annotations',
+    'parse_classification_annotations',
     'corpora'
 ]
 
@@ -295,15 +296,24 @@ for corpus in corpora:
                       + corpora[corpus].female_speakers))
 
 
-def read_annotations(annot_file):
+def parse_regression_annotations(file):
     annotations = {}
-    with open(annot_file) as fid:
+    with open(file) as fid:
         for line in fid:
             line = line.strip().split(', ')
             name, *items = [x.strip() for x in line]
             items = [x.split(':') for x in items]
             items = [(k.strip(), float(v.strip())) for k, v in items]
             annotations[name] = dict(items)
+    return annotations
+
+
+def parse_classification_annotations(file):
+    annotations = {}
+    with open(file) as fid:
+        for line in fid:
+            name, emotion = line.strip().split(', ')
+            annotations[name] = emotion
     return annotations
 
 

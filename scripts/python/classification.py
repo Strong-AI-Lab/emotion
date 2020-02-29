@@ -119,6 +119,12 @@ class SKLearnClassifier(Classifier):
         fold: None
             Unused.
         """
+        perm = np.random.permutation(len(x_train))
+        x_train = x_train[perm]
+        y_train = y_train[perm]
+        perm = np.random.permutation(len(x_valid))
+        x_valid = x_valid[perm]
+        y_valid = y_valid[perm]
 
         if param_grid:
             self.clf = cross_validate(param_grid, self.model_fn, cv_score_fn,
@@ -379,10 +385,10 @@ def print_results(df: pd.DataFrame):
         print()
         print("Metrics: mean +- std. dev. over folds")
         print("Across reps:")
-        print('                ' + ' '.join(
+        print('           ' + ' '.join(
             ['{:<12}'.format(c) for c in labels]))
         for metric in metrics:
-            print('{:<4s} ({}) {}'.format(metric, gender, ' '.join(
+            print('{:<4s} ({:^3s}) {}'.format(metric, gender, ' '.join(
                 ['{:<4.2f} +- {:<4.2f}'.format(
                   df[(metric, gender, c)].mean().mean(),
                   df[(metric, gender, c)].std().mean()) for c in labels])))
