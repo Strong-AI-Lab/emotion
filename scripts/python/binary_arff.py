@@ -1,8 +1,5 @@
-import argparse
 import struct
 from io import RawIOBase
-
-import arff
 
 __all__ = ['encode', 'decode']
 
@@ -97,33 +94,3 @@ def decode(fid: RawIOBase):
         inst = [remove_null(x) if isinstance(x, bytes) else x for x in inst]
         data['data'].append(inst)
     return data
-
-
-parser = argparse.ArgumentParser()
-parser.add_argument('infile')
-parser.add_argument('outfile')
-group = parser.add_mutually_exclusive_group(required=True)
-group.add_argument('-e', '--encode', help="Encode ARFF to binary", action='store_true')
-group.add_argument('-d', '--decode', help="Decode ARFF from binary", action='store_true')
-
-
-def main():
-    args = parser.parse_args()
-
-    print("Reading")
-    with open(args.infile, 'r' if args.encode else 'br') as fid:
-        if args.encode:
-            data = arff.load(fid)
-        else:
-            data = decode(fid)
-
-    print("Writing")
-    with open(args.outfile, 'bw' if args.encode else 'w') as fid:
-        if args.encode:
-            encode(fid, data)
-        else:
-            arff.dump(data, fid)
-
-
-if __name__ == "__main__":
-    main()
