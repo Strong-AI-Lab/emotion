@@ -1,6 +1,6 @@
-import os
-import traceback
+import argparse
 from functools import partial
+from pathlib import Path
 
 import numpy as np
 import tensorflow as tf
@@ -21,6 +21,13 @@ CLASSIFICATION_CORPORA = [
 CLASSIFICATION_CONFIGS = ['eGeMAPSv01a', 'GeMAPSv01a', 'IS09_emotion',
                           'IS13_ComParE']
 REGRESSION_CORPORA = ['iemocap', 'msp-improv', 'semaine']
+
+parser = argparse.ArgumentParser()
+parser.add_argument('corpus')
+parser.add_argument('classifier')
+parser.add_argument('config')
+parser.add_argument('--kernel')
+parser.add_argument('--kind')
 
 
 def get_mlp_model(n_features, n_classes, layers=1):
@@ -81,9 +88,9 @@ def test_svm_classifier(dataset, config, kernel='linear'):
     )
 
     print_results(df)
-    output_dir = os.path.join(RESULTS_DIR, dataset.corpus, 'svm', kernel)
-    os.makedirs(output_dir, exist_ok=True)
-    df.to_csv(os.path.join(output_dir, '{}.csv'.format(config)))
+    output_dir = Path(RESULTS_DIR) / dataset.corpus / 'svm' / kernel
+    output_dir.mkdir(parents=True, exist_ok=True)
+    df.to_csv(Path(output_dir) / '{}.csv'.format(config))
 
 
 def test_dense_model(dataset, config, kind='basic'):
@@ -121,12 +128,7 @@ def test_dense_model(dataset, config, kind='basic'):
                 mode='max'
             ),
             keras.callbacks.ReduceLROnPlateau(monitor='val_uar', factor=0.5,
-                                              patience=5, mode='max'),
-            keras.callbacks.TensorBoard(
-                os.path.join('logs', dataset.corpus, 'dnn', kind, config,
-                             'foldN'),
-                write_graph=False
-            )
+                                              patience=5, mode='max')
         ],
         class_weight=class_weight,
         loss=keras.losses.SparseCategoricalCrossentropy(),
@@ -134,57 +136,41 @@ def test_dense_model(dataset, config, kind='basic'):
         verbose=False
     )
     print_results(df)
-    output_dir = os.path.join(RESULTS_DIR, dataset.corpus, 'dnn', kind)
-    os.makedirs(output_dir, exist_ok=True)
-    df.to_csv(os.path.join(output_dir, '{}.csv'.format(config)))
+    output_dir = Path(RESULTS_DIR) / dataset.corpus / 'dnn' / kind
+    output_dir.mkdir(parents=True, exist_ok=True)
+    df.to_csv(Path(output_dir) / '{}.csv'.format(config))
 
 
 def main():
+    args = parser.parse_args()
+
     tf.get_logger().setLevel(40)  # ERROR level
     for gpu in tf.config.list_physical_devices('GPU'):
         tf.config.experimental.set_memory_growth(gpu, True)
 
-    for corpus in CLASSIFICATION_CORPORA:
-        for config in CLASSIFICATION_CONFIGS:
-            try:
-                print(corpus, config)
-                dataset = UtteranceDataset(
-                    '{}/output/{}.arff'.format(corpus, config),
-                    normaliser=StandardScaler(),
-                    normalise_method='speaker'
-                )
-                print()
-                test_svm_classifier(dataset, config, kernel='linear')
-                test_svm_classifier(dataset, config, kernel='poly2')
-                test_svm_classifier(dataset, config, kernel='poly3')
-                test_svm_classifier(dataset, config, kernel='rbf')
-                test_dense_model(dataset, config, kind='basic')
-                test_dense_model(dataset, config, kind='1layer')
-                test_dense_model(dataset, config, kind='2layer')
-                test_dense_model(dataset, config, kind='3layer')
-            except Exception:
-                print("Failed:", corpus, config)
-                traceback.print_exc()
+    if args.classifier == 'svm':
+        if not args.kernel:
+            raise ValueError("--kernel must be passed for SVM")
+        test_fn = partial(test_svm_classifier, kernel=args.kernel)
+    elif args.classifier == 'dnn':
+        if not args.kind:
+            raise ValueError("--kind must be passed for DNN")
+        test_fn = partial(test_dense_model, kind=args.kind)
 
-    for corpus in CLASSIFICATION_CORPORA:
-        try:
-            print(corpus, 'audeep')
-            dataset = NetCDFDataset(
-                '{}/output/audeep.nc'.format(corpus), corpus,
-                normaliser=StandardScaler(), normalise_method='speaker'
-            )
-            print()
-            test_svm_classifier(dataset, 'audeep', kernel='linear')
-            test_svm_classifier(dataset, 'audeep', kernel='poly2')
-            test_svm_classifier(dataset, 'audeep', kernel='poly3')
-            test_svm_classifier(dataset, 'audeep', kernel='rbf')
-            test_dense_model(dataset, 'audeep', kind='basic')
-            test_dense_model(dataset, 'audeep', kind='1layer')
-            test_dense_model(dataset, 'audeep', kind='2layer')
-            test_dense_model(dataset, 'audeep', kind='3layer')
-        except Exception:
-            print("Failed:", corpus, 'audeep')
-            traceback.print_exc()
+    if args.config.startswith('audeep'):
+        dataset = NetCDFDataset(
+            '{}/output/{}.nc'.format(args.corpus, args.config), args.corpus,
+            normaliser=StandardScaler(),
+            normalise_method='speaker'
+        )
+    else:
+        dataset = UtteranceDataset(
+            '{}/output/{}.arff'.format(args.corpus, args.config),
+            normaliser=StandardScaler(),
+            normalise_method='speaker'
+        )
+
+    test_fn(dataset, args.config)
 
 
 if __name__ == "__main__":

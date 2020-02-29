@@ -21,8 +21,10 @@
 !/smartkom/preprocess.py
 /tess/*
 
+# Misc
 /audeep
 /results
+/todo.sh
 
 __pycache__
 /build
