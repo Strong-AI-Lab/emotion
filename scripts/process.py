@@ -1,8 +1,9 @@
 #!/usr/bin/python3
 
-"""Batch process a list of files in a dataset using the Opensmile Toolkit."""
+"""Batch process a list of files in a dataset using the openSMILE Toolkit."""
 
 import argparse
+import copy
 import os
 import subprocess
 import sys
@@ -11,8 +12,8 @@ from concurrent.futures import ProcessPoolExecutor
 import arff
 from tqdm import tqdm
 
-from python.dataset import read_annotations, corpora
-
+from python.dataset import (corpora, parse_classification_annotations,
+                            parse_regression_annotations)
 
 if sys.platform == 'win32':
     CONFIG_DIR = 'C:\\opensmile-2.3.0\\config'
@@ -22,14 +23,16 @@ else:
     OPENSMILE_BIN = '/usr/bin/SMILExtract'
 
 parser = argparse.ArgumentParser(
-    description="Processes audio data using OpenSMILE.")
+    description="Processes audio data using openSMILE.")
 required_args = parser.add_argument_group('Required args')
-required_args.add_argument('--corpus', help="Corpus to process",
-                           required=True)
-required_args.add_argument('--config', help="Config file to use",
-                           required=True)
-required_args.add_argument(
-    '--input_list', help="File containing list of filenames", required=True)
+required_args.add_argument('--corpus', required=True,
+                           help="Corpus to process",)
+required_args.add_argument('--config', required=True,
+                           help="Config file to use")
+required_args.add_argument('--input_list', required=True,
+                           help="File containing list of filenames")
+required_args.add_argument('--annotations', required=True,
+                           help="Annotations file")
 
 
 parser.add_argument('--debug', help="For debugging", default=False,
@@ -39,7 +42,6 @@ parser.add_argument('--skip', help="Skip audio processing",
 parser.add_argument('--individual', help="Individual output",
                     default=False, action='store_true')
 
-parser.add_argument('--annotations', help="Annotations file")
 parser.add_argument('--out_dir', help="Directory to write data")
 parser.add_argument('--prefix', help="Output file prefix")
 parser.add_argument('--type', help="Type of annotations",
@@ -76,19 +78,9 @@ def main():
         os.makedirs(tmp_dir, exist_ok=True)
 
         with ProcessPoolExecutor() as pool:
-            emotions = 'unknown'
-            if args.type == 'classification':
-                emotions = ','.join(corpora[args.corpus].emotion_map.values())
-            label = 'unknown'
-
             futures = {}
             for filename in input_list:
                 name = os.path.splitext(os.path.basename(filename))[0]
-                if args.type == 'classification':
-                    emotion = corpora[args.corpus].get_emotion(name)
-                    if emotion not in corpora[args.corpus].emotion_map:
-                        continue
-                    label = corpora[args.corpus].emotion_map[emotion]
 
                 output_file = os.path.join(
                     tmp_dir, '{}_{}.arff'.format(output_prefix, name))
@@ -100,8 +92,8 @@ def main():
                     '-C', args.config,
                     '-I', filename,
                     '-O', output_file,
-                    '-classes', '{{{}}}'.format(emotions),
-                    '-class', label,
+                    '-classes', '{unknown}',
+                    '-class', 'unknown',
                     '-instname', name
                 ]
 
@@ -144,23 +136,33 @@ def main():
     output_dir = args.out_dir or os.path.join(args.corpus, 'output')
     os.makedirs(output_dir, exist_ok=True)
 
-    full_data = data_list[0]
+    full_data = copy.deepcopy(data_list[0])
     full_data['relation'] = args.corpus
+    full_data['data'] = []
     if args.type == 'regression':
-        annotations = read_annotations(args.annotations)
+        annotations = parse_regression_annotations(args.annotations)
         del full_data['attributes'][-1]
         keys = sorted(next(iter(annotations.values())).keys())
-        full_data['attributes'].extend(
-            [('regression_' + k, 'NUMERIC') for k in keys])
+        full_data['attributes'].extend([('regression_' + k, 'NUMERIC')
+                                        for k in keys])
+    elif args.type == 'classification':
+        annotations = parse_classification_annotations(args.annotations)
+        annotations = {n: corpora[args.corpus].emotion_map[annotations[n]]
+                       for n in names}
+        full_data['attributes'][-1] = ('emotion',
+                                       sorted(set(annotations.values())))
 
     # This works for both utterance level and frame level features
-    for data in data_list[1:]:
+    for data in data_list:
+        name = data['data'][0][0]
         if args.type == 'regression':
-            name = data['data'][0][0]
             for i in range(len(data['data'])):
                 del data['data'][i][-1]
                 for _, v in sorted(annotations[name].items()):
                     data['data'][i].append(v)
+        elif args.type == 'classification':
+            for i in range(len(data['data'])):
+                data['data'][i][-1] = annotations[name]
         full_data['data'].extend(data['data'])
 
     output_file = os.path.join(
