@@ -1,6 +1,6 @@
-import os
 import re
 from collections import Counter, namedtuple
+from pathlib import Path
 
 import arff
 import netCDF4
@@ -63,12 +63,16 @@ corpora = {
             'negative': ['anger', 'guilt', 'disgust', 'fear', 'sadness'],
             'positive': ['happiness', 'neutral', 'surprise']
         },
-        ['02', '03', '04', '05', '08', '09', '10', '11', '12', '14', '15',
+        [
+            '02', '03', '04', '05', '08', '09', '10', '11', '12', '14', '15',
             '16', '18', '19', '23', '24', '25', '26', '27', '28', '30', '33',
             '34', '39', '41', '50', '51', '52', '53', '58', '59', '63', '64',
-            '65', '66', '67', '68', '69'],
-        ['01', '17', '21', '22', '29', '31', '36', '37', '38', '40', '43',
-            '45', '46', '47', '49', '54', '55', '56', '57', '60', '61'],
+            '65', '66', '67', '68', '69'
+        ],
+        [
+            '01', '17', '21', '22', '29', '31', '36', '37', '38', '40', '43',
+            '45', '46', '47', '49', '54', '55', '56', '57', '60', '61'
+        ],
         None,
         lambda n: n[-6:-3],
         lambda n: n[-9:-7]
@@ -269,6 +273,35 @@ corpora = {
         lambda n: n[3],
         lambda n: n[:3]
     ),
+    'smartkom': {
+        {
+            'Neutral': 'neutral',
+            'Freude_Erfolg': 'joy',
+            'Uberlegen_Nachdenken': 'pondering',
+            'Ratlosigkeit': 'helpless',
+            'Arger_Miserfolg': 'anger',
+            'Uberraschung_Verwunderung': 'surprise',
+            'Restklasse': 'unknown'
+        },
+        None,
+        None,
+        None,
+        None,
+        [
+            'AAA', 'AAB', 'AAC', 'AAD', 'AAE', 'AAF', 'AAG', 'AAH', 'AAI',
+            'AAJ', 'AAK', 'AAL', 'AAM', 'AAN', 'AAO', 'AAP', 'AAQ', 'AAR',
+            'AAS', 'AAT', 'AAU', 'AAV', 'AAW', 'AAX', 'AAY', 'AAZ', 'ABA',
+            'ABB', 'ABC', 'ABD', 'ABE', 'ABF', 'ABG', 'ABH', 'ABI', 'ABJ',
+            'ABK', 'ABL', 'ABM', 'ABN', 'ABO', 'ABP', 'ABQ', 'ABR', 'ABS',
+            'AIS', 'AIT', 'AIU', 'AIV', 'AIW', 'AIX', 'AIY', 'AIZ', 'AJA',
+            'AJB', 'AJC', 'AJD', 'AJE', 'AJF', 'AJG', 'AJH', 'AJI', 'AJJ',
+            'AJK', 'AJL', 'AJM', 'AJN', 'AJO', 'AJP', 'AJQ', 'AJR', 'AJS',
+            'AJT', 'AJU', 'AJV', 'AJW', 'AJX', 'AJY', 'AJZ', 'AKA', 'AKB',
+            'AKC', 'AKD', 'AKE', 'AKF', 'AKG'
+        ],
+        None,
+        lambda n: n[8:11]
+    },
     'tess': Corpus(
         {
             'angry': 'angry',
@@ -460,8 +493,7 @@ class NetCDFDataset(Dataset):
     def __init__(self, file, corpus, normaliser=StandardScaler(),
                  normalise_method='speaker', binarise=False):
         self.dataset = dataset = netCDF4.Dataset(file)
-        self.names = [os.path.splitext(f)[0]
-                      for f in dataset.variables['filename']]
+        self.names = [Path(f).stem for f in dataset.variables['filename']]
         self.features = ['representation_{}'.format(i + 1)
                          for i in range(dataset.dimensions['generated'].size)]
 
@@ -497,14 +529,15 @@ class RawDataset(Dataset):
                  normalise_method='speaker', binarise=False):
         self.features = ['pcm']
 
+        self.file = file
+
         self.names = []
         self.filenames = []
         with open(file) as fid:
             for line in fid:
                 filename = line.strip()
                 self.filenames.append(filename)
-                name = os.path.basename(filename)
-                name = os.path.splitext(name)[0]
+                name = Path(filename).stem
                 self.names.append(name)
 
         super().__init__(corpus, normaliser=normaliser,
@@ -522,10 +555,10 @@ class RawDataset(Dataset):
             audio = np.expand_dims(audio, axis=1)
             self.x[i] = audio
 
-            name = os.path.basename(filename)
-            name = os.path.splitext(name)[0]
-            emotion = corpora[self.corpus].get_emotion(name)
-            emotion = corpora[self.corpus].emotion_map[emotion]
+            annotations = parse_classification_annotations(
+                Path(self.file).parent / 'labels.txt')
+            name = Path(filename).stem
+            emotion = corpora[self.corpus].emotion_map[annotations[name]]
             self.y[i] = self.class_to_int[emotion]
 
 

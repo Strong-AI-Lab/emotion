@@ -27,8 +27,7 @@ def main():
     labels = {}
     with open(args.annot) as fid:
         for line in fid:
-            line = line.strip()
-            match = regex.match(line)
+            match = regex.match(line.strip())
             if match:
                 dimensions[match.group(1)] = [match.group(i)
                                               for i in [3, 4, 5, 6]]

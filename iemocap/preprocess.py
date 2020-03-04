@@ -28,8 +28,7 @@ def main():
     for filename in Path(args.dir).glob('*.txt'):
         with open(filename) as fid:
             for line in fid:
-                line = line.strip()
-                match = regex.match(line)
+                match = regex.match(line.strip())
                 if match:
                     dimensions[match.group(3)] = (match.group(5),
                                                   match.group(6),
