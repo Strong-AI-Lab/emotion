@@ -20,7 +20,7 @@ def main():
     args = parser.parse_args()
 
     dirs = sorted([Path(d) for d in args.directory])
-    uar_list = []
+    uar_list = {}
     for d in dirs:
         print("Reading", d)
         table = {}
@@ -37,7 +37,8 @@ def main():
         for name in df_list:
             config = Path(name).name
             clf = str(Path(name).parent)
-            table[(clf, config)] = (uar[name].mean(), uar[name].std())
+            table[(clf, config)] = (uar[name].mean(), uar[name].std(),
+                                    uar[name].max())
 
         if args.plot:
             fig: plt.Figure = plt.figure()
@@ -51,19 +52,20 @@ def main():
             fig.tight_layout()
 
         df_uar = pd.DataFrame(list(table.values()), index=table.keys(),
-                              columns=['mean', 'std'])
-        uar_list.append(df_uar)
+                              columns=['mean', 'std', 'max'])
+        uar_list[d.name] = df_uar
 
     if not uar_list:
         raise FileNotFoundError("No valid files found matching regex.")
 
     df = pd.concat(
-        uar_list, keys=[d.name for d in dirs],
+        uar_list.values(), keys=[name for name in uar_list],
         names=['corpus', 'classifier', 'config']
     ).unstack(0).swaplevel(axis=1)
 
     FMT = '{:0.3f}'.format
 
+    df = df.loc[:, (slice(None), 'mean')]
     print("Data table:")
     print(df.to_string(float_format=FMT))
     print()
@@ -83,22 +85,26 @@ def main():
 
     if args.output:
         df.to_latex(Path(args.output) / 'combined.tex', float_format=FMT,
-                    caption="Combined results table")
+                    caption="Combined results table", longtable=True)
         df.mean(level=0).to_latex(
-            Path(args.output) / 'mean_clf.tex', float_format=FMT,
-            caption="Mean average UAR across configs and corpora"
+            Path(args.output) / 'mean_config.tex', float_format=FMT,
+            caption="Mean average UAR across configs and corpora",
+            longtable=True
         )
         df.mean(level=1).to_latex(
-            Path(args.output) / 'mean_config.tex', float_format=FMT,
-            caption="Mean average UAR across classifiers and corpora"
+            Path(args.output) / 'mean_clf.tex', float_format=FMT,
+            caption="Mean average UAR across classifiers and corpora",
+            longtable=True
         )
         df.max(level=0).to_latex(
-            Path(args.output) / 'max_clf.tex', float_format=FMT,
-            caption="Maximum average UAR across configs and corpora"
+            Path(args.output) / 'max_config.tex', float_format=FMT,
+            caption="Maximum average UAR across configs and corpora",
+            longtable=True
         )
         df.max(level=1).to_latex(
-            Path(args.output) / 'max_config.tex', float_format=FMT,
-            caption="Maximum average UAR across classifiers and corpora"
+            Path(args.output) / 'max_clf.tex', float_format=FMT,
+            caption="Maximum average UAR across classifiers and corpora",
+            longtable=True
         )
     if args.plot:
         plt.show()
