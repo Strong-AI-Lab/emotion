@@ -28,6 +28,8 @@ def main():
         audio, sr = soundfile.read(wav_file)
         annot_file = next(x for x in sess_dir.glob(sess + '_???.par')
                           if 'SMA' not in x.name)
+        speaker = annot_file.stem[-3:]
+
         ush_list = []
         trn_list = []
         with open(annot_file) as fid:
@@ -80,7 +82,8 @@ def main():
 
         for i, (start, end) in enumerate(zip(trn_starts, trn_ends)):
             emo = trn_map[i]
-            out_file = Path(args.wav_out) / '{}_{:03d}.wav'.format(sess, i)
+            out_file = Path(args.wav_out) / '{}_{}_{:03d}.wav'.format(
+                sess, speaker, i)
             out_file.parent.mkdir(parents=True, exist_ok=True)
             soundfile.write(out_file, audio[start:end], sr)
             print('{}, {}'.format(out_file.stem, emo), file=labels_file)
