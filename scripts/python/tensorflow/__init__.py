@@ -20,9 +20,10 @@ class BalancedSparseCategoricalAccuracy(
         super().__init__(name, **kwargs)
 
     def update_state(self, y_true, y_pred, sample_weight=None):
+        y_flat = y_true
         if y_true.shape.ndims == y_pred.shape.ndims:
-            y_true = tf.squeeze(y_true, axis=[-1])
-        y_true_int = tf.cast(y_true, tf.int32)
+            y_flat = tf.squeeze(y_flat, axis=[-1])
+        y_true_int = tf.cast(y_flat, tf.int32)
 
         cls_counts = tf.math.bincount(y_true_int)
         cls_counts = tf.math.reciprocal_no_nan(tf.cast(cls_counts, self.dtype))
