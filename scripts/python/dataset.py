@@ -273,7 +273,7 @@ corpora = {
         lambda n: n[3],
         lambda n: n[:3]
     ),
-    'smartkom': {
+    'smartkom': Corpus(
         {
             'Neutral': 'neutral',
             'Freude_Erfolg': 'joy',
@@ -301,7 +301,7 @@ corpora = {
         ],
         None,
         lambda n: n[8:11]
-    },
+    ),
     'tess': Corpus(
         {
             'angry': 'angry',

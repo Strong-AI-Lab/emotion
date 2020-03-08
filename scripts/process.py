@@ -4,10 +4,10 @@
 
 import argparse
 import copy
-import os
 import subprocess
 import sys
 from concurrent.futures import ProcessPoolExecutor
+from pathlib import Path
 
 import arff
 from tqdm import tqdm
@@ -29,10 +29,9 @@ required_args.add_argument('--corpus', required=True,
                            help="Corpus to process",)
 required_args.add_argument('--config', required=True,
                            help="Config file to use")
-required_args.add_argument('--input_list', required=True,
+required_args.add_argument('--input_list',
                            help="File containing list of filenames")
-required_args.add_argument('--annotations', required=True,
-                           help="Annotations file")
+required_args.add_argument('--annotations', help="Annotations file")
 
 
 parser.add_argument('--debug', help="For debugging", default=False,
@@ -56,36 +55,38 @@ def read_arff(file: str):
 def main():
     args = parser.parse_args()
 
-    if not os.path.exists(args.config):
+    if not Path(args.config).exists():
         raise FileNotFoundError("Config file doesn't exist")
-    config = os.path.splitext(os.path.basename(args.config))[0]
-    output_prefix = args.prefix or config
+    prefix = args.prefix or Path(args.config).stem
 
-    with open(args.input_list) as fid:
+    input_file = args.input_list or Path(args.corpus) / 'classification.txt'
+    with open(input_file) as fid:
         input_list = [x.strip() for x in fid.readlines()]
-    names = [os.path.splitext(os.path.basename(f))[0] for f in input_list]
+    names = [Path(f).stem for f in input_list]
 
     allowed_types = ['regression', 'classification']
     if args.type not in allowed_types:
         raise ValueError("--type must be one of", allowed_types)
 
     if args.type == 'regression':
-        output_prefix += '_regression'
+        prefix += '_regression'
 
-    tmp_dir = os.path.join(args.corpus, 'tmp')
+    tmp_dir = Path(args.corpus) / 'tmp'
+
+    annotation_file = args.annotations or Path(args.corpus) / 'labels.txt'
 
     if not args.skip:
-        os.makedirs(tmp_dir, exist_ok=True)
+        tmp_dir.mkdir(parents=True, exist_ok=True)
 
         with ProcessPoolExecutor() as pool:
             futures = {}
             for filename in input_list:
-                name = os.path.splitext(os.path.basename(filename))[0]
+                name = Path(filename).stem
 
-                output_file = os.path.join(
-                    tmp_dir, '{}_{}.arff'.format(output_prefix, name))
-                if os.path.exists(output_file):
-                    os.remove(output_file)
+                output_file = tmp_dir / '{}_{}.arff'.format(prefix,
+                                                            name)
+                if output_file.exists():
+                    output_file.unlink()
 
                 smile_args = [
                     OPENSMILE_BIN,
@@ -120,12 +121,12 @@ def main():
     with ProcessPoolExecutor() as pool:
         futures = {}
         tmp_files = [
-            os.path.join(tmp_dir, '{}_{}.arff'.format(output_prefix, name))
+            tmp_dir / '{}_{}.arff'.format(prefix, name)
             for name in names
         ]
         tmp_files.sort()
         for filename in tmp_files:
-            name = os.path.splitext(os.path.basename(filename))[0]
+            name = Path(filename).stem
             futures[name] = pool.submit(read_arff, filename)
 
         pbar = tqdm(futures.items(), desc="Processing data", unit='files')
@@ -133,20 +134,21 @@ def main():
         for name, future in pbar:
             data_list.append(future.result())
 
-    output_dir = args.out_dir or os.path.join(args.corpus, 'output')
-    os.makedirs(output_dir, exist_ok=True)
+    output_dir = (Path(args.out_dir) if args.out_dir
+                  else Path(args.corpus) / 'output')
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     full_data = copy.deepcopy(data_list[0])
     full_data['relation'] = args.corpus
     full_data['data'] = []
     if args.type == 'regression':
-        annotations = parse_regression_annotations(args.annotations)
+        annotations = parse_regression_annotations(annotation_file)
         del full_data['attributes'][-1]
         keys = sorted(next(iter(annotations.values())).keys())
         full_data['attributes'].extend([('regression_' + k, 'NUMERIC')
                                         for k in keys])
     elif args.type == 'classification':
-        annotations = parse_classification_annotations(args.annotations)
+        annotations = parse_classification_annotations(annotation_file)
         annotations = {n: corpora[args.corpus].emotion_map[annotations[n]]
                        for n in names}
         full_data['attributes'][-1] = ('emotion',
@@ -165,8 +167,7 @@ def main():
                 data['data'][i][-1] = annotations[name]
         full_data['data'].extend(data['data'])
 
-    output_file = os.path.join(
-        output_dir, '{}.arff'.format(output_prefix))
+    output_file = output_dir / '{}.arff'.format(prefix)
     with open(output_file, 'w') as fid:
         arff.dump(full_data, fid)
     print("Wrote {}".format(output_file))
@@ -186,8 +187,7 @@ def main():
 
         for d, sp in zip(speaker_dicts, speakers):
             d['relation'] = args.corpus
-            output_file = os.path.join(
-                output_dir, '{}_{}.arff'.format(output_prefix, sp))
+            output_file = output_dir / '{}_{}.arff'.format(prefix, sp)
             with open(output_file, 'w') as fid:
                 arff.dump(d, fid)
             print("Wrote {}".format(output_file))
