@@ -1,6 +1,7 @@
 flake8
 tensorflow-gpu
 tensorflow-probability
+tensorflow-datasets
 tensorboard
 numpy
 pandas
@@ -14,3 +15,4 @@ librosa
 PyWave
 autopep8
 netCDF4
+nltk
