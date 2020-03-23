@@ -3,6 +3,7 @@ tensorflow-gpu
 tensorflow-probability
 tensorflow-datasets
 tensorboard
+tensorboard_plugin_profile
 numpy
 pandas
 matplotlib
@@ -10,6 +11,7 @@ scipy
 liac-arff
 tqdm
 jupyterlab
+jupyter_http_over_ws
 ipywidgets
 librosa
 PyWave

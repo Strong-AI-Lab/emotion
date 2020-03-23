@@ -3,10 +3,12 @@
 /crema-d/*
 /demos/*
 /emodb/*
+!/emodb/process_transcripts.py
 /emofilm/*
 /enterface/*
 /iemocap/*
 !/iemocap/preprocess.py
+!/iemocap/process_transcripts.py
 /jl/*
 /msp-improv/*
 !/msp-improv/preprocess.py
@@ -25,10 +27,11 @@
 /audeep
 /results
 /todo.sh
+/logs
 
+# Build Related
 __pycache__
 /build
-/logs
 /venv
 .vscode
 .ipynb_checkpoints

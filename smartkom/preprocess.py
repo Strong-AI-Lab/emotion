@@ -6,21 +6,32 @@ from pathlib import Path
 import numpy as np
 import soundfile
 
+emotions = {
+    'Neutral': 'neutral',
+    'Freude_Erfolg': 'joy',
+    'Uberlegen_Nachdenken': 'pondering',
+    'Ratlosigkeit': 'helpless',
+    'Arger_Miserfolg': 'anger',
+    'Uberraschung_Verwunderung': 'surprise',
+    'Restklasse': 'unknown'
+}
+
 parser = argparse.ArgumentParser()
 parser.add_argument(
     '--set', type=str, required=True,
     help="SmartKom set to process, one of {Home, Mobil, Public}",
 )
 parser.add_argument('--labels', help="File to write annotations to",
-                    default='labels.txt', type=str)
+                    default='labels.txt', type=Path)
 parser.add_argument('--wav_out', help="Directory to individual turns",
-                    default='wav_corpus', type=str)
+                    default='wav_corpus', type=Path)
 
 
 def main():
     args = parser.parse_args()
 
     labels_file = open(args.labels, 'w')
+    print('Name,Emotion', file=labels_file)
     for sess_dir in sorted(Path('SK-' + args.set).glob('*')):
         print(sess_dir)
         sess = sess_dir.name
@@ -81,12 +92,15 @@ def main():
             trn_map.append(emotion)
 
         for i, (start, end) in enumerate(zip(trn_starts, trn_ends)):
-            emo = trn_map[i]
-            out_file = Path(args.wav_out) / '{}_{}_{:03d}.wav'.format(
-                sess, speaker, i)
-            out_file.parent.mkdir(parents=True, exist_ok=True)
-            soundfile.write(out_file, audio[start:end], sr)
-            print('{}, {}'.format(out_file.stem, emo), file=labels_file)
+            name = '{}_{}_{:03d}'.format(sess, speaker, i)
+            if args.wav_out:
+                out_file = (args.wav_out / name).with_suffix('.wav')
+                out_file.parent.mkdir(parents=True, exist_ok=True)
+                soundfile.write(out_file, audio[start:end], sr)
+
+            emo = trn_map[i].replace('/', '_')
+            emo = emotions[emo]
+            print('{},{}'.format(name, emo), file=labels_file)
     labels_file.close()
 
 

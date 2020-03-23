@@ -8,10 +8,12 @@ import pandas as pd
 from matplotlib import pyplot as plt
 
 parser = argparse.ArgumentParser()
-parser.add_argument('directory', nargs='+')
+parser.add_argument('directory', nargs='+', type=Path)
+parser.add_argument('-m', '--metrics', nargs='*', type=str,
+                    help="Metrics to output.")
 parser.add_argument('--plot', help="Show matplotlib figures",
                     action='store_true')
-parser.add_argument('-o', '--output', type=str,
+parser.add_argument('-o', '--output', type=Path,
                     help="Directory to write output summary tables.")
 parser.add_argument('-r', '--regex', type=str, default='.*')
 
@@ -19,7 +21,15 @@ parser.add_argument('-r', '--regex', type=str, default='.*')
 def main():
     args = parser.parse_args()
 
-    dirs = sorted([Path(d) for d in args.directory])
+    _dirs = [d for d in args.directory if d.is_dir()]
+    dirs = []
+    for d in _dirs:
+        if '*' in d.stem:
+            dirs.extend(d.parent.glob(d.stem))
+        else:
+            dirs.append(d)
+    dirs = sorted(dirs)
+
     uar_list = {}
     for d in dirs:
         print("Reading", d)
@@ -65,7 +75,11 @@ def main():
 
     FMT = '{:0.3f}'.format
 
-    df = df.loc[:, (slice(None), 'mean')]
+    metrics = ['mean']
+    if args.metrics:
+        metrics += args.metrics
+    df = df.loc[:, (slice(None), metrics)]
+
     print("Data table:")
     print(df.to_string(float_format=FMT))
     print()
@@ -84,25 +98,25 @@ def main():
     print(df.max(level=1).to_string(float_format=FMT))
 
     if args.output:
-        df.to_latex(Path(args.output) / 'combined.tex', float_format=FMT,
+        df.to_latex(args.output / 'combined.tex', float_format=FMT,
                     caption="Combined results table", longtable=True)
         df.mean(level=0).to_latex(
-            Path(args.output) / 'mean_config.tex', float_format=FMT,
+            args.output / 'mean_config.tex', float_format=FMT,
             caption="Mean average UAR across configs and corpora",
             longtable=True
         )
         df.mean(level=1).to_latex(
-            Path(args.output) / 'mean_clf.tex', float_format=FMT,
+            args.output / 'mean_clf.tex', float_format=FMT,
             caption="Mean average UAR across classifiers and corpora",
             longtable=True
         )
         df.max(level=0).to_latex(
-            Path(args.output) / 'max_config.tex', float_format=FMT,
+            args.output / 'max_config.tex', float_format=FMT,
             caption="Maximum average UAR across configs and corpora",
             longtable=True
         )
         df.max(level=1).to_latex(
-            Path(args.output) / 'max_clf.tex', float_format=FMT,
+            args.output / 'max_clf.tex', float_format=FMT,
             caption="Maximum average UAR across classifiers and corpora",
             longtable=True
         )

@@ -38,7 +38,9 @@ parser.add_argument('--debug', help="For debugging", default=False,
                     action='store_true')
 parser.add_argument('--skip', help="Skip audio processing",
                     default=False, action='store_true')
-parser.add_argument('--individual', help="Individual output",
+parser.add_argument('--individual', help="Individual speaker output",
+                    default=False, action='store_true')
+parser.add_argument('--no_agg', help="Don't aggregate (save memory)",
                     default=False, action='store_true')
 
 parser.add_argument('--out_dir', help="Directory to write data")
@@ -73,7 +75,7 @@ def main():
 
     tmp_dir = Path(args.corpus) / 'tmp'
 
-    annotation_file = args.annotations or Path(args.corpus) / 'labels.txt'
+    annotation_file = args.annotations or Path(args.corpus) / 'labels.csv'
 
     if not args.skip:
         tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -118,6 +120,9 @@ def main():
                 pbar.close()
                 sys.exit(1)
 
+    if args.no_agg:
+        return
+
     with ProcessPoolExecutor() as pool:
         futures = {}
         tmp_files = [
@@ -145,12 +150,10 @@ def main():
         annotations = parse_regression_annotations(annotation_file)
         del full_data['attributes'][-1]
         keys = sorted(next(iter(annotations.values())).keys())
-        full_data['attributes'].extend([('regression_' + k, 'NUMERIC')
+        full_data['attributes'].extend([('out_' + k, 'NUMERIC')
                                         for k in keys])
     elif args.type == 'classification':
         annotations = parse_classification_annotations(annotation_file)
-        annotations = {n: corpora[args.corpus].emotion_map[annotations[n]]
-                       for n in names}
         full_data['attributes'][-1] = ('emotion',
                                        sorted(set(annotations.values())))
 

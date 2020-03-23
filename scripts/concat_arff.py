@@ -7,8 +7,8 @@ import arff
 parser = argparse.ArgumentParser()
 parser.add_argument('infile', nargs='+')
 parser.add_argument('outfile')
-parser.add_argument(
-    '-s', '--safe', help="Check ARFF structure", default=False, action='store_true')
+parser.add_argument('-s', '--safe', help="Check ARFF structure", default=False,
+                    action='store_true')
 
 
 def main():
@@ -23,7 +23,8 @@ def main():
             with open(file) as fid:
                 data_list.append(arff.load(fid))
 
-        if not all([d['attributes'] == data_list[0]['attributes'] for d in data_list]):
+        if not all([d['attributes'] == data_list[0]['attributes']
+                    for d in data_list]):
             raise ValueError("Some data attributes are different")
 
         data = data_list[0]

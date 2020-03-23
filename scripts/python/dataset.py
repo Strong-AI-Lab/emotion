@@ -5,6 +5,7 @@ from pathlib import Path
 import arff
 import netCDF4
 import numpy as np
+import pandas as pd
 import soundfile
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler, label_binarize
@@ -321,6 +322,7 @@ corpora = {
         lambda n: n[:3]
     )
 }
+
 for corpus in corpora:
     if (corpora[corpus].male_speakers is not None
             and corpora[corpus].female_speakers is not None):
@@ -330,23 +332,14 @@ for corpus in corpora:
 
 
 def parse_regression_annotations(file):
-    annotations = {}
-    with open(file) as fid:
-        for line in fid:
-            line = line.strip().split(', ')
-            name, *items = [x.strip() for x in line]
-            items = [x.split(':') for x in items]
-            items = [(k.strip(), float(v.strip())) for k, v in items]
-            annotations[name] = dict(items)
+    df = pd.read_csv(file, index_col=0)
+    annotations = df.to_dict(orient='index')
     return annotations
 
 
 def parse_classification_annotations(file):
-    annotations = {}
-    with open(file) as fid:
-        for line in fid:
-            name, emotion = line.strip().split(', ')
-            annotations[name] = emotion
+    df = pd.read_csv(file, index_col=0)
+    annotations = df.to_dict()[df.columns[0]]
     return annotations
 
 
@@ -492,7 +485,7 @@ class Dataset():
 class NetCDFDataset(Dataset):
     def __init__(self, file, corpus, normaliser=StandardScaler(),
                  normalise_method='speaker', binarise=False):
-        self.dataset = dataset = netCDF4.Dataset(file)
+        self.dataset = dataset = netCDF4.Dataset(str(file))
         self.names = [Path(f).stem for f in dataset.variables['filename']]
         self.features = ['representation_{}'.format(i + 1)
                          for i in range(dataset.dimensions['generated'].size)]
@@ -565,7 +558,8 @@ class RawDataset(Dataset):
 class ArffDataset(Dataset):
     def __init__(self, path, normaliser=StandardScaler(),
                  normalise_method='speaker', binarise=False):
-        if path.endswith('.bin'):
+        path = Path(path)
+        if path.suffix == '.bin':
             with open(path, 'rb') as fid:
                 data = decode_arff(fid)
         else:

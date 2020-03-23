@@ -141,7 +141,7 @@ def test_svm_models(dataset, config):
     )
 
     print_results(df)
-    output_dir = Path(RESULTS_DIR) / dataset.corpus
+    output_dir = Path(RESULTS_DIR) / dataset.corpus / 'svm'
     output_dir.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_dir / '{}.csv'.format(config))
 
@@ -171,7 +171,7 @@ def test_dense_model(dataset, config='logmel_func'):
     )
 
     print_results(df)
-    output_dir = Path(RESULTS_DIR) / dataset.corpus
+    output_dir = Path(RESULTS_DIR) / dataset.corpus / 'dense'
     output_dir.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_dir / '{}.csv'.format(config))
 
@@ -207,7 +207,7 @@ def test_conv_models(dataset, config='logmel'):
         )
 
         print_results(df)
-        output_dir = Path(RESULTS_DIR) / dataset.corpus
+        output_dir = Path(RESULTS_DIR) / dataset.corpus / 'conv'
         output_dir.mkdir(parents=True, exist_ok=True)
         df.to_csv(output_dir / '{}_{}.csv'.format(config, kernel_size))
 
@@ -237,7 +237,7 @@ def test_full_model(dataset, config='logmel'):
     )
 
     print_results(df)
-    output_dir = Path(RESULTS_DIR) / dataset.corpus
+    output_dir = Path(RESULTS_DIR) / dataset.corpus / 'conv_dense'
     output_dir.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_dir / '{}_full.csv'.format(config))
 
@@ -247,9 +247,10 @@ def main():
     for gpu in tf.config.list_physical_devices('GPU'):
         tf.config.experimental.set_memory_growth(gpu, True)
 
-    for corpus in ['iemocap', 'msp-improv']:
-        for config in ['IS09_emotion', 'IS13_IS09_func', 'GeMAPSv01a',
-                       'eGeMAPSv01a']:
+    CORPORA = ['iemocap', 'msp-improv']
+    for corpus in CORPORA:
+        for config in ['IS09_emotion_aug', 'IS13_IS09_func_aug', 'GeMAPS_aug',
+                       'eGeMAPS_aug']:
             print(corpus, config)
             dataset = UtteranceDataset(
                 '{}/output/{}.arff'.format(corpus, config),
@@ -262,9 +263,9 @@ def main():
             except Exception:
                 pass
 
-    for corpus in ['iemocap', 'msp-improv']:
+    for corpus in CORPORA:
         print(corpus, "logmel_IS09_func")
-        dataset = UtteranceDataset('{}/output/logmel_IS09_func.arff'.format(
+        dataset = UtteranceDataset('{}/output/logmel_IS09_func_aug.arff'.format(
             corpus), normaliser=StandardScaler(), normalise_method='speaker')
         print()
         try:
@@ -272,9 +273,9 @@ def main():
         except Exception:
             pass
 
-    for corpus in ['iemocap', 'msp-improv']:
+    for corpus in CORPORA:
         print(corpus, "logmel")
-        dataset = FrameDataset('{}/output/logmel.arff.bin'.format(corpus),
+        dataset = FrameDataset('{}/output/logmel_aug.arff.bin'.format(corpus),
                                normaliser=StandardScaler(),
                                normalise_method='speaker')
         dataset.pad_arrays(32)

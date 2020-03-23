@@ -4,8 +4,8 @@ S. Latif, R. Rana, S. Khalifa, R. Jurdak, and J. Epps, 'Direct Modelling of
 Speech Emotion from Raw Speech', arXiv:1904.03833 [cs, eess], Jul. 2019.
 """
 
-import os
 from functools import partial
+from pathlib import Path
 
 import numpy as np
 import tensorflow as tf
@@ -23,19 +23,19 @@ def get_model(n_classes):
     inputs = keras.Input((None, 1), name='input')
 
     conv_1 = keras.layers.Conv1D(40, 400, strides=160, padding='same',
-                                 name='conv_1')(inputs)
+                                 name='conv_25ms')(inputs)
     conv_1 = keras.layers.BatchNormalization()(conv_1)
     conv_1 = keras.layers.ReLU()(conv_1)
     maxpool1 = keras.layers.MaxPool1D(2, name='maxpool_1')(conv_1)
 
     conv_2 = keras.layers.Conv1D(40, 240, strides=160, padding='same',
-                                 name='conv_2')(inputs)
+                                 name='conv_15ms')(inputs)
     conv_2 = keras.layers.BatchNormalization()(conv_2)
     conv_2 = keras.layers.ReLU()(conv_2)
     maxpool2 = keras.layers.MaxPool1D(2, name='maxpool_2')(conv_2)
 
     conv_3 = keras.layers.Conv1D(40, 1600, strides=160, padding='same',
-                                 name='conv_3')(inputs)
+                                 name='conv_100ms')(inputs)
     conv_3 = keras.layers.BatchNormalization()(conv_3)
     conv_3 = keras.layers.ReLU()(conv_3)
     maxpool3 = keras.layers.MaxPool1D(2, name='maxpool_3')(conv_3)
@@ -43,12 +43,12 @@ def get_model(n_classes):
     concat = keras.layers.Concatenate()([maxpool1, maxpool2, maxpool3])
     concat = tf.expand_dims(concat, axis=-1)
 
-    conv2d = keras.layers.Conv2D(32, (2, 2), name='conv2d')(concat)
+    conv2d = keras.layers.Conv2D(32, (2, 2), name='conv2d', padding='same')(concat)
     conv2d = keras.layers.BatchNormalization()(conv2d)
     conv2d = keras.layers.ReLU()(conv2d)
 
-    maxpool2d = keras.layers.MaxPool2D((2, 2), name='maxpool2d')(conv2d)
-    flattened = keras.layers.Reshape((-1, 32), name='flatten')(maxpool2d)
+    maxpool2d = keras.layers.MaxPool2D((2, 2), name='maxpool2d', padding='same')(conv2d)
+    flattened = keras.layers.Reshape((-1, 1920), name='flatten')(maxpool2d)
 
     lstm = keras.layers.LSTM(128)(flattened)
     dropout = keras.layers.Dropout(0.3)(lstm)
@@ -77,18 +77,21 @@ def get_tf_dataset(x: np.ndarray, y: np.ndarray, shuffle=True, batch_size=16):
 
 
 def main():
-    os.makedirs(os.path.join(RESULTS_DIR, 'iemocap'), exist_ok=True)
-    os.makedirs(os.path.join(RESULTS_DIR, 'msp-improv'), exist_ok=True)
-
     tf.get_logger().setLevel(40)  # ERROR level
     for gpu in tf.config.list_physical_devices('GPU'):
         tf.config.experimental.set_memory_growth(gpu, True)
 
+    model = get_model(4)
+    model.summary()
+    del model
+    keras.backend.clear_session()
+
     for corpus in ['iemocap', 'msp-improv']:
         print("raw")
-        dataset = RawDataset('{}/wav_corpus/'.format(corpus), corpus=corpus,
-                             normaliser=StandardScaler(),
-                             normalise_method='speaker')
+        dataset = RawDataset(
+            '{}/classification.txt'.format(corpus), corpus=corpus,
+            normaliser=StandardScaler(), normalise_method='speaker'
+        )
         print()
 
         class_weight = ((dataset.n_instances / dataset.n_classes)
@@ -109,10 +112,12 @@ def main():
                     monitor='val_uar', factor=0.5, patience=5, mode='max')
             ],
             optimizer=keras.optimizers.RMSprop(learning_rate=0.0001),
-            verbose=True
+            verbose=False
         )
         print_results(df)
-        df.to_csv(os.path.join(RESULTS_DIR, corpus, 'logmel_func.csv'))
+        output_dir = Path(RESULTS_DIR) / corpus
+        output_dir.mkdir(parents=True, exist_ok=True)
+        df.to_csv(output_dir / 'raw_audio.csv')
 
 
 if __name__ == "__main__":
