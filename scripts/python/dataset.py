@@ -1,13 +1,13 @@
 import re
 from collections import Counter, namedtuple
 from pathlib import Path
+from typing import Union
 
 import arff
 import netCDF4
 import numpy as np
 import pandas as pd
 import soundfile
-from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler, label_binarize
 
 from .binary_arff import decode as decode_arff
@@ -45,6 +45,36 @@ corpora = {
         None,
         lambda n: n[3],
         lambda n: n[:2]
+    ),
+    'crema-d': Corpus(
+        {
+            'A': 'anger',
+            'D': 'disgust',
+            'F': 'fear',
+            'H': 'happy',
+            'S': 'sad',
+            'N': 'neutral',
+        },
+        None,
+        None,
+        None,
+        None,
+        [
+            '1042', '1070', '1030', '1087', '1061', '1086', '1026', '1017',
+            '1039', '1082', '1032', '1015', '1062', '1012', '1046', '1010',
+            '1014', '1064', '1080', '1023', '1056', '1066', '1035', '1074',
+            '1068', '1027', '1043', '1065', '1076', '1060', '1019', '1011',
+            '1075', '1008', '1006', '1025', '1053', '1058', '1085', '1069',
+            '1024', '1084', '1033', '1054', '1090', '1013', '1038', '1072',
+            '1036', '1088', '1071', '1005', '1057', '1029', '1020', '1073',
+            '1050', '1007', '1031', '1003', '1002', '1079', '1040', '1047',
+            '1077', '1078', '1049', '1051', '1041', '1052', '1083', '1016',
+            '1034', '1009', '1055', '1048', '1018', '1091', '1045', '1022',
+            '1004', '1089', '1067', '1059', '1063', '1001', '1021', '1028',
+            '1044', '1037', '1081'
+        ],
+        None,
+        lambda n: n[:4]
     ),
     'demos': Corpus(
         {
@@ -344,8 +374,8 @@ def parse_classification_annotations(file):
 
 
 class Dataset():
-    def __init__(self, corpus, normaliser=StandardScaler(),
-                 normalise_method='speaker', binarise=False):
+    def __init__(self, corpus: str, normaliser=StandardScaler(),
+                 normalise_method: str = 'speaker', binarise: bool = False):
         if corpus not in corpora:
             raise NotImplementedError(
                 "Corpus {} hasn't been implemented yet.".format(corpus))
@@ -436,56 +466,13 @@ class Dataset():
     def create_data(self):
         return NotImplementedError()
 
-    def cross_validation(self, mode='all', c=None, g='all', group=None,
-                         splitter=KFold(10), splits=False, indices=False):
-        if mode == 'ovr':
-            y = self.labels[c]
-        else:
-            y = self.labels[mode]
-
-        idx = self.gender_indices[g]
-        x, y = self[idx]
-
-        if group == 'group':
-            groups = self.speaker_group_indices[idx]
-        else:
-            groups = self.speaker_indices[idx]
-
-        if splits:
-            if splitter is None:
-                return 1
-            else:
-                return splitter.get_n_splits(x, y, groups)
-
-        if splitter is None:
-            if indices:
-                yield idx, idx
-            else:
-                yield (x, y), (x, y)
-        else:
-            for train, test in splitter.split(x, y, groups):
-                if indices:
-                    yield idx[train], idx[test]
-                else:
-                    x_train = x[train]
-                    x_test = x[test]
-                    if (isinstance(x, list) and self.normalise_method
-                            in ['train', 'train_test']):
-                        raise NotImplementedError("normalise_method")
-                    else:
-                        if self.normalise_method == 'train':
-                            x_train = self.normaliser.fit_transform(x_train)
-                            x_test = self.normaliser.transform(x_test)
-                        elif self.normalise_method == 'train_test':
-                            x_train = self.normaliser.fit_transform(x_train)
-                            x_test = self.normaliser.fit_transform(x_test)
-                    yield (x_train, y[train]), (x_test, y[test])
-
 
 class NetCDFDataset(Dataset):
-    def __init__(self, file, corpus, normaliser=StandardScaler(),
-                 normalise_method='speaker', binarise=False):
-        self.dataset = dataset = netCDF4.Dataset(str(file))
+    def __init__(self, file: Union[Path, str], corpus: str,
+                 normaliser=StandardScaler(),
+                 normalise_method: str = 'speaker', binarise: bool = False):
+        self.file = Path(file)
+        self.dataset = dataset = netCDF4.Dataset(str(self.file))
         self.names = [Path(f).stem for f in dataset.variables['filename']]
         self.features = ['representation_{}'.format(i + 1)
                          for i in range(dataset.dimensions['generated'].size)]
@@ -507,9 +494,11 @@ class NetCDFDataset(Dataset):
     def create_data(self):
         self.x = np.array(self.dataset.variables['features'])
         self.y = np.empty(self.n_instances, dtype=np.float32)
+
+        annotations = parse_classification_annotations(
+            self.file.parent.parent / 'labels.csv')
         for i, name in enumerate(self.names):
-            emotion = corpora[self.corpus].get_emotion(name)
-            emotion = corpora[self.corpus].emotion_map[emotion]
+            emotion = annotations[name]
             self.y[i] = self.class_to_int[emotion]
         sort = np.argsort(self.names)
         self.x = self.x[sort]
@@ -551,7 +540,7 @@ class RawDataset(Dataset):
             annotations = parse_classification_annotations(
                 Path(self.file).parent / 'labels.txt')
             name = Path(filename).stem
-            emotion = corpora[self.corpus].emotion_map[annotations[name]]
+            emotion = annotations[name]
             self.y[i] = self.class_to_int[emotion]
 
 
@@ -643,43 +632,3 @@ class FrameDataset(ArffDataset):
             x = self.x[i]
             padding = int(np.ceil(x.shape[0] / pad)) * pad - x.shape[0]
             self.x[i] = np.pad(x, ((0, padding), (0, 0)))
-
-    @staticmethod
-    def batch_arrays(arrays_x, y, batch_size=32):
-        sizes = [x.shape[0] for x in arrays_x]
-        lengths, indices, num = np.unique(sizes, return_inverse=True,
-                                          return_counts=True)
-
-        x_list = []
-        y_list = []
-        for l in range(len(lengths)):
-            idx = np.arange(len(arrays_x))[indices == l]
-            for b in range(0, len(idx), batch_size):
-                b_idx = idx[b:b + batch_size]
-                arr = np.zeros((len(b_idx), lengths[l], arrays_x[0].shape[1]),
-                               dtype=np.float32)
-                for k, j in enumerate(b_idx):
-                    arr[k, :, :] = arrays_x[j]
-                x_list.append(arr)
-                y_list.append(y[b_idx])
-        x_list = np.array(x_list, dtype=object)
-        y_list = np.array(y_list, dtype=object)
-        return x_list, y_list
-
-    def cross_validation_folds(self, mode='all', c=None, g=None,
-                               splitter=KFold(10)):
-        if mode in ['arousal', 'valence', 'ovr']:
-            raise NotImplementedError(
-                "Only mode 'all' is implemented for FrameDataset")
-
-        return super().cross_validation_folds(mode, c=c, g=g,
-                                              splitter=splitter)
-
-    def cross_validation(self, mode='all', c=None, g=None, splitter=KFold(10),
-                         indices=False):
-        if mode in ['arousal', 'valence', 'ovr']:
-            raise NotImplementedError(
-                "Only mode 'all' is implemented for FrameDataset")
-
-        yield from super().cross_validation(mode=mode, c=c, g=g,
-                                            splitter=splitter, indices=indices)
