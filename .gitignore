@@ -1,6 +1,7 @@
 # Datasets
 /cafe/*
 /crema-d/*
+!/crema-d/preprocess.py
 /demos/*
 /emodb/*
 !/emodb/process_transcripts.py
@@ -28,6 +29,8 @@
 /results
 /todo.sh
 /logs
+/docker
+scripts/test.py
 
 # Build Related
 __pycache__
