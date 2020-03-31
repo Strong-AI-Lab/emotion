@@ -255,6 +255,7 @@ def main():
         test_fn = test_dense_model
     elif args.clf == 'cnn':
         test_fn = test_conv_model
+        args.datatype = 'frame'
 
     datafile = Path(args.data)
     if datafile.suffix == '.nc':
@@ -269,6 +270,7 @@ def main():
         elif args.datatype == 'frame':
             dataset = FrameDataset(datafile, normaliser=StandardScaler(),
                                    normalise_method='speaker')
+            dataset.pad_arrays(64)
 
     resultname = args.name or datafile.stem
     test_fn(dataset, resultname, kind=args.kind)
