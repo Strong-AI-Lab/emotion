@@ -2,8 +2,6 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 
-from ..dataset import FrameDataset
-
 __all__ = [
     'BalancedSparseCategoricalAccuracy',
     'BatchedSequence',
@@ -12,6 +10,27 @@ __all__ = [
     'test_model',
     'tf_classification_metrics'
 ]
+
+
+def batch_arrays(arrays_x, y, batch_size=32):
+    sizes = [x.shape[0] for x in arrays_x]
+    lengths, indices = np.unique(sizes, return_inverse=True)
+
+    x_list = []
+    y_list = []
+    for l in range(len(lengths)):
+        idx = np.arange(len(arrays_x))[indices == l]
+        for b in range(0, len(idx), batch_size):
+            b_idx = idx[b:b + batch_size]
+            arr = np.zeros((len(b_idx), lengths[l], arrays_x[0].shape[1]),
+                           dtype=np.float32)
+            for k, j in enumerate(b_idx):
+                arr[k, :, :] = arrays_x[j]
+            x_list.append(arr)
+            y_list.append(y[b_idx])
+    x_list = np.array(x_list, dtype=object)
+    y_list = np.array(y_list, dtype=object)
+    return x_list, y_list
 
 
 class BalancedSparseCategoricalAccuracy(
@@ -36,8 +55,8 @@ class BatchedFrameSequence(keras.utils.Sequence):
         self.x = x
         self.y = y
         if not prebatched:
-            self.x, self.y = FrameDataset.batch_arrays(self.x, self.y,
-                                                       batch_size=batch_size)
+            self.x, self.y = batch_arrays(self.x, self.y,
+                                          batch_size=batch_size)
         if shuffle:
             perm = np.random.permutation(len(self.x))
             self.x = self.x[perm]
