@@ -2,13 +2,14 @@
 
 import argparse
 import re
+from math import isnan
 from pathlib import Path
 
 import pandas as pd
 from matplotlib import pyplot as plt
 
 parser = argparse.ArgumentParser()
-parser.add_argument('directory', nargs='+', type=Path)
+parser.add_argument('--results', nargs='+', type=Path, required=True)
 parser.add_argument('-m', '--metrics', nargs='*', type=str,
                     help="Metrics to output.")
 parser.add_argument('--plot', help="Show matplotlib figures",
@@ -21,7 +22,7 @@ parser.add_argument('-r', '--regex', type=str, default='.*')
 def main():
     args = parser.parse_args()
 
-    _dirs = [d for d in args.directory if d.is_dir()]
+    _dirs = [d for d in args.results if d.is_dir()]
     dirs = []
     for d in _dirs:
         if '*' in d.stem:
@@ -73,7 +74,11 @@ def main():
         names=['corpus', 'classifier', 'config']
     ).unstack(0).swaplevel(axis=1)
 
-    FMT = '{:0.3f}'.format
+    def fmt(f):
+        if not isnan(f):
+            return '{:0.3f}'.format(f)
+        return ''
+    FMT = fmt
 
     metrics = ['mean']
     if args.metrics:
@@ -98,27 +103,24 @@ def main():
     print(df.max(level=1).to_string(float_format=FMT))
 
     if args.output:
-        df.to_latex(args.output / 'combined.tex', float_format=FMT,
-                    caption="Combined results table", longtable=True)
+        common = dict(float_format=FMT, longtable=True, na_rep='')
+        df.to_latex(args.output / 'combined.tex', **common,
+                    caption="Combined results table")
         df.mean(level=0).to_latex(
-            args.output / 'mean_config.tex', float_format=FMT,
-            caption="Mean average UAR across configs and corpora",
-            longtable=True
+            args.output / 'mean_config.tex', **common,
+            caption="Mean average UAR across configs and corpora"
         )
         df.mean(level=1).to_latex(
-            args.output / 'mean_clf.tex', float_format=FMT,
-            caption="Mean average UAR across classifiers and corpora",
-            longtable=True
+            args.output / 'mean_clf.tex', **common,
+            caption="Mean average UAR across classifiers and corpora"
         )
         df.max(level=0).to_latex(
-            args.output / 'max_config.tex', float_format=FMT,
-            caption="Maximum average UAR across configs and corpora",
-            longtable=True
+            args.output / 'max_config.tex', **common,
+            caption="Maximum average UAR across configs and corpora"
         )
         df.max(level=1).to_latex(
-            args.output / 'max_clf.tex', float_format=FMT,
-            caption="Maximum average UAR across classifiers and corpora",
-            longtable=True
+            args.output / 'max_clf.tex', **common,
+            caption="Maximum average UAR across classifiers and corpora"
         )
     if args.plot:
         plt.show()
