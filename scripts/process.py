@@ -12,7 +12,7 @@ from pathlib import Path
 import arff
 from tqdm import tqdm
 
-from python.dataset import (corpora, parse_classification_annotations,
+from emotion_recognition.dataset import (corpora, parse_classification_annotations,
                             parse_regression_annotations)
 
 if sys.platform == 'win32':

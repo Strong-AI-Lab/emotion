@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 
-from python.dataset import corpora
+from emotion_recognition.dataset import corpora
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--corpus', required=True)

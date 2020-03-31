@@ -16,10 +16,10 @@ from sklearn.model_selection import LeaveOneGroupOut, ParameterGrid
 from sklearn.preprocessing import StandardScaler
 from tensorflow import keras
 
-from python.classification import (PrecomputedSVC, SKLearnClassifier,
+from emotion_recognition.classification import (PrecomputedSVC, SKLearnClassifier,
                                    TFClassifier, print_results, test_model)
-from python.dataset import FrameDataset, UtteranceDataset
-from python.tensorflow import BatchedSequence
+from emotion_recognition.dataset import FrameDataset, UtteranceDataset
+from emotion_recognition.tensorflow import BatchedSequence
 
 RESULTS_DIR = 'results/aldeneh2017'
 

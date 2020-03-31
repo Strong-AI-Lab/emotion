@@ -6,7 +6,7 @@ import numpy as np
 import soundfile
 import tensorflow as tf
 
-from python.dataset import parse_classification_annotations
+from emotion_recognition.dataset import parse_classification_annotations
 
 parser = argparse.ArgumentParser()
 parser.add_argument('input', help="ARFF file or file with list of filepaths.")

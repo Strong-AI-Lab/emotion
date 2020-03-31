@@ -13,8 +13,8 @@ from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.preprocessing import StandardScaler
 from tensorflow import keras
 
-from python.classification import TFClassifier, print_results, test_model
-from python.dataset import RawDataset
+from emotion_recognition.classification import TFClassifier, print_results, test_model
+from emotion_recognition.dataset import RawDataset
 
 RESULTS_DIR = 'results/latif2019'
 

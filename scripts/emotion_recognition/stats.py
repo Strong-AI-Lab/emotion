@@ -8,6 +8,13 @@ Matrix = List[List[float]]
 
 
 def kappa(data: np.ndarray):
+    """Calculates Fleiss' kappa for inter-rater agreement.
+
+    Args:
+    -----
+    data: numpy.ndarray
+        The data matrix, in the form (raters x units).
+    """
     cats = np.unique(data)
     n, N = data.shape
 
@@ -29,7 +36,18 @@ class Deltas:
         return float(c != k)
 
 
-def alpha(data: np.ndarray, delta: Union[Callable[[int, int], float], Matrix]):
+def alpha(data: np.ndarray,
+          delta: Union[Callable[[int, int], float], Matrix] = Deltas.nominal):
+    """Calculates Krippendorf's alpha coefficient for inter-rater agreement.
+
+    Args:
+    -----
+    data: numpy.ndarray
+        The data matrix, in the form (raters x units).
+    delta: callable or 2-D array-like
+        The delta metric. Default is the nominal metric, which takes the value
+        1 in case c != k and 0 otherwise.
+    """
     def _pad(x):
         return np.pad(x, [(0, R + 1 - x.shape[0])])
 

@@ -9,9 +9,9 @@ from sklearn.model_selection import GroupKFold, LeaveOneGroupOut, ParameterGrid
 from sklearn.preprocessing import StandardScaler
 from tensorflow import keras
 
-from python.classification import (PrecomputedSVC, SKLearnClassifier,
+from emotion_recognition.classification import (PrecomputedSVC, SKLearnClassifier,
                                    TFClassifier, print_results, test_model)
-from python.dataset import FrameDataset, NetCDFDataset, UtteranceDataset
+from emotion_recognition.dataset import FrameDataset, NetCDFDataset, UtteranceDataset
 
 RESULTS_DIR = 'results/comparative2020'
 CLASSIFICATION_CORPORA = [
