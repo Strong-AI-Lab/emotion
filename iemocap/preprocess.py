@@ -4,6 +4,9 @@ import argparse
 import re
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
+
 # [START_TIME - END_TIME] TURN_NAME EMOTION [V, A, D]
 REGEX = (r'^\[(\d+\.\d+) - (\d+\.\d+)\]\t(\w+)\t(\w+)\t'
          r'\[(\d+\.\d+), (\d+\.\d+), (\d+\.\d+)\]$')
@@ -24,8 +27,6 @@ emotions = {
 }
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--annotations', help="IEMOCAP annotations directory",
-                    default='annotations', type=Path)
 parser.add_argument('--regression', type=Path,
                     help="File to write regression annotations to")
 parser.add_argument('--classification', type=Path,
@@ -40,14 +41,27 @@ def main():
     regex = re.compile(REGEX)
     dimensions = {}
     labels = {}
-    for filename in args.annotations.glob('*.txt'):
+    ratings = []
+    for filename in Path('annotations').glob('*.txt'):
         with open(filename) as fid:
             for line in fid:
-                match = regex.match(line.strip())
+                line = line.strip()
+                match = regex.match(line)
                 if match:
-                    dimensions[match.group(3)] = [float(match.group(i))
-                                                  for i in {5, 6, 7}]
-                    labels[match.group(3)] = match.group(4)
+                    name = match.group(3)
+                    dimensions[name] = [float(match.group(i))
+                                        for i in {5, 6, 7}]
+                    labels[name] = match.group(4)
+                elif line.startswith('C'):
+                    rater, annotations = line.strip().split(':')
+                    annotations = annotations.strip().split(';')[:-1]
+                    annotations = [x.strip() for x in annotations]
+                    if not rater.startswith('C') or rater[2] in 'MF':
+                        continue
+                    ratings.append((name, rater, annotations[0]))
+    ratings = pd.DataFrame(sorted(ratings), columns=['name', 'rater', 'label'])
+    agreement = np.mean((4 - ratings.groupby('name')['label'].nunique()) / 3)
+    print("Mean label agreement: {:.3f}".format(agreement))
 
     if args.regression:
         with open(args.regression, 'w') as fid:
