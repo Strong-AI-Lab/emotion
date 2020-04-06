@@ -22,16 +22,20 @@ parser.add_argument(
     help="SmartKom set to process, one of {Home, Mobil, Public}",
 )
 parser.add_argument('--labels', help="File to write annotations to",
-                    default='labels.txt', type=Path)
+                    default='labels.csv', type=Path)
 parser.add_argument('--wav_out', help="Directory to individual turns",
                     default='wav_corpus', type=Path)
+parser.add_argument('--transcripts', help="Transcripts file",
+                    default='transcripts.csv', type=Path)
 
 
 def main():
     args = parser.parse_args()
 
     labels_file = open(args.labels, 'w')
+    transcripts_file = open(args.transcripts, 'w')
     print('Name,Emotion', file=labels_file)
+    print('Name,Transcript', file=transcripts_file)
     for sess_dir in sorted(Path('SK-' + args.set).glob('*')):
         print(sess_dir)
         sess = sess_dir.name
@@ -43,15 +47,27 @@ def main():
 
         ush_list = []
         trn_list = []
+        words = {}
         with open(annot_file) as fid:
             for line in fid:
                 if line.startswith('USH:'):
                     _, start, dur, emo, *rest = line.strip().split()
                     emo = emo.replace('"', '')
                     ush_list.append((int(start), int(dur), emo))
-                if line.startswith('TRN:'):
-                    _, start, dur, words, turn = line.strip().split()
-                    trn_list.append((int(start), int(dur), turn))
+                elif line.startswith('TRN:'):
+                    _, start, dur, indices, turn = line.strip().split()
+                    indices = [int(x) for x in indices.split(',')]
+                    trn_list.append((int(start), int(dur), indices))
+                elif line.startswith('ORT:'):
+                    _, idx, word = line.strip().split()
+                    idx = int(idx)
+                    words[idx] = word
+
+        trn_text = []
+        for trn in trn_list:
+            wordlist = [words[i] for i in trn[2]]
+            wordlist = [x for x in wordlist if '<' not in x and '>' not in x]
+            trn_text.append(' '.join(wordlist))
 
         ush_starts = np.array([x[0] for x in ush_list])
         ush_ends = np.array([x[0] + x[1] + 1 for x in ush_list])
@@ -98,10 +114,13 @@ def main():
                 out_file.parent.mkdir(parents=True, exist_ok=True)
                 soundfile.write(out_file, audio[start:end], sr)
 
+            print('{},"{}"'.format(name, trn_text[i]), file=transcripts_file)
+
             emo = trn_map[i].replace('/', '_')
             emo = emotions[emo]
             print('{},{}'.format(name, emo), file=labels_file)
     labels_file.close()
+    transcripts_file.close()
 
 
 if __name__ == "__main__":
