@@ -12,8 +12,9 @@ from pathlib import Path
 import arff
 from tqdm import tqdm
 
-from emotion_recognition.dataset import (corpora, parse_classification_annotations,
-                            parse_regression_annotations)
+from emotion_recognition.dataset import (corpora,
+                                         parse_classification_annotations,
+                                         parse_regression_annotations)
 
 if sys.platform == 'win32':
     CONFIG_DIR = 'C:\\opensmile-2.3.0\\config'
@@ -47,6 +48,8 @@ parser.add_argument('--out_dir', help="Directory to write data")
 parser.add_argument('--prefix', help="Output file prefix")
 parser.add_argument('--type', help="Type of annotations",
                     default='classification')
+parser.add_argument('--filetype', default='arff',
+                    help="Type of output file. One of {csv, arff}")
 
 
 def read_arff(file: str):
@@ -85,16 +88,25 @@ def main():
             for filename in input_list:
                 name = Path(filename).stem
 
-                output_file = tmp_dir / '{}_{}.arff'.format(prefix,
-                                                            name)
+                output_file = tmp_dir / '{}_{}.{}'.format(prefix, name,
+                                                          args.filetype)
                 if output_file.exists():
                     output_file.unlink()
+                if args.filetype == 'arff':
+                    outopt = '-output'
+                elif args.filetype == 'csv':
+                    outopt = '-csvoutput'
+                else:
+                    raise ValueError((
+                        "--filetype must be on of {csv, arff}, got '{}'"
+                        .format(args.filetype)
+                    ))
 
                 smile_args = [
                     OPENSMILE_BIN,
                     '-C', args.config,
                     '-I', filename,
-                    '-O', output_file,
+                    outopt, output_file,
                     '-classes', '{unknown}',
                     '-class', 'unknown',
                     '-instname', name
