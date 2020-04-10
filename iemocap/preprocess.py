@@ -2,10 +2,13 @@
 
 import argparse
 import re
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+from emotion_recognition.stats import alpha
 
 # [START_TIME - END_TIME] TURN_NAME EMOTION [V, A, D]
 REGEX = (r'^\[(\d+\.\d+) - (\d+\.\d+)\]\t(\w+)\t(\w+)\t'
@@ -62,6 +65,17 @@ def main():
     ratings = pd.DataFrame(sorted(ratings), columns=['name', 'rater', 'label'])
     agreement = np.mean((4 - ratings.groupby('name')['label'].nunique()) / 3)
     print("Mean label agreement: {:.3f}".format(agreement))
+
+    data = (ratings.set_index(['rater', 'name'])['label'].astype('category')
+            .cat.codes.unstack() + 1)
+    data[data.isna()] = 0
+    data = data.astype(int).to_numpy()
+    print("Krippendorf's alpha: {:.3f}".format(alpha(data)))
+
+    emo_dist = Counter(labels.values())
+    print("Emotion distribution:")
+    for emotion, count in emo_dist.items():
+        print("{:<10s}: {:d}".format(emotion, count))
 
     if args.regression:
         with open(args.regression, 'w') as fid:

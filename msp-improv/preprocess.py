@@ -2,6 +2,7 @@
 
 import argparse
 import re
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -86,6 +87,11 @@ def main():
     data[data.isna()] = 0
     data = data.astype(int).to_numpy()
     print("Krippendorf's alpha: {:.3f}".format(alpha(data)))
+
+    emo_dist = Counter(labels.values())
+    print("Emotion distribution:")
+    for emotion, count in emo_dist.items():
+        print("{:<10s}: {:d}".format(emotion, count))
 
     if args.regression:
         with open(args.regression, 'w') as fid:
