@@ -1,7 +1,7 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from typing import Callable
+from typing import Callable, List
 
 import numpy as np
 import pandas as pd
@@ -104,8 +104,8 @@ class SKLearnClassifier(Classifier):
         -----------
         x_train, y_train: numpy.ndarray
             Training data.
-        x_test, y_test: numpy.ndarray
-            Testing data.
+        x_valid, y_valid: numpy.ndarray
+            Validation data.
         param_grid: dict or None, optional
             Parameter grid for optimising hyperparameters.
         cv_score_fn: Callable, optional
@@ -214,10 +214,11 @@ class TFClassifier(Classifier):
 
 def test_model(model: Classifier,
                dataset: Dataset,
-               mode='all',
-               genders=['all'],
-               reps=1,
+               mode: str = 'all',
+               genders: List[str] = ['all'],
+               reps: int = 1,
                splitter: BaseCrossValidator = KFold(10),
+               validation: str = 'valid',
                **kwargs):
     """Tests a `Classifier` instance on the given dataset.
 
@@ -227,16 +228,20 @@ def test_model(model: Classifier,
         The classifier to test.
     dataset: Dataset
         The dataset to test on.
-    mode: {'all', 'valence', 'arousal'}, optional
+    mode: {'all', 'valence', 'arousal'}
         The kind of classification data to use from the dataset.
-    genders: list, optional
+    genders: list
         Which gendered data to perform the test on: 'm' for male, 'f' for
         female, and 'all' for combined. Default is ['all'].
-    reps: int, optional
+    reps: int
         The number of repetitions, default is 1 for a single run.
-    splitter: sklearn.model_selection.BaseCrossValidator, optional
+    splitter: sklearn.model_selection.BaseCrossValidator
         A splitter used for cross-validation. Default is KFold(10) for 10 fold
         cross-validation.
+    validation: str, {'train', 'valid', 'test'}
+        Validation method to use for parameter optimisation. 'train' uses
+        training data, 'test' uses test data, 'valid' uses a random inner
+        cross-validation fold with the same splitting method.
     kwargs: dict, optional
         Other arguments passed on to model.fit() and model.predict().
 
@@ -264,7 +269,8 @@ def test_model(model: Classifier,
         x = dataset.x[gender_indices]
         y = dataset.labels[mode][gender_indices]
         for rep in range(reps):
-            for fold, (train, test) in enumerate(splitter.split(x, y, groups)):
+            fold = 1
+            for train, test in splitter.split(x, y, groups):
                 x_train = x[train]
                 y_train = y[train]
                 x_test = x[test]
@@ -273,10 +279,9 @@ def test_model(model: Classifier,
                 n_splits = splitter.get_n_splits(x_test, y_test,
                                                  speaker_indices[test])
                 if n_splits > 1 and isinstance(splitter, LeaveOneGroupOut):
-                    for i, (valid, test) in enumerate(splitter.split(
-                            x_test, y_test, speaker_indices[test])):
-                        subfold = n_splits * fold + i
-                        print("Fold {}".format(subfold))
+                    for valid, test in splitter.split(x_test, y_test,
+                                                      speaker_indices[test]):
+                        print("Fold {}".format(fold))
 
                         x_valid = x_test[valid]
                         y_valid = y_test[valid]
@@ -289,14 +294,41 @@ def test_model(model: Classifier,
                         # modified by batching.
                         y_pred, y_true = model.predict(x_test2, y_test2,
                                                        **kwargs)
-                        record_metrics(df, subfold, rep, y_true, y_pred,
+                        record_metrics(df, fold, rep, y_true, y_pred,
                                        len(labels))
+                        fold += 1
                 else:
+                    # TODO: fix this in the general case when using arbitrary
+                    # cross-validation splitter
+                    if validation == 'valid':
+                        if len(np.unique(speaker_indices[train])) <= 1:
+                            raise ValueError("There are no speakers to create"
+                                             "a validation set.")
+                        n_splits = splitter.get_n_splits(
+                            x_train, y_train, speaker_indices[train])
+
+                        # Select random inner fold to use as validation set
+                        r = np.random.randint(1, n_splits + 1)
+                        for _ in range(r):
+                            train2, valid = next(splitter.split(
+                                x_train, y_train, speaker_indices[train]))
+                        x_valid = x_train[valid]
+                        y_valid = y_train[valid]
+                        x_train = x_train[train2]
+                        y_train = y_train[train2]
+                    elif validation == 'test':
+                        x_valid = x_test
+                        y_valid = y_test
+                    else:
+                        x_valid = x_train
+                        y_valid = y_train
+
                     print("Fold {}".format(fold))
-                    model.fit(x_train, y_train, x_test, y_test, fold=fold,
+                    model.fit(x_train, y_train, x_valid, y_valid, fold=fold,
                               **kwargs)
                     y_pred, y_true = model.predict(x_test, y_test, **kwargs)
                     record_metrics(df, fold, rep, y_true, y_pred, len(labels))
+                    fold += 1
     return df
 
 
