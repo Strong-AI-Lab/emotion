@@ -9,18 +9,14 @@ from sklearn.model_selection import GroupKFold, LeaveOneGroupOut, ParameterGrid
 from sklearn.preprocessing import StandardScaler
 from tensorflow import keras
 
-from emotion_recognition.classification import (PrecomputedSVC, SKLearnClassifier,
-                                   TFClassifier, print_results, test_model)
-from emotion_recognition.dataset import FrameDataset, NetCDFDataset, UtteranceDataset
+from emotion_recognition.classification import (PrecomputedSVC,
+                                                SKLearnClassifier,
+                                                TFClassifier, print_results,
+                                                test_model)
+from emotion_recognition.dataset import (FrameDataset, NetCDFDataset,
+                                         UtteranceDataset)
 
 RESULTS_DIR = 'results/comparative2020'
-CLASSIFICATION_CORPORA = [
-    'cafe', 'demos', 'emodb', 'emofilm', 'enterface', 'iemocap', 'jl',
-    'msp-improv', 'portuguese', 'ravdess', 'savee', 'shemo', 'tess'
-]
-CLASSIFICATION_CONFIGS = ['eGeMAPSv01a', 'GeMAPSv01a', 'IS09_emotion',
-                          'IS13_ComParE']
-REGRESSION_CORPORA = ['iemocap', 'msp-improv', 'semaine']
 
 
 def get_mlp_model(n_features, n_classes, layers=1):
