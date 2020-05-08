@@ -538,7 +538,7 @@ class RawDataset(Dataset):
             self.x[i] = audio
 
             annotations = parse_classification_annotations(
-                Path(self.file).parent / 'labels.txt')
+                Path(self.file).parent / 'labels.csv')
             name = Path(filename).stem
             emotion = annotations[name]
             self.y[i] = self.class_to_int[emotion]
