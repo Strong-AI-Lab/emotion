@@ -133,9 +133,10 @@ def test_svm_classifier(dataset, resultname, kind='linear'):
     )
 
     print_results(df)
-    output_dir = Path(RESULTS_DIR) / dataset.corpus / 'svm' / kind
-    output_dir.mkdir(parents=True, exist_ok=True)
-    df.to_csv(Path(output_dir) / '{}.csv'.format(resultname))
+    if resultname:
+        output_dir = Path(RESULTS_DIR) / dataset.corpus / 'svm' / kind
+        output_dir.mkdir(parents=True, exist_ok=True)
+        df.to_csv(Path(output_dir) / '{}.csv'.format(resultname))
 
 
 def test_dense_model(dataset, resultname, kind='basic'):
@@ -181,9 +182,10 @@ def test_dense_model(dataset, resultname, kind='basic'):
         verbose=False
     )
     print_results(df)
-    output_dir = Path(RESULTS_DIR) / dataset.corpus / 'dnn' / kind
-    output_dir.mkdir(parents=True, exist_ok=True)
-    df.to_csv(Path(output_dir) / '{}.csv'.format(resultname))
+    if resultname:
+        output_dir = Path(RESULTS_DIR) / dataset.corpus / 'dnn' / kind
+        output_dir.mkdir(parents=True, exist_ok=True)
+        df.to_csv(Path(output_dir) / '{}.csv'.format(resultname))
 
 
 def test_conv_model(dataset, resultname, kind='aldeneh'):
@@ -198,6 +200,11 @@ def test_conv_model(dataset, resultname, kind='aldeneh'):
     if kind == 'aldeneh':
         model_fn = partial(get_aldeneh_full_model, dataset.n_features,
                            dataset.n_classes)
+
+    model = model_fn()
+    model.summary()
+    del model
+    keras.backend.clear_session()
 
     df = test_model(
         TFClassifier(model_fn),
@@ -220,9 +227,10 @@ def test_conv_model(dataset, resultname, kind='aldeneh'):
         verbose=False
     )
     print_results(df)
-    output_dir = Path(RESULTS_DIR) / dataset.corpus / 'cnn' / kind
-    output_dir.mkdir(parents=True, exist_ok=True)
-    df.to_csv(Path(output_dir) / '{}.csv'.format(resultname))
+    if resultname:
+        output_dir = Path(RESULTS_DIR) / dataset.corpus / 'cnn' / kind
+        output_dir.mkdir(parents=True, exist_ok=True)
+        df.to_csv(Path(output_dir) / '{}.csv'.format(resultname))
 
 
 parser = argparse.ArgumentParser()
@@ -236,6 +244,8 @@ parser.add_argument('--kind', help="The kind of classifier.", required=True)
 parser.add_argument('--datatype', help="The type of data {frame, utterance}.",
                     default='utterance')
 parser.add_argument('--name', help="The results output name.")
+parser.add_argument('--noresults', help="Don't output results to file",
+                    action='store_true')
 
 
 def main():
@@ -269,6 +279,8 @@ def main():
             dataset.pad_arrays(64)
 
     resultname = args.name or datafile.stem
+    if args.noresults:
+        resultname = None
     test_fn(dataset, resultname, kind=args.kind)
 
 
