@@ -2,13 +2,14 @@
 
 import argparse
 import re
-from itertools import product
+from itertools import product, combinations
 from math import isnan
 from pathlib import Path
 
 import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+from scipy.stats import ttest_rel
 
 SUBSTITUTIONS = {
     'cnn/aldeneh': 'CNN',
@@ -92,18 +93,23 @@ clf_col_order = [
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--results', nargs='+', type=Path, required=True)
-parser.add_argument('-m', '--metrics', nargs='*', type=str,
+parser.add_argument('--metrics', nargs='*', type=str,
                     help="Metrics to output.")
-parser.add_argument('--plot', help="Show matplotlib figures",
+parser.add_argument('--plot', help="Show matplotlib figures.",
                     action='store_true')
-parser.add_argument('-o', '--output', type=Path,
-                    help="Directory to write output summary tables.")
-parser.add_argument('-r', '--regex', type=str, default='.*')
+parser.add_argument('--print', help="Print tables to console.",
+                    action='store_true')
+parser.add_argument('--latex', type=Path,
+                    help="Directory to output latex tables.")
+parser.add_argument('--regex', type=str, default='.*')
+parser.add_argument('--images', type=Path, help="Directory to output images.")
+parser.add_argument('--excel', type=Path,
+                    help="Directory to output Excel files.")
 
 
 def fmt(f):
     if not isnan(f):
-        return '{:0.3f}'.format(f)
+        return '{:#.3g}'.format(100 * f)
     return ''
 
 
@@ -141,17 +147,17 @@ def plot_matrix(df, size=(4, 4), rect=[0.25, 0.25, 0.75, 0.75]):
 
     cmap_min, cmap_max = im.cmap(0), im.cmap(256)
 
-    thresh = (arr.max() + arr.min()) / 2.0
+    thresh = 0.5
     for i, j in product(range(len(ylabels)), range(len(xlabels))):
         color = cmap_max if arr[i, j] < thresh else cmap_min
-        ax.text(j, i, format(arr[i, j], '.2f'), ha="center", va="center",
+        ax.text(j, i, fmt(arr[i, j]), ha="center", va="center",
                 color=color, fontweight='normal', fontsize='small')
 
     ax.set_xticks(range(len(xlabels)))
-    ax.set_xticklabels(xlabels, rotation=45, ha='right',
+    ax.set_xticklabels(xlabels, rotation=30, ha='right', fontsize='small',
                        rotation_mode='anchor')
     ax.set_yticks(range(len(ylabels)))
-    ax.set_yticklabels(ylabels)
+    ax.set_yticklabels(ylabels, fontsize='small')
 
     return fig
 
@@ -159,58 +165,54 @@ def plot_matrix(df, size=(4, 4), rect=[0.25, 0.25, 0.75, 0.75]):
 def main():
     args = parser.parse_args()
 
-    _dirs = [d for d in args.results if d.is_dir()]
-    dirs = []
-    for d in _dirs:
-        if '*' in d.stem:
-            dirs.extend(d.parent.glob(d.stem))
-        else:
-            dirs.append(d)
-    dirs = sorted(dirs)
+    cache_file = Path('/tmp/emotion_results.csv')
+    if cache_file.exists():
+        df = pd.read_csv(cache_file, index_col=[0, 1, 2])
+    else:
+        _dirs = [d for d in args.results if d.is_dir()]
+        dirs = []
+        for d in _dirs:
+            # This takes into account Windows CMD globbing issues
+            if '*' in d.stem:
+                dirs.extend(d.parent.glob(d.stem))
+            else:
+                dirs.append(d)
+        dirs = sorted(dirs)
 
-    uar_list = {}
-    for d in dirs:
-        print("Reading", d)
-        table = {}
-        df_list = {}
-        for filename in [x for x in sorted(d.glob('**/*.csv'))
-                         if re.search(args.regex, str(x))]:
-            name = filename.relative_to(d).with_suffix('')
-            df_list[name] = pd.read_csv(filename, header=[0, 1, 2, 3],
-                                        index_col=0)
-        if not df_list:
-            continue
-        # Pool reps and take the mean across classes
-        uar = {c: df_list[c][('uar', 'all')].stack().mean(1) for c in df_list}
+        uar_list = {}
+        for d in dirs:
+            print("Reading", d)
+            table = {}
+            df_list = {}
+            for filename in [x for x in sorted(d.glob('**/*.csv'))
+                             if re.search(args.regex, str(x))]:
+                name = filename.relative_to(d).with_suffix('')
+                df_list[name] = pd.read_csv(filename, header=[0, 1, 2, 3],
+                                            index_col=0)
+            if not df_list:
+                continue
+            # Pool reps and take the mean across classes
+            uar = {c: df_list[c][('uar', 'all')].stack().mean(1)
+                   for c in df_list}
 
-        for name in df_list:
-            config = Path(name).name
-            clf = str(Path(name).parent)
-            table[(clf, config)] = (uar[name].mean(), uar[name].std(),
-                                    uar[name].max())
+            for name in df_list:
+                feat = Path(name).name
+                clf = str(Path(name).parent)
+                table[(clf, feat)] = (uar[name].mean(), uar[name].std(),
+                                      uar[name].max())
 
-        if args.plot:
-            fig: plt.Figure = plt.figure()
-            ax: plt.Axes = fig.add_subplot(1, 1, 1)
-            ax.set_title(d.name)
-            ax.boxplot(uar.values(), labels=uar.keys(), notch=True,
-                       bootstrap=1000)
-            ax.set_xticklabels(uar.keys(), rotation=90)
-            ax.set_xlabel('Config')
-            ax.set_ylabel('UAR')
-            fig.tight_layout()
+            df_uar = pd.DataFrame(list(table.values()), index=table.keys(),
+                                  columns=['mean', 'std', 'max'])
+            uar_list[d.name] = df_uar
 
-        df_uar = pd.DataFrame(list(table.values()), index=table.keys(),
-                              columns=['mean', 'std', 'max'])
-        uar_list[d.name] = df_uar
+        if not uar_list:
+            raise FileNotFoundError("No valid files found matching regex.")
 
-    if not uar_list:
-        raise FileNotFoundError("No valid files found matching regex.")
+        df = pd.concat(uar_list.values(), keys=uar_list.keys(),
+                       names=['Dataset', 'Classifier', 'Config'])
+        df.to_csv('/tmp/emotion_results.csv')
 
-    df = pd.concat(
-        uar_list.values(), keys=[name for name in uar_list],
-        names=['corpus', 'classifier', 'config']
-    ).unstack(0).swaplevel(axis=1)
+    df = df.unstack(0).swaplevel(axis=1)
     df.columns.names = [None, 'metric']
 
     metrics = ['mean']
@@ -224,8 +226,14 @@ def main():
     df.index = df.index.map(lambda t: tuple([SUBSTITUTIONS.get(x, x)
                                              for x in t]))
 
-    best = pd.concat([df.idxmax(0), df.max(0)], 1)
-    print(best)
+    best = pd.concat([df.idxmax(0), df.max(0)], 1, keys=['Combination', 'UAR'])
+    best['Classifier'] = best['Combination'].map(lambda t: t[0])
+    best['Features'] = best['Combination'].map(lambda t: t[1])
+    best.drop(columns='Combination')
+    best = best[['Classifier', 'Features', 'UAR']]
+
+    clf_feat = df.mean(1).unstack(1)
+    clf_feat = clf_feat.loc[clf_col_order, feat_cols_subset]
 
     mean_clf = df.mean(level=0).T
     mean_feat = df.mean(level=1).T
@@ -237,66 +245,117 @@ def main():
     mean_clf = mean_clf[clf_col_order]
     max_clf = max_clf[clf_col_order]
 
-    DIR = Path('~/Documents/Windows/Uni Stuff/PhD/papers/comparative/images').expanduser()  # noqa: E501
-    with PdfPages(DIR / 'mean_clf_matrix.pdf') as pdf:
-        fig = plot_matrix(mean_clf, size=(4.5, 4))
-        pdf.savefig(fig)
+    diff_feat = max_feat - mean_feat
+    diff_clf = max_clf - mean_clf
 
-    with PdfPages(DIR / 'max_clf_matrix.pdf') as pdf:
-        fig = plot_matrix(max_clf, size=(4.5, 4))
-        pdf.savefig(fig)
+    if args.print:
+        print("Data table:")
+        print(df.to_string(float_format=fmt))
+        print()
+        print(df.swaplevel().sort_index().to_string(float_format=fmt))
+        print()
 
-    with PdfPages(DIR / 'mean_feat_matrix.pdf') as pdf:
-        fig = plot_matrix(mean_feat, size=(5.5, 4.5),
-                          rect=[0.2, 0.35, 0.8, 0.65])
-        pdf.savefig(fig)
+        print("Best classifier-features combinations:")
+        print(best)
+        print()
 
-    with PdfPages(DIR / 'max_feat_matrix.pdf') as pdf:
-        fig = plot_matrix(max_feat[feat_cols_subset], size=(4.5, 4.5),
-                          rect=[0.25, 0.3, 0.75, 0.7])
-        pdf.savefig(fig)
-    plt.show()
+        print("Average UAR of (classifier, feature) pairs:")
+        print(clf_feat)
+        print()
 
-    print("Data table:")
-    print(df.to_string(float_format=fmt))
-    print()
-    print(df.swaplevel().sort_index().to_string(float_format=fmt))
-    print()
-    print("Mean average UAR for each classifier:")
-    print(mean_clf.to_string(float_format=fmt))
-    print()
-    print("Mean average UAR for each feature set:")
-    print(mean_feat.to_string(float_format=fmt))
-    print()
-    print("Best average UAR achieved for each classifier:")
-    print(max_clf.to_string(float_format=fmt))
-    print()
-    print("Best average UAR achieved for each feature set:")
-    print(max_feat.to_string(float_format=fmt))
+        print("T-tests on columns:")
+        for c1, c2 in combinations(clf_feat.columns, 2):
+            tstat, pval = ttest_rel(clf_feat.loc[:, c1], clf_feat.loc[:, c2],
+                                    nan_policy='omit')
+            if pval < 0.05 / 28:
+                print('{}, {}, {:.3g}, {:.3g}'.format(c1, c2, tstat, pval))
+        print()
+        print("T-tests on rows:")
+        for r1, r2 in combinations(clf_feat.index, 2):
+            tstat, pval = ttest_rel(clf_feat.loc[r1, :], clf_feat.loc[r2, :],
+                                    nan_policy='omit')
+            if pval < 0.05 / 28:
+                print('{}, {}, {:.3g}, {:.3g}'.format(r1, r2, tstat, pval))
+        print()
 
-    if args.output:
-        to_latex(df, args.output / 'combined.tex',
+        print("Mean average UAR for each classifier:")
+        print(mean_clf.to_string(float_format=fmt))
+        print()
+        print("Mean average UAR for each feature set:")
+        print(mean_feat.to_string(float_format=fmt))
+        print()
+        print("Best average UAR achieved for each classifier:")
+        print(max_clf.to_string(float_format=fmt))
+        print()
+        print("Best average UAR achieved for each feature set:")
+        print(max_feat.to_string(float_format=fmt))
+
+        print("Increase in features UAR:")
+        print(diff_feat)
+        print()
+        print("Increase in classifiers UAR:")
+        print(diff_clf)
+        print()
+
+    if args.images or args.plot:
+        mean_clf_fig = plot_matrix(mean_clf, size=(4, 3.5))
+        max_clf_fig = plot_matrix(max_clf, size=(4, 3.5))
+        mean_feat_fig = plot_matrix(mean_feat, size=(5, 3.75),
+                                    rect=[0.2, 0.35, 0.8, 0.65])
+        max_feat_fig = plot_matrix(max_feat[feat_cols_subset], size=(4, 3.5),
+                                   rect=[0.25, 0.3, 0.75, 0.7])
+
+        if args.images:
+            with PdfPages(args.images / 'mean_clf_matrix.pdf') as pdf:
+                pdf.savefig(mean_clf_fig)
+
+            with PdfPages(args.images / 'max_clf_matrix.pdf') as pdf:
+                pdf.savefig(max_clf_fig)
+
+            with PdfPages(args.images / 'mean_feat_matrix.pdf') as pdf:
+                pdf.savefig(mean_feat_fig)
+
+            with PdfPages(args.images / 'max_feat_matrix.pdf') as pdf:
+                pdf.savefig(max_feat_fig)
+
+    if args.latex:
+        to_latex(df, args.latex / 'combined.tex',
                  label='tab:CombinedResults', caption="Combined results table")
         to_latex(
-            mean_clf, args.output / 'mean_clf.tex',
+            mean_clf, args.latex / 'mean_clf.tex',
             label='tab:MeanClassifier',
             caption="Mean average UAR for each classifier.",
         )
         to_latex(
-            mean_feat, args.output / 'mean_feat.tex',
+            mean_feat, args.latex / 'mean_feat.tex',
             label='tab:MeanFeature',
             caption="Mean average UAR for each feature set."
         )
         to_latex(
-            max_clf, args.output / 'max_clf.tex',
+            max_clf, args.latex / 'max_clf.tex',
             label='tab:MaxClassifier',
             caption="Maximum average UAR for each classifier."
         )
         to_latex(
-            max_feat[feat_cols_subset], args.output / 'max_feat.tex',
+            max_feat[feat_cols_subset], args.latex / 'max_feat.tex',
             label='tab:MaxFeature',
             caption="Maximum average UAR for each feature set."
         )
+        to_latex(
+            clf_feat, args.latex / 'clf_feat.tex',
+            label='tab:FeatClassifier',
+            caption="Average performance of (classifier, feature) pairs "
+                    "across datasets"
+        )
+
+    if args.excel:
+        for tab, name in zip(
+            [df.stack(), clf_feat, mean_clf, mean_feat, max_clf, max_feat],
+            ['combined', 'clf_feat', 'mean_clf', 'mean_feat', 'max_clf',
+             'max_feat']
+        ):
+            tab.to_excel(args.excel / (name + '.xlsx'), merge_cells=False)
+
     if args.plot:
         plt.show()
 
