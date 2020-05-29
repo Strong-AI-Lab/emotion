@@ -98,7 +98,7 @@ def main():
                     outopt = '-csvoutput'
                 else:
                     raise ValueError((
-                        "--filetype must be on of {csv, arff}, got '{}'"
+                        "--filetype must be on of {{csv, arff}}, got '{}'"
                         .format(args.filetype)
                     ))
 

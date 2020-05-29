@@ -87,12 +87,10 @@ def main():
     keras.backend.clear_session()
 
     for corpus in ['iemocap', 'msp-improv']:
-        print("raw")
         dataset = RawDataset(
             '{}/classification.txt'.format(corpus), corpus=corpus,
             normaliser=StandardScaler(), normalise_method='speaker'
         )
-        print()
 
         class_weight = ((dataset.n_instances / dataset.n_classes)
                         / np.bincount(dataset.y.astype(np.int)))

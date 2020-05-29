@@ -15,6 +15,7 @@
 !/msp-improv/preprocess.py
 /portuguese/*
 /ravdess/*
+/recola/*
 /savee/*
 /semaine/*
 !/semaine/preprocess.py

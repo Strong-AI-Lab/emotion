@@ -23,8 +23,18 @@ __all__ = [
 
 Corpus = namedtuple(
     'Corpus',
-    ['emotion_map', 'arousal_map', 'valence_map', 'male_speakers',
-     'female_speakers', 'speakers', 'get_emotion', 'get_speaker']
+    [
+        'emotion_map',      # Map of dataset-specific indicators to English
+                            # emotion words
+        'arousal_map',      # Optional map of emotion words to binary arousal
+        'valence_map',      # Optional map of emotion words to binary valence
+        'male_speakers',    # Optional list of male speakers
+        'female_speakers',  # Optional list of female speakers
+        'speakers',         # List of speakers
+        'get_emotion',      # Function to get the dataset-specific emotion
+                            # label from the clip name
+        'get_speaker'       # Function to get the speaker from the clip name
+    ]
 )
 
 corpora = {
@@ -368,6 +378,7 @@ def parse_regression_annotations(file):
 
 
 def parse_classification_annotations(file):
+    """Returns a dict of (name, emotion) pairs."""
     df = pd.read_csv(file, index_col=0)
     annotations = df.to_dict()[df.columns[0]]
     return annotations
@@ -393,9 +404,9 @@ class Dataset():
 
         self.speakers = corpora[self.corpus].speakers
         self.n_speakers = len(self.speakers)
-        self.sp_get = corpora[self.corpus].get_speaker
+        get_speaker = corpora[self.corpus].get_speaker
         self.speaker_indices = np.array(
-            [self.speakers.index(self.sp_get(n)) for n in self.names],
+            [self.speakers.index(get_speaker(n)) for n in self.names],
             dtype=int
         )
 
@@ -418,10 +429,10 @@ class Dataset():
             self.male_speakers = corpora[self.corpus].male_speakers
             self.female_speakers = corpora[self.corpus].female_speakers
             self.m_indices = np.array([i for i in range(self.n_instances)
-                                       if self.sp_get(self.names[i])
+                                       if get_speaker(self.names[i])
                                        in self.male_speakers], dtype=int)
             self.f_indices = np.array([i for i in range(self.n_instances)
-                                       if self.sp_get(self.names[i])
+                                       if get_speaker(self.names[i])
                                        in self.female_speakers], dtype=int)
             self.gender_indices['m'] = self.m_indices
             self.gender_indices['f'] = self.f_indices
@@ -482,10 +493,9 @@ class NetCDFDataset(Dataset):
 
         print('{} instances x {} features'.format(self.n_instances,
                                                   self.n_features))
-        speakers, counts = np.unique([self.sp_get(n) for n in self.names],
-                                     return_counts=True)
+        counts = np.bincount(self.speaker_indices)
         print("Speaker counts:")
-        print(' '.join([format(s, '<5s') for s in speakers]))
+        print(' '.join([format(s, '<5s') for s in self.speakers]))
         print(' '.join([format(x, '<5d') for x in counts]))
 
         self.dataset.close()
@@ -592,10 +602,9 @@ class UtteranceDataset(ArffDataset):
 
         print('{} instances x {} features'.format(self.n_instances,
                                                   self.n_features))
-        speakers, counts = np.unique([self.sp_get(n) for n in self.names],
-                                     return_counts=True)
+        counts = np.bincount(self.speaker_indices)
         print("Speaker counts:")
-        print(' '.join([format(s, '<5s') for s in speakers]))
+        print(' '.join([format(s, '<5s') for s in self.speakers]))
         print(' '.join([format(x, '<5d') for x in counts]))
 
 

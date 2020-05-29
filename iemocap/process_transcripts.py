@@ -46,10 +46,9 @@ def main():
         with open(Path(args.wordlist).with_suffix('.csv'), 'w') as fid:
             for u, s in sorted(utterances.items()):
                 tokens = word_tokenize(s)
-                tokens = [x for x in tokens if x not in stops]
                 tokens = [x for x in tokens if not re.search(r'[.!$,;:?]', x)]
-                words = [w.lower() for w in tokens]
-                s = ' '.join(words)
+                tokens = [x for x in tokens if x.lower() not in stops]
+                s = ' '.join(tokens)
                 s = s.replace('"', r'\"')
                 print('{};"{}"'.format(u, s), file=fid)
 

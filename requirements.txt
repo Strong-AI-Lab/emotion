@@ -1,12 +1,12 @@
 flake8
-tensorflow-gpu
+tensorflow>=2.2
 tensorflow-probability
 tensorflow-datasets
 tensorboard
 tensorboard_plugin_profile
 numpy
-pandas
-matplotlib
+pandas>=1.0.0
+matplotlib>=3.0.0
 scipy
 liac-arff
 tqdm

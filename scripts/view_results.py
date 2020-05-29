@@ -34,6 +34,7 @@ SUBSTITUTIONS = {
     'boaw_mfcc_le_20_500': 'BoAW: MFCC (20, 500)',
     'boaw_mfcc_le_50_1000': 'BoAW: MFCC (50, 1000)',
     'boaw_mfcc_le_100_5000': 'BoAW: MFCC (100, 5000)',
+    'bow': 'Bag of words',
 
     'cafe': 'CaFE',
     'crema-d': 'CREMA-D',
@@ -64,6 +65,7 @@ feat_col_order = [
     'BoAW: MFCC (20, 500)',
     'BoAW: MFCC (50, 1000)',
     'BoAW: MFCC (100, 5000)',
+    'Bag of words',
     'log MFB'
 ]
 
@@ -165,8 +167,8 @@ def plot_matrix(df, size=(4, 4), rect=[0.25, 0.25, 0.75, 0.75]):
 def main():
     args = parser.parse_args()
 
-    cache_file = Path('/tmp/emotion_results.csv')
-    if cache_file.exists():
+    cache_file = Path(args.results[0])
+    if len(args.results) == 1 and cache_file.is_file():
         df = pd.read_csv(cache_file, index_col=[0, 1, 2])
     else:
         _dirs = [d for d in args.results if d.is_dir()]
@@ -233,17 +235,19 @@ def main():
     best = best[['Classifier', 'Features', 'UAR']]
 
     clf_feat = df.mean(1).unstack(1)
-    clf_feat = clf_feat.loc[clf_col_order, feat_cols_subset]
+    clf_feat = clf_feat.loc[clf_feat.index.intersection(clf_col_order),
+                            clf_feat.columns.intersection(feat_cols_subset)]
 
     mean_clf = df.mean(level=0).T
     mean_feat = df.mean(level=1).T
     max_clf = df.max(level=0).T
     max_feat = df.max(level=1).T
 
-    mean_feat = mean_feat[feat_col_order]
-    max_feat = max_feat[feat_col_order]
-    mean_clf = mean_clf[clf_col_order]
-    max_clf = max_clf[clf_col_order]
+    mean_feat = mean_feat[mean_feat.columns.intersection(feat_col_order)]
+    max_feat = max_feat[max_feat.columns.intersection(feat_col_order)]
+    max_feat_subset = max_feat[max_feat.columns.intersection(feat_cols_subset)]
+    mean_clf = mean_clf[mean_clf.columns.intersection(clf_col_order)]
+    max_clf = max_clf[max_clf.columns.intersection(clf_col_order)]
 
     diff_feat = max_feat - mean_feat
     diff_clf = max_clf - mean_clf
@@ -302,7 +306,7 @@ def main():
         max_clf_fig = plot_matrix(max_clf, size=(4, 3.5))
         mean_feat_fig = plot_matrix(mean_feat, size=(5, 3.75),
                                     rect=[0.2, 0.35, 0.8, 0.65])
-        max_feat_fig = plot_matrix(max_feat[feat_cols_subset], size=(4, 3.5),
+        max_feat_fig = plot_matrix(max_feat_subset, size=(4, 3.5),
                                    rect=[0.25, 0.3, 0.75, 0.7])
 
         if args.images:
@@ -337,7 +341,7 @@ def main():
             caption="Maximum average UAR for each classifier."
         )
         to_latex(
-            max_feat[feat_cols_subset], args.latex / 'max_feat.tex',
+            max_feat_subset, args.latex / 'max_feat.tex',
             label='tab:MaxFeature',
             caption="Maximum average UAR for each feature set."
         )

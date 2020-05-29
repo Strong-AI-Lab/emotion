@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import soundfile
+from nltk.corpus import stopwords
 
 emotions = {
     'Neutral': 'neutral',
@@ -27,6 +28,8 @@ parser.add_argument('--wav_out', help="Directory to individual turns",
                     default='wav_corpus', type=Path)
 parser.add_argument('--transcripts', help="Transcripts file",
                     default='transcripts.csv', type=Path)
+
+stops = set(stopwords.words('german'))
 
 
 def main():
@@ -67,7 +70,10 @@ def main():
         for trn in trn_list:
             wordlist = [words[i] for i in trn[2]]
             wordlist = [x for x in wordlist if '<' not in x and '>' not in x]
-            trn_text.append(' '.join(wordlist))
+            wordlist = [x for x in wordlist if x.lower() not in stops]
+            s = ' '.join(wordlist)
+            s = s.replace('"', r'\"')
+            trn_text.append(s)
 
         ush_starts = np.array([x[0] for x in ush_list])
         ush_ends = np.array([x[0] + x[1] + 1 for x in ush_list])

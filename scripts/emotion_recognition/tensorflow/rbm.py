@@ -21,6 +21,9 @@ class DecayType(Enum):
     COSINE = auto()
     EXP = auto()
 
+    def __str__(self):
+        return self.name
+
 
 class RBM:
     """Restricted Boltzmann Machine
@@ -174,9 +177,11 @@ class RBM:
               init_learning_rate: float = 0.01,
               final_learning_rate: float = 0.001,
               learning_rate_decay: Optional[DecayType] = None,
+              learning_rate_decay_param: float = 0.5,
               init_momentum: float = 0.5,
               final_momentum: float = 0.9,
               momentum_decay: Optional[DecayType] = None,
+              momentum_decay_param: float = 0.5,
               n_epochs: int = 100):
         """Train this RBM.
 
@@ -187,9 +192,21 @@ class RBM:
         valid_data: tf.data.Dataset, optional
             Validation data to use for performance measuring.
         init_learning_rate: float
-            The initial learning rate to set. Default is 0.1.
+            The initial learning rate to set. Default is 0.01.
+        final_learning_rate: float
+            The final learning rate to set. Default is 0.001
+        learning_rate_decay: DecayType, optional
+            Type of learning rate decay. Default is None, meaning no decay.
+        learning_rate_decay_param: float
+            Parameter for learning rate decay. Use depends on type. For step
+            decay, this is the fraction of epochs after which to change
+            learning rate.
         init_momentum: float
             The initial momentum to set. Default is 0.5.
+        final_momentum: float
+            The final momentum to set. Default is 0.9.
+        momentum_decay: DecayType, optional
+            Type of momentum decay. Default is None, meaning no decay.
         n_epochs: int
             The number of epochs to train for. A single epoch is one pass over
             the training data. Default is 100.
@@ -199,30 +216,43 @@ class RBM:
         train_size = sum(1 for _ in train_data)
 
         if learning_rate_decay == DecayType.COSINE:
-            lr_cos_coeffA = 0.5 * (init_learning_rate - final_learning_rate)
-            lr_cos_coeffB = 0.5 * (init_learning_rate + final_learning_rate)
+            lr_coeffA = 0.5 * (init_learning_rate - final_learning_rate)
+            lr_coeffB = 0.5 * (init_learning_rate + final_learning_rate)
+        elif learning_rate_decay == DecayType.EXP:
+            lr_coeffA = init_learning_rate
+            lr_coeffB = (tf.math.log(init_learning_rate)
+                         - tf.math.log(final_learning_rate))
         if momentum_decay == DecayType.COSINE:
-            mom_cos_coeffA = 0.5 * (init_momentum - final_momentum)
-            mom_cos_coeffB = 0.5 * (init_momentum + final_momentum)
+            mom_coeffA = 0.5 * (init_momentum - final_momentum)
+            mom_coeffB = 0.5 * (init_momentum + final_momentum)
+        elif momentum_decay == DecayType.EXP:
+            mom_coeffA = init_momentum
+            mom_coeffB = (tf.math.log(init_momentum)
+                          - tf.math.log(final_momentum))
 
         for epoch in range(1, n_epochs + 1):
             tf.print("Epoch: {}".format(epoch))
             time_frac = float(epoch) / float(n_epochs)
 
-            if epoch > n_epochs // 2:
-                if learning_rate_decay == DecayType.STEP:
-                    self.learning_rate.assign(final_learning_rate)
-                elif learning_rate_decay == DecayType.COSINE:
-                    self.learning_rate.assign(
-                        lr_cos_coeffA * tf.cos(pi * time_frac) + lr_cos_coeffB)
+            if (learning_rate_decay == DecayType.STEP
+                    and time_frac > learning_rate_decay_param):
+                self.learning_rate.assign(final_learning_rate)
+            elif learning_rate_decay == DecayType.COSINE:
+                self.learning_rate.assign(
+                    lr_coeffA * tf.cos(pi * time_frac) + lr_coeffB)
+            elif learning_rate_decay == DecayType.EXP:
+                self.learning_rate.assign(
+                    lr_coeffA * tf.exp(-lr_coeffB * time_frac))
 
-                if momentum_decay == DecayType.STEP:
-                    self.momentum.assign(final_momentum)
-                elif momentum_decay == DecayType.COSINE:
-                    self.momentum.assign(
-                        (mom_cos_coeffA * tf.cos(pi * time_frac)
-                         + mom_cos_coeffB)
-                    )
+            if (momentum_decay == DecayType.STEP
+                    and time_frac > momentum_decay_param):
+                self.momentum.assign(final_momentum)
+            elif momentum_decay == DecayType.COSINE:
+                self.momentum.assign(
+                    mom_coeffA * tf.cos(pi * time_frac) + mom_coeffB)
+            elif momentum_decay == DecayType.EXP:
+                self.momentum.assign(
+                    mom_coeffA * tf.exp(-mom_coeffB * time_frac))
 
             mse_train = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
             i = tf.constant(0, tf.int32)
