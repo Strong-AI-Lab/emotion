@@ -37,7 +37,8 @@ SUBSTITUTIONS = {
     'bow': 'Bag of words',
 
     'cafe': 'CaFE',
-    'crema-d': 'CREMA-D',
+    'crema-d_nominal': 'CREMA-D Nom.',
+    'crema-d_multimodal': 'CREMA-D AV',
     'demos': 'DEMoS',
     'emodb': 'EMO-DB',
     'emofilm': 'EmoFilm',
@@ -54,27 +55,26 @@ SUBSTITUTIONS = {
 }
 
 feat_col_order = [
+    'auDeep',
     'IS09',
     'IS13',
     'GeMAPS',
     'eGeMAPS',
-    'auDeep',
     'BoAW: eGeMAPS (20, 500)',
     'BoAW: eGeMAPS (50, 1000)',
     'BoAW: eGeMAPS (100, 5000)',
     'BoAW: MFCC (20, 500)',
     'BoAW: MFCC (50, 1000)',
     'BoAW: MFCC (100, 5000)',
-    'Bag of words',
     'log MFB'
 ]
 
 feat_cols_subset = [
+    'auDeep',
     'IS09',
     'IS13',
     'GeMAPS',
     'eGeMAPS',
-    'auDeep',
     'BoAW: MFCC (20, 500)',
     'BoAW: MFCC (50, 1000)',
     'BoAW: MFCC (100, 5000)',
@@ -164,6 +164,10 @@ def plot_matrix(df, size=(4, 4), rect=[0.25, 0.25, 0.75, 0.75]):
     return fig
 
 
+def ordered_intersect(a, b):
+    return [x for x in a if x in b]
+
+
 def main():
     args = parser.parse_args()
 
@@ -235,19 +239,23 @@ def main():
     best = best[['Classifier', 'Features', 'UAR']]
 
     clf_feat = df.mean(1).unstack(1)
-    clf_feat = clf_feat.loc[clf_feat.index.intersection(clf_col_order),
-                            clf_feat.columns.intersection(feat_cols_subset)]
+    clf_feat = clf_feat.loc[
+        ordered_intersect(clf_col_order, clf_feat.index),
+        ordered_intersect(feat_cols_subset, clf_feat.columns)
+    ]
 
     mean_clf = df.mean(level=0).T
     mean_feat = df.mean(level=1).T
     max_clf = df.max(level=0).T
     max_feat = df.max(level=1).T
 
-    mean_feat = mean_feat[mean_feat.columns.intersection(feat_col_order)]
-    max_feat = max_feat[max_feat.columns.intersection(feat_col_order)]
-    max_feat_subset = max_feat[max_feat.columns.intersection(feat_cols_subset)]
-    mean_clf = mean_clf[mean_clf.columns.intersection(clf_col_order)]
-    max_clf = max_clf[max_clf.columns.intersection(clf_col_order)]
+    print(ordered_intersect(feat_col_order, mean_feat.columns))
+    mean_feat = mean_feat[ordered_intersect(feat_col_order, mean_feat.columns)]
+    max_feat = max_feat[ordered_intersect(feat_col_order, max_feat.columns)]
+    max_feat_subset = max_feat[
+        ordered_intersect(feat_cols_subset, max_feat.columns)]
+    mean_clf = mean_clf[ordered_intersect(clf_col_order, mean_clf.columns)]
+    max_clf = max_clf[ordered_intersect(clf_col_order, max_clf.columns)]
 
     diff_feat = max_feat - mean_feat
     diff_clf = max_clf - mean_clf

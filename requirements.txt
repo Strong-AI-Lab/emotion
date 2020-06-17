@@ -2,6 +2,7 @@ flake8
 tensorflow>=2.2
 tensorflow-probability
 tensorflow-datasets
+tensorflow-addons
 tensorboard
 tensorboard_plugin_profile
 numpy

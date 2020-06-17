@@ -30,8 +30,9 @@ def main():
                                     index_col=0)
     finishedResponses['respLevel'] = pd.to_numeric(
         finishedResponses['respLevel'], errors='coerce')
+    # Remove these two duplicates
     finishedResponses = finishedResponses.drop([137526, 312184],
-                                               errors='ignore')  # Duplicates
+                                               errors='ignore')
     uniqueIDs = (finishedResponses['sessionNums'] * 1000
                  + finishedResponses['queryType'] * 100
                  + finishedResponses['questNum'])
@@ -77,7 +78,7 @@ def main():
         print("Acted accuracy using {}: {:.3f}".format(mode, accuracy))
 
     labels = dict(zip(summaryTable['FileName'], summaryTable['ActedEmo']))
-    labels.pop('1076_MTI_SAD_XX')  # No audio signal causes problems here
+    labels.pop('1076_MTI_SAD_XX')  # This one has no audio signal
 
     # valid = summaryTable['MultiModalVote'].isin(list('NHDFAS'))
     # multiModal = summaryTable[valid]

@@ -7,7 +7,12 @@ import tensorflow as tf
 from sklearn.metrics import recall_score
 from sklearn.model_selection import GroupKFold, LeaveOneGroupOut, ParameterGrid
 from sklearn.preprocessing import StandardScaler
-from tensorflow import keras
+from tensorflow.keras import Model
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.layers import (Concatenate, Conv1D, Dense, Dropout,
+                                     GlobalMaxPool1D, Input)
+from tensorflow.keras.losses import SparseCategoricalCrossentropy
+from tensorflow.keras.optimizers import Adam
 
 from emotion_recognition.classification import (PrecomputedSVC,
                                                 SKLearnClassifier,
@@ -20,57 +25,48 @@ RESULTS_DIR = 'results/comparative2020'
 
 
 def get_mlp_model(n_features, n_classes, layers=1):
-    inputs = keras.Input((n_features,), name='input')
-    dense_1 = keras.layers.Dense(512, activation='sigmoid')(inputs)
-    x = keras.layers.Dense(n_classes, activation='softmax')(dense_1)
-    return keras.Model(inputs=inputs, outputs=x)
+    inputs = Input((n_features,), name='input')
+    dense_1 = Dense(512, activation='sigmoid')(inputs)
+    x = Dense(n_classes, activation='softmax')(dense_1)
+    return Model(inputs=inputs, outputs=x)
 
 
 def get_dense_model(n_features, n_classes, layers=1):
-    inputs = keras.Input((n_features,), name='input')
+    inputs = Input((n_features,), name='input')
     x = inputs
     for _ in range(layers):
-        x = keras.layers.Dense(512, activation='relu')(x)
-        x = keras.layers.Dropout(0.5)(x)
-    x = keras.layers.Dense(n_classes, activation='softmax')(x)
-    return keras.Model(inputs=inputs, outputs=x)
+        x = Dense(512, activation='relu')(x)
+        x = Dropout(0.5)(x)
+    x = Dense(n_classes, activation='softmax')(x)
+    return Model(inputs=inputs, outputs=x)
 
 
 def get_aldeneh_full_model(n_features, n_classes):
-    inputs = keras.layers.Input(shape=(None, n_features), name='input')
-    x = keras.layers.Conv1D(
-        384, 8, activation='relu', kernel_initializer='he_normal',
-        name='conv8'
-    )(inputs)
-    c1 = keras.layers.GlobalMaxPool1D(name='maxpool_1')(x)
+    inputs = Input(shape=(None, n_features), name='input')
+    x = Conv1D(384, 8, activation='relu', kernel_initializer='he_normal',
+               name='conv8')(inputs)
+    c1 = GlobalMaxPool1D(name='maxpool_1')(x)
 
-    x = keras.layers.Conv1D(
-        384, 16, activation='relu', kernel_initializer='he_normal',
-        name='conv16'
-    )(inputs)
-    c2 = keras.layers.GlobalMaxPool1D(name='maxpool_2')(x)
+    x = Conv1D(384, 16, activation='relu', kernel_initializer='he_normal',
+               name='conv16')(inputs)
+    c2 = GlobalMaxPool1D(name='maxpool_2')(x)
 
-    x = keras.layers.Conv1D(
-        384, 32, activation='relu', kernel_initializer='he_normal',
-        name='conv32'
-    )(inputs)
-    c3 = keras.layers.GlobalMaxPool1D(name='maxpool_3')(x)
+    x = Conv1D(384, 32, activation='relu', kernel_initializer='he_normal',
+               name='conv32')(inputs)
+    c3 = GlobalMaxPool1D(name='maxpool_3')(x)
 
-    x = keras.layers.Conv1D(
-        384, 64, activation='relu', kernel_initializer='he_normal',
-        name='conv64'
-    )(inputs)
-    c4 = keras.layers.GlobalMaxPool1D(name='maxpool_4')(x)
+    x = Conv1D(384, 64, activation='relu', kernel_initializer='he_normal',
+               name='conv64')(inputs)
+    c4 = GlobalMaxPool1D(name='maxpool_4')(x)
 
-    x = keras.layers.Concatenate(name='concatenate')([c1, c2, c3, c4])
-    x = keras.layers.Dense(1024, activation='relu',
-                           kernel_initializer='he_normal', name='dense_1')(x)
-    x = keras.layers.Dense(1024, activation='relu',
-                           kernel_initializer='he_normal', name='dense_2')(x)
-    x = keras.layers.Dense(n_classes, activation='softmax',
-                           kernel_initializer='he_normal',
-                           name='emotion_prediction')(x)
-    return keras.Model(inputs=inputs, outputs=x, name='aldeneh_full_model')
+    x = Concatenate(name='concatenate')([c1, c2, c3, c4])
+    x = Dense(1024, activation='relu', kernel_initializer='he_normal',
+              name='dense_1')(x)
+    x = Dense(1024, activation='relu', kernel_initializer='he_normal',
+              name='dense_2')(x)
+    x = Dense(n_classes, activation='softmax', kernel_initializer='he_normal',
+              name='emotion_prediction')(x)
+    return Model(inputs=inputs, outputs=x, name='aldeneh_full_model')
 
 
 def get_tf_dataset(x, y, batch_size=32, shuffle=True):
@@ -100,9 +96,7 @@ def get_tf_dataset_ragged(x, y, batch_size=50, shuffle=True):
 
 
 def test_svm_classifier(dataset, resultname, kind='linear'):
-    param_grid = ParameterGrid({
-        'C': 2.0**np.arange(-6, 7, 2)
-    })
+    param_grid = ParameterGrid({'C': 2.0**np.arange(-6, 7, 2)})
 
     if kind == 'rbf':
         param_grid.param_grid[0]['gamma'] = 2.0**np.arange(-12, -1, 2)
@@ -169,16 +163,14 @@ def test_dense_model(dataset, resultname, kind='basic'):
         n_epochs=100,
         data_fn=get_tf_dataset,
         callbacks=[
-            keras.callbacks.EarlyStopping(
-                monitor='val_uar', patience=20, restore_best_weights=True,
-                mode='max'
-            ),
-            keras.callbacks.ReduceLROnPlateau(monitor='val_uar', factor=0.5,
-                                              patience=5, mode='max')
+            EarlyStopping(monitor='val_uar', patience=20,
+                          restore_best_weights=True, mode='max'),
+            ReduceLROnPlateau(monitor='val_uar', factor=0.5, patience=5,
+                              mode='max')
         ],
         class_weight=class_weight,
-        loss=keras.losses.SparseCategoricalCrossentropy(),
-        optimizer=keras.optimizers.Adam(learning_rate=0.0001),
+        loss=SparseCategoricalCrossentropy(),
+        optimizer=Adam(learning_rate=0.0001),
         verbose=False
     )
     print_results(df)
@@ -204,7 +196,7 @@ def test_conv_model(dataset, resultname, kind='aldeneh'):
     model = model_fn()
     model.summary()
     del model
-    keras.backend.clear_session()
+    tf.keras.backend.clear_session()
 
     df = test_model(
         TFClassifier(model_fn),
@@ -214,16 +206,14 @@ def test_conv_model(dataset, resultname, kind='aldeneh'):
         n_epochs=100,
         data_fn=get_tf_dataset_ragged,
         callbacks=[
-            keras.callbacks.EarlyStopping(
-                monitor='val_uar', patience=20, restore_best_weights=True,
-                mode='max'
-            ),
-            keras.callbacks.ReduceLROnPlateau(monitor='val_uar', factor=0.5,
-                                              patience=5, mode='max')
+            EarlyStopping(monitor='val_uar', patience=20,
+                          restore_best_weights=True, mode='max'),
+            ReduceLROnPlateau(monitor='val_uar', factor=0.5, patience=5,
+                              mode='max')
         ],
         class_weight=class_weight,
-        loss=keras.losses.SparseCategoricalCrossentropy(),
-        optimizer=keras.optimizers.Adam(learning_rate=0.0001),
+        loss=SparseCategoricalCrossentropy(),
+        optimizer=Adam(learning_rate=0.0001),
         verbose=False
     )
     print_results(df)
@@ -278,9 +268,8 @@ def main():
                                    normalise_method='speaker')
             dataset.pad_arrays(64)
 
-    resultname = args.name or datafile.stem
-    if args.noresults:
-        resultname = None
+    if not args.noresults:
+        resultname = args.name or datafile.stem
     test_fn(dataset, resultname, kind=args.kind)
 
 

@@ -269,7 +269,7 @@ def test_model(model: Classifier,
         x = dataset.x[gender_indices]
         y = dataset.labels[mode][gender_indices]
         for rep in range(reps):
-            fold = 1
+            fold = 0
             for train, test in splitter.split(x, y, groups):
                 x_train = x[train]
                 y_train = y[train]
@@ -281,7 +281,7 @@ def test_model(model: Classifier,
                 if n_splits > 1 and isinstance(splitter, LeaveOneGroupOut):
                     for valid, test in splitter.split(x_test, y_test,
                                                       speaker_indices[test]):
-                        print("Fold {}".format(fold))
+                        print("Fold {}".format(fold + 1))
 
                         x_valid = x_test[valid]
                         y_valid = y_test[valid]
@@ -323,7 +323,7 @@ def test_model(model: Classifier,
                         x_valid = x_train
                         y_valid = y_train
 
-                    print("Fold {}".format(fold))
+                    print("Fold {}".format(fold + 1))
                     model.fit(x_train, y_train, x_valid, y_valid, fold=fold,
                               **kwargs)
                     y_pred, y_true = model.predict(x_test, y_test, **kwargs)
