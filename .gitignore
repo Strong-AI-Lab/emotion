@@ -35,8 +35,9 @@ scripts/test.py
 
 # Build Related
 __pycache__
-/build
-/venv
+build
+venv
+.venv
 .vscode
 *.egg-info
 .ipynb_checkpoints
