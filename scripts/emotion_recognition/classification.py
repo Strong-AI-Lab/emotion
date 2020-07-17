@@ -1,27 +1,23 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from typing import Callable, List
+from pathlib import Path
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+import tensorflow as tf
 from sklearn.metrics import precision_score, recall_score
-from sklearn.model_selection import KFold, BaseCrossValidator, LeaveOneGroupOut
+from sklearn.model_selection import BaseCrossValidator, KFold, LeaveOneGroupOut
 from sklearn.svm import SVC
 from tensorflow import keras
 from tqdm.keras import TqdmCallback
 
-from .dataset import Dataset
-from .tensorflow import tf_classification_metrics
+from emotion_recognition.dataset import Dataset
+from emotion_recognition.tensorflow import tf_classification_metrics
+from emotion_recognition.utils import shuffle_multiple
 
-__all__ = [
-    'test_one_vs_rest',
-    'test_model',
-    'cross_validate',
-    'print_results',
-    'PrecomputedSVC',
-    'record_metrics'
-]
+DataFunction = Callable[[np.ndarray, np.ndarray], tf.data.Dataset]
 
 METRICS = ['prec', 'rec', 'uap', 'uar', 'war']
 
@@ -79,7 +75,7 @@ class Classifier:
 
     Parameters:
     -----------
-    model_fn: Callable
+    model_fn: callable
         A callable that returns a new proper classifier that can be trained
     """
 
@@ -90,7 +86,8 @@ class Classifier:
         """Fits this model to the training data."""
         return NotImplementedError()
 
-    def predict(self, x_test, y_test, **kwargs):
+    def predict(self, x_test: np.ndarray, y_test: np.ndarray, **kwargs) \
+            -> Tuple[np.ndarray, np.ndarray]:
         return NotImplementedError()
 
 
@@ -108,7 +105,7 @@ class SKLearnClassifier(Classifier):
             Validation data.
         param_grid: dict or None, optional
             Parameter grid for optimising hyperparameters.
-        cv_score_fn: Callable, optional
+        cv_score_fn: callable, optional
             The score to optimize for parameter search. Only required if
             param_grid is not None.
         kwargs: dicts
@@ -119,12 +116,10 @@ class SKLearnClassifier(Classifier):
         fold: None
             Unused.
         """
-        perm = np.random.permutation(len(x_train))
-        x_train = x_train[perm]
-        y_train = y_train[perm]
-        perm = np.random.permutation(len(x_valid))
-        x_valid = x_valid[perm]
-        y_valid = y_valid[perm]
+        x_train, y_train = shuffle_multiple(x_train, y_train,
+                                            numpy_indexing=True)
+        x_valid, y_valid = shuffle_multiple(x_valid, y_valid,
+                                            numpy_indexing=True)
 
         if param_grid:
             self.clf = cross_validate(param_grid, self.model_fn, cv_score_fn,
@@ -134,15 +129,20 @@ class SKLearnClassifier(Classifier):
             self.clf = self.model_fn()
             self.clf.fit(x_train, y_train, **kwargs)
 
-    def predict(self, x_test, y_test, **kwargs):
+    def predict(self, x_test: np.ndarray, y_test: np.ndarray, **kwargs) \
+            -> Tuple[np.ndarray, np.ndarray]:
         return self.clf.predict(x_test), y_test
 
 
 class TFClassifier(Classifier):
     """Class wrapper for a TensorFlow Keras classifier model."""
 
-    def fit(self, x_train, y_train, x_valid, y_valid, fold=0, n_epochs=50,
-            class_weight=None, data_fn=None, callbacks=[],
+    def fit(self, x_train: np.ndarray, y_train: np.ndarray,
+            x_valid: np.ndarray, y_valid: np.ndarray, fold: int = 0,
+            n_epochs: int = 50,
+            class_weight: Optional[Dict[int, float]] = None,
+            data_fn: DataFunction = None,
+            callbacks: List[keras.callbacks.Callback] = [],
             loss: keras.losses.Loss
             = keras.losses.SparseCategoricalCrossentropy(),
             optimizer: keras.optimizers.Optimizer = keras.optimizers.Adam(),
@@ -159,23 +159,23 @@ class TFClassifier(Classifier):
             The current fold, for logging purposes.
         n_epochs: int, optional, default = 50
             Maximum number of epochs to train for.
-        class_weight: dict or None, optional
+        class_weight: dict, optional
             A dictionary mapping class IDs to weights. Default is to ignore
             class weights.
-        data_fn: Callable
+        data_fn: callable, optional
             Callable that takes x and y as input and returns a
             tensorflow.keras.Sequence object or a tensorflow.data.Dataset
             object.
-        callbacks: list, optional, default = []
+        callbacks: list, optional
             A list of tensorflow.keras.callbacks.Callback objects to use during
             training. Default is an empty list, so that the default Keras
             callbacks are used.
-        loss: keras.losses.Loss, optional
+        loss: keras.losses.Loss
             The loss to use. Default is
             tensorflow.keras.losses.SparseCategoricalCrossentropy.
-        optimizer: keras.optimizers.Optimizer, optional
+        optimizer: keras.optimizers.Optimizer
             The optimizer to use. Default is tensorflow.keras.optimizers.Adam.
-        verbose: bool, optional, default = False
+        verbose: bool, default = False
             Whether to output details per epoch.
         """
 
@@ -186,8 +186,7 @@ class TFClassifier(Classifier):
         loss = loss.from_config(loss.get_config())
         for cb in callbacks:
             if isinstance(cb, keras.callbacks.TensorBoard):
-                cb.log_dir = os.path.join(cb.log_dir, os.path.pardir,
-                                          str(fold))
+                cb.log_dir = str(Path(cb.log_dir).parent / str(fold))
         callbacks = callbacks + [TqdmCallback(epochs=n_epochs, verbose=0)]
 
         self.model = self.model_fn()
@@ -206,7 +205,9 @@ class TFClassifier(Classifier):
             **kwargs
         )
 
-    def predict(self, x_test, y_test, data_fn=None, **kwargs):
+    def predict(self, x_test: np.ndarray, y_test: np.ndarray,
+                data_fn: DataFunction = None,
+                **kwargs) -> Tuple[np.ndarray, np.ndarray]:
         test_data = data_fn(x_test, y_test, shuffle=False)
         y_true = np.concatenate([y for x, y in test_data])
         return np.argmax(self.model.predict(test_data), axis=1), y_true
@@ -276,6 +277,8 @@ def test_model(model: Classifier,
                 x_test = x[test]
                 y_test = y[test]
 
+                # This checks to see if the test set still has different
+                # speakers, so that we can validate using each of them.
                 n_splits = splitter.get_n_splits(x_test, y_test,
                                                  speaker_indices[test])
                 if n_splits > 1 and isinstance(splitter, LeaveOneGroupOut):
@@ -308,7 +311,7 @@ def test_model(model: Classifier,
                             x_train, y_train, speaker_indices[train])
 
                         # Select random inner fold to use as validation set
-                        r = np.random.randint(1, n_splits + 1)
+                        r = np.random.randint(n_splits) + 1
                         for _ in range(r):
                             train2, valid = next(splitter.split(
                                 x_train, y_train, speaker_indices[train]))

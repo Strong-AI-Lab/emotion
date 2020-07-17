@@ -17,39 +17,9 @@ from emotion_recognition.dataset import (corpora,
                                          parse_regression_annotations)
 
 if sys.platform == 'win32':
-    CONFIG_DIR = 'C:\\opensmile-2.3.0\\config'
     OPENSMILE_BIN = 'C:\\opensmile-2.3.0\\SMILExtract.exe'
 else:
-    CONFIG_DIR = '/usr/share/opensmile/config'
     OPENSMILE_BIN = '/usr/bin/SMILExtract'
-
-parser = argparse.ArgumentParser(
-    description="Processes audio data using openSMILE.")
-required_args = parser.add_argument_group('Required args')
-required_args.add_argument('--corpus', required=True,
-                           help="Corpus to process",)
-required_args.add_argument('--config', required=True,
-                           help="Config file to use")
-required_args.add_argument('--input_list',
-                           help="File containing list of filenames")
-required_args.add_argument('--annotations', help="Annotations file")
-
-
-parser.add_argument('--debug', help="For debugging", default=False,
-                    action='store_true')
-parser.add_argument('--skip', help="Skip audio processing",
-                    default=False, action='store_true')
-parser.add_argument('--individual', help="Individual speaker output",
-                    default=False, action='store_true')
-parser.add_argument('--no_agg', help="Don't aggregate (save memory)",
-                    default=False, action='store_true')
-
-parser.add_argument('--out_dir', help="Directory to write data")
-parser.add_argument('--prefix', help="Output file prefix")
-parser.add_argument('--type', help="Type of annotations",
-                    default='classification')
-parser.add_argument('--filetype', default='arff',
-                    help="Type of output file. One of {csv, arff}")
 
 
 def read_arff(file: str):
@@ -58,6 +28,37 @@ def read_arff(file: str):
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Processes audio data using openSMILE.")
+    # Required args
+    required_args = parser.add_argument_group('Required args')
+    required_args.add_argument('--corpus', required=True,
+                               help="Corpus to process",)
+    required_args.add_argument('--config', required=True,
+                               help="Config file to use")
+    required_args.add_argument('--annotations', help="Annotations file")
+
+    # Flags
+    parser.add_argument('--debug', help="For debugging", default=False,
+                        action='store_true')
+    parser.add_argument('--skip', help="Skip audio processing",
+                        default=False, action='store_true')
+    parser.add_argument('--individual', help="Individual speaker output",
+                        default=False, action='store_true')
+    parser.add_argument('--no_agg', help="Don't aggregate (save memory)",
+                        default=False, action='store_true')
+
+    # Optional args
+    parser.add_argument('--out_dir', help="Directory to write data")
+    parser.add_argument('--prefix', help="Output file prefix")
+    parser.add_argument('--type', help="Type of annotations",
+                        default='classification')
+    parser.add_argument('--filetype', default='arff',
+                        help="Type of output file. One of {csv, arff}")
+    parser.add_argument('--opensmile', help="Path to SMILExtract")
+    parser.add_argument('--input_list',
+                        help="File containing list of filenames")
+
     args = parser.parse_args()
 
     if not Path(args.config).exists():

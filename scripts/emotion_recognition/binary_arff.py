@@ -3,14 +3,14 @@ from io import RawIOBase
 
 __all__ = ['encode', 'decode']
 
-tp_int = {
+_tp_int = {
     'numeric': 1,
     'string': 2,
     'date': 3,
     'relational': 4
 }
 
-int_tp = {
+_int_tp = {
     1: 'numeric',
     2: 'string',
     3: 'date',
@@ -25,19 +25,31 @@ MAX_NOM_LEN = 64
 NOM_FMT = '{}s'.format(MAX_NOM_LEN)
 
 
-def remove_null(b: bytes) -> str:
+def _remove_null(b: bytes) -> str:
     b = b.decode()
     return b[:b.find('\x00')]
 
 
 def encode(fid: RawIOBase, data: dict):
+    """Encodes a text ARFF file to a binary file with essentially the same
+    similar structure.
+
+    Parameters:
+    -----------
+    fid: a writeable file object
+        The file handle to write to
+
+    data: dict
+        The ARFF data dictionary. Must have 'relation', 'attributes' and 'data'
+        keys.
+    """
     fid.write(struct.pack(RELATION_FMT, data['relation'].encode()))
 
     fid.write(struct.pack('<I', len(data['attributes'])))
     packer = struct.Struct(ATTR_FMT)
     for name, tp in data['attributes']:
         fid.write(packer.pack(
-            name.encode(), 0 if isinstance(tp, list) else tp_int[tp.lower()]))
+            name.encode(), 0 if isinstance(tp, list) else _tp_int[tp.lower()]))
         if isinstance(tp, list):
             fmt_str = '<I' + NOM_FMT * len(tp)
             fid.write(struct.pack(fmt_str, len(tp), *[x.encode() for x in tp]))
@@ -55,9 +67,21 @@ def encode(fid: RawIOBase, data: dict):
 
 
 def decode(fid: RawIOBase):
+    """Decodes a binary ARFF file that was created with encode().
+
+    Parameters:
+    -----------
+    fid: file object
+        The file handle to read binary data from.
+
+    Returns:
+    --------
+    data: dict
+        A dictionary representing the ARFF file.
+    """
     data = {}
     relation = struct.unpack(RELATION_FMT, fid.read(MAX_RELATION_LEN))[0]
-    data['relation'] = remove_null(relation)
+    data['relation'] = _remove_null(relation)
 
     data['attributes'] = []
     tp_array = []
@@ -65,17 +89,17 @@ def decode(fid: RawIOBase):
     packer = struct.Struct(ATTR_FMT)
     for i in range(num_attrs):
         name, tp = packer.unpack(fid.read(packer.size))
-        name = remove_null(name)
+        name = _remove_null(name)
 
         tp_array.append(tp)
         if tp == 0:
             num_tps = struct.unpack('<I', fid.read(4))[0]
             fmt_str = NOM_FMT * num_tps
-            tps = [remove_null(x) for x in struct.unpack(
+            tps = [_remove_null(x) for x in struct.unpack(
                 fmt_str, fid.read(struct.calcsize(fmt_str)))]
             data['attributes'].append((name, tps))
         else:
-            data['attributes'].append((name, int_tp[tp].upper()))
+            data['attributes'].append((name, _int_tp[tp].upper()))
 
     fmt_str = '<'
     for tp in tp_array:
@@ -91,6 +115,6 @@ def decode(fid: RawIOBase):
         if len(buf) == 0:
             break
         inst = packer.unpack(buf)
-        inst = [remove_null(x) if isinstance(x, bytes) else x for x in inst]
+        inst = [_remove_null(x) if isinstance(x, bytes) else x for x in inst]
         data['data'].append(inst)
     return data

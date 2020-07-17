@@ -232,7 +232,7 @@ parser.add_argument(
 parser.add_argument('--data', help="The data to use.", required=True)
 parser.add_argument('--kind', help="The kind of classifier.", required=True)
 parser.add_argument('--datatype', help="The type of data {frame, utterance}.",
-                    default='utterance')
+                    default='utterance', required=True)
 parser.add_argument('--name', help="The results output name.")
 parser.add_argument('--noresults', help="Don't output results to file",
                     action='store_true')
@@ -254,22 +254,23 @@ def main():
         args.datatype = 'frame'
 
     datafile = Path(args.data)
-    if datafile.suffix == '.nc':
+    if args.datatype == 'audeep':
         dataset = NetCDFDataset(
             datafile, args.corpus, normaliser=StandardScaler(),
             normalise_method='speaker'
         )
-    else:
-        if args.datatype == 'utterance':
-            dataset = UtteranceDataset(datafile, normaliser=StandardScaler(),
-                                       normalise_method='speaker')
-        elif args.datatype == 'frame':
-            dataset = FrameDataset(datafile, normaliser=StandardScaler(),
+    elif args.datatype == 'utterance':
+        dataset = UtteranceDataset(datafile, normaliser=StandardScaler(),
                                    normalise_method='speaker')
-            dataset.pad_arrays(64)
+    elif args.datatype == 'frame':
+        dataset = FrameDataset(datafile, normaliser=StandardScaler(),
+                               normalise_method='speaker')
+        dataset.pad_arrays(64)
 
     if not args.noresults:
         resultname = args.name or datafile.stem
+    else:
+        resultname = None
     test_fn(dataset, resultname, kind=args.kind)
 
 

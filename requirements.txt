@@ -3,6 +3,7 @@ tensorflow>=2.2
 tensorflow-probability
 tensorflow-datasets
 tensorflow-addons
+tensorflow-io
 tensorboard
 tensorboard_plugin_profile
 numpy

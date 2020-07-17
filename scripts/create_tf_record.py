@@ -1,3 +1,7 @@
+#!/usr/bin/python3
+
+"""Exports a TFRecord file from ARFF or raw audio data."""
+
 import argparse
 from pathlib import Path
 
@@ -9,9 +13,10 @@ import tensorflow as tf
 from emotion_recognition.dataset import parse_classification_annotations
 
 parser = argparse.ArgumentParser()
-parser.add_argument('input', help="ARFF file or file with list of filepaths.")
-parser.add_argument('--labels', type=str, help="Path to labels file.")
-parser.add_argument('output', help="Path to write TFRecord.")
+parser.add_argument('input', type=Path,
+                    help="ARFF file or file with list of filepaths.")
+parser.add_argument('--labels', type=Path, help="Path to labels file.")
+parser.add_argument('output', type=Path, help="Path to write TFRecord.")
 
 
 def _bytes_feature(value):
@@ -26,19 +31,14 @@ def _int64_feature(value):
     return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
 
 
-def serialise_arff_example(name: str, features: np.ndarray, label: int):
+def serialise_example(name: str, features: np.ndarray, label: str):
     example = tf.train.Example(features=tf.train.Features(feature={
-        'label': _int64_feature(label),
         'name': _bytes_feature(name),
-        'features': _bytes_feature(features.tobytes())
-    }))
-    return example.SerializeToString()
-
-
-def serialise_audio_example(audio: np.ndarray, label: int):
-    example = tf.train.Example(features=tf.train.Features(feature={
-        'label': _int64_feature(label),
-        'raw_audio': _bytes_feature(audio.tobytes())
+        'features': _bytes_feature(features.tobytes()),
+        'label': _bytes_feature(label),
+        'features_shape': tf.train.Feature(int64_list=tf.train.Int64List(
+            value=list(features.shape))),
+        'features_dtype': _bytes_feature(np.dtype(features.dtype).str)
     }))
     return example.SerializeToString()
 
@@ -46,29 +46,26 @@ def serialise_audio_example(audio: np.ndarray, label: int):
 def main():
     args = parser.parse_args()
 
-    writer = tf.io.TFRecordWriter(args.output)
-    if args.input.endswith('.arff'):
+    writer = tf.io.TFRecordWriter(str(args.output))
+    if args.input.suffix == '.arff':
         with open(args.input) as fid:
             data = arff.load(fid)
         for inst in data['data']:
             name = inst[0]
             label = inst[-1]
             features = np.array(inst[1:-1], dtype=np.float32)
-            writer.write(serialise_arff_example(name, features, label))
+            writer.write(serialise_example(name, features, label))
     else:
         with open(args.input) as fid:
             filenames = [x.strip() for x in fid.readlines()]
         if not args.labels:
-            raise ValueError("--labels must be provided for raw audio dataset")
+            raise ValueError("Labels must be provided for raw audio dataset")
         label_dict = parse_classification_annotations(args.labels)
-        labels = sorted(set(label_dict.values()))
         for filename in filenames:
+            Path(filename).stem
             audio, sr = soundfile.read(filename, dtype=np.float32)
-            audio = (audio + 1) / 2
-            audio = np.pad(audio, (0, 640 - audio.shape[0] % 640))
             label = label_dict[Path(filename).stem]
-            label = labels.index(label)
-            writer.write(serialise_audio_example(audio, label))
+            writer.write(serialise_example(name, audio, label))
     writer.close()
 
 
