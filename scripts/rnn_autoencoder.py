@@ -5,14 +5,14 @@ import netCDF4
 import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras.layers import (RNN, AbstractRNNCell, Bidirectional,
-                                     Concatenate, Dense, GRUCell, Input)
+                                     Dense, GRUCell, Input, concatenate)
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import Callback
 
 from emotion_recognition.dataset import NetCDFDataset
 
 
-class RNNCallback(Callback):
+class _RNNCallback(Callback):
     def __init__(self, data: tf.data.Dataset, log_dir: str = 'logs',
                  checkpoint=False):
         super().__init__()
@@ -35,13 +35,10 @@ class RNNCallback(Callback):
 
             batch, _ = next(iter(self.data))
             reconstruction, representation = self.model(batch, training=False)
-            reconstruction = (reconstruction + 1) / 2
-            batch = (batch + 1) / 2
-            batch = tf.expand_dims(batch, -1)
-            reconstruction = tf.expand_dims(reconstruction, -1)
+            reconstruction = reconstruction[:, ::-1, :]
             images = tf.concat([batch, reconstruction], 2)
-            tf.summary.image('reconstruction', reconstruction, step=epoch,
-                             max_outputs=16)
+            images = tf.expand_dims(images, -1)
+            images = (images + 1) / 2
             tf.summary.image('combined', images, step=epoch, max_outputs=20)
             tf.summary.histogram('representation', representation, step=epoch)
 
@@ -54,15 +51,16 @@ class RNNCallback(Callback):
             self.model.save_weights(save_path)
 
 
-def dropout_gru_cell(units: int, keep_prob: float = 0.8) -> AbstractRNNCell:
+def _dropout_gru_cell(units: int = 256,
+                      keep_prob: float = 0.8) -> AbstractRNNCell:
     return tf.nn.RNNCellDropoutWrapper(GRUCell(units), 0.8, 0.8)
 
 
-def make_rnn(units: int = 256, bidirectional: bool = False,
-             dropout: float = 0.2) -> RNN:
-    rnn = RNN(dropout_gru_cell(units, 1 - dropout), return_sequences=True,
-              return_state=True)
-    return Bidirectional(rnn) if bidirectional else rnn
+def _make_rnn(units: int = 256, layers: int = 2, bidirectional: bool = False,
+              dropout: float = 0.2, name='rnn') -> RNN:
+    cells = [_dropout_gru_cell(units, 1 - dropout) for _ in range(layers)]
+    rnn = RNN(cells, return_sequences=True, return_state=True, name=name)
+    return Bidirectional(rnn, name=name) if bidirectional else rnn
 
 
 class TimeRecurrentAutoencoder(Model):
@@ -70,9 +68,8 @@ class TimeRecurrentAutoencoder(Model):
         x, _ = data
         with tf.GradientTape() as tape:
             reconstruction, _ = self(x, training=True)
-            loss_batch = tf.sqrt(tf.reduce_mean(tf.square(x - reconstruction),
-                                                axis=[1, 2]))
-            loss = tf.reduce_mean(loss_batch)
+            targets = x[:, ::-1, :]
+            loss = tf.sqrt(tf.reduce_mean(tf.square(targets - reconstruction)))
 
         trainable_vars = self.trainable_variables
         gradients = tape.gradient(loss, trainable_vars)
@@ -84,9 +81,8 @@ class TimeRecurrentAutoencoder(Model):
     def test_step(self, data):
         x, _ = data
         reconstruction, _ = self(x, training=False)
-        loss_batch = tf.sqrt(tf.reduce_mean(tf.square(x - reconstruction),
-                                            axis=[1, 2]))
-        loss = tf.reduce_mean(loss_batch)
+        targets = x[:, ::-1, :]
+        loss = tf.sqrt(tf.reduce_mean(tf.square(targets - reconstruction)))
 
         return {'rmse': loss}
 
@@ -95,20 +91,16 @@ def create_rnn_model(input_shape: tuple,
                      units: int = 256,
                      layers: int = 2,
                      bidirectional_encoder: bool = False,
-                     bidirectional_decoder: bool = False) -> Model:
+                     bidirectional_decoder: bool = False
+                     ) -> TimeRecurrentAutoencoder:
     inputs = Input(input_shape)
+    time_steps, features = input_shape
 
     # Make encoder layers
-    enc1 = make_rnn(units, bidirectional_encoder)
-    enc_seq1, enc_hidden1 = enc1(inputs)
-    enc_states = [enc_hidden1]
-    enc_seqN = enc_seq1
-    for _ in range(layers - 1):
-        encN = make_rnn(units, bidirectional_encoder)
-        enc_seqN, enc_hiddenN = encN(enc_seqN)
-        enc_states.append(enc_hiddenN)
+    enc = _make_rnn(units, layers, bidirectional_encoder, name='encoder')
+    _, *enc_states = enc(inputs)
     # Concatenate output of layers
-    encoder = Concatenate()(enc_states)
+    encoder = concatenate(enc_states, name='encoder_output_state')
 
     # Fully connected needs to have output dimension equal to dimension of
     # decoder state
@@ -119,24 +111,23 @@ def create_rnn_model(input_shape: tuple,
         encoder)
 
     # Initial state of decoder
-    decoder_init = tf.split(representation, layers, axis=-1)
+    decoder_init = tf.split(
+        representation, 2 * layers if bidirectional_decoder else layers,
+        axis=-1
+    )
     # Decoder input is reversed and shifted input sequence
-    dec_inputs = tf.reverse(inputs[:, 1:, :], axis=[1])
-    dec_inputs = tf.pad(dec_inputs, [[0, 0], [1, 0], [0, 0]])
+    targets = inputs[:, ::-1, :]
+    dec_inputs = targets[:, :time_steps - 1, :]
+    dec_inputs = tf.pad(dec_inputs, [[0, 0], [1, 0], [0, 0]],
+                        name='decoder_input_sequence')
 
     # Make decoder layers and init with output from fully connected layer
-    dec1 = make_rnn(units, bidirectional_decoder)
-    dec_seq1, dec_hidden1 = dec1(dec_inputs, initial_state=decoder_init[0])
-    dec_sequences = [dec_seq1]
-    dec_seqN = dec_seq1
-    for i in range(1, layers):
-        decN = make_rnn(units, bidirectional_decoder)
-        dec_seqN, dec_hiddenN = decN(dec_seqN, initial_state=decoder_init[i])
-        dec_sequences.append(dec_seqN)
+    dec1 = _make_rnn(units, layers, bidirectional_decoder, name='decoder')
+    dec_seq, *_ = dec1(dec_inputs, initial_state=decoder_init)
     # Concatenate output of layers
-    decoder = Concatenate()(dec_sequences)
+    decoder = (dec_seq)
 
-    reconstruction = Dense(input_shape[-1], activation='tanh', use_bias=False,
+    reconstruction = Dense(features, activation='tanh',
                            name='reconstruction')(decoder)
 
     model = TimeRecurrentAutoencoder(
@@ -156,6 +147,17 @@ def main():
                         help="Fraction of data to use as validation data.")
     parser.add_argument('--learning_rate', type=float, default=0.001,
                         help="Learning rate.")
+    parser.add_argument('--batch_size', type=int, default=64,
+                        help="Batch size.")
+
+    parser.add_argument('--units', type=int, default=256,
+                        help="Dimensionality of RNN cells.")
+    parser.add_argument('--layers', type=int, default=2,
+                        help="Number of stacked RNN layers.")
+    parser.add_argument('--bidirectional_encoder', action='store_true',
+                        help="Use a bidirectional encoder.")
+    parser.add_argument('--bidirectional_decoder', action='store_true',
+                        help="Use a bidirectional decoder.")
     args = parser.parse_args()
 
     args.logs.parent.mkdir(parents=True, exist_ok=True)
@@ -169,13 +171,18 @@ def main():
     valid_data = data.take(n_valid).batch(64)
     train_data = data.skip(n_valid).take(-1).shuffle(1500).batch(64)
 
-    model = create_rnn_model(x[0].shape)
-    model.compile(optimizer=Adam(learning_rate=args.learning_rate, clipnorm=2))
+    model = create_rnn_model(
+        x[0].shape, units=args.units, layers=args.layers,
+        bidirectional_encoder=args.bidirectional_encoder,
+        bidirectional_decoder=args.bidirectional_decoder
+    )
+    model.compile(optimizer=Adam(learning_rate=args.learning_rate))
     model.summary()
     model.fit(
         train_data, validation_data=valid_data, epochs=args.epochs, callbacks=[
-            RNNCallback(valid_data.take(1), log_dir=str(args.logs))
-        ])
+            _RNNCallback(valid_data.take(1), log_dir=str(args.logs))
+        ]
+    )
 
 
 if __name__ == "__main__":
