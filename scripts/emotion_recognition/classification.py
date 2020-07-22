@@ -14,7 +14,8 @@ from tensorflow import keras
 from tqdm.keras import TqdmCallback
 
 from emotion_recognition.dataset import Dataset
-from emotion_recognition.tensorflow.classification import tf_classification_metrics
+from emotion_recognition.tensorflow.classification import (
+    tf_classification_metrics)
 from emotion_recognition.utils import shuffle_multiple
 
 DataFunction = Callable[[np.ndarray, np.ndarray], tf.data.Dataset]

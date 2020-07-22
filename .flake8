@@ -2,3 +2,5 @@
 ignore = E241, # multiple spaces after ','
          E741, # ambiguous variable name
          W503  # line-break before binary operator
+per-file-ignores =
+    scripts/emotion_recognition/*/__init__.py:F401

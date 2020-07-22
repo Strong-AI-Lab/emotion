@@ -8,7 +8,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_datasets as tfd
 
-from emotion_recognition.tensorflow.rbm import BBRBM, DBN, DecayType
+from emotion_recognition.tensorflow.models import BBRBM, DBN, DecayType
 
 
 def get_spectrograms(file, batch_size):
