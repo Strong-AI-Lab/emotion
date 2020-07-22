@@ -48,6 +48,7 @@ class CorpusInfo:
                  male_speakers: List[str] = [],
                  female_speakers: List[str] = [],
                  speakers: List[str] = [],
+                 speaker_groups: List[List[str]] = [],
                  get_emotion: Optional[Callable[[str], str]] = None):
         self.name = name
         self.emotion_map = emotion_map
@@ -63,6 +64,7 @@ class CorpusInfo:
                                  "and female speakers.")
             else:
                 self.speakers = all_speakers
+        self.speaker_groups = speaker_groups or self.speakers.copy()
         self.get_emotion = get_emotion
         self.get_speaker = get_speaker
 
@@ -200,6 +202,8 @@ corpora: Dict[str, CorpusInfo] = {
         },
         male_speakers=['01M', '02M', '03M', '04M', '05M'],
         female_speakers=['01F', '02F', '03F', '04F', '05F'],
+        speaker_groups=[['01M', '01F'], ['02M', '02F'], ['03M', '03F'],
+                        ['04M', '04F'], ['05M', '05F']],
         get_emotion=lambda n: n[-3:],
         get_speaker=lambda n: n[3:6]
     ),
@@ -227,6 +231,8 @@ corpora: Dict[str, CorpusInfo] = {
         },
         male_speakers=['M01', 'M02', 'M03', 'M04', 'M05', 'M06'],
         female_speakers=['F01', 'F02', 'F03', 'F04', 'F05', 'F06'],
+        speaker_groups=[['M01', 'F01'], ['M02', 'F02'], ['M03', 'F03'],
+                        ['M04', 'F04'], ['M05', 'F05'], ['M06', 'F06']],
         get_emotion=lambda n: n[-1],
         get_speaker=lambda n: n[5:8]
     ),

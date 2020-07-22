@@ -28,15 +28,15 @@ class DecayType(Enum):
 class RBM:
     """Restricted Boltzmann Machine
 
-    This implementation is from the work of Hinton et. al. [1], [2].
+    This implementation is designed around the work of Hinton et. al. [1], [2].
 
     References:
     -----------
-    [1]G. E. Hinton and R. R. Salakhutdinov, 'Reducing the
+    [1] G. E. Hinton and R. R. Salakhutdinov, 'Reducing the
     Dimensionality of Data with Neural Networks', Science, vol. 313, no.
     5786, pp. 504–507, Jul. 2006, doi: 10.1126/science.1127647.
 
-    [2]G. E. Hinton, 'A Practical Guide to Training Restricted Boltzmann
+    [2] G. E. Hinton, 'A Practical Guide to Training Restricted Boltzmann
     Machines', in Neural Networks: Tricks of the Trade: Second Edition,
     G. Montavon, G. B. Orr, and K.-R. Müller, Eds. Berlin, Heidelberg:
     Springer Berlin Heidelberg, 2012, pp. 599–619.

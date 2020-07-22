@@ -2,6 +2,7 @@ import json
 from collections import Counter
 from os import PathLike
 from pathlib import Path
+from typing import Union
 
 import arff
 import netCDF4
@@ -15,21 +16,21 @@ from emotion_recognition.binary_arff import decode as decode_arff
 from emotion_recognition.corpora import corpora
 
 
-def parse_regression_annotations(file: PathLike):
+def parse_regression_annotations(file: Union[PathLike, str]):
     """Returns a dict of the form {'name': (v1, v2, v3)}."""
     df = pd.read_csv(file, index_col=0)
     annotations = df.to_dict(orient='index')
     return annotations
 
 
-def parse_classification_annotations(file: PathLike):
+def parse_classification_annotations(file: Union[PathLike, str]):
     """Returns a dict of the form {'name': emotion}."""
     df = pd.read_csv(file, index_col=0)
     annotations = df.to_dict()[df.columns[0]]
     return annotations
 
 
-class Dataset():
+class LabelledDataset():
     def __init__(self, corpus: str,
                  normaliser=StandardScaler(),
                  normalise_method: str = 'speaker',
@@ -58,18 +59,13 @@ class Dataset():
         )
 
         # speaker_group_indices give the group index of each speaker
-        if self.corpus == 'iemocap':
-            speaker_indices_to_group = np.array(
-                [0, 1, 2, 3, 4, 0, 1, 2, 3, 4])
-            self.speaker_group_indices = speaker_indices_to_group[
-                self.speaker_indices]
-        elif self.corpus == 'msp-improv':
-            speaker_indices_to_group = np.array(
-                [0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5])
-            self.speaker_group_indices = speaker_indices_to_group[
-                self.speaker_indices]
-        else:
-            self.speaker_group_indices = self.speaker_indices
+        speaker_groups = corpora[self.corpus].speaker_groups
+        speaker_indices_to_group = np.array([
+            i for sp in self.speakers for i in range(len(speaker_groups))
+            if sp in speaker_groups[i]
+        ])
+        self.speaker_group_indices = speaker_indices_to_group[
+            self.speaker_indices]
 
         # gender_indices gives the indices for instances from male and female
         # speakers
@@ -132,9 +128,9 @@ class Dataset():
         return NotImplementedError()
 
 
-class NetCDFDataset(Dataset):
+class NetCDFDataset(LabelledDataset):
     """A dataset contained in netCDF4 files."""
-    def __init__(self, file: PathLike,
+    def __init__(self, file: Union[PathLike, str],
                  normaliser=StandardScaler(),
                  normalise_method: str = 'speaker',
                  binarise: bool = False):
@@ -178,9 +174,9 @@ class NetCDFDataset(Dataset):
         self.names = [self.names[i] for i in sort]
 
 
-class TFRecordDataset(Dataset):
+class TFRecordDataset(LabelledDataset):
     """A dataset contained in TFRecord files."""
-    def __init__(self, file: PathLike,
+    def __init__(self, file: Union[PathLike, str],
                  normaliser=StandardScaler(),
                  normalise_method: str = 'speaker',
                  binarise: bool = False):
@@ -209,9 +205,10 @@ class TFRecordDataset(Dataset):
         self.x = np.array(self.x, dtype=np.float32)
         self.y = np.array(self.y, dtype=np.float32)
 
-class RawDataset(Dataset):
+
+class RawDataset(LabelledDataset):
     """A raw audio dataset. Should be in WAV files."""
-    def __init__(self, file: PathLike,
+    def __init__(self, file: Union[PathLike, str],
                  corpus: str,
                  normaliser=StandardScaler(),
                  normalise_method: str = 'speaker',
@@ -251,9 +248,9 @@ class RawDataset(Dataset):
             self.y[i] = self.class_to_int[emotion]
 
 
-class ArffDataset(Dataset):
+class ArffDataset(LabelledDataset):
     """Represents a dataset from ARFF files."""
-    def __init__(self, path: PathLike,
+    def __init__(self, path: Union[PathLike, str],
                  normaliser=StandardScaler(),
                  normalise_method: str = 'speaker',
                  binarise: bool = False):
@@ -296,7 +293,7 @@ class ArffDataset(Dataset):
 
 class UtteranceDataset(ArffDataset):
     """Represents a dataset consisting of a single vector per instance."""
-    def __init__(self, path: PathLike,
+    def __init__(self, path: Union[PathLike, str],
                  normaliser=StandardScaler(),
                  normalise_method: str = 'speaker',
                  binarise: bool = False):
@@ -314,7 +311,7 @@ class UtteranceDataset(ArffDataset):
 class FrameDataset(ArffDataset):
     """Represents a dataset consisting of a sequence of vectors per instance.
     """
-    def __init__(self, path: PathLike,
+    def __init__(self, path: Union[PathLike, str],
                  normaliser=StandardScaler(),
                  normalise_method: str = 'speaker',
                  binarise: bool = False):
