@@ -1,3 +1,19 @@
+#!/usr/bin/python
+
+"""A TensorFlow 2 implementation of the auDeep representation learning
+framework. Original implementation is available at
+https://github.com/auDeep/auDeep.
+
+References:
+[1] S. Amiriparian, M. Freitag, N. Cummins, and B. Schuller, 'Sequence
+to sequence autoencoders for unsupervised representation learning from
+audio', 2017.
+[2] M. Freitag, S. Amiriparian, S. Pugachevskiy, N. Cummins, and B.
+Schuller, 'auDeep: Unsupervised learning of representations from audio
+with deep recurrent neural networks', The Journal of Machine Learning
+Research, vol. 18, no. 1, pp. 6340–6344, 2017.
+"""
+
 import argparse
 from pathlib import Path
 
