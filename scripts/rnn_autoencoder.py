@@ -164,7 +164,9 @@ def main():
     parser.add_argument('--learning_rate', type=float, default=0.001,
                         help="Learning rate.")
     parser.add_argument('--batch_size', type=int, default=64,
-                        help="Batch size.")
+                        help="Batch size per GPU.")
+    parser.add_argument('--multi_gpu', action='store_true',
+                        help="Use all GPUs for training.")
 
     parser.add_argument('--units', type=int, default=256,
                         help="Dimensionality of RNN cells.")
@@ -178,21 +180,29 @@ def main():
 
     args.logs.parent.mkdir(parents=True, exist_ok=True)
 
+    distribute_strategy = tf.distribute.get_strategy()
+    if args.multi_gpu:
+        distribute_strategy = tf.distribute.MirroredStrategy()
+    global_batch_size = args.batch_size \
+        * distribute_strategy.num_replicas_in_sync
+
     # dataset = NetCDFDataset('jl/output/spectrogram-120.nc')
     dataset = netCDF4.Dataset(str(args.dataset))
     x = tf.constant(dataset.variables['features'])
     data = tf.data.Dataset.from_tensor_slices((x, x)).shuffle(
         1500, reshuffle_each_iteration=False)
     n_valid = int(len(x) * args.valid_fraction)
-    valid_data = data.take(n_valid).batch(64)
-    train_data = data.skip(n_valid).take(-1).shuffle(1500).batch(64)
+    valid_data = data.take(n_valid).batch(global_batch_size).prefetch(1000)
+    train_data = data.skip(n_valid).take(-1).shuffle(10000).batch(
+        global_batch_size).prefetch(10000)
 
-    model = create_rnn_model(
-        x[0].shape, units=args.units, layers=args.layers,
-        bidirectional_encoder=args.bidirectional_encoder,
-        bidirectional_decoder=args.bidirectional_decoder
-    )
-    model.compile(optimizer=Adam(learning_rate=args.learning_rate))
+    with distribute_strategy.scope():
+        model = create_rnn_model(
+            x[0].shape, units=args.units, layers=args.layers,
+            bidirectional_encoder=args.bidirectional_encoder,
+            bidirectional_decoder=args.bidirectional_decoder
+        )
+        model.compile(optimizer=Adam(learning_rate=args.learning_rate))
     model.summary()
     model.fit(
         train_data, validation_data=valid_data, epochs=args.epochs, callbacks=[
