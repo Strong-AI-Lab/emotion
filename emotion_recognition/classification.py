@@ -13,7 +13,7 @@ from sklearn.svm import SVC
 from tensorflow import keras
 from tqdm.keras import TqdmCallback
 
-from emotion_recognition.dataset import Dataset
+from emotion_recognition.dataset import LabelledDataset
 from emotion_recognition.tensorflow.classification import (
     tf_classification_metrics)
 from emotion_recognition.utils import shuffle_multiple
@@ -215,7 +215,7 @@ class TFClassifier(Classifier):
 
 
 def test_model(model: Classifier,
-               dataset: Dataset,
+               dataset: LabelledDataset,
                mode: str = 'all',
                genders: List[str] = ['all'],
                reps: int = 1,
@@ -228,7 +228,7 @@ def test_model(model: Classifier,
     -----------
     model: Classifier
         The classifier to test.
-    dataset: Dataset
+    dataset: LabelledDataset
         The dataset to test on.
     mode: {'all', 'valence', 'arousal'}
         The kind of classification data to use from the dataset.
@@ -337,7 +337,7 @@ def test_model(model: Classifier,
 
 
 def test_one_vs_rest(model_fn,
-                     dataset: Dataset,
+                     dataset: LabelledDataset,
                      gendered=False,
                      reps=1,
                      param_grid=None,
