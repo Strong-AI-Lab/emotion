@@ -18,6 +18,7 @@ import argparse
 from pathlib import Path
 
 import netCDF4
+import numpy as np
 import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras.layers import (RNN, AbstractRNNCell, Bidirectional,
@@ -26,30 +27,51 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import Callback
 
 from emotion_recognition.dataset import NetCDFDataset
+from emotion_recognition.utils import shuffle_multiple
 
 
 class _RNNCallback(Callback):
     def __init__(self, data: tf.data.Dataset, log_dir: str = 'logs',
-                 checkpoint=False):
+                 checkpoint=False, profile=False):
         super().__init__()
         self.data = data
-        if self.data.element_spec[0].shape.ndims != 3:
+        if self.data.element_spec.shape.ndims != 3:
             raise ValueError("Dataset elements must be batched (i.e. of shape "
                              "[batch, step, freq]).")
         self.log_dir = log_dir
         self.checkpoint = checkpoint
-        train_log_dir = str(Path(log_dir) / 'train')
-        valid_log_dir = str(Path(log_dir) / 'valid')
-        self.train_writer = tf.summary.create_file_writer(train_log_dir)
-        self.valid_writer = tf.summary.create_file_writer(valid_log_dir)
+        self.profile = profile
+        self.start_profile = False
+        if profile:
+            tf.profiler.experimental.start('')
+            tf.profiler.experimental.stop(save=False)
+        if log_dir:
+            train_log_dir = str(Path(log_dir) / 'train')
+            valid_log_dir = str(Path(log_dir) / 'valid')
+            self.train_writer = tf.summary.create_file_writer(train_log_dir)
+            self.valid_writer = tf.summary.create_file_writer(valid_log_dir)
+        else:
+            self.train_writer = tf.summary.create_noop_writer()
+            self.valid_writer = tf.summary.create_noop_writer()
+
+    def on_train_batch_begin(self, batch, logs=None):
+        if batch == 0 and self.start_profile:
+            tf.profiler.experimental.start(self.log_dir)
+
+    def on_train_batch_end(self, batch, logs=None):
+        if batch == 0 and self.start_profile:
+            tf.profiler.experimental.stop()
+            self.start_profile = False
+
+    def on_epoch_begin(self, epoch, logs=None):
+        if epoch == 2 and self.profile:
+            self.start_profile = True
 
     def on_epoch_end(self, epoch, logs=None):
-        super().on_epoch_end(epoch, logs)
-
         with self.valid_writer.as_default():
             tf.summary.scalar('rmse', logs['val_rmse'], step=epoch)
 
-            batch, _ = next(iter(self.data))
+            batch = next(iter(self.data))
             reconstruction, representation = self.model(batch, training=False)
             reconstruction = reconstruction[:, ::-1, :]
             images = tf.concat([batch, reconstruction], 2)
@@ -80,25 +102,34 @@ def _make_rnn(units: int = 256, layers: int = 2, bidirectional: bool = False,
 
 
 class TimeRecurrentAutoencoder(Model):
+    def __init__(self, *args, global_batch_size=64, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.global_batch_size = global_batch_size
+
     def train_step(self, data):
-        x, _ = data
         with tf.GradientTape() as tape:
-            reconstruction, _ = self(x, training=True)
-            targets = x[:, ::-1, :]
-            loss = tf.sqrt(tf.reduce_mean(tf.square(targets - reconstruction)))
+            reconstruction, _ = self(data, training=True)
+            targets = data[:, ::-1, :]
+            rmse_batch = tf.sqrt(tf.reduce_mean(
+                tf.square(targets - reconstruction), axis=[1, 2]))
+            loss = tf.nn.compute_average_loss(
+                rmse_batch, global_batch_size=self.global_batch_size)
+            train_loss = tf.reduce_mean(rmse_batch)
 
         trainable_vars = self.trainable_variables
         gradients = tape.gradient(loss, trainable_vars)
-        clipped_gvs = [tf.clip_by_value(x, -2, 2) for x in gradients]
+        # clipped_gvs = [tf.clip_by_value(x, -2, 2) for x in gradients]
+        clipped_gvs, _ = tf.clip_by_global_norm(gradients, 2)
         self.optimizer.apply_gradients(zip(clipped_gvs, trainable_vars))
 
-        return {'rmse': loss}
+        return {'rmse': train_loss}
 
     def test_step(self, data):
-        x, _ = data
-        reconstruction, _ = self(x, training=False)
-        targets = x[:, ::-1, :]
-        loss = tf.sqrt(tf.reduce_mean(tf.square(targets - reconstruction)))
+        reconstruction, _ = self(data, training=False)
+        targets = data[:, ::-1, :]
+        rmse_batch = tf.sqrt(tf.reduce_mean(
+            tf.square(targets - reconstruction), axis=[1, 2]))
+        loss = tf.reduce_mean(rmse_batch)
 
         return {'rmse': loss}
 
@@ -107,7 +138,8 @@ def create_rnn_model(input_shape: tuple,
                      units: int = 256,
                      layers: int = 2,
                      bidirectional_encoder: bool = False,
-                     bidirectional_decoder: bool = False
+                     bidirectional_decoder: bool = False,
+                     global_batch_size: int = 64
                      ) -> TimeRecurrentAutoencoder:
     inputs = Input(input_shape)
     time_steps, features = input_shape
@@ -147,26 +179,31 @@ def create_rnn_model(input_shape: tuple,
                            name='reconstruction')(decoder)
 
     model = TimeRecurrentAutoencoder(
-        inputs=inputs, outputs=[reconstruction, representation])
+        global_batch_size=global_batch_size, inputs=inputs,
+        outputs=[reconstruction, representation]
+    )
     return model
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--logs', type=Path, default='logs/rae',
+    parser.add_argument('--dataset', type=Path, required=True,
+                        help="File containing spectrogram data.")
+
+    parser.add_argument('--logs', type=Path,
                         help="Directory to store TensorBoard logs.")
     parser.add_argument('--epochs', type=int, default=50,
                         help="Number of epochs to train for.")
-    parser.add_argument('--dataset', type=Path, required=True,
-                        help="File containing spectrogram data.")
     parser.add_argument('--valid_fraction', type=float, default=0.1,
                         help="Fraction of data to use as validation data.")
     parser.add_argument('--learning_rate', type=float, default=0.001,
                         help="Learning rate.")
     parser.add_argument('--batch_size', type=int, default=64,
-                        help="Batch size per GPU.")
+                        help="Global batch size.")
     parser.add_argument('--multi_gpu', action='store_true',
                         help="Use all GPUs for training.")
+    parser.add_argument('--profile', action='store_true',
+                        help="Profile a batch.")
 
     parser.add_argument('--units', type=int, default=256,
                         help="Dimensionality of RNN cells.")
@@ -178,35 +215,40 @@ def main():
                         help="Use a bidirectional decoder.")
     args = parser.parse_args()
 
+    for gpu in tf.config.list_physical_devices('GPU'):
+        tf.config.experimental.set_memory_growth(gpu, True)
+
     args.logs.parent.mkdir(parents=True, exist_ok=True)
 
     distribute_strategy = tf.distribute.get_strategy()
     if args.multi_gpu:
         distribute_strategy = tf.distribute.MirroredStrategy()
-    global_batch_size = args.batch_size \
-        * distribute_strategy.num_replicas_in_sync
 
     # dataset = NetCDFDataset('jl/output/spectrogram-120.nc')
     dataset = netCDF4.Dataset(str(args.dataset))
-    x = tf.constant(dataset.variables['features'])
-    data = tf.data.Dataset.from_tensor_slices((x, x)).shuffle(
-        1500, reshuffle_each_iteration=False)
+    x = np.array(dataset.variables['features'])
+    x = shuffle_multiple(x)[0]
     n_valid = int(len(x) * args.valid_fraction)
-    valid_data = data.take(n_valid).batch(global_batch_size).prefetch(1000)
-    train_data = data.skip(n_valid).take(-1).shuffle(10000).batch(
-        global_batch_size).prefetch(10000)
+    valid_data = tf.data.Dataset.from_tensor_slices(x[:n_valid]).batch(
+        args.batch_size)
+    train_data = tf.data.Dataset.from_tensor_slices(x[n_valid:]).shuffle(
+        len(x)).batch(args.batch_size)
 
     with distribute_strategy.scope():
         model = create_rnn_model(
             x[0].shape, units=args.units, layers=args.layers,
             bidirectional_encoder=args.bidirectional_encoder,
-            bidirectional_decoder=args.bidirectional_decoder
+            bidirectional_decoder=args.bidirectional_decoder,
+            global_batch_size=args.batch_size
         )
-        model.compile(optimizer=Adam(learning_rate=args.learning_rate))
+        # Using epsilon=1e-5 seems to offer better stability.
+        model.compile(optimizer=Adam(learning_rate=args.learning_rate,
+                                     epsilon=1e-5))
     model.summary()
     model.fit(
         train_data, validation_data=valid_data, epochs=args.epochs, callbacks=[
-            _RNNCallback(valid_data.take(1), log_dir=str(args.logs))
+            _RNNCallback(valid_data.take(1), log_dir=str(args.logs),
+                         profile=args.profile)
         ]
     )
 
