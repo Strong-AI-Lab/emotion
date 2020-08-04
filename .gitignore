@@ -13,6 +13,7 @@
 /jl/*
 /msp-improv/*
 !/msp-improv/preprocess.py
+/meld/*
 /portuguese/*
 /ravdess/*
 /recola/*

@@ -11,14 +11,14 @@ def shuffle_multiple(*arrays, numpy_indexing: bool = True):
         The arrays to shuffle. They must all have the same size of first
         dimension.
     numpy_indexing: bool, default = True
-        Whether or not to use NumPy-style indexing or list comprehension.
+        Whether to use NumPy-style indexing or list comprehension.
 
     Returns:
     shuffled_arrays: iterable of array-like
         The shuffled arrays.
     """
     if any(len(arrays[0]) != len(x) for x in arrays):
-        raise ValueError("Not all arrays have the same size.")
+        raise ValueError("Not all arrays have equal first dimension.")
 
     perm = np.random.permutation(len(arrays[0]))
     new_arrays = [array[perm] if numpy_indexing else [array[i] for i in perm]
