@@ -5,7 +5,7 @@ TFRecord file holding the data.
 """
 
 import argparse
-from os import PathLike
+import time
 from pathlib import Path
 
 import netCDF4
@@ -40,66 +40,75 @@ def serialise_example(name: str, features: np.ndarray, label: str, fold: int,
         'fold': _int64_feature(fold),
         'features_shape': tf.train.Feature(int64_list=tf.train.Int64List(
             value=list(features.shape))),
-        'features_dtype': _bytes_feature(np.dtype(features.dtype).str.encode()),
+        'features_dtype': _bytes_feature(
+            np.dtype(features.dtype).str.encode()),
         'corpus': _bytes_feature(corpus)
     }))
     return example.SerializeToString()
 
 
-def get_spectrogram(file: PathLike,
-                    channels: str,
-                    skip: float,
-                    length: float,
-                    window_size: float,
-                    window_shift: float,
-                    mel_bands: int,
-                    clip: float):
-    audio = tfio.audio.AudioIOTensor(str(file))
-    if audio.shape[1] > 2:
-        raise ValueError("Only stereo or mono audio is supported, "
-                         "{} channels found.".format(audio.shape[1]))
-    sample_rate = int(audio.rate.numpy())
-    start = int(skip * sample_rate)
-    length = int(length * sample_rate)
+def get_spectrogram(file: str,
+                    channels: str = 'mean',
+                    skip: float = 0,
+                    length: float = 5,
+                    window_size: float = 0.05,
+                    window_shift: float = 0.025,
+                    mel_bands: int = 120,
+                    clip: float = 60):
+    wav = tf.io.read_file(file)
+    audio, sample_rate = tf.audio.decode_wav(wav)
 
-    # Convert audio to float in range [-1, 1]
-    audio = tf.cast(audio[start:start + length], tf.float32) / 32768.0
+    sample_rate_f = tf.cast(sample_rate, tf.float32)
+    start = tf.cast(tf.round(skip * sample_rate_f), tf.int32)
+    length = tf.cast(tf.round(length * sample_rate_f), tf.int32)
+    window_samples = tf.cast(tf.round(window_size * sample_rate_f), tf.int32)
+    stride_samples = tf.cast(tf.round(window_shift * sample_rate_f), tf.int32)
+
+    length = tf.where(length <= 0, tf.shape(audio)[0] - start, length)
+
+    # Clip and convert audio to float in range [-1, 1]
+    audio = audio[start:start + length]
+    audio = tf.cast(audio, tf.float32) / 32768.0
+    audio_len = tf.shape(audio)[0]
+
     if channels == 'left':
         audio = audio[:, 0]
     elif channels == 'right':
         audio = audio[:, 1]
     elif channels == 'mean':
-        audio = tf.reduce_mean(audio, axis=1)
+        audio = tf.reduce_mean(audio[:, :2], axis=1)
     elif channels == 'diff':
         audio = audio[:, 0] - audio[:, 1]
 
-    if audio.shape[0] < length:
-        audio = tf.pad(audio, [[0, length - audio.shape[0]]])
+    if audio_len < length:
+        audio = tf.pad(audio, [[0, length - audio_len]])
 
-    spectrogram = tfio.experimental.audio.spectrogram(
-        audio, nfft=2048, window=int(window_size * sample_rate),
-        stride=int(window_shift * sample_rate)
-    )
+    spectrogram = tf.abs(tf.signal.stft(audio, window_samples, stride_samples))
+    # We need to ignore a frame because the auDeep increases the window shift
+    # for some reason.
+    spectrogram = spectrogram[..., :-1, :]
     mel_spectrogram = tfio.experimental.audio.melscale(
         spectrogram, sample_rate, mel_bands, 0, 8000)
 
     # Calculate power spectrum in dB units and clip
-    db_spectrogram = tfio.experimental.audio.dbscale(mel_spectrogram,
-                                                     clip)
+    power = tf.square(mel_spectrogram)
+    log_spec = 10.0 * (tf.math.log(power) / tf.math.log(10.0))
+    db_spectrogram = tf.maximum(log_spec,
+                                tf.reduce_max(log_spec, axis=[-2, -1]) - clip)
     # Scale spectrogram values to [-1, 1] as per auDeep.
     db_min = tf.reduce_min(db_spectrogram)
     db_max = tf.reduce_max(db_spectrogram)
     db_spectrogram = ((2.0 * db_spectrogram - db_max - db_min)
                       / (db_max - db_min))
-    return db_spectrogram.numpy()
+    return db_spectrogram
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('input_dir', type=Path,
-                        help="Directory containing WAV audio.")
-    parser.add_argument('-n', '--corpus', type=str, required=True,
-                        help="Corpus name.")
+    parser.add_argument('input_files', type=Path,
+                        help="File containing list of WAV audio files.")
+
+    parser.add_argument('-n', '--corpus', type=str, help="Corpus name.")
 
     parser.add_argument('-t', '--tfrecord', type=Path,
                         help="Output to TFRecord format.")
@@ -129,7 +138,8 @@ def main():
                         help="Path to label annotations.")
     args = parser.parse_args()
 
-    paths = sorted(args.input_dir.glob('*.wav'))
+    with open(args.input_files) as fid:
+        paths = sorted(Path(x.strip()) for x in fid)
 
     if args.pretend is not None:
         pretend_idx = args.pretend
@@ -137,42 +147,52 @@ def main():
             pretend_idx = np.random.randint(len(paths))
         plt.figure()
         spectrogram = get_spectrogram(
-            paths[pretend_idx], args.channels, args.skip, args.length,
+            str(paths[pretend_idx]), args.channels, args.skip, args.length,
             args.window_size, args.window_shift, args.mel_bands, args.clip
         )
+        spectrogram = spectrogram.numpy()
         plt.imshow(spectrogram)
         plt.show()
         return
 
     if args.audeep is None and args.tfrecord is None:
-        raise ValueError("Must specify either -p, -t or -a options.")
+        raise ValueError(
+            "Must specify either --pretend, --tfrecord or --audeep options.")
 
     if args.labels:
+        if not args.corpus:
+            raise ValueError(
+                "--corpus must be provided if labels are provided.")
         labels = parse_classification_annotations(args.labels)
 
-    # For labelling the speaker cross-validation folds
-    speakers = corpora[args.corpus].speakers
-    get_speaker = corpora[args.corpus].get_speaker
-    speaker_idx = [speakers.index(get_speaker(x.stem)) for x in paths]
+    if args.corpus:
+        # For labelling the speaker cross-validation folds
+        speakers = corpora[args.corpus].speakers
+        get_speaker = corpora[args.corpus].get_speaker
+        speaker_idx = [speakers.index(get_speaker(x.stem)) for x in paths]
 
     print("Processing spectrograms:")
+    start_time = time.perf_counter()
     spectrograms = []
-    for file in tqdm(paths, desc="Analysing spectrograms", unit='sp'):
+    for path in tqdm(paths, desc="Analysing spectrograms", unit='sp'):
         spectrogram = get_spectrogram(
-            file, args.channels, args.skip, args.length,
+            str(path), args.channels, args.skip, args.length,
             args.window_size, args.window_shift, args.mel_bands, args.clip
         )
-        spectrograms.append(spectrogram)
+        spectrograms.append(spectrogram.numpy())
     spectrograms = np.array(spectrograms)
+    print("Processed {} spectrograms in {:.4f}s".format(
+        len(spectrograms), time.perf_counter() - start_time))
 
     if args.audeep is not None:
         args.audeep.parent.mkdir(parents=True, exist_ok=True)
 
+        tdim = spectrograms[0].shape[0] if args.length else 0
         dataset = netCDF4.Dataset(str(args.audeep), 'w')
-        dataset.createDimension('instance', spectrograms.shape[0])
-        dataset.createDimension('fold', len(speakers))
-        dataset.createDimension('time', spectrograms.shape[1])
-        dataset.createDimension('freq', spectrograms.shape[2])
+        dataset.createDimension('instance', len(spectrograms))
+        dataset.createDimension('fold', 0)
+        dataset.createDimension('time', tdim)
+        dataset.createDimension('freq', args.mel_bands)
 
         # Although auDeep uses the actual path, we use just the name of the
         # audio clip.
@@ -186,22 +206,19 @@ def main():
                                            ('instance',))
         partition[:] = np.zeros(spectrograms.shape[0], dtype=np.float64)
 
-        cv_folds = dataset.createVariable('cv_folds', np.int64, ('instance',
-                                                                 'fold'))
-        cv_folds[:, :] = np.zeros((spectrograms.shape[0], len(speakers)))
-        for i in range(len(paths)):
-            cv_folds[i, speaker_idx[i]] = 1
+        dataset.createVariable('cv_folds', np.int64, ('instance', 'fold'))
 
         label_nominal = dataset.createVariable('label_nominal', str,
                                                ('instance',))
         label_numeric = dataset.createVariable('label_numeric', np.int64,
                                                ('instance',))
         if args.labels:
-            emotions = list(corpora[args.corpus].emotion_map.values())
             label_nominal[:] = np.array([labels[x.stem] for x in paths])
+            emotions = list(corpora[args.corpus].emotion_map.values())
             label_numeric[:] = np.array([emotions.index(labels[x.stem])
                                          for x in paths])
         else:
+            label_nominal[:] = np.zeros(spectrograms.shape[0], dtype=str)
             label_numeric[:] = np.zeros(spectrograms.shape[0], dtype=np.int64)
 
         features = dataset.createVariable('features', np.float32,
@@ -209,7 +226,7 @@ def main():
         features[:, :, :] = spectrograms
 
         dataset.setncattr_string('feature_dims', '["time", "freq"]')
-        dataset.setncattr_string('corpus', args.corpus)
+        dataset.setncattr_string('corpus', args.corpus or '')
         dataset.close()
 
         print("Wrote netCDF dataset to {}.".format(str(args.audeep)))
@@ -219,8 +236,10 @@ def main():
             for i in range(len(paths)):
                 name = paths[i].stem
                 label = labels[name]
-                writer.write(serialise_example(name, spectrograms[i], label,
-                                               speaker_idx[i], args.corpus))
+                writer.write(serialise_example(
+                    name, spectrograms[i], label,
+                    speaker_idx[i] if args.corpus else 0, args.corpus or ''
+                ))
 
 
 if __name__ == "__main__":
