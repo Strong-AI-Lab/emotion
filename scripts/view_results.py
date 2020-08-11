@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import argparse
+import logging
 import re
 from itertools import product, combinations
 from math import isnan
@@ -28,6 +29,7 @@ SUBSTITUTIONS = {
     'IS09_emotion': 'IS09',
     'IS13_ComParE': 'IS13',
     'audeep': 'auDeep',
+    'audeep_all': 'auDeep (all datasets)',
     'boaw_eGeMAPS_20_500': 'BoAW: eGeMAPS (20, 500)',
     'boaw_eGeMAPS_50_1000': 'BoAW: eGeMAPS (50, 1000)',
     'boaw_eGeMAPS_100_5000': 'BoAW: eGeMAPS (100, 5000)',
@@ -56,6 +58,7 @@ SUBSTITUTIONS = {
 
 feat_col_order = [
     'auDeep',
+    'auDeep (all datasets)',
     'IS09',
     'IS13',
     'GeMAPS',
@@ -71,6 +74,7 @@ feat_col_order = [
 
 feat_cols_subset = [
     'auDeep',
+    'auDeep (all datasets)',
     'IS09',
     'IS13',
     'GeMAPS',
@@ -92,21 +96,6 @@ clf_col_order = [
     'FCN (3 layers)',
     'CNN'
 ]
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--results', nargs='+', type=Path, required=True)
-parser.add_argument('--metrics', nargs='*', type=str,
-                    help="Metrics to output.")
-parser.add_argument('--plot', help="Show matplotlib figures.",
-                    action='store_true')
-parser.add_argument('--print', help="Print tables to console.",
-                    action='store_true')
-parser.add_argument('--latex', type=Path,
-                    help="Directory to output latex tables.")
-parser.add_argument('--regex', type=str, default='.*')
-parser.add_argument('--images', type=Path, help="Directory to output images.")
-parser.add_argument('--excel', type=Path,
-                    help="Directory to output Excel files.")
 
 
 def fmt(f):
@@ -169,10 +158,30 @@ def ordered_intersect(a, b):
 
 
 def main():
+    logging.basicConfig()
+    logger = logging.getLogger('view_results')
+    logger.setLevel(logging.INFO)
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--results', nargs='+', type=Path, required=True)
+    parser.add_argument('--metrics', nargs='*', type=str,
+                        help="Metrics to output.")
+    parser.add_argument('--plot', help="Show matplotlib figures.",
+                        action='store_true')
+    parser.add_argument('--print', help="Print tables to console.",
+                        action='store_true')
+    parser.add_argument('--latex', type=Path,
+                        help="Directory to output latex tables.")
+    parser.add_argument('--regex', type=str, default='.*')
+    parser.add_argument('--images', type=Path,
+                        help="Directory to output images.")
+    parser.add_argument('--excel', type=Path,
+                        help="Directory to output Excel files.")
     args = parser.parse_args()
 
     cache_file = Path(args.results[0])
     if len(args.results) == 1 and cache_file.is_file():
+        logger.info("Found results cache at {}.".format(str(cache_file)))
         df = pd.read_csv(cache_file, index_col=[0, 1, 2])
     else:
         _dirs = [d for d in args.results if d.is_dir()]
@@ -187,12 +196,13 @@ def main():
 
         uar_list = {}
         for d in dirs:
-            print("Reading", d)
+            logger.info("Reading directory {}".format(d))
             table = {}
             df_list = {}
             for filename in [x for x in sorted(d.glob('**/*.csv'))
                              if re.search(args.regex, str(x))]:
                 name = filename.relative_to(d).with_suffix('')
+                logger.debug("Found file {}".format(str(filename)))
                 df_list[name] = pd.read_csv(filename, header=[0, 1, 2, 3],
                                             index_col=0)
             if not df_list:
@@ -249,7 +259,7 @@ def main():
     max_clf = df.max(level=0).T
     max_feat = df.max(level=1).T
 
-    print(ordered_intersect(feat_col_order, mean_feat.columns))
+    logging.debug(ordered_intersect(feat_col_order, mean_feat.columns))
     mean_feat = mean_feat[ordered_intersect(feat_col_order, mean_feat.columns)]
     max_feat = max_feat[ordered_intersect(feat_col_order, max_feat.columns)]
     max_feat_subset = max_feat[

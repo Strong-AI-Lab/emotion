@@ -254,9 +254,9 @@ def main():
         args.datatype = 'frame'
 
     datafile = Path(args.data)
-    if args.datatype == 'audeep':
+    if args.datatype == 'netCDF':
         dataset = NetCDFDataset(
-            datafile, args.corpus, normaliser=StandardScaler(),
+            datafile, normaliser=StandardScaler(),
             normalise_method='speaker'
         )
     elif args.datatype == 'utterance':
