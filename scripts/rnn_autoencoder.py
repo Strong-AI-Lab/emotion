@@ -15,7 +15,9 @@ Research, vol. 18, no. 1, pp. 6340–6344, 2017.
 """
 
 import argparse
+import time
 from pathlib import Path
+from typing import Optional
 
 import netCDF4
 import numpy as np
@@ -25,13 +27,64 @@ from tensorflow.keras.layers import (RNN, AbstractRNNCell, Bidirectional,
                                      Dense, GRUCell, Input, concatenate)
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import Callback
+from tqdm import tqdm
 
 from emotion_recognition.dataset import NetCDFDataset
 from emotion_recognition.utils import shuffle_multiple
 
 
+class DropoutRNNCell(AbstractRNNCell):
+    def __init__(self, cell: AbstractRNNCell, input_dropout: float = 0.2,
+                 output_dropout: float = 0.2, **kwargs):
+        super().__init__(**kwargs)
+        self.cell = cell
+        self.input_dropout = input_dropout
+        self.output_dropout = output_dropout
+
+    @property
+    def state_size(self):
+        return self.cell.state_size
+
+    @property
+    def output_size(self):
+        return self.cell.output_size
+
+    def build(self, input_shape):
+        return self.cell.build(input_shape)
+
+    def call(self, inputs, states, training=None):
+        if training:
+            inputs = tf.nn.dropout(inputs, self.input_dropout,
+                                   name='input_dropout')
+            outputs, states = self.cell.call(inputs, states, training=training)
+            outputs = tf.nn.dropout(outputs, self.output_dropout,
+                                    name='output_dropout')
+            return outputs, states
+        else:
+            return self.cell.call(inputs, states, training=training)
+
+    def get_config(self):
+        config = {
+            'input_dropout': self.input_dropout,
+            'output_dropout': self.output_dropout,
+            'cell': {
+                'class_name': self.cell.__class__.__name__,
+                'config': self.cell.get_config()
+            },
+        }
+        base_config = super().get_config()
+        return dict(**config, **base_config)
+
+    @classmethod
+    def from_config(cls, config, custom_objects=None):
+        config = config.copy()
+        from tensorflow.python.keras.layers.serialization import deserialize
+        cell = deserialize(config.pop("cell"), custom_objects=custom_objects)
+        return cls(cell, **config)
+
+
 class _RNNCallback(Callback):
-    def __init__(self, data: tf.data.Dataset, log_dir: str = 'logs',
+    def __init__(self, data: tf.data.Dataset, log_dir: Optional[str] = 'logs',
                  checkpoint=False, profile=False):
         super().__init__()
         self.data = data
@@ -90,13 +143,13 @@ class _RNNCallback(Callback):
 
 
 def _dropout_gru_cell(units: int = 256,
-                      keep_prob: float = 0.8) -> AbstractRNNCell:
-    return tf.nn.RNNCellDropoutWrapper(GRUCell(units), 0.8, 0.8)
+                      dropout: float = 0.8) -> AbstractRNNCell:
+    return DropoutRNNCell(GRUCell(units), dropout, dropout)
 
 
 def _make_rnn(units: int = 256, layers: int = 2, bidirectional: bool = False,
               dropout: float = 0.2, name='rnn') -> RNN:
-    cells = [_dropout_gru_cell(units, 1 - dropout) for _ in range(layers)]
+    cells = [_dropout_gru_cell(units, dropout) for _ in range(layers)]
     rnn = RNN(cells, return_sequences=True, return_state=True, name=name)
     return Bidirectional(rnn, name=name) if bidirectional else rnn
 
@@ -106,6 +159,7 @@ class TimeRecurrentAutoencoder(Model):
         super().__init__(*args, **kwargs)
         self.global_batch_size = global_batch_size
 
+    @tf.function
     def train_step(self, data):
         with tf.GradientTape() as tape:
             reconstruction, _ = self(data, training=True)
@@ -114,7 +168,6 @@ class TimeRecurrentAutoencoder(Model):
                 tf.square(targets - reconstruction), axis=[1, 2]))
             loss = tf.nn.compute_average_loss(
                 rmse_batch, global_batch_size=self.global_batch_size)
-            train_loss = tf.reduce_mean(rmse_batch)
 
         trainable_vars = self.trainable_variables
         gradients = tape.gradient(loss, trainable_vars)
@@ -122,8 +175,9 @@ class TimeRecurrentAutoencoder(Model):
         clipped_gvs, _ = tf.clip_by_global_norm(gradients, 2)
         self.optimizer.apply_gradients(zip(clipped_gvs, trainable_vars))
 
-        return {'rmse': train_loss}
+        return loss
 
+    @tf.function
     def test_step(self, data):
         reconstruction, _ = self(data, training=False)
         targets = data[:, ::-1, :]
@@ -131,7 +185,7 @@ class TimeRecurrentAutoencoder(Model):
             tf.square(targets - reconstruction), axis=[1, 2]))
         loss = tf.reduce_mean(rmse_batch)
 
-        return {'rmse': loss}
+        return loss
 
 
 def create_rnn_model(input_shape: tuple,
@@ -204,6 +258,12 @@ def main():
                         help="Use all GPUs for training.")
     parser.add_argument('--profile', action='store_true',
                         help="Profile a batch.")
+    parser.add_argument('--continue', action='store_true', dest='cont',
+                        help="Continue from latest checkpoint.")
+    parser.add_argument('--keep_checkpoints', type=int, default=5,
+                        help="Number of checkpoints to keep.")
+    parser.add_argument('--save_every', type=int, default=10,
+                        help="Save every N epochs.")
 
     parser.add_argument('--units', type=int, default=256,
                         help="Dimensionality of RNN cells.")
@@ -218,11 +278,12 @@ def main():
     for gpu in tf.config.list_physical_devices('GPU'):
         tf.config.experimental.set_memory_growth(gpu, True)
 
-    args.logs.parent.mkdir(parents=True, exist_ok=True)
+    if args.logs:
+        args.logs.parent.mkdir(parents=True, exist_ok=True)
 
-    distribute_strategy = tf.distribute.get_strategy()
+    strategy = tf.distribute.get_strategy()
     if args.multi_gpu:
-        distribute_strategy = tf.distribute.MirroredStrategy()
+        strategy = tf.distribute.MirroredStrategy()
 
     # dataset = NetCDFDataset('jl/output/spectrogram-120.nc')
     dataset = netCDF4.Dataset(str(args.dataset))
@@ -234,7 +295,7 @@ def main():
     train_data = tf.data.Dataset.from_tensor_slices(x[n_valid:]).shuffle(
         len(x)).batch(args.batch_size)
 
-    with distribute_strategy.scope():
+    with strategy.scope():
         model = create_rnn_model(
             x[0].shape, units=args.units, layers=args.layers,
             bidirectional_encoder=args.bidirectional_encoder,
@@ -242,15 +303,85 @@ def main():
             global_batch_size=args.batch_size
         )
         # Using epsilon=1e-5 seems to offer better stability.
-        model.compile(optimizer=Adam(learning_rate=args.learning_rate,
-                                     epsilon=1e-5))
+        optimizer = Adam(learning_rate=args.learning_rate, epsilon=1e-5)
+        model.compile(optimizer=optimizer)
+        checkpoint = tf.train.Checkpoint(model=model)
     model.summary()
-    model.fit(
-        train_data, validation_data=valid_data, epochs=args.epochs, callbacks=[
-            _RNNCallback(valid_data.take(1), log_dir=str(args.logs),
-                         profile=args.profile)
-        ]
-    )
+
+    if args.logs:
+        checkpoint_manager = tf.train.CheckpointManager(
+            checkpoint, str(args.logs), max_to_keep=args.keep_checkpoints)
+
+    if args.cont:
+        checkpoint.restore(checkpoint_manager.latest_checkpoint)
+        print("Restoring from checkpoint {}.".format(
+            checkpoint_manager.latest_checkpoint))
+
+    @tf.function
+    def dist_train_step(batch):
+        per_replica_losses = strategy.run(model.train_step, args=(batch,))
+        return strategy.reduce(tf.distribute.ReduceOp.SUM,
+                               per_replica_losses, axis=None)
+
+    @tf.function
+    def dist_test_step(batch):
+        per_replica_losses = strategy.run(model.test_step, args=(batch,))
+        return strategy.reduce(tf.distribute.ReduceOp.MEAN,
+                               per_replica_losses, axis=None)
+
+    callback = _RNNCallback(valid_data.take(1), args.logs,
+                            profile=args.profile)
+    callback.model = model
+
+    train_data = strategy.experimental_distribute_dataset(train_data)
+    valid_data = strategy.experimental_distribute_dataset(valid_data)
+
+    n_train_batches = len(train_data)
+    n_valid_batches = len(valid_data)
+
+    for epoch in range(1, args.epochs + 1):
+        callback.on_epoch_begin(epoch)
+        epoch_time = time.perf_counter()
+        train_loss = 0.0
+        n_batch = 0
+        batch_time = time.perf_counter()
+        for batch in tqdm(
+                train_data,
+                total=n_train_batches,
+                desc="Epoch {:03d}".format(epoch),
+                unit='batch'):
+            callback.on_train_batch_begin(n_batch)
+            loss = dist_train_step(batch)
+            train_loss += loss
+            n_batch += 1
+            callback.on_train_batch_end(n_batch, logs={'rmse': loss})
+        train_loss /= n_train_batches
+        batch_time = time.perf_counter() - batch_time
+        batch_time /= n_train_batches
+
+        valid_loss = 0.0
+        for batch in valid_data:
+            loss = dist_test_step(batch)
+            valid_loss += loss
+        valid_loss /= n_valid_batches
+
+        epoch_time = time.perf_counter() - epoch_time
+        print(
+            "Epoch {:03d}: train loss: {:.4f}, valid loss: {:.4f} in {:.2f}s "
+            "({:.2f}s per batch).".format(epoch, train_loss, valid_loss,
+                                          epoch_time, batch_time)
+        )
+        callback.on_epoch_end(epoch, logs={'rmse': train_loss,
+                                           'val_rmse': valid_loss})
+        if args.logs and epoch % args.save_every == 0:
+            checkpoint_manager.save(checkpoint_number=epoch)
+            print("Saved checkpoint to {}.".format(
+                checkpoint_manager.latest_checkpoint))
+
+    if args.logs:
+        save_path = str(args.logs / 'model')
+        model.save(save_path, include_optimizer=False)
+        print("Saved model to {}.".format(save_path))
 
 
 if __name__ == "__main__":
