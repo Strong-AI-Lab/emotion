@@ -304,10 +304,8 @@ def test_model(model: Classifier,
                 else:
                     # TODO: fix this in the general case when using arbitrary
                     # cross-validation splitter
-                    if validation == 'valid':
-                        if len(np.unique(speaker_indices[train])) <= 1:
-                            raise ValueError("There are no speakers to create"
-                                             "a validation set.")
+                    if validation == 'valid' and len(
+                            np.unique(speaker_indices[train])) >= 2:
                         n_splits = splitter.get_n_splits(
                             x_train, y_train, speaker_indices[train])
 
