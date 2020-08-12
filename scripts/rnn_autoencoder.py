@@ -29,7 +29,6 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import Callback
 from tqdm import tqdm
 
-from emotion_recognition.dataset import NetCDFDataset
 from emotion_recognition.utils import shuffle_multiple
 
 
@@ -171,7 +170,6 @@ class TimeRecurrentAutoencoder(Model):
 
         trainable_vars = self.trainable_variables
         gradients = tape.gradient(loss, trainable_vars)
-        # clipped_gvs = [tf.clip_by_value(x, -2, 2) for x in gradients]
         clipped_gvs, _ = tf.clip_by_global_norm(gradients, 2)
         self.optimizer.apply_gradients(zip(clipped_gvs, trainable_vars))
 
@@ -224,8 +222,8 @@ def create_rnn_model(input_shape: tuple,
                         name='decoder_input_sequence')
 
     # Make decoder layers and init with output from fully connected layer
-    dec1 = _make_rnn(units, layers, bidirectional_decoder, name='decoder')
-    dec_seq, *_ = dec1(dec_inputs, initial_state=decoder_init)
+    dec = _make_rnn(units, layers, bidirectional_decoder, name='decoder')
+    dec_seq, *_ = dec(dec_inputs, initial_state=decoder_init)
     # Concatenate output of layers
     decoder = (dec_seq)
 
@@ -285,7 +283,6 @@ def main():
     if args.multi_gpu:
         strategy = tf.distribute.MirroredStrategy()
 
-    # dataset = NetCDFDataset('jl/output/spectrogram-120.nc')
     dataset = netCDF4.Dataset(str(args.dataset))
     x = np.array(dataset.variables['features'])
     x = shuffle_multiple(x)[0]
