@@ -20,3 +20,4 @@ PyWave
 autopep8
 netCDF4
 nltk
+pyqt5

@@ -223,22 +223,23 @@ def test_conv_model(dataset, resultname, kind='aldeneh'):
         df.to_csv(Path(output_dir) / '{}.csv'.format(resultname))
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--corpus', help="The corpus to test.", required=True)
-parser.add_argument(
-    '--clf', required=True,
-    help="The type of classifier to use. One of {svm, dnn, cnn}."
-)
-parser.add_argument('--data', help="The data to use.", required=True)
-parser.add_argument('--kind', help="The kind of classifier.", required=True)
-parser.add_argument('--datatype', help="The type of data {frame, utterance}.",
-                    default='utterance', required=True)
-parser.add_argument('--name', help="The results output name.")
-parser.add_argument('--noresults', help="Don't output results to file",
-                    action='store_true')
-
-
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--corpus', type=str, required=True,
+                        help="The corpus to test.")
+    parser.add_argument('--clf', type=str, required=True,
+                        help="The type of classifier: {svm, dnn, cnn}.")
+    parser.add_argument('--data', type=Path, required=True,
+                        help="The data to use.")
+    parser.add_argument('--kind', type=str, required=True,
+                        help="The kind of classifier.")
+    parser.add_argument(
+        '--datatype', type=str, default='utterance', required=True,
+        help="The type of data: {frame, utterance, netCDF}."
+    )
+    parser.add_argument('--name', type=str, help="The results output name.")
+    parser.add_argument('--noresults', action='store_true',
+                        help="Don't output results to file")
     args = parser.parse_args()
 
     tf.get_logger().setLevel(40)  # ERROR level
@@ -253,7 +254,7 @@ def main():
         test_fn = test_conv_model
         args.datatype = 'frame'
 
-    datafile = Path(args.data)
+    datafile = args.data
     if args.datatype == 'netCDF':
         dataset = NetCDFDataset(
             datafile, normaliser=StandardScaler(),
