@@ -24,7 +24,6 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model
 from tqdm import tqdm
 
-from emotion_recognition.utils import shuffle_multiple
 from emotion_recognition.tensorflow.models.audeep import create_trae
 
 
@@ -34,14 +33,13 @@ def _make_functions(model, optimizer, strategy, global_batch_size,
         with tf.GradientTape() as tape:
             reconstruction, _ = model(data, training=True)
             targets = data[:, ::-1, :]
-            rmse_batch = tf.sqrt(tf.reduce_mean(
-                tf.square(targets - reconstruction), axis=[1, 2]))
-            loss = tf.nn.compute_average_loss(
-                rmse_batch, global_batch_size=global_batch_size)
+            loss = tf.sqrt(tf.reduce_mean(tf.math.squared_difference(
+                targets, reconstruction)))
 
         trainable_vars = model.trainable_variables
         gradients = tape.gradient(loss, trainable_vars)
-        clipped_gvs, _ = tf.clip_by_global_norm(gradients, 2)
+        clipped_gvs = [tf.clip_by_value(x, -2, 2) for x in gradients]
+        # clipped_gvs, _ = tf.clip_by_global_norm(gradients, 2)
         optimizer.apply_gradients(zip(clipped_gvs, trainable_vars))
 
         return loss
@@ -49,9 +47,8 @@ def _make_functions(model, optimizer, strategy, global_batch_size,
     def test_step(data):
         reconstruction, _ = model(data, training=False)
         targets = data[:, ::-1, :]
-        rmse_batch = tf.sqrt(tf.reduce_mean(
-            tf.square(targets - reconstruction), axis=[1, 2]))
-        loss = tf.reduce_mean(rmse_batch)
+        loss = tf.sqrt(tf.reduce_mean(tf.math.squared_difference(
+            targets, reconstruction)))
 
         return loss
 
@@ -87,16 +84,20 @@ def train(args):
     if args.multi_gpu:
         strategy = tf.distribute.MirroredStrategy()
 
+    # Get data
     dataset = netCDF4.Dataset(str(args.dataset))
     x = np.array(dataset.variables['features'])
     dataset.close()
-    x = shuffle_multiple(x)[0]
-    n_valid = int(len(x) * args.valid_fraction)
+    n_spectrograms, max_time, features = x.shape
+    np.random.default_rng().shuffle(x)
+    n_valid = int(n_spectrograms * args.valid_fraction)
     valid_data = tf.data.Dataset.from_tensor_slices(x[:n_valid]).batch(
-        args.batch_size)
+        args.batch_size).prefetch(10)
     train_data = tf.data.Dataset.from_tensor_slices(x[n_valid:]).shuffle(
-        len(x)).batch(args.batch_size)
+        n_spectrograms).batch(args.batch_size).prefetch(100)
     summary_data = valid_data.take(1)
+    # Reduce memory footprint
+    del x
 
     train_data = strategy.experimental_distribute_dataset(train_data)
     valid_data = strategy.experimental_distribute_dataset(valid_data)
@@ -107,7 +108,7 @@ def train(args):
     step = tf.Variable(1)
     with strategy.scope():
         model = create_trae(
-            x[0].shape, units=args.units, layers=args.layers,
+            (max_time, features), units=args.units, layers=args.layers,
             bidirectional_encoder=args.bidirectional_encoder,
             bidirectional_decoder=args.bidirectional_decoder,
             global_batch_size=args.batch_size
@@ -118,10 +119,14 @@ def train(args):
         model.compile(optimizer=optimizer)
         checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer,
                                          step=step)
-    model.summary()
+    print()
+    print("Model structure:")
+    for layer in model.layers:
+        print(layer.name, layer.output_shape)
+    print()
 
     # Write the graph only
-    tf.keras.callbacks.TensorBoard(args.logs, write_graph=True,
+    tf.keras.callbacks.TensorBoard(args.logs / 'graph', write_graph=True,
                                    profile_batch=0).set_model(model)
 
     checkpoint_manager = tf.train.CheckpointManager(
