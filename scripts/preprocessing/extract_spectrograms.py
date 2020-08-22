@@ -100,15 +100,54 @@ def write_audeep_dataset(path: Path,
     dataset.close()
 
 
+def log10(x: tf.Tensor):
+    return tf.math.log(x) / tf.math.log(10.0)
+
+
 def calculate_spectrogram(audio: tf.Tensor,
                           sample_rate: int = 16000,
                           channels: str = 'mean',
+                          pre_emphasis: float = 0.95,
                           skip: float = 0,
                           length: float = 5,
                           window_size: float = 0.05,
                           window_shift: float = 0.025,
-                          mel_bands: int = 120,
+                          n_mels: int = 120,
                           clip: float = 60):
+    """Calculates a spectrogram from a batch of time-domain signals.
+
+    Args:
+    -----
+    audio: tf.Tensor
+        The audio to process. Has shape (N, T, C), where N is the batch size,
+        T is the length of the clip in samples, C is the number of channels
+        (must be 1 if only one channel).
+    sample_rate: int
+        The sample rate, which must be constant across the batch.
+    channels: str, one of {'mean', 'left', 'right', 'diff'}
+        How to combine the channels. Default is 'mean'.
+    pre_emphasis: float
+        Amount of pre-emphasis to apply. Can be 0 for no pre-emphasis. Default
+        is 0.95.
+    skip: float
+        Length in seconds to ignore from the start of the clip. Default is 0.
+    length: float
+        Desired length of the clip in seconds. Default is 5 seconds.
+    window_size: float
+        Length of window in seconds. Default is 0.05
+    window_shift: float
+        Window shift/stride in seconds. Default is 0.025
+    n_mels: int
+        Number of mel bands to calculate
+    clip: float
+        dB level below which to clip. Default is 60.
+
+    Returns:
+    --------
+    spectrograms: tf.Tensor
+        The batched spectrograms of shape (N, T', M), where N is the batch
+        size, T' is the number of frames, M is n_mels.
+    """
     sample_rate_f = tf.cast(sample_rate, tf.float32)
     start_samples = tf.cast(tf.round(skip * sample_rate_f), tf.int32)
     length_samples = tf.cast(tf.round(length * sample_rate_f), tf.int32)
@@ -122,6 +161,7 @@ def calculate_spectrogram(audio: tf.Tensor,
     audio = audio[..., start_samples:start_samples + length_samples, :]
     audio = tf.cast(audio, tf.float32) / 32768.0
 
+    # Channel fusion
     if channels == 'left':
         audio = audio[:, :, 0]
     elif channels == 'right':
@@ -131,28 +171,39 @@ def calculate_spectrogram(audio: tf.Tensor,
     elif channels == 'diff':
         audio = audio[:, :, 0] - audio[:, :, 1]
 
+    # Padding
     audio_len = audio.shape[1]
     if audio_len < length_samples:
         audio = tf.pad(audio, [[0, 0], [0, length_samples - audio_len]])
 
+    # Pre-emphasis
+    if pre_emphasis > 0:
+        filt = audio[:, 1:] - pre_emphasis * audio[:, :-1]
+        audio = tf.concat([audio[:, 0:1], filt], 1)
+
+    # Spectrogram
     spectrogram = tf.abs(tf.signal.stft(audio, window_samples, stride_samples))
     # We need to ignore a frame because the auDeep increases the window shift
     # for some reason.
     spectrogram = spectrogram[..., :-1, :]
+
+    # Mel spectrogram
     mel_spectrogram = tfio.experimental.audio.melscale(
-        spectrogram, sample_rate, mel_bands, 0, 8000)
+        spectrogram, sample_rate, n_mels, 0, 8000)
 
     # Calculate power spectrum in dB units and clip
     power = tf.square(mel_spectrogram)
-    log_spec = 10.0 * (tf.math.log(power) / tf.math.log(10.0))
-    max_spec = tf.reduce_max(log_spec, axis=[-2, -1], keepdims=True)
-    db_spectrogram = tf.maximum(log_spec, max_spec - clip)
+    max_power = tf.reduce_max(power, axis=[1, 2], keepdims=True)
+    log_spec = 10 * log10(power / max_power)
+    db_spectrogram = tf.maximum(log_spec, -clip)
 
     # Scale spectrogram values to [-1, 1] as per auDeep.
-    db_min = tf.reduce_min(db_spectrogram, axis=[-2, -2], keepdims=True)
-    db_max = tf.reduce_max(db_spectrogram, axis=[-2, -1], keepdims=True)
-    db_spectrogram = ((2.0 * db_spectrogram - db_max - db_min)
-                      / (db_max - db_min))
+    db_min = tf.reduce_min(db_spectrogram, axis=[1, 2], keepdims=True)
+    db_max = tf.reduce_max(db_spectrogram, axis=[1, 2], keepdims=True)
+    eps = db_max - db_min < 1e-4
+    lower = db_spectrogram - db_min
+    norm = 2 * (db_spectrogram - db_min) / (db_max - db_min) - 1
+    db_spectrogram = tf.where(eps, lower, norm)
     return db_spectrogram
 
 
@@ -182,36 +233,40 @@ def main():
     parser.add_argument('input', type=Path,
                         help="File containing list of WAV audio files.")
 
-    parser.add_argument('-n', '--corpus', type=str, help="Corpus name.")
+    parser.add_argument('--corpus', type=str, help="Corpus name.")
     parser.add_argument('--labels', type=Path,
                         help="Path to label annotations.")
     parser.add_argument('--batch_size', type=int, default=128,
                         help="Batch size for processsing.")
 
-    parser.add_argument('-t', '--tfrecord', type=Path,
+    parser.add_argument('--tfrecord', type=Path,
                         help="Output to TFRecord format.")
-    parser.add_argument('-a', '--audeep', type=Path,
+    parser.add_argument('--audeep', type=Path,
                         help="Output to NetCDF4 in audeep format.")
 
-    parser.add_argument('-l', '--length', type=float, default=5,
+    parser.add_argument('--length', type=float, default=5,
                         help="Seconds of audio clip to take or pad.")
-    parser.add_argument('-s', '--skip', type=float, default=0,
+    parser.add_argument('--skip', type=float, default=0,
                         help="Seconds of initial audio to skip.")
-    parser.add_argument('-c', '--clip', type=float, default=60,
+    parser.add_argument('--clip', type=float, default=60,
                         help="Clip below this (negative) dB level.")
-    parser.add_argument('-w', '--window_size', type=float, default=0.05,
+    parser.add_argument('--window_size', type=float, default=0.05,
                         help="Window size in seconds.")
-    parser.add_argument('-x', '--window_shift', type=float, default=0.025,
+    parser.add_argument('--window_shift', type=float, default=0.025,
                         help="Window shift in seconds.")
-    parser.add_argument('-m', '--mel_bands', type=int, default=120,
+    parser.add_argument('--mel_bands', type=int, default=120,
                         help="Number of mel bands.")
-    parser.add_argument('-p', '--preview', type=int, default=None,
-                        help="Display nth spectrogram without writing to a "
-                        "file. A random spectrogram is displayed if p = -1. "
-                        "Overrides -t or -a.")
-    parser.add_argument('--channels', type=str, default='mean',
-                        help="Method for combining stereo channels. One of "
-                        "{mean, left, right, diff}. Default is mean.")
+    parser.add_argument('--pre_emphasis', type=float, default=0.95,
+                        help="Pre-emphasis factor.")
+    parser.add_argument(
+        '--preview', type=int, help="Display nth spectrogram without writing "
+        "to a file. A random spectrogram is displayed if p = -1. Overrides -t "
+        "or -a."
+    )
+    parser.add_argument(
+        '--channels', type=str, default='mean', help="Method for combining "
+        "stereo channels. One of {mean, left, right, diff}. Default is mean."
+    )
     args = parser.parse_args()
 
     with open(args.input) as fid:
@@ -226,8 +281,10 @@ def main():
         audio, sample_rate = tf.audio.decode_wav(wav)
         audio = tf.expand_dims(audio, 0)
         spectrogram = calculate_spectrogram(
-            audio, sample_rate, args.channels, args.skip, args.length,
-            args.window_size, args.window_shift, args.mel_bands, args.clip
+            audio, sample_rate=sample_rate, channels=args.channels,
+            skip=args.skip, length=args.length, window_size=args.window_size,
+            pre_emphasis=args.pre_emphasis, window_shift=args.window_shift,
+            n_mels=args.mel_bands, clip=args.clip
         )
         spectrogram = spectrogram[0, :, :].numpy()
 
@@ -262,8 +319,8 @@ def main():
         specs.append(calculate_spectrogram(
             x, sample_rate, channels=args.channels, skip=args.skip,
             length=args.length, window_size=args.window_size,
-            window_shift=args.window_shift, mel_bands=args.mel_bands,
-            clip=args.clip
+            pre_emphasis=args.pre_emphasis, window_shift=args.window_shift,
+            n_mels=args.mel_bands, clip=args.clip
         ))
     specs = tf.concat(specs, 0)
     spectrograms = specs.numpy()
