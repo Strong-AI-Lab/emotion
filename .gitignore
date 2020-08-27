@@ -35,13 +35,15 @@
 /docker
 scripts/test.py
 
-# Build Related
+# Python related
 __pycache__
 build
 venv
 .venv
-.vscode
 *.egg-info
+
+# Misc
+.vscode
 .ipynb_checkpoints
 smile.log
 desktop.ini

@@ -27,8 +27,7 @@ from tqdm import tqdm
 from emotion_recognition.tensorflow.models.audeep import create_trae
 
 
-def _make_functions(model, optimizer, strategy, global_batch_size,
-                    use_function=True):
+def _make_functions(model, optimizer, strategy, use_function=True):
     def train_step(data):
         with tf.GradientTape() as tape:
             reconstruction, _ = model(data, training=True)
@@ -110,8 +109,7 @@ def train(args):
         model = create_trae(
             (max_time, features), units=args.units, layers=args.layers,
             bidirectional_encoder=args.bidirectional_encoder,
-            bidirectional_decoder=args.bidirectional_decoder,
-            global_batch_size=args.batch_size
+            bidirectional_decoder=args.bidirectional_decoder
         )
         # Using epsilon=1e-5 seems to offer better stability.
         optimizer = tf.optimizers.Adam(learning_rate=args.learning_rate,
@@ -122,6 +120,9 @@ def train(args):
     print()
     print("Model structure:")
     for layer in model.layers:
+        name = layer.name
+        if name.startswith('tf_op_layer_'):
+            name = name[12:]
         print(layer.name, layer.output_shape)
     print()
 
@@ -138,8 +139,7 @@ def train(args):
         print("Restoring from checkpoint {}.".format(
             checkpoint_manager.latest_checkpoint))
 
-    train_step, test_step = _make_functions(model, optimizer, strategy,
-                                            args.batch_size)
+    train_step, test_step = _make_functions(model, optimizer, strategy)
 
     start_epoch = step.value().numpy()
     for epoch in range(start_epoch, start_epoch + args.epochs):
@@ -203,7 +203,7 @@ def train(args):
 
 
 def generate(args):
-    dataset = netCDF4.Dataset(str(args.dataset))
+    dataset = netCDF4.Dataset(args.dataset)
     data = tf.data.Dataset.from_tensor_slices(
         dataset.variables['features']).batch(args.batch_size)
     filenames = np.array(dataset.variables['filename'])
@@ -214,6 +214,8 @@ def generate(args):
     model = load_model(args.model)
     # Optimise model call function
     model.call = tf.function(model.call)
+
+    print("Read dataset from {}.".format(args.dataset))
 
     representations = []
     for batch in tqdm(data):

@@ -5,7 +5,6 @@ from pathlib import Path
 
 import netCDF4
 import numpy as np
-import tensorboard
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -83,11 +82,17 @@ class TimeRecurrentAutoencoder(nn.Module):
         return reconstruction, representation
 
 
+def rmse_loss(x, y):
+    loss = torch.sqrt(torch.mean((x - y)**2))
+    return loss
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--input', type=Path, required=True)
     parser.add_argument('--logs', type=Path, required=True)
-    parser.add_argument('--output', type=Path, required=True)
+
+    parser.add_argument('--output', type=Path)
 
     parser.add_argument('--units', type=int, default=256)
     parser.add_argument('--layers', type=int, default=2)
@@ -132,34 +137,36 @@ def main():
         batch = next(iter(train_dl))
         train_writer.add_graph(model, input_to_model=batch)
 
-    loss_fn = torch.nn.MSELoss(reduction='mean')
+    loss_fn = rmse_loss
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     for epoch in range(args.epochs):
         start_time = time.perf_counter()
         model.train()
-        losses = []
+        train_losses = []
         for x, in train_dl:
             optimizer.zero_grad()
             reconstruction, representation = model(x)
 
             loss = loss_fn(x, reconstruction)
-            losses.append(loss.item())
+            train_losses.append(loss.item())
 
             loss.backward()
+            # Clip gradients to [-2, 2]
+            torch.nn.utils.clip_grad_value_(model.parameters(), 2)
             optimizer.step()
         train_time = time.perf_counter() - start_time
-        train_loss = np.mean(losses)
+        train_loss = np.mean(train_losses)
 
         model.eval()
         with torch.no_grad():
-            losses = []
+            valid_losses = []
             it = iter(valid_dl)
 
             # Get loss and write summaries for first batch
             x, = next(it)
             reconstruction, representation = model(x)
             loss = loss_fn(x, reconstruction)
-            losses.append(loss.item())
+            valid_losses.append(loss.item())
 
             images = torch.cat([x, reconstruction], 2).unsqueeze(-1)
             images = (images + 1) / 2
@@ -173,21 +180,21 @@ def main():
             for x, in it:
                 reconstruction, representation = model(x)
                 loss = loss_fn(x, reconstruction)
-                losses.append(loss.item())
-        valid_loss = np.mean(losses)
+                valid_losses.append(loss.item())
+            valid_loss = np.mean(valid_losses)
 
-        train_writer.add_scalar('loss', train_loss, global_step=epoch)
-        valid_writer.add_scalar('loss', valid_loss, global_step=epoch)
+            train_writer.add_scalar('loss', train_loss, global_step=epoch)
+            valid_writer.add_scalar('loss', valid_loss, global_step=epoch)
 
-        end_time = time.perf_counter() - start_time
+            end_time = time.perf_counter() - start_time
 
-        print(
-            "Epoch {:03d} in {:.2f}s ({:.2f}s per batch), train loss: {:.4f}, "
-            "valid loss: {:.4f}".format(
-                epoch, end_time, train_time / len(train_dl), train_loss,
-                valid_loss
+            print(
+                "Epoch {:03d} in {:.2f}s ({:.2f}s per batch), train loss: "
+                "{:.4f}, valid loss: {:.4f}".format(
+                    epoch, end_time, train_time / len(train_dl), train_loss,
+                    valid_loss
+                )
             )
-        )
 
     # Generate
 
@@ -208,27 +215,30 @@ def main():
             representations.append(representation.cpu().numpy())
     representations = np.concatenate(representations)
 
-    train_writer.add_embedding(representations, labels)
+    train_writer.add_embedding(representations, list(zip(filenames, labels)),
+                               metadata_header=['filenames', 'labels'])
 
-    dataset = netCDF4.Dataset(args.output, 'w')
-    dataset.createDimension('instance', len(filenames))
-    dataset.createDimension('generated', representations.shape[-1])
+    if args.output:
+        dataset = netCDF4.Dataset(args.output, 'w')
+        dataset.createDimension('instance', len(filenames))
+        dataset.createDimension('generated', representations.shape[-1])
 
-    filename = dataset.createVariable('filename', str, ('instance',))
-    filename[:] = filenames
+        filename = dataset.createVariable('filename', str, ('instance',))
+        filename[:] = filenames
 
-    label_nominal = dataset.createVariable('label_nominal', str, ('instance',))
-    label_nominal[:] = labels
+        label_nominal = dataset.createVariable('label_nominal', str,
+                                               ('instance',))
+        label_nominal[:] = labels
 
-    features = dataset.createVariable('features', np.float32,
-                                      ('instance', 'generated'))
-    features[:, :] = representations
+        features = dataset.createVariable('features', np.float32,
+                                          ('instance', 'generated'))
+        features[:, :] = representations
 
-    dataset.setncattr_string('feature_dims', '["generated"]')
-    dataset.setncattr_string('corpus', corpus)
-    dataset.close()
+        dataset.setncattr_string('feature_dims', '["generated"]')
+        dataset.setncattr_string('corpus', corpus)
+        dataset.close()
 
-    print("Wrote netCDF4 file to {}.".format(args.output))
+        print("Wrote netCDF4 file to {}.".format(args.output))
 
 
 if __name__ == "__main__":
