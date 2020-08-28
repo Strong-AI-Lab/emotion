@@ -6,6 +6,7 @@ import re
 from itertools import product, combinations
 from math import isnan
 from pathlib import Path
+from typing import Sequence
 
 import pandas as pd
 from matplotlib import pyplot as plt
@@ -13,6 +14,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from scipy.stats import ttest_rel
 
 SUBSTITUTIONS = {
+    # Classifiers
     'cnn/aldeneh': 'CNN',
     'dnn/basic': 'Basic MLP',
     'dnn/1layer': 'FCN (1 layer)',
@@ -23,13 +25,13 @@ SUBSTITUTIONS = {
     'svm/poly3': 'SVM (Cubic)',
     'svm/rbf': 'SVM (RBF)',
 
+    # Feature sets
     'logmel': 'log MFB',
     'eGeMAPS': 'eGeMAPS',
     'GeMAPS': 'GeMAPS',
     'IS09_emotion': 'IS09',
     'IS13_ComParE': 'IS13',
     'audeep': 'auDeep',
-    'audeep_all': 'auDeep (all datasets)',
     'boaw_eGeMAPS_20_500': 'BoAW: eGeMAPS (20, 500)',
     'boaw_eGeMAPS_50_1000': 'BoAW: eGeMAPS (50, 1000)',
     'boaw_eGeMAPS_100_5000': 'BoAW: eGeMAPS (100, 5000)',
@@ -38,6 +40,7 @@ SUBSTITUTIONS = {
     'boaw_mfcc_le_100_5000': 'BoAW: MFCC (100, 5000)',
     'bow': 'Bag of words',
 
+    # Datasets
     'cafe': 'CaFE',
     'crema-d_nominal': 'CREMA-D Nom.',
     'crema-d_multimodal': 'CREMA-D AV',
@@ -58,7 +61,6 @@ SUBSTITUTIONS = {
 
 feat_col_order = [
     'auDeep',
-    'auDeep (all datasets)',
     'IS09',
     'IS13',
     'GeMAPS',
@@ -74,7 +76,6 @@ feat_col_order = [
 
 feat_cols_subset = [
     'auDeep',
-    'auDeep (all datasets)',
     'IS09',
     'IS13',
     'GeMAPS',
@@ -98,14 +99,13 @@ clf_col_order = [
 ]
 
 
-def fmt(f):
+def fmt(f: float):
     if not isnan(f):
         return '{:#.3g}'.format(100 * f)
     return ''
 
 
-def to_latex(df: pd.DataFrame, output: str, label: str, caption: str,
-             bold: str = None):
+def to_latex(df: pd.DataFrame, output: str, label: str, caption: str):
     df = df.copy()  # So that we don't modify the original frame
     df.columns = (
         df.columns.map(
@@ -126,9 +126,10 @@ def to_latex(df: pd.DataFrame, output: str, label: str, caption: str,
                 escape=False, caption=caption, label=label)
 
 
-def plot_matrix(df, size=(4, 4), rect=[0.25, 0.25, 0.75, 0.75]):
-    fig: plt.Figure = plt.figure(figsize=size)
-    ax: plt.Axes = fig.add_axes(rect)
+def plot_matrix(df: pd.DataFrame, size: tuple = (4, 4),
+                rect: list = [0.25, 0.25, 0.75, 0.75]) -> plt.Figure:
+    fig = plt.figure(figsize=size)
+    ax = fig.add_axes(rect)
     arr = df.to_numpy()
     im = ax.imshow(arr, interpolation='nearest', aspect=0.5)
     im.set_clim(0, 1)
@@ -153,7 +154,7 @@ def plot_matrix(df, size=(4, 4), rect=[0.25, 0.25, 0.75, 0.75]):
     return fig
 
 
-def ordered_intersect(a, b):
+def ordered_intersect(a: Sequence, b: Sequence):
     return [x for x in a if x in b]
 
 
@@ -177,6 +178,8 @@ def main():
                         help="Directory to output images.")
     parser.add_argument('--excel', type=Path,
                         help="Directory to output Excel files.")
+    parser.add_argument('--raw_columns', action='store_true',
+                        help="Don't rename and reorder columns.")
     args = parser.parse_args()
 
     cache_file = Path(args.results[0])
@@ -207,25 +210,27 @@ def main():
                                             index_col=0)
             if not df_list:
                 continue
-            # Pool reps and take the mean across classes
-            uar = {c: df_list[c][('uar', 'all')].stack().mean(1)
-                   for c in df_list}
+            # Pool reps and take the mean UAR across classes
+            uar = {c: df[('uar', 'all')].stack().mean(1)
+                   for c, df in df_list.items()}
 
             for name in df_list:
                 feat = Path(name).name
+                # name is assumed to be clf/kind/features.csv
                 clf = str(Path(name).parent)
                 table[(clf, feat)] = (uar[name].mean(), uar[name].std(),
                                       uar[name].max())
 
             df_uar = pd.DataFrame(list(table.values()), index=table.keys(),
                                   columns=['mean', 'std', 'max'])
+            # d.name is assumed to be the corpus name
             uar_list[d.name] = df_uar
 
         if not uar_list:
             raise FileNotFoundError("No valid files found matching regex.")
 
         df = pd.concat(uar_list.values(), keys=uar_list.keys(),
-                       names=['Dataset', 'Classifier', 'Config'])
+                       names=['Dataset', 'Classifier', 'Features'])
         df.to_csv('/tmp/emotion_results.csv')
 
     df = df.unstack(0).swaplevel(axis=1)
@@ -238,35 +243,45 @@ def main():
         metrics = metrics[0]
     df = df.xs(metrics, axis=1, level='metric')
 
-    df.columns = df.columns.map(lambda x: SUBSTITUTIONS.get(x, x))
-    df.index = df.index.map(lambda t: tuple([SUBSTITUTIONS.get(x, x)
-                                             for x in t]))
+    if not args.raw_columns:
+        df.columns = df.columns.map(lambda x: SUBSTITUTIONS.get(x, x))
+        # DataFrame has a MultiIndex so each index is a tuple.
+        df.index = df.index.map(
+            lambda t: tuple(SUBSTITUTIONS.get(x, x) for x in t))
 
+    # Get the best (classifier, features) combination and corresponding UAR
     best = pd.concat([df.idxmax(0), df.max(0)], 1, keys=['Combination', 'UAR'])
     best['Classifier'] = best['Combination'].map(lambda t: t[0])
     best['Features'] = best['Combination'].map(lambda t: t[1])
     best.drop(columns='Combination')
     best = best[['Classifier', 'Features', 'UAR']]
 
+    # Classifier-features table
     clf_feat = df.mean(1).unstack(1)
     clf_feat = clf_feat.loc[
         ordered_intersect(clf_col_order, clf_feat.index),
         ordered_intersect(feat_cols_subset, clf_feat.columns)
     ]
 
+    # {mean, max} per {classifier, features}
     mean_clf = df.mean(level=0).T
     mean_feat = df.mean(level=1).T
     max_clf = df.max(level=0).T
     max_feat = df.max(level=1).T
 
-    logging.debug(ordered_intersect(feat_col_order, mean_feat.columns))
-    mean_feat = mean_feat[ordered_intersect(feat_col_order, mean_feat.columns)]
-    max_feat = max_feat[ordered_intersect(feat_col_order, max_feat.columns)]
-    max_feat_subset = max_feat[
-        ordered_intersect(feat_cols_subset, max_feat.columns)]
-    mean_clf = mean_clf[ordered_intersect(clf_col_order, mean_clf.columns)]
-    max_clf = max_clf[ordered_intersect(clf_col_order, max_clf.columns)]
+    if not args.raw_columns:
+        # Order the columns how we want
+        logging.debug(ordered_intersect(feat_col_order, mean_feat.columns))
+        mean_feat = mean_feat[ordered_intersect(feat_col_order,
+                                                mean_feat.columns)]
+        max_feat = max_feat[ordered_intersect(feat_col_order,
+                                              max_feat.columns)]
+        max_feat_subset = max_feat[ordered_intersect(feat_cols_subset,
+                                                     max_feat.columns)]
+        mean_clf = mean_clf[ordered_intersect(clf_col_order, mean_clf.columns)]
+        max_clf = max_clf[ordered_intersect(clf_col_order, max_clf.columns)]
 
+    # Difference between mean and max
     diff_feat = max_feat - mean_feat
     diff_clf = max_clf - mean_clf
 

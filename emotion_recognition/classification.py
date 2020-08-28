@@ -2,23 +2,31 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
-import tensorflow as tf
+from sklearn.base import ClassifierMixin
 from sklearn.metrics import precision_score, recall_score
-from sklearn.model_selection import BaseCrossValidator, KFold, LeaveOneGroupOut
+from sklearn.model_selection import (BaseCrossValidator, KFold,
+                                     LeaveOneGroupOut, ParameterGrid)
 from sklearn.svm import SVC
-from tensorflow import keras
 from tqdm.keras import TqdmCallback
 
-from emotion_recognition.dataset import LabelledDataset
-from emotion_recognition.tensorflow.classification import (
-    tf_classification_metrics)
-from emotion_recognition.utils import shuffle_multiple
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras.callbacks import Callback, TensorBoard
+from tensorflow.keras.losses import Loss, SparseCategoricalCrossentropy
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import Adam, Optimizer
 
+from .dataset import LabelledDataset
+from .tensorflow.classification import tf_classification_metrics
+from .utils import shuffle_multiple
+
+ModelFunction = Callable[[], Union[ClassifierMixin, Model]]
 DataFunction = Callable[[np.ndarray, np.ndarray], tf.data.Dataset]
+ScoreFunction = Callable[[np.ndarray, np.ndarray], float]
 
 METRICS = ['prec', 'rec', 'uap', 'uar', 'war']
 
@@ -77,79 +85,17 @@ class Classifier:
     Parameters:
     -----------
     model_fn: callable
-        A callable that returns a new proper classifier that can be trained
+        A callable that returns a new proper classifier that can be trained.
     """
 
-    def __init__(self, model_fn: Callable):
+    def __init__(self, model_fn: ModelFunction):
         self.model_fn = model_fn
 
-    def fit(self, x_train, y_train, x_valid, y_valid, **kwargs):
-        """Fits this model to the training data."""
-        return NotImplementedError()
-
-    def predict(self, x_test: np.ndarray, y_test: np.ndarray, **kwargs) \
-            -> Tuple[np.ndarray, np.ndarray]:
-        return NotImplementedError()
-
-
-class SKLearnClassifier(Classifier):
-    """Class wrapper for a scikit-learn classifier instance."""
-
-    def fit(self, x_train, y_train, x_valid, y_valid, param_grid=None,
-            cv_score_fn=None, fold=None, **kwargs):
-        """
-        Parameters:
-        -----------
-        x_train, y_train: numpy.ndarray
-            Training data.
-        x_valid, y_valid: numpy.ndarray
-            Validation data.
-        param_grid: dict or None, optional
-            Parameter grid for optimising hyperparameters.
-        cv_score_fn: callable, optional
-            The score to optimize for parameter search. Only required if
-            param_grid is not None.
-        kwargs: dicts
-            Parameters passed to the fit() method of the classifier.
-
-        Other Parameters:
-        -----------------
-        fold: None
-            Unused.
-        """
-        x_train, y_train = shuffle_multiple(x_train, y_train,
-                                            numpy_indexing=True)
-        x_valid, y_valid = shuffle_multiple(x_valid, y_valid,
-                                            numpy_indexing=True)
-
-        if param_grid:
-            self.clf = cross_validate(param_grid, self.model_fn, cv_score_fn,
-                                      x_train, y_train, x_valid, y_valid,
-                                      **kwargs)
-        else:
-            self.clf = self.model_fn()
-            self.clf.fit(x_train, y_train, **kwargs)
-
-    def predict(self, x_test: np.ndarray, y_test: np.ndarray, **kwargs) \
-            -> Tuple[np.ndarray, np.ndarray]:
-        return self.clf.predict(x_test), y_test
-
-
-class TFClassifier(Classifier):
-    """Class wrapper for a TensorFlow Keras classifier model."""
-
     def fit(self, x_train: np.ndarray, y_train: np.ndarray,
-            x_valid: np.ndarray, y_valid: np.ndarray, fold: int = 0,
-            n_epochs: int = 50,
-            class_weight: Optional[Dict[int, float]] = None,
-            data_fn: DataFunction = None,
-            callbacks: List[keras.callbacks.Callback] = [],
-            loss: keras.losses.Loss
-            = keras.losses.SparseCategoricalCrossentropy(),
-            optimizer: keras.optimizers.Optimizer = keras.optimizers.Adam(),
-            verbose: bool = False,
-            **kwargs):
-        """
+            x_valid: np.ndarray, y_valid: np.ndarray,
+            fold: Optional[int] = None):
+        """Fits this classifier to the training data.
+
         Parameters:
         -----------
         x_train, y_train: numpy.ndarray
@@ -158,59 +104,137 @@ class TFClassifier(Classifier):
             Testing data.
         fold: int, optional, default = 0
             The current fold, for logging purposes.
-        n_epochs: int, optional, default = 50
-            Maximum number of epochs to train for.
-        class_weight: dict, optional
-            A dictionary mapping class IDs to weights. Default is to ignore
-            class weights.
-        data_fn: callable, optional
-            Callable that takes x and y as input and returns a
-            tensorflow.keras.Sequence object or a tensorflow.data.Dataset
-            object.
-        callbacks: list, optional
-            A list of tensorflow.keras.callbacks.Callback objects to use during
-            training. Default is an empty list, so that the default Keras
-            callbacks are used.
-        loss: keras.losses.Loss
-            The loss to use. Default is
-            tensorflow.keras.losses.SparseCategoricalCrossentropy.
-        optimizer: keras.optimizers.Optimizer
-            The optimizer to use. Default is tensorflow.keras.optimizers.Adam.
-        verbose: bool, default = False
-            Whether to output details per epoch.
         """
+        return NotImplementedError()
 
+    def predict(self, x_test: np.ndarray,
+                y_test: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Generates predictions for the given input."""
+        return NotImplementedError()
+
+
+class SKLearnClassifier(Classifier):
+    """Class wrapper for a scikit-learn classifier instance.
+
+    Parameters:
+    -----------
+    model_fn: callable
+        A callable that returns a new proper classifier that can be trained.
+    param_grid: dict, optional
+    """
+    def __init__(self, model_fn: ModelFunction,
+                 param_grid: Optional[Dict[str, Sequence]],
+                 cv_score_fn: Optional[ScoreFunction]):
+        super().__init__(model_fn)
+        self.param_grid = ParameterGrid(param_grid)
+        self.cv_score_fn = cv_score_fn
+
+    def fit(self, x_train: np.ndarray, y_train: np.ndarray,
+            x_valid: np.ndarray, y_valid: np.ndarray, fold=None):
+        x_train, y_train = shuffle_multiple(x_train, y_train,
+                                            numpy_indexing=True)
+        x_valid, y_valid = shuffle_multiple(x_valid, y_valid,
+                                            numpy_indexing=True)
+
+        if self.param_grid:
+            self.clf = cross_validate(
+                self.param_grid, self.model_fn, self.cv_score_fn, x_train,
+                y_train, x_valid, y_valid
+            )
+        else:
+            self.clf = self.model_fn()
+            self.clf.fit(x_train, y_train)
+
+    def predict(self, x_test: np.ndarray,
+                y_test: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        return self.clf.predict(x_test), y_test
+
+
+class TFClassifier(Classifier):
+    """Class wrapper for a TensorFlow Keras classifier model.
+
+    Parameters:
+    -----------
+    model_fn: callable
+        A callable that returns a new proper classifier that can be trained.
+    n_epochs: int, optional, default = 50
+        Maximum number of epochs to train for.
+    class_weight: dict, optional
+        A dictionary mapping class IDs to weights. Default is to ignore
+        class weights.
+    data_fn: callable, optional
+        Callable that takes x and y as input and returns a
+        tensorflow.keras.Sequence object or a tensorflow.data.Dataset
+        object.
+    callbacks: list, optional
+        A list of tensorflow.keras.callbacks.Callback objects to use during
+        training. Default is an empty list, so that the default Keras
+        callbacks are used.
+    loss: keras.losses.Loss
+        The loss to use. Default is
+        tensorflow.keras.losses.SparseCategoricalCrossentropy.
+    optimizer: keras.optimizers.Optimizer
+        The optimizer to use. Default is tensorflow.keras.optimizers.Adam.
+    verbose: bool, default = False
+        Whether to output details per epoch.
+    """
+    def __init__(self, model_fn: ModelFunction,
+                 n_epochs: int = 50,
+                 class_weight: Optional[Dict[int, float]] = None,
+                 data_fn: Optional[DataFunction] = None,
+                 callbacks: List[Callback] = [],
+                 loss: Loss = SparseCategoricalCrossentropy(),
+                 optimizer: Optimizer = Adam(),
+                 verbose: bool = False):
+        super().__init__(model_fn)
+        self.n_epochs = n_epochs
+        self.class_weight = class_weight
+        if data_fn is not None:
+            self.data_fn = data_fn
+        self.callbacks = callbacks
+        self.loss = loss
+        self.optimizer = optimizer
+        self.verbose = verbose
+
+    def data_fn(self, x: np.ndarray, y: np.ndarray,
+                shuffle: bool = True) -> tf.data.Dataset:
+        dataset = tf.data.Dataset.from_tensor_slices((x, y))
+        if shuffle:
+            dataset = dataset.shuffle(len(x))
+        return dataset
+
+    def fit(self, x_train: np.ndarray, y_train: np.ndarray,
+            x_valid: np.ndarray, y_valid: np.ndarray, fold: int = 0):
         # Clear graph
         keras.backend.clear_session()
         # Reset optimiser and loss
-        optimizer = optimizer.from_config(optimizer.get_config())
-        loss = loss.from_config(loss.get_config())
-        for cb in callbacks:
-            if isinstance(cb, keras.callbacks.TensorBoard):
+        optimizer = self.optimizer.from_config(self.optimizer.get_config())
+        loss = self.loss.from_config(self.loss.get_config())
+        for cb in self.callbacks:
+            if isinstance(cb, TensorBoard):
                 cb.log_dir = str(Path(cb.log_dir).parent / str(fold))
-        callbacks = callbacks + [TqdmCallback(epochs=n_epochs, verbose=0)]
+        callbacks = self.callbacks + [
+            TqdmCallback(epochs=self.n_epochs, verbose=0)]
 
         self.model = self.model_fn()
         self.model.compile(loss=loss, optimizer=optimizer,
                            metrics=tf_classification_metrics())
 
-        train_data = data_fn(x_train, y_train, shuffle=True)
-        valid_data = data_fn(x_valid, y_valid, shuffle=True)
+        train_data = self.data_fn(x_train, y_train, shuffle=True)
+        valid_data = self.data_fn(x_valid, y_valid, shuffle=True)
         self.model.fit(
             train_data,
-            epochs=n_epochs,
-            class_weight=class_weight,
+            epochs=self.n_epochs,
+            class_weight=self.class_weight,
             validation_data=valid_data,
             callbacks=callbacks,
-            verbose=int(verbose),
-            **kwargs
+            verbose=int(self.verbose)
         )
 
-    def predict(self, x_test: np.ndarray, y_test: np.ndarray,
-                data_fn: DataFunction = None,
-                **kwargs) -> Tuple[np.ndarray, np.ndarray]:
-        test_data = data_fn(x_test, y_test, shuffle=False)
-        y_true = np.concatenate([y for x, y in test_data])
+    def predict(self, x_test: np.ndarray,
+                y_test: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        test_data = self.data_fn(x_test, y_test, shuffle=False)
+        y_true = np.concatenate([y for _, y in test_data])
         return np.argmax(self.model.predict(test_data), axis=1), y_true
 
 
@@ -220,8 +244,7 @@ def test_model(model: Classifier,
                genders: List[str] = ['all'],
                reps: int = 1,
                splitter: BaseCrossValidator = KFold(10),
-               validation: str = 'valid',
-               **kwargs):
+               validation: str = 'valid'):
     """Tests a `Classifier` instance on the given dataset.
 
     Parameters:
@@ -244,8 +267,6 @@ def test_model(model: Classifier,
         Validation method to use for parameter optimisation. 'train' uses
         training data, 'test' uses test data, 'valid' uses a random inner
         cross-validation fold with the same splitting method.
-    kwargs: dict, optional
-        Other arguments passed on to model.fit() and model.predict().
 
     Returns:
     --------
@@ -263,7 +284,9 @@ def test_model(model: Classifier,
             dataset.x, dataset.labels[mode], dataset.speaker_indices)),
         columns=pd.MultiIndex.from_product(
             [METRICS, genders, labels, range(reps)],
-            names=['metric', 'gender', 'class', 'rep']))
+            names=['metric', 'gender', 'class', 'rep']
+        )
+    )
     for gender in genders:
         gender_indices = dataset.gender_indices[gender]
         speaker_indices = dataset.speaker_indices[gender_indices]
@@ -293,12 +316,11 @@ def test_model(model: Classifier,
                         y_test2 = y_test[test]
 
                         model.fit(x_train, y_train, x_valid, y_valid,
-                                  fold=fold, **kwargs)
+                                  fold=fold)
                         # We need to return y_true just in case the order is
                         # modified by batching.
-                        y_pred, y_true = model.predict(x_test2, y_test2,
-                                                       **kwargs)
-                        record_metrics(df, fold, rep, y_true, y_pred,
+                        y_pred, y_true = model.predict(x_test2, y_test2)
+                        _record_metrics(df, fold, rep, y_true, y_pred,
                                        len(labels))
                         fold += 1
                 else:
@@ -326,10 +348,9 @@ def test_model(model: Classifier,
                         y_valid = y_train
 
                     print("Fold {}".format(fold + 1))
-                    model.fit(x_train, y_train, x_valid, y_valid, fold=fold,
-                              **kwargs)
-                    y_pred, y_true = model.predict(x_test, y_test, **kwargs)
-                    record_metrics(df, fold, rep, y_true, y_pred, len(labels))
+                    model.fit(x_train, y_train, x_valid, y_valid, fold=fold)
+                    y_pred, y_true = model.predict(x_test, y_test)
+                    _record_metrics(df, fold, rep, y_true, y_pred, len(labels))
                     fold += 1
     return df
 
@@ -375,30 +396,38 @@ def test_one_vs_rest(model_fn,
     return rec
 
 
-def grid_classifier(params, klass, score_fn, x_train, y_train, x_valid,
-                    y_valid, **kwargs):
+def _test_one_param(params, klass, score_fn, x_train, y_train, x_valid,
+                    y_valid):
     classifier = klass(**params)
-    classifier.fit(x_train, y_train, **kwargs)
+    classifier.fit(x_train, y_train)
     y_pred = classifier.predict(x_valid)
     score = score_fn(y_valid, y_pred)
     return classifier, score
 
 
 def cross_validate(param_grid, klass, score_fn, x_train, y_train, x_valid,
-                   y_valid, **kwargs):
+                   y_valid):
+    """Performs cross-validation for SKLearnClassifier's using the given
+    parameter grid and validation data.
+
+    Returns:
+    --------
+    classifier
+        The best trained classifier for the given parameter combinations.
+    """
     with ThreadPoolExecutor(max_workers=len(os.sched_getaffinity(0))) as pool:
-        max_score = 0
-        func = partial(grid_classifier, klass=klass, score_fn=score_fn,
-                       x_train=x_train, y_train=y_train, x_valid=x_valid,
-                       y_valid=y_valid, **kwargs)
-        for clf, score in pool.map(func, param_grid):
+        max_score = -1
+        fn = partial(_test_one_param, klass=klass, score_fn=score_fn,
+                     x_train=x_train, y_train=y_train, x_valid=x_valid,
+                     y_valid=y_valid)
+        for clf, score in pool.map(fn, param_grid):
             if score > max_score:
                 max_score = score
                 classifier = clf
     return classifier
 
 
-def record_metrics(df, fold, rep, y_true, y_pred, n_classes):
+def _record_metrics(df, fold, rep, y_true, y_pred, n_classes):
     df.loc[fold, ('war', 'all', slice(None), rep)] = recall_score(
         y_true, y_pred, average='micro')
     df.loc[fold, ('uar', 'all', slice(None), rep)] = recall_score(
@@ -412,6 +441,7 @@ def record_metrics(df, fold, rep, y_true, y_pred, n_classes):
 
 
 def print_results(df: pd.DataFrame):
+    """Prints the results dataframe in a nice format."""
     genders = df.axes[1].get_level_values('gender').unique()
     metrics = df.axes[1].get_level_values('metric').unique()
     labels = df.axes[1].get_level_values('class').unique()

@@ -4,11 +4,12 @@
 # This script must be run in the audeep docker container.
 
 spectrograms=$1
+name=$(basename $spectrograms)
 
 audeep t-rae train \
     --input $spectrograms \
-    --run-name logs/audeep/2x256_u_b/all-0.05-0.025-120-60_b64_l0.001 \
-    --num-epochs 50 \
+    --run-name logs/audeep/2x256_u_b/${name%.nc}_b64_l0.001 \
+    --num-epochs 100 \
     --batch-size 64 \
     --checkpoints-to-keep 1 \
     --learning-rate 0.001 \

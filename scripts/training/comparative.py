@@ -1,11 +1,12 @@
 import argparse
 from functools import partial
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import tensorflow as tf
 from sklearn.metrics import recall_score
-from sklearn.model_selection import GroupKFold, LeaveOneGroupOut, ParameterGrid
+from sklearn.model_selection import GroupKFold, LeaveOneGroupOut
 from sklearn.preprocessing import StandardScaler
 from tensorflow.keras import Model
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
@@ -18,20 +19,28 @@ from emotion_recognition.classification import (PrecomputedSVC,
                                                 SKLearnClassifier,
                                                 TFClassifier, print_results,
                                                 test_model)
-from emotion_recognition.dataset import (FrameDataset, NetCDFDataset,
-                                         UtteranceDataset)
+from emotion_recognition.dataset import (FrameDataset, LabelledDataset,
+                                         NetCDFDataset, UtteranceDataset)
 
 RESULTS_DIR = 'results/comparative2020'
 
 
-def get_mlp_model(n_features, n_classes, layers=1):
+def get_mlp_keras_model(n_features: int, n_classes: int,
+                        layers: int = 1) -> Model:
+    """Creates a Keras model with hidden layers and sigmoid activation, without
+    dropout.
+    """
     inputs = Input((n_features,), name='input')
     dense_1 = Dense(512, activation='sigmoid')(inputs)
     x = Dense(n_classes, activation='softmax')(dense_1)
     return Model(inputs=inputs, outputs=x)
 
 
-def get_dense_model(n_features, n_classes, layers=1):
+def get_dense_keras_model(n_features: int, n_classes: int,
+                          layers: int = 1) -> Model:
+    """Creates a Keras model with hidden layers and ReLU activation, with
+    dropout.
+    """
     inputs = Input((n_features,), name='input')
     x = inputs
     for _ in range(layers):
@@ -41,7 +50,8 @@ def get_dense_model(n_features, n_classes, layers=1):
     return Model(inputs=inputs, outputs=x)
 
 
-def get_aldeneh_full_model(n_features, n_classes):
+def get_aldeneh_full_model(n_features: int, n_classes: int) -> Model:
+    """Creates the final model from the Aldeneh et. al. paper."""
     inputs = Input(shape=(None, n_features), name='input')
     x = Conv1D(384, 8, activation='relu', kernel_initializer='he_normal',
                name='conv8')(inputs)
@@ -69,14 +79,24 @@ def get_aldeneh_full_model(n_features, n_classes):
     return Model(inputs=inputs, outputs=x, name='aldeneh_full_model')
 
 
-def get_tf_dataset(x, y, batch_size=32, shuffle=True):
+def get_tf_dataset(x: np.ndarray, y: np.ndarray, batch_size: int = 32,
+                   shuffle: bool = True) -> tf.data.Dataset:
+    """Returns a TensorFlow Dataset instance with the given x and y.
+    x is assumed to be a 2-D array of shape (n_instances, n_features), and y a
+    1-D array of length n_instances.
+    """
     data = tf.data.Dataset.from_tensor_slices((x, y))
     if shuffle:
-        data = data.shuffle(10000, reshuffle_each_iteration=True)
+        data = data.shuffle(len(x), reshuffle_each_iteration=True)
     return data.batch(batch_size).prefetch(8)
 
 
-def get_tf_dataset_ragged(x, y, batch_size=50, shuffle=True):
+def get_tf_dataset_ragged(x: np.ndarray, y: np.ndarray, batch_size: int = 50,
+                          shuffle: bool = True) -> tf.data.Dataset:
+    """Returns a TensorFlow Dataset instance from the ragged x and y.
+    x is assumed to be a 3-D array of shape (n_instances, length[i],
+    n_features), while y is a 1-D array of length n_instances.
+    """
     def ragged_to_dense(x, y):
         return x.to_tensor(), y
 
@@ -95,96 +115,65 @@ def get_tf_dataset_ragged(x, y, batch_size=50, shuffle=True):
     return data.map(ragged_to_dense)
 
 
-def test_svm_classifier(dataset, resultname, kind='linear'):
-    param_grid = ParameterGrid({'C': 2.0**np.arange(-6, 7, 2)})
-
-    if kind == 'rbf':
-        param_grid.param_grid[0]['gamma'] = 2.0**np.arange(-12, -1, 2)
-    elif kind in ['poly2', 'poly3']:
-        param_grid.param_grid[0]['coef0'] = [-1, 0, 1]
-
-    splitter = LeaveOneGroupOut()
-    if dataset.n_speakers > 12:
-        splitter = GroupKFold(6)
-
+def get_svm_classifier(dataset, kind='linear') -> SKLearnClassifier:
+    kwargs = {}
+    param_grid = {'C': 2.0**np.arange(-6, 7, 2)}
     if kind == 'linear':
-        params = {'kernel': 'poly', 'degree': 1, 'coef0': 0}
+        kwargs = {'kernel': 'poly', 'degree': 1, 'coef0': 0}
     elif kind == 'poly2':
-        params = {'kernel': 'poly', 'degree': 2}
+        kwargs = {'kernel': 'poly', 'degree': 2}
+        param_grid['coef0'] = [-1, 0, 1]
     elif kind == 'poly3':
-        params = {'kernel': 'poly', 'degree': 3}
+        kwargs = {'kernel': 'poly', 'degree': 3}
+        param_grid['coef0'] = [-1, 0, 1]
     elif kind == 'rbf':
-        params = {'kernel': 'rbf'}
+        kwargs = {'kernel': 'rbf'}
+        param_grid['gamma'] = 2.0**np.arange(-12, -1, 2)
 
-    df = test_model(
-        SKLearnClassifier(partial(
-            PrecomputedSVC, **params, class_weight='balanced')),
-        dataset,
-        reps=1,
-        splitter=splitter,
-        param_grid=param_grid,
-        cv_score_fn=partial(recall_score, average='macro')
-    )
-
-    print_results(df)
-    if resultname:
-        output_dir = Path(RESULTS_DIR) / dataset.corpus / 'svm' / kind
-        output_dir.mkdir(parents=True, exist_ok=True)
-        df.to_csv(Path(output_dir) / '{}.csv'.format(resultname))
+    model_fn = partial(PrecomputedSVC, **kwargs, class_weight='balanced')
+    score_fn = partial(recall_score, average='macro')
+    classifier = SKLearnClassifier(model_fn, param_grid=param_grid,
+                                   cv_score_fn=score_fn)
+    return classifier
 
 
-def test_dense_model(dataset, resultname, kind='basic'):
-    splitter = LeaveOneGroupOut()
-    if dataset.n_speakers > 12:
-        splitter = GroupKFold(6)
-
+def get_dense_classifier(dataset, kind='basic') -> TFClassifier:
     class_weight = ((dataset.n_instances / dataset.n_classes)
                     / np.bincount(dataset.y.astype(np.int)))
     class_weight = dict(zip(range(dataset.n_classes), class_weight))
 
     if kind == 'basic':
-        model_fn = partial(get_mlp_model, dataset.n_features,
+        model_fn = partial(get_mlp_keras_model, dataset.n_features,
                            dataset.n_classes)
     elif kind == '1layer':
-        model_fn = partial(get_dense_model, dataset.n_features,
+        model_fn = partial(get_dense_keras_model, dataset.n_features,
                            dataset.n_classes, layers=1)
     elif kind == '2layer':
-        model_fn = partial(get_dense_model, dataset.n_features,
+        model_fn = partial(get_dense_keras_model, dataset.n_features,
                            dataset.n_classes, layers=2)
     elif kind == '3layer':
-        model_fn = partial(get_dense_model, dataset.n_features,
+        model_fn = partial(get_dense_keras_model, dataset.n_features,
                            dataset.n_classes, layers=3)
+    else:
+        raise NotImplementedError("Other kinds of dense model are not "
+                                  "currently implemented.")
 
-    df = test_model(
-        TFClassifier(model_fn),
-        dataset,
-        reps=1,
-        splitter=splitter,
-        n_epochs=100,
-        data_fn=get_tf_dataset,
-        callbacks=[
+    classifier = TFClassifier(
+        model_fn, n_epochs=100, class_weight=class_weight,
+        data_fn=get_tf_dataset, callbacks=[
             EarlyStopping(monitor='val_uar', patience=20,
                           restore_best_weights=True, mode='max'),
             ReduceLROnPlateau(monitor='val_uar', factor=0.5, patience=5,
                               mode='max')
         ],
-        class_weight=class_weight,
         loss=SparseCategoricalCrossentropy(),
         optimizer=Adam(learning_rate=0.0001),
         verbose=False
     )
-    print_results(df)
-    if resultname:
-        output_dir = Path(RESULTS_DIR) / dataset.corpus / 'dnn' / kind
-        output_dir.mkdir(parents=True, exist_ok=True)
-        df.to_csv(Path(output_dir) / '{}.csv'.format(resultname))
+    return classifier
 
 
-def test_conv_model(dataset, resultname, kind='aldeneh'):
-    splitter = LeaveOneGroupOut()
-    if dataset.n_speakers > 12:
-        splitter = GroupKFold(6)
-
+def get_conv_classifier(dataset, kind='aldeneh') -> TFClassifier:
     class_weight = ((dataset.n_instances / dataset.n_classes)
                     / np.bincount(dataset.y.astype(np.int)))
     class_weight = dict(zip(range(dataset.n_classes), class_weight))
@@ -192,17 +181,17 @@ def test_conv_model(dataset, resultname, kind='aldeneh'):
     if kind == 'aldeneh':
         model_fn = partial(get_aldeneh_full_model, dataset.n_features,
                            dataset.n_classes)
+    else:
+        raise NotImplementedError("Other kinds of convolutional model are not "
+                                  "currently implemented.")
 
     model = model_fn()
     model.summary()
     del model
     tf.keras.backend.clear_session()
 
-    df = test_model(
-        TFClassifier(model_fn),
-        dataset,
-        reps=1,
-        splitter=splitter,
+    classifier = TFClassifier(
+        model_fn,
         n_epochs=100,
         data_fn=get_tf_dataset_ragged,
         callbacks=[
@@ -216,9 +205,35 @@ def test_conv_model(dataset, resultname, kind='aldeneh'):
         optimizer=Adam(learning_rate=0.0001),
         verbose=False
     )
+    return classifier
+
+
+def test_classifier(clf: str,
+                    kind: str,
+                    dataset: LabelledDataset,
+                    reps: int = 1,
+                    resultname: Optional[str] = None):
+    splitter = LeaveOneGroupOut()
+    if dataset.n_speakers > 12:
+        splitter = GroupKFold(6)
+
+    if clf == 'svm':
+        classifier = get_svm_classifier(dataset, kind=kind)
+    elif clf == 'dnn':
+        classifier = get_dense_classifier(dataset, kind=kind)
+    elif clf == 'cnn':
+        classifier = get_conv_classifier(dataset, kind=kind)
+    else:
+        raise ValueError("--clf must be one of {svm, dnn, cnn}.")
+
+    df = test_model(
+        classifier, dataset, reps=reps, splitter=splitter, mode='all',
+        genders=['all'], validation='valid'
+    )
+
     print_results(df)
     if resultname:
-        output_dir = Path(RESULTS_DIR) / dataset.corpus / 'cnn' / kind
+        output_dir = Path(RESULTS_DIR) / dataset.corpus / clf / kind
         output_dir.mkdir(parents=True, exist_ok=True)
         df.to_csv(Path(output_dir) / '{}.csv'.format(resultname))
 
@@ -240,39 +255,36 @@ def main():
     parser.add_argument('--name', type=str, help="The results output name.")
     parser.add_argument('--noresults', action='store_true',
                         help="Don't output results to file")
+    parser.add_argument('--reps', type=int, default=1,
+                        help="The number of repetitions to do per test.")
     args = parser.parse_args()
 
     tf.get_logger().setLevel(40)  # ERROR level
     for gpu in tf.config.list_physical_devices('GPU'):
         tf.config.experimental.set_memory_growth(gpu, True)
 
-    if args.clf == 'svm':
-        test_fn = test_svm_classifier
-    elif args.clf == 'dnn':
-        test_fn = test_dense_model
-    elif args.clf == 'cnn':
-        test_fn = test_conv_model
-        args.datatype = 'frame'
-
-    datafile = args.data
     if args.datatype == 'netCDF':
         dataset = NetCDFDataset(
-            datafile, normaliser=StandardScaler(),
+            args.data, normaliser=StandardScaler(),
             normalise_method='speaker'
         )
     elif args.datatype == 'utterance':
-        dataset = UtteranceDataset(datafile, normaliser=StandardScaler(),
+        dataset = UtteranceDataset(args.data, normaliser=StandardScaler(),
                                    normalise_method='speaker')
     elif args.datatype == 'frame':
-        dataset = FrameDataset(datafile, normaliser=StandardScaler(),
+        dataset = FrameDataset(args.data, normaliser=StandardScaler(),
                                normalise_method='speaker')
         dataset.pad_arrays(64)
+    else:
+        raise ValueError(
+            "--datatype must be one of {netCDF, utterance, frame}.")
 
     if not args.noresults:
-        resultname = args.name or datafile.stem
+        resultname = args.name or args.data.stem
     else:
         resultname = None
-    test_fn(dataset, resultname, kind=args.kind)
+    test_classifier(args.clf, args.kind, dataset, reps=args.reps,
+                    resultname=resultname)
 
 
 if __name__ == "__main__":
