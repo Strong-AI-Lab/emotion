@@ -37,7 +37,8 @@ scripts/test.py
 
 # Python related
 __pycache__
-build
+/build
+/dist
 venv
 .venv
 *.egg-info
