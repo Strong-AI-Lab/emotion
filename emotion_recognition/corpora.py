@@ -64,14 +64,17 @@ class CorpusInfo:
                                  "and female speakers.")
             else:
                 self.speakers = all_speakers
-        self.speaker_groups = speaker_groups or self.speakers.copy()
+        if speaker_groups:
+            self.speaker_groups = speaker_groups
+        else:
+            self.speaker_groups = [[x] for x in self.speakers]
         self.get_emotion = get_emotion
         self.get_speaker = get_speaker
 
-    def get_emotion(self, name: str):
+    def get_emotion(self, name: str) -> str:
         raise NotImplementedError()
 
-    def get_speaker(self, name: str):
+    def get_speaker(self, name: str) -> str:
         raise NotImplementedError()
 
 

@@ -33,7 +33,8 @@
 /todo.sh
 /logs
 /docker
-scripts/test.py
+/tmp
+/output
 
 # Python related
 __pycache__

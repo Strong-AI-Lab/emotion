@@ -19,10 +19,8 @@ from emotion_recognition.classification import (PrecomputedSVC,
                                                 SKLearnClassifier,
                                                 TFClassifier, print_results,
                                                 test_model)
-from emotion_recognition.dataset import (FrameDataset, LabelledDataset,
-                                         NetCDFDataset, UtteranceDataset)
-
-RESULTS_DIR = 'results/comparative2020'
+from emotion_recognition.dataset import (FrameARFFDataset, LabelledDataset,
+                                         NetCDFDataset, UtteranceARFFDataset)
 
 
 def get_mlp_keras_model(n_features: int, n_classes: int,
@@ -233,7 +231,8 @@ def test_classifier(clf: str,
 
     print_results(df)
     if resultname:
-        output_dir = Path(RESULTS_DIR) / dataset.corpus / clf / kind
+        output_dir = (Path('results/comparative2020')
+                      / dataset.corpus / clf / kind)
         output_dir.mkdir(parents=True, exist_ok=True)
         df.to_csv(Path(output_dir) / '{}.csv'.format(resultname))
 
@@ -264,20 +263,18 @@ def main():
         tf.config.experimental.set_memory_growth(gpu, True)
 
     if args.datatype == 'netCDF':
-        dataset = NetCDFDataset(
-            args.data, normaliser=StandardScaler(),
-            normalise_method='speaker'
-        )
+        dataset = NetCDFDataset(args.data)
     elif args.datatype == 'utterance':
-        dataset = UtteranceDataset(args.data, normaliser=StandardScaler(),
-                                   normalise_method='speaker')
+        dataset = UtteranceARFFDataset(args.data)
     elif args.datatype == 'frame':
-        dataset = FrameDataset(args.data, normaliser=StandardScaler(),
-                               normalise_method='speaker')
-        dataset.pad_arrays(64)
+        dataset = FrameARFFDataset(args.data)
     else:
         raise ValueError(
             "--datatype must be one of {netCDF, utterance, frame}.")
+
+    dataset.normalise(normaliser=StandardScaler(), scheme='speaker')
+    if args.datatype == 'frame':
+        dataset.pad_arrays(64)
 
     if not args.noresults:
         resultname = args.name or args.data.stem
