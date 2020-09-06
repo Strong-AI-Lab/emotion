@@ -20,9 +20,9 @@ from emotion_recognition.dataset import (parse_classification_annotations,
                                          parse_regression_annotations)
 
 if sys.platform == 'win32':
-    OPENSMILE_BIN = 'opensmile\\SMILExtract.exe'
+    OPENSMILE_BIN = 'third_party\\opensmile\\SMILExtract.exe'
 else:
-    OPENSMILE_BIN = 'opensmile/SMILExtract'
+    OPENSMILE_BIN = 'third_party/opensmile/SMILExtract'
 
 
 def read_arff(file: str):
