@@ -322,7 +322,8 @@ def main():
             pre_emphasis=args.pre_emphasis, window_shift=args.window_shift,
             n_mels=args.mel_bands, clip=args.clip
         ))
-    specs = tf.concat(specs, 0)
+    with tf.device('/device:cpu:0'):
+        specs = tf.concat(specs, 0)
     spectrograms = specs.numpy()
     print("Processed {} spectrograms in {:.4f}s".format(
         len(spectrograms), time.perf_counter() - start_time))
