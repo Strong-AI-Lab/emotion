@@ -1,20 +1,25 @@
 import argparse
 import time
-from IPython.core.debugger import set_trace
 from pathlib import Path
+from typing import Union
 
 import netCDF4
 import numpy as np
 import torch
+from tqdm import tqdm
 from torch import nn
 from torch.nn import functional as F
 from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
+from emotion_recognition.dataset import write_netcdf_dataset
+
 # Workaround for having both PyTorch and TensorFlow installed.
 import tensorflow as tf
 import tensorboard as tb
 tf.io.gfile = tb.compat.tensorflow_stub.io.gfile
+
+DEVICE = torch.device('cuda:0')
 
 
 class TimeRecurrentAutoencoder(nn.Module):
@@ -82,69 +87,89 @@ class TimeRecurrentAutoencoder(nn.Module):
         return reconstruction, representation
 
 
-def rmse_loss(x, y):
-    loss = torch.sqrt(torch.mean((x - y)**2))
-    return loss
+def rmse_loss(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    """Root-mean-square error loss function."""
+    return torch.sqrt(torch.mean((x - y)**2))
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--input', type=Path, required=True)
-    parser.add_argument('--logs', type=Path, required=True)
+def get_latest_save(directory: Union[str, Path]) -> Path:
+    """Gets the path to the latest model checkpoint, assuming it was saved with
+    the format 'model-XXXX.pt'
 
-    parser.add_argument('--output', type=Path)
+    Args:
+    -----
+    directory: Path or str
+        The path to a directory containing the model save files.
 
-    parser.add_argument('--units', type=int, default=256)
-    parser.add_argument('--layers', type=int, default=2)
-    parser.add_argument('--dropout', type=float, default=0.2)
-    parser.add_argument('--bidirectional_encoder', action='store_true')
-    parser.add_argument('--bidirectional_decoder', action='store_true')
+    Returns:
+        The path to the latest model save file (i.e. the one with the highest
+        epoch number).
+    """
+    directory = Path(directory)
+    saves = list(directory.glob('model-*.pt'))
+    if len(saves) == 0:
+        raise FileNotFoundError(
+            "No save files found in directory {}".format(directory))
+    return max(saves, key=lambda p: int(p.stem.split('-')[1]))
 
-    parser.add_argument('--batch_size', type=int, default=64)
-    parser.add_argument('--epochs', type=int, default=50)
-    parser.add_argument('--learning_rate', type=float, default=0.001)
-    parser.add_argument('--valid_fraction', type=float, default=0.2)
-    args = parser.parse_args()
 
-    DEVICE = torch.device('cuda:0')
-
+def train(args):
+    print("Reading input from {}.".format(args.input))
     dataset = netCDF4.Dataset(args.input)
     x = np.array(dataset.variables['features'])
     dataset.close()
     np.random.default_rng().shuffle(x)
 
-    x = torch.tensor(x).to(DEVICE)
+    x = torch.tensor(x)
 
     n_valid = int(args.valid_fraction * x.size(0))
     train_data = TensorDataset(x[n_valid:])
     valid_data = TensorDataset(x[:n_valid])
+    train_dl = DataLoader(train_data, batch_size=args.batch_size, shuffle=True,
+                          pin_memory=True)
+    valid_dl = DataLoader(valid_data, batch_size=args.batch_size,
+                          pin_memory=True)
 
-    train_dl = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
-    valid_dl = DataLoader(valid_data, batch_size=args.batch_size, shuffle=True)
+    if args.cont:
+        save_path = get_latest_save(args.logs)
+        load_dict = torch.load(save_path)
+        model_args = load_dict['model_args']
+        optimiser_args = load_dict['optimiser_args']
+        initial_epoch = 1 + load_dict['epoch']
+    else:
+        model_args = dict(
+            n_features=x.size(2), n_units=args.units, n_layers=args.layers,
+            dropout=args.dropout,
+            bidirectional_encoder=args.bidirectional_encoder,
+            bidirectional_decoder=args.bidirectional_decoder
+        )
+        optimiser_args = dict(lr=args.learning_rate, eps=1e-5)
+        initial_epoch = 1
 
-    model = TimeRecurrentAutoencoder(
-        x.size(2), n_units=args.units, n_layers=args.layers,
-        dropout=args.dropout, bidirectional_encoder=args.bidirectional_encoder,
-        bidirectional_decoder=args.bidirectional_decoder
-    )
+    model = TimeRecurrentAutoencoder(**model_args)
     model = model.cuda(DEVICE)
+    optimiser = torch.optim.Adam(model.parameters(), **optimiser_args)
+
+    if args.cont:
+        print("Restoring model from {}".format(save_path))
+        model.load_state_dict(load_dict['model_state_dict'])
+        optimiser.load_state_dict(load_dict['optimiser_state_dict'])
 
     args.logs.mkdir(parents=True, exist_ok=True)
     train_writer = SummaryWriter(args.logs / 'train')
     valid_writer = SummaryWriter(args.logs / 'valid')
-
     with torch.no_grad():
-        batch = next(iter(train_dl))
+        batch = next(iter(train_dl))[0].to(DEVICE)
         train_writer.add_graph(model, input_to_model=batch)
 
     loss_fn = rmse_loss
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
-    for epoch in range(args.epochs):
+    for epoch in range(initial_epoch, initial_epoch + args.epochs):
         start_time = time.perf_counter()
         model.train()
         train_losses = []
-        for x, in train_dl:
-            optimizer.zero_grad()
+        for x, in tqdm(train_dl):
+            x = x.to(DEVICE)
+            optimiser.zero_grad()
             reconstruction, representation = model(x)
 
             loss = loss_fn(x, reconstruction)
@@ -152,8 +177,8 @@ def main():
 
             loss.backward()
             # Clip gradients to [-2, 2]
-            torch.nn.utils.clip_grad_value_(model.parameters(), 2)
-            optimizer.step()
+            nn.utils.clip_grad_value_(model.parameters(), 2)
+            optimiser.step()
         train_time = time.perf_counter() - start_time
         train_loss = np.mean(train_losses)
 
@@ -163,7 +188,7 @@ def main():
             it = iter(valid_dl)
 
             # Get loss and write summaries for first batch
-            x, = next(it)
+            x = next(it)[0].to(DEVICE)
             reconstruction, representation = model(x)
             loss = loss_fn(x, reconstruction)
             valid_losses.append(loss.item())
@@ -178,6 +203,7 @@ def main():
 
             # Just get the loss for the rest, no summaries
             for x, in it:
+                x = x.to(DEVICE)
                 reconstruction, representation = model(x)
                 loss = loss_fn(x, reconstruction)
                 valid_losses.append(loss.item())
@@ -196,9 +222,31 @@ def main():
                 )
             )
 
-    # Generate
+    save_path = args.logs / 'model-{:04d}.pt'.format(epoch)
+    torch.save(
+        {
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'model_args': model_args,
+            'optimiser_state_dict': optimiser.state_dict(),
+            'optimiser_args': optimiser_args
+        },
+        save_path
+    )
+    print("Saved model to {}.".format(save_path))
 
-    # Open dataset again
+
+def generate(args):
+    if args.model.is_dir():
+        save_path = get_latest_save(args.model)
+    else:
+        save_path = args.model
+    print("Restoring model from {}.".format(save_path))
+    load_dict = torch.load(save_path)
+    model = TimeRecurrentAutoencoder(**load_dict['model_args'])
+    model.cuda()
+    model.load_state_dict(load_dict['model_state_dict'])
+
     dataset = netCDF4.Dataset(args.input)
     x = np.array(dataset.variables['features'])
     filenames = np.array(dataset.variables['filename'])
@@ -215,30 +263,57 @@ def main():
             representations.append(representation.cpu().numpy())
     representations = np.concatenate(representations)
 
-    train_writer.add_embedding(representations, list(zip(filenames, labels)),
-                               metadata_header=['filenames', 'labels'])
+    valid_writer = SummaryWriter(save_path.parent / 'embedding')
+    valid_writer.add_embedding(
+        representations, list(zip(filenames, labels)),  tag=corpus,
+        global_step=load_dict['epoch'], metadata_header=['filenames', 'labels']
+    )
 
-    if args.output:
-        dataset = netCDF4.Dataset(args.output, 'w')
-        dataset.createDimension('instance', len(filenames))
-        dataset.createDimension('generated', representations.shape[-1])
+    annotation_path = Path('datasets') / corpus / 'labels.csv'
+    write_netcdf_dataset(
+        args.output, corpus=corpus, names=filenames,
+        features=representations, slices=np.arange(len(filenames)),
+        annotation_path=annotation_path, annotation_type='classification'
+    )
+    print("Wrote netCDF4 file to {}.".format(args.output))
 
-        filename = dataset.createVariable('filename', str, ('instance',))
-        filename[:] = filenames
 
-        label_nominal = dataset.createVariable('label_nominal', str,
-                                               ('instance',))
-        label_nominal[:] = labels
+def main():
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(title='command', dest='command',
+                                       required=True)
 
-        features = dataset.createVariable('features', np.float32,
-                                          ('instance', 'generated'))
-        features[:, :] = representations
+    # Training arguments
+    train_args = subparsers.add_parser('train')
+    train_args.add_argument('--input', type=Path, required=True)
+    train_args.add_argument('--logs', type=Path, required=True)
 
-        dataset.setncattr_string('feature_dims', '["generated"]')
-        dataset.setncattr_string('corpus', corpus)
-        dataset.close()
+    train_args.add_argument('--units', type=int, default=256)
+    train_args.add_argument('--layers', type=int, default=2)
+    train_args.add_argument('--dropout', type=float, default=0.2)
+    train_args.add_argument('--bidirectional_encoder', action='store_true')
+    train_args.add_argument('--bidirectional_decoder', action='store_true')
 
-        print("Wrote netCDF4 file to {}.".format(args.output))
+    train_args.add_argument('--batch_size', type=int, default=64)
+    train_args.add_argument('--epochs', type=int, default=50)
+    train_args.add_argument('--learning_rate', type=float, default=0.001)
+    train_args.add_argument('--valid_fraction', type=float, default=0.2)
+    train_args.add_argument('--continue', dest='cont', action='store_true')
+
+    # Feature generation arguments
+    gen_args = subparsers.add_parser('generate')
+    gen_args.add_argument('--input', type=Path, required=True)
+    gen_args.add_argument('--model', type=Path, required=True)
+    gen_args.add_argument('--output', type=Path, required=True)
+
+    gen_args.add_argument('--batch_size', type=int, default=128)
+
+    args = parser.parse_args()
+
+    if args.command == 'train':
+        train(args)
+    elif args.command == 'generate':
+        generate(args)
 
 
 if __name__ == "__main__":
