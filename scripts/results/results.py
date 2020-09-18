@@ -29,15 +29,12 @@ SUBSTITUTIONS = {
     'logmel': 'log MFB',
     'eGeMAPS': 'eGeMAPS',
     'GeMAPS': 'GeMAPS',
-    'IS09_emotion': 'IS09',
-    'IS13_ComParE': 'IS13',
+    'IS09': 'IS09',
+    'IS13': 'IS13',
     'audeep': 'auDeep',
-    'boaw_eGeMAPS_20_500': 'BoAW: eGeMAPS (20, 500)',
-    'boaw_eGeMAPS_50_1000': 'BoAW: eGeMAPS (50, 1000)',
-    'boaw_eGeMAPS_100_5000': 'BoAW: eGeMAPS (100, 5000)',
-    'boaw_mfcc_le_20_500': 'BoAW: MFCC (20, 500)',
-    'boaw_mfcc_le_50_1000': 'BoAW: MFCC (50, 1000)',
-    'boaw_mfcc_le_100_5000': 'BoAW: MFCC (100, 5000)',
+    'boaw_20_500': 'BoAW (20, 500)',
+    'boaw_50_1000': 'BoAW (50, 1000)',
+    'boaw_100_5000': 'BoAW (100, 5000)',
     'bow': 'Bag of words',
 
     # Datasets
@@ -65,24 +62,9 @@ feat_col_order = [
     'IS13',
     'GeMAPS',
     'eGeMAPS',
-    'BoAW: eGeMAPS (20, 500)',
-    'BoAW: eGeMAPS (50, 1000)',
-    'BoAW: eGeMAPS (100, 5000)',
-    'BoAW: MFCC (20, 500)',
-    'BoAW: MFCC (50, 1000)',
-    'BoAW: MFCC (100, 5000)',
-    'log MFB'
-]
-
-feat_cols_subset = [
-    'auDeep',
-    'IS09',
-    'IS13',
-    'GeMAPS',
-    'eGeMAPS',
-    'BoAW: MFCC (20, 500)',
-    'BoAW: MFCC (50, 1000)',
-    'BoAW: MFCC (100, 5000)',
+    'BoAW (20, 500)',
+    'BoAW (50, 1000)',
+    'BoAW (100, 5000)',
     'log MFB'
 ]
 
@@ -260,7 +242,7 @@ def main():
     clf_feat = df.mean(1).unstack(1)
     clf_feat = clf_feat.loc[
         ordered_intersect(clf_col_order, clf_feat.index),
-        ordered_intersect(feat_cols_subset, clf_feat.columns)
+        ordered_intersect(feat_col_order, clf_feat.columns)
     ]
 
     # {mean, max} per {classifier, features}
@@ -276,14 +258,8 @@ def main():
                                                 mean_feat.columns)]
         max_feat = max_feat[ordered_intersect(feat_col_order,
                                               max_feat.columns)]
-        max_feat_subset = max_feat[ordered_intersect(feat_cols_subset,
-                                                     max_feat.columns)]
         mean_clf = mean_clf[ordered_intersect(clf_col_order, mean_clf.columns)]
         max_clf = max_clf[ordered_intersect(clf_col_order, max_clf.columns)]
-
-    # Difference between mean and max
-    diff_feat = max_feat - mean_feat
-    diff_clf = max_clf - mean_clf
 
     if args.print:
         print("Data table:")
@@ -293,11 +269,11 @@ def main():
         print()
 
         print("Best classifier-features combinations:")
-        print(best)
+        print(best.to_string(float_format=fmt))
         print()
 
         print("Average UAR of (classifier, feature) pairs:")
-        print(clf_feat)
+        print(clf_feat.to_string(float_format=fmt))
         print()
 
         print("T-tests on columns:")
@@ -327,19 +303,12 @@ def main():
         print("Best average UAR achieved for each feature set:")
         print(max_feat.to_string(float_format=fmt))
 
-        print("Increase in features UAR:")
-        print(diff_feat)
-        print()
-        print("Increase in classifiers UAR:")
-        print(diff_clf)
-        print()
-
     if args.images or args.plot:
         mean_clf_fig = plot_matrix(mean_clf, size=(4, 3.5))
         max_clf_fig = plot_matrix(max_clf, size=(4, 3.5))
         mean_feat_fig = plot_matrix(mean_feat, size=(5, 3.75),
                                     rect=[0.2, 0.35, 0.8, 0.65])
-        max_feat_fig = plot_matrix(max_feat_subset, size=(4, 3.5),
+        max_feat_fig = plot_matrix(max_feat, size=(4, 3.5),
                                    rect=[0.25, 0.3, 0.75, 0.7])
 
         if args.images:
@@ -374,7 +343,7 @@ def main():
             caption="Maximum average UAR for each classifier."
         )
         to_latex(
-            max_feat_subset, args.latex / 'max_feat.tex',
+            max_feat, args.latex / 'max_feat.tex',
             label='tab:MaxFeature',
             caption="Maximum average UAR for each feature set."
         )
