@@ -18,9 +18,8 @@ from tensorflow.keras.optimizers import Adam
 from emotion_recognition.classification import (PrecomputedSVC,
                                                 SKLearnClassifier,
                                                 TFClassifier, print_results,
-                                                test_model)
-from emotion_recognition.dataset import (FrameARFFDataset, LabelledDataset,
-                                         NetCDFDataset, UtteranceARFFDataset)
+                                                within_corpus_cross_validation)
+from emotion_recognition.dataset import LabelledDataset, NetCDFDataset
 
 
 def get_mlp_keras_model(n_features: int, n_classes: int,
@@ -224,7 +223,7 @@ def test_classifier(clf: str,
     else:
         raise ValueError("--clf must be one of {svm, dnn, cnn}.")
 
-    df = test_model(
+    df = within_corpus_cross_validation(
         classifier, dataset, reps=reps, splitter=splitter, mode='all',
         genders=['all'], validation='valid'
     )
@@ -239,18 +238,14 @@ def test_classifier(clf: str,
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--corpus', type=str, required=True,
-                        help="The corpus to test.")
     parser.add_argument('--clf', type=str, required=True,
                         help="The type of classifier: {svm, dnn, cnn}.")
     parser.add_argument('--data', type=Path, required=True,
                         help="The data to use.")
     parser.add_argument('--kind', type=str, required=True,
                         help="The kind of classifier.")
-    parser.add_argument(
-        '--datatype', type=str, default='utterance', required=True,
-        help="The type of data: {frame, utterance, netCDF}."
-    )
+    parser.add_argument('--datatype', type=str, default='utterance',
+                        help="The type of data: {frame, utterance}.")
     parser.add_argument('--name', type=str, help="The results output name.")
     parser.add_argument('--noresults', action='store_true',
                         help="Don't output results to file")
@@ -262,16 +257,7 @@ def main():
     for gpu in tf.config.list_physical_devices('GPU'):
         tf.config.experimental.set_memory_growth(gpu, True)
 
-    if args.datatype == 'netCDF':
-        dataset = NetCDFDataset(args.data)
-    elif args.datatype == 'utterance':
-        dataset = UtteranceARFFDataset(args.data)
-    elif args.datatype == 'frame':
-        dataset = FrameARFFDataset(args.data)
-    else:
-        raise ValueError(
-            "--datatype must be one of {netCDF, utterance, frame}.")
-
+    dataset = NetCDFDataset(args.data)
     dataset.normalise(normaliser=StandardScaler(), scheme='speaker')
     if args.datatype == 'frame':
         dataset.pad_arrays(64)

@@ -1,17 +1,17 @@
+import abc
 import os
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
-from sklearn.base import ClassifierMixin
+from sklearn.base import ClassifierMixin, BaseEstimator
 from sklearn.metrics import precision_score, recall_score
 from sklearn.model_selection import (BaseCrossValidator, KFold,
                                      LeaveOneGroupOut, ParameterGrid)
 from sklearn.svm import SVC
-from tqdm.keras import TqdmCallback
 
 import tensorflow as tf
 from tensorflow import keras
@@ -20,7 +20,7 @@ from tensorflow.keras.losses import Loss, SparseCategoricalCrossentropy
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam, Optimizer
 
-from .dataset import LabelledDataset
+from .dataset import CombinedDataset, LabelledDataset
 from .tensorflow.classification import tf_classification_metrics
 from .utils import shuffle_multiple
 
@@ -52,7 +52,21 @@ def rbf_kernel(x, y, gamma='auto'):
     return np.exp(-gamma * (D - 2 * M))
 
 
-class PrecomputedSVC:
+class PrecomputedSVC(ClassifierMixin):
+    """Class that wraps scikit-learn's SVC to precompute and the kernel values in
+    order to speed up training.
+
+    Parameters:
+    -----------
+    C: float
+        SVM complexity parameter. Default is 1.
+    kernel: str
+        The kernel function to use. One of {rbf, linear, poly}.
+    degree: int
+        The degree of the polynomial. Only used for poly kernels.
+    gamma: float or str
+        The gamma paramter for RBF kernel. If 'auto', use 1/n_features.
+    """
     def __init__(self, C=1, kernel='rbf', degree=3, gamma='auto', coef0=0,
                  **clf_kwargs):
         if kernel == 'linear':
@@ -68,8 +82,7 @@ class PrecomputedSVC:
                 .format(kernel))
         self.clf = SVC(C=C, kernel='precomputed', **clf_kwargs)
 
-    def fit(self, x_train, y_train, sample_weight=None,
-            **kwargs):
+    def fit(self, x_train, y_train, sample_weight=None, **kwargs):
         self.x_train = x_train
         K = self.kernel_func(x_train, x_train)
         return self.clf.fit(K, y_train, sample_weight=sample_weight, **kwargs)
@@ -79,7 +92,7 @@ class PrecomputedSVC:
         return self.clf.predict(K)
 
 
-class Classifier:
+class Classifier(abc.ABC):
     """Base class for classifiers used in test_model().
 
     Parameters:
@@ -91,6 +104,7 @@ class Classifier:
     def __init__(self, model_fn: ModelFunction):
         self.model_fn = model_fn
 
+    @abc.abstractmethod
     def fit(self, x_train: np.ndarray, y_train: np.ndarray,
             x_valid: np.ndarray, y_valid: np.ndarray,
             fold: Optional[int] = None):
@@ -107,6 +121,7 @@ class Classifier:
         """
         return NotImplementedError()
 
+    @abc.abstractmethod
     def predict(self, x_test: np.ndarray,
                 y_test: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Generates predictions for the given input."""
@@ -139,7 +154,7 @@ class SKLearnClassifier(Classifier):
         if self.param_grid:
             self.clf = cross_validate(
                 self.param_grid, self.model_fn, self.cv_score_fn, x_train,
-                y_train, x_valid, y_valid
+                y_train, x_valid, y_valid, max_workers=4
             )
         else:
             self.clf = self.model_fn()
@@ -213,8 +228,6 @@ class TFClassifier(Classifier):
         for cb in self.callbacks:
             if isinstance(cb, TensorBoard):
                 cb.log_dir = str(Path(cb.log_dir).parent / str(fold))
-        callbacks = self.callbacks + [
-            TqdmCallback(epochs=self.n_epochs, verbose=0)]
 
         self.model = self.model_fn()
         self.model.compile(loss=loss, optimizer=optimizer,
@@ -227,7 +240,7 @@ class TFClassifier(Classifier):
             epochs=self.n_epochs,
             class_weight=self.class_weight,
             validation_data=valid_data,
-            callbacks=callbacks,
+            callbacks=self.callbacks,
             verbose=int(self.verbose)
         )
 
@@ -238,14 +251,14 @@ class TFClassifier(Classifier):
         return np.argmax(self.model.predict(test_data), axis=1), y_true
 
 
-def test_model(model: Classifier,
-               dataset: LabelledDataset,
-               mode: str = 'all',
-               genders: List[str] = ['all'],
-               reps: int = 1,
-               splitter: BaseCrossValidator = KFold(10),
-               validation: str = 'valid'):
-    """Tests a `Classifier` instance on the given dataset.
+def within_corpus_cross_validation(model: Classifier,
+                                   dataset: LabelledDataset,
+                                   mode: str = 'all',
+                                   genders: List[str] = ['all'],
+                                   reps: int = 1,
+                                   splitter: BaseCrossValidator = KFold(10),
+                                   validation: str = 'valid'):
+    """Cross validates a `Classifier` instance on a single dataset.
 
     Parameters:
     -----------
@@ -295,6 +308,7 @@ def test_model(model: Classifier,
         y = dataset.labels[mode][gender_indices]
         for rep in range(reps):
             fold = 0
+            # LOSGO cross-validation
             for train, test in splitter.split(x, y, groups):
                 x_train = x[train]
                 y_train = y[train]
@@ -321,11 +335,13 @@ def test_model(model: Classifier,
                         # modified by batching.
                         y_pred, y_true = model.predict(x_test2, y_test2)
                         _record_metrics(df, fold, rep, y_true, y_pred,
-                                       len(labels))
+                                        len(labels))
                         fold += 1
                 else:
                     # TODO: fix this in the general case when using arbitrary
                     # cross-validation splitter
+                    # Make sure we have at least two speakers in the training
+                    # set so we can use one for validation set.
                     if validation == 'valid' and len(
                             np.unique(speaker_indices[train])) >= 2:
                         n_splits = splitter.get_n_splits(
@@ -333,9 +349,11 @@ def test_model(model: Classifier,
 
                         # Select random inner fold to use as validation set
                         r = np.random.randint(n_splits) + 1
+                        splits = splitter.split(x_train, y_train,
+                                                speaker_indices[train])
                         for _ in range(r):
-                            train2, valid = next(splitter.split(
-                                x_train, y_train, speaker_indices[train]))
+                            train2, valid = next(splits)
+
                         x_valid = x_train[valid]
                         y_valid = y_train[valid]
                         x_train = x_train[train2]
@@ -352,6 +370,57 @@ def test_model(model: Classifier,
                     y_pred, y_true = model.predict(x_test, y_test)
                     _record_metrics(df, fold, rep, y_true, y_pred, len(labels))
                     fold += 1
+    return df
+
+
+def cross_corpus_cross_validation(clf: Classifier,
+                                  combined_dataset: CombinedDataset,
+                                  reps: int = 1):
+    """Performs cross-validation using each corpus as test set, and the rest as
+    training set.
+
+    Args:
+    -----
+    clf: Classifier
+        The classifier to fit and test with the data.
+    combined_dataset: CombinedDataset
+        The CombinedDataset instance holding the combined data from all
+        corpora.
+    reps: int
+        The number of repetitions to do for each cross-validation round.
+    """
+    df = pd.DataFrame(
+        index=pd.Index(combined_dataset.corpora),
+        columns=pd.MultiIndex.from_product(
+            [METRICS, combined_dataset.classes, range(reps)],
+            names=['metric', 'class', 'rep']
+        )
+    )
+    n_classes = len(combined_dataset.classes)
+    for corpus in combined_dataset.corpora:
+        print("Fold {}".format(corpus))
+        test_idx, train_idx = combined_dataset.get_corpus_split(corpus)
+        x_train = combined_dataset.x[train_idx]
+        y_train = combined_dataset.y[train_idx]
+        x_test = combined_dataset.x[test_idx]
+        y_test = combined_dataset.y[test_idx]
+        for rep in range(reps):
+            print("Rep {}".format(rep))
+            clf.fit(x_train, y_train, x_valid=x_train, y_valid=y_train,
+                    fold=corpus)
+            y_pred, y_true = clf.predict(x_test, y_test)
+
+            # Record metrics
+            df.loc[corpus, ('war', slice(None), rep)] = recall_score(
+                y_true, y_pred, average='micro')
+            df.loc[corpus, ('uar', slice(None), rep)] = recall_score(
+                y_true, y_pred, average='macro')
+            df.loc[corpus, ('uap', slice(None), rep)] = precision_score(
+                y_true, y_pred, average='macro')
+            df.loc[corpus, ('rec', slice(None), rep)] = recall_score(
+                y_true, y_pred, average=None, labels=list(range(n_classes)))
+            df.loc[corpus, ('prec', slice(None), rep)] = precision_score(
+                y_true, y_pred, average=None, labels=list(range(n_classes)))
     return df
 
 
@@ -396,17 +465,22 @@ def test_one_vs_rest(model_fn,
     return rec
 
 
-def _test_one_param(params, klass, score_fn, x_train, y_train, x_valid,
-                    y_valid):
-    classifier = klass(**params)
+def _test_one_param(params, cls, score_fn, x_train, y_train, x_valid, y_valid):
+    classifier = cls(**params)
     classifier.fit(x_train, y_train)
     y_pred = classifier.predict(x_valid)
     score = score_fn(y_valid, y_pred)
     return classifier, score
 
 
-def cross_validate(param_grid, klass, score_fn, x_train, y_train, x_valid,
-                   y_valid):
+def cross_validate(param_grid: Iterable[Dict[str, Sequence]],
+                   cls: Callable,
+                   score_fn: ScoreFunction,
+                   x_train: np.ndarray,
+                   y_train: np.ndarray,
+                   x_valid: np.ndarray,
+                   y_valid: np.ndarray,
+                   max_workers=len(os.sched_getaffinity(0))) -> BaseEstimator:
     """Performs cross-validation for SKLearnClassifier's using the given
     parameter grid and validation data.
 
@@ -415,9 +489,9 @@ def cross_validate(param_grid, klass, score_fn, x_train, y_train, x_valid,
     classifier
         The best trained classifier for the given parameter combinations.
     """
-    with ThreadPoolExecutor(max_workers=len(os.sched_getaffinity(0))) as pool:
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
         max_score = -1
-        fn = partial(_test_one_param, klass=klass, score_fn=score_fn,
+        fn = partial(_test_one_param, cls=cls, score_fn=score_fn,
                      x_train=x_train, y_train=y_train, x_valid=x_valid,
                      y_valid=y_valid)
         for clf, score in pool.map(fn, param_grid):

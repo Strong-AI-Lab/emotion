@@ -1,16 +1,15 @@
+import abc
 import json
-from abc import ABC, abstractmethod
 from collections import Counter
 from os import PathLike
 from pathlib import Path
-from typing import List, Union, Dict, Tuple
+from typing import List, Union, Dict, Tuple, Optional
 
 import arff
 import netCDF4
 import numpy as np
 import pandas as pd
 import soundfile
-import tensorflow as tf
 from sklearn.base import TransformerMixin
 from sklearn.preprocessing import StandardScaler, label_binarize
 
@@ -34,25 +33,103 @@ def parse_classification_annotations(filename: Union[PathLike, str]) \
     return annotations
 
 
-def _make_flat(a: np.ndarray) -> np.ndarray:
-    slices = np.array([x.shape[0] for x in a])
+def write_netcdf_dataset(path: Union[PathLike, str],
+                         corpus: str,
+                         names: List[str],
+                         features: np.ndarray,
+                         slices: List[int],
+                         annotation_path: Union[PathLike, str],
+                         annotation_type: str = 'classification'):
+    """Writes a netCDF4 dataset to the given path. The dataset should contain
+    features and annotations. Note that the features matrix has to be 2-D, and
+    can either be a vector per instance, or a sequence of vectors per instance.
+    Also note that this cannot represent the spectrograms in the format
+    required by auDeep, since that is a 3-D matrix of one spectrogram per
+    instance.
+
+    Args:
+    -----
+    path: pathlike or str
+        The path to write the dataset.
+    corpus: str
+        The corpus name
+    names: list of str
+        A list of instance names.
+    features: ndarray
+        A features matrix of shape (length, n_features).
+    slices: list of int
+        The size of each slice along axis 0 of features. If there is one vector
+        per instance, then this will be all 1's, otherwise will have the length
+        of the sequence corresponding to each instance.
+    annotation_path: pathlike or str
+        The path to an annotation file.
+    annotation_type: str
+        The type of annotations, one of {regression, classification}.
+    """
+    dataset = netCDF4.Dataset(path, 'w')
+    dataset.createDimension('instance', len(names))
+    dataset.createDimension('concat', features.shape[0])
+    dataset.createDimension('features', features.shape[1])
+
+    _slices = dataset.createVariable('slices', int, ('instance',))
+    _slices[:] = slices
+
+    filename = dataset.createVariable('filename', str, ('instance',))
+    filename[:] = np.array(names)
+
+    label_nominal = dataset.createVariable('label_nominal', str, ('instance',))
+    if annotation_type == 'regression':
+        annotations = parse_regression_annotations(annotation_path)
+        keys = next(iter(annotations.values())).keys()
+        for k in keys:
+            var = dataset.createVariable(k, np.float32, ('instance',))
+            var[:] = np.array([annotations[x][k] for x in names])
+        dataset.setncattr_string(
+            'annotation_vars', json.dumps([k for k in keys]))
+    elif annotation_type == 'classification':
+        annotations = parse_classification_annotations(annotation_path)
+        label_nominal[:] = np.array([annotations[x] for x in names])
+        dataset.setncattr_string(
+            'annotation_vars', json.dumps(['label_nominal']))
+
+    _features = dataset.createVariable('features', np.float32,
+                                       ('concat', 'features'))
+    _features[:, :] = features
+
+    dataset.setncattr_string('feature_dims',
+                             json.dumps(['concat', 'features']))
+    dataset.setncattr_string('corpus', corpus or '')
+    dataset.close()
+
+
+def _make_flat(a: np.ndarray) -> Tuple[np.ndarray, List[int]]:
+    """Flattens an array of variable-length sequences."""
+    slices = [x.shape[0] for x in a]
     flat = np.concatenate(a)
     return flat, slices
 
 
-def _make_ragged(flat: np.ndarray, slices: np.ndarray) -> np.ndarray:
+def _make_ragged(flat: np.ndarray,
+                 slices: Union[List[int], np.ndarray]) -> np.ndarray:
+    """Returns a list of variable-length sequences."""
     indices = np.cumsum(slices)
     arrs = np.split(flat, indices[:-1], axis=0)
-    ragged = np.array(arrs)
-    return ragged
+    return arrs
 
 
-class LabelledDataset(ABC):
+class LabelledDataset(abc.ABC):
+    """Abstract class representing a dataset containing discrete labels for
+    instances.
+    """
     def __init__(self, corpus: str):
         if corpus not in corpora:
             raise NotImplementedError(
                 "Corpus {} hasn't been implemented yet.".format(corpus))
         self._corpus = corpus
+        self._classes = list(corpora[self.corpus].emotion_map.values())
+        self._speakers = corpora[self.corpus].speakers
+        self._male_speakers = corpora[self.corpus].male_speakers
+        self._female_speakers = corpora[self.corpus].female_speakers
 
         get_speaker = corpora[self.corpus].get_speaker
         self._speaker_indices = np.array(
@@ -134,7 +211,7 @@ class LabelledDataset(ABC):
                 self.x = normaliser.fit_transform(self.x)
         elif scheme == 'speaker':
             for sp in range(len(self.speakers)):
-                idx = self.speaker_indices == sp
+                idx = np.flatnonzero(self.speaker_indices == sp)
                 if self.x.dtype == object:
                     flat, slices = _make_flat(self.x[idx])
                     flat = normaliser.fit_transform(flat)
@@ -150,7 +227,11 @@ class LabelledDataset(ABC):
     @property
     def classes(self) -> List[str]:
         """A list of emotion class labels."""
-        return list(corpora[self.corpus].emotion_map.values())
+        return self._classes
+
+    @property
+    def n_classes(self) -> int:
+        return len(self.classes)
 
     @property
     def labels(self) -> Dict[str, np.ndarray]:
@@ -160,12 +241,12 @@ class LabelledDataset(ABC):
         return self._labels
 
     @property
-    def n_classes(self) -> int:
-        return len(self.classes)
-
-    @property
     def n_instances(self) -> int:
         return len(self.names)
+
+    @property
+    def features(self) -> List[str]:
+        return self._features
 
     @property
     def n_features(self) -> int:
@@ -181,15 +262,15 @@ class LabelledDataset(ABC):
 
     @property
     def speakers(self) -> List[str]:
-        return corpora[self.corpus].speakers
+        return self._speakers
 
     @property
     def male_speakers(self) -> List[str]:
-        return corpora[self.corpus].male_speakers
+        return self._male_speakers
 
     @property
     def female_speakers(self) -> List[str]:
-        return corpora[self.corpus].female_speakers
+        return self._female_speakers
 
     @property
     def n_speakers(self) -> int:
@@ -207,6 +288,18 @@ class LabelledDataset(ABC):
     def gender_indices(self) -> Dict[str, np.ndarray]:
         return self._gender_indices
 
+    @property
+    def names(self) -> List[str]:
+        return self._names
+
+    @property
+    def x(self) -> np.ndarray:
+        return self._x
+
+    @property
+    def y(self) -> np.ndarray:
+        return self._y
+
     def class_to_int(self, c: str) -> int:
         """Returns the index of the given class label."""
         return self.classes.index(c)
@@ -214,8 +307,11 @@ class LabelledDataset(ABC):
     def __getitem__(self, idx) -> Tuple[np.ndarray, np.ndarray]:
         return self.x[idx], self.y[idx]
 
-    @abstractmethod
-    def _create_data(self):
+    def __len__(self) -> int:
+        return self.n_instances
+
+    @abc.abstractmethod
+    def _create_data(_):
         """Creates the x data array and y label array in an implementation
         specific manner.
         """
@@ -223,7 +319,18 @@ class LabelledDataset(ABC):
             "_create_data() should be implemented by subclasses.")
 
 
-class NetCDFDataset(LabelledDataset):
+class SequenceDatasetMixin:
+    def pad_arrays(self: LabelledDataset, pad: int = 32):
+        """Pads each array to the nearest multiple of `pad` greater than the
+        array size. Assumes the 0 axis of x is the time dimension.
+        """
+        for i in range(len(self.x)):
+            x = self.x[i]
+            padding = int(np.ceil(x.shape[0] / pad)) * pad - x.shape[0]
+            self.x[i] = np.pad(x, ((0, padding), (0, 0)))
+
+
+class NetCDFDataset(LabelledDataset, SequenceDatasetMixin):
     """A dataset contained in netCDF4 files."""
     def __init__(self, path: Union[PathLike, str]):
         self.dataset = dataset = netCDF4.Dataset(path)
@@ -231,9 +338,9 @@ class NetCDFDataset(LabelledDataset):
             raise AttributeError(
                 "Dataset at {} has no corpus metadata.".format(path))
 
-        self.names = [Path(f).stem for f in dataset.variables['filename']]
+        self._names = [Path(f).stem for f in dataset.variables['filename']]
         feature_dim = json.loads(dataset.feature_dims)[-1]
-        self.features = ['feature_{}'.format(i + 1) for i in range(
+        self._features = ['feature_{}'.format(i + 1) for i in range(
             dataset.dimensions[feature_dim].size)]
 
         corpus = dataset.corpus
@@ -243,64 +350,68 @@ class NetCDFDataset(LabelledDataset):
         del self.dataset
 
     def _create_data(self):
-        self.x = np.array(self.dataset.variables['features'])
-        if len(self.names) != len(self.x):
+        self._x = np.array(self.dataset.variables['features'])
+        if len(self._names) != len(self._x):
             slices = self.dataset.variables['slices']
             indices = np.cumsum(slices)
-            arrs = np.split(self.x, indices[:-1], axis=0)
-            self.x = np.array(arrs)
+            arrs = np.split(self._x, indices[:-1], axis=0)
+            self._x = np.array(arrs)
 
         labels = self.dataset.variables['label_nominal']
-        self.y = np.array([self.class_to_int(x) for x in labels],
-                          dtype=np.float32)
+        self._y = np.array([self.class_to_int(x) for x in labels],
+                           dtype=np.float32)
 
 
 class TFRecordDataset(LabelledDataset):
     """A dataset contained in TFRecord files."""
     def __init__(self, file: Union[PathLike, str]):
+        import tensorflow as tf
         self.tf_dataset = tf.data.TFRecordDataset([str(file)])
         example = tf.train.Example()
         example.ParseFromString(next(iter(self.tf_dataset)).numpy())
-        corpus = example.features.feature['corpus'].bytes_list.value[0].decode()
-        self.data_shape = tuple(
-            example.features.feature['features_shape'].int64_list.value)
-        self.data_dtype = example.features.feature['features_dtype'].bytes_list.value[0].decode()
+        features = example.features.feature
+        corpus = features['corpus'].bytes_list.value[0].decode()
+        self.data_shape = tuple(features['features_shape'].int64_list.value)
+        self.data_dtype = features[
+            'features_dtype'].bytes_list.value[0].decode()
         super().__init__(corpus)
 
     def _create_data(self):
-        self.x = []
-        self.y = []
+        import tensorflow as tf
+        self._x = []
+        self._y = []
         for item in self.tf_dataset:
             example = tf.train.Example()
             example.ParseFromString(item.numpy())
+            features = example.features.feature
             data = np.frombuffer(
-                example.features.feature['features'].bytes_list.value[0],
+                features['features'].bytes_list.value[0],
                 dtype=self.dtype
             )
             data = np.reshape(data, self.data_shape)
-            label = example.features.feature['label'].bytes_list.value[0].decode()
+            label = features['label'].bytes_list.value[0].decode()
             label_int = self.class_to_int(label)
-            self.x.append(data)
-            self.y.append(label_int)
-        self.x = np.array(self.x, dtype=np.float32)
-        self.y = np.array(self.y, dtype=np.float32)
+            self._x.append(data)
+            self._y.append(label_int)
+        self._x = np.array(self._x, dtype=np.float32)
+        self._y = np.array(self._y, dtype=np.float32)
 
 
-class RawDataset(LabelledDataset):
+class RawDataset(LabelledDataset, SequenceDatasetMixin):
     """A raw audio dataset. Should be in WAV files."""
     def __init__(self, path: Union[PathLike, str], corpus: str):
-        self.features = ['pcm']
+        self._features = ['pcm']
 
         self.file = path
 
-        self.names = []
+        self._names = []
         self.filenames = []
         with open(path) as fid:
             for line in fid:
                 filename = line.strip()
                 self.filenames.append(filename)
                 name = Path(filename).stem
-                self.names.append(name)
+                self._names.append(name)
 
         super().__init__(corpus)
 
@@ -309,18 +420,18 @@ class RawDataset(LabelledDataset):
         del self.filenames
 
     def _create_data(self):
-        self.x = np.empty(self.n_instances, dtype=object)
-        self.y = np.empty(self.n_instances, dtype=np.float32)
+        self._x = np.empty(self.n_instances, dtype=object)
+        self._y = np.empty(self.n_instances, dtype=np.float32)
         for i, filename in enumerate(self.filenames):
-            audio, sr = soundfile.read(filename, dtype=np.float32)
+            audio, _ = soundfile.read(filename, dtype=np.float32)
             audio = np.expand_dims(audio, axis=1)
-            self.x[i] = audio
+            self._x[i] = audio
 
             annotations = parse_classification_annotations(
                 Path(self.file).parent / 'labels.csv')
             name = Path(filename).stem
             emotion = annotations[name]
-            self.y[i] = self.class_to_int(emotion)
+            self._y[i] = self.class_to_int(emotion)
 
 
 class UtteranceARFFDataset(LabelledDataset):
@@ -336,8 +447,8 @@ class UtteranceARFFDataset(LabelledDataset):
                 data = arff.load(fid)
 
         self.raw_data = data['data']
-        self.names = [x[0] for x in self.raw_data]
-        self.features = [x[0] for x in data['attributes'][1:-1]]
+        self._names = [x[0] for x in self.raw_data]
+        self._features = [x[0] for x in data['attributes'][1:-1]]
 
         corpus = data['relation']
         super().__init__(corpus)
@@ -345,12 +456,12 @@ class UtteranceARFFDataset(LabelledDataset):
         del self.raw_data
 
     def _create_data(self):
-        self.x = np.array([x[1:-1] for x in self.raw_data])
-        self.y = np.array([self.class_to_int(x[-1]) for x in self.raw_data],
-                          dtype=np.float32)
+        self._x = np.array([x[1:-1] for x in self.raw_data])
+        self._y = np.array([self.class_to_int(x[-1]) for x in self.raw_data],
+                           dtype=np.float32)
 
 
-class FrameARFFDataset(LabelledDataset):
+class SequenceARFFDataset(LabelledDataset, SequenceDatasetMixin):
     """Represents a dataset consisting of a sequence of vectors per instance.
     """
     def __init__(self, path: Union[PathLike, str]):
@@ -364,9 +475,9 @@ class FrameARFFDataset(LabelledDataset):
 
         self.raw_data = data['data']
         names = Counter(self.names)  # Ordered by insertion in Python 3.7+
-        self.names = list(names.keys())
+        self._names = list(names.keys())
         self.slices = np.array(names.values())
-        self.features = [x[0] for x in data['attributes'][1:-1]]
+        self._features = [x[0] for x in data['attributes'][1:-1]]
 
         corpus = data['relation']
         super().__init__(corpus)
@@ -374,20 +485,67 @@ class FrameARFFDataset(LabelledDataset):
         del self.raw_data, self.slices
 
     def _create_data(self):
-        self.x = np.array([x[1:-1] for x in self.raw_data])
+        self._x = np.array([x[1:-1] for x in self.raw_data])
         indices = np.cumsum(self.slices)
-        arrs = np.split(self.x, indices[:-1], axis=0)
-        self.x = np.array(arrs)
+        arrs = np.split(self._x, indices[:-1], axis=0)
+        self._x = np.array(arrs)
 
         labels = dict.fromkeys(x[-1] for x in self.raw_data).keys()
-        self.y = np.array([self.class_to_int(x) for x in labels],
-                          dtype=np.float32)
+        self._y = np.array([self.class_to_int(x) for x in labels],
+                           dtype=np.float32)
 
-    def pad_arrays(self, pad: int = 32):
-        """Pads each array to the nearest multiple of `pad` greater than the array
-        size.
+
+class CombinedDataset(LabelledDataset, SequenceDatasetMixin):
+    """A dataset that joins individual corpus datasets together and handles
+    labelling differences.
+    """
+    def __init__(self, *datasets: LabelledDataset,
+                 labels: Optional[List[str]] = None):
+        self._x = np.concatenate([x.x for x in datasets])
+        self._corpora = [x.corpus for x in datasets]
+        self._corpus = 'combined'
+        self._names = [d.corpus + '_' + n for d in datasets for n in d.names]
+        self._features = datasets[0].features
+        self._speakers = self._corpora
+
+        all_labels = set(c for d in datasets for c in d.classes)
+        self._classes = sorted(all_labels)
+
+        sizes = [len(x.x) for x in datasets]
+        self._speaker_indices = np.repeat(np.arange(len(datasets)), sizes)
+
+        str_labels = [d.classes[int(i)] for d in datasets for i in d.y]
+        if labels:
+            drop_labels = all_labels - labels
+            keep_idx = [i for i, x in enumerate(str_labels)
+                        if x not in drop_labels]
+            self._x = self._x[keep_idx]
+            self._speaker_indices = self._speaker_indices[keep_idx]
+            self._classes = sorted(labels)
+            str_labels = [x for x in str_labels if x not in drop_labels]
+        self._y = np.array([self._classes.index(y) for y in str_labels],
+                           dtype=np.float32)
+        self._speaker_group_indices = self._speaker_indices
+
+        self._labels = {'all': self.y}
+
+        self._print_header()
+
+    def _create_data(_):
+        pass
+
+    @property
+    def corpora(self) -> List[str]:
+        return self._corpora
+
+    def corpus_to_idx(self, corpus: str) -> int:
+        return self.corpora.index(corpus)
+
+    def get_corpus_split(self, corpus: str) -> Tuple[np.ndarray, np.ndarray]:
+        """Returns a tuple (corpus_idx, other_idx) containing the indices of
+        x and y for the specified corpus and all other corpora.
         """
-        for i in range(len(self.x)):
-            x = self.x[i]
-            padding = int(np.ceil(x.shape[0] / pad)) * pad - x.shape[0]
-            self.x[i] = np.pad(x, ((0, padding), (0, 0)))
+        cond = self.speaker_indices == self.corpus_to_idx(corpus)
+        corpus_idx = np.nonzero(cond)[0]
+        other_idx = np.nonzero(~cond)[0]
+        return corpus_idx, other_idx

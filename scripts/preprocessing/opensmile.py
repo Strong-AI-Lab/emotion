@@ -3,7 +3,6 @@
 """Batch process a list of files in a dataset using the openSMILE Toolkit."""
 
 import argparse
-import json
 import subprocess
 import sys
 from concurrent.futures import ProcessPoolExecutor
@@ -11,13 +10,11 @@ from functools import partial
 from pathlib import Path
 
 import arff
-import netCDF4
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from emotion_recognition.dataset import (parse_classification_annotations,
-                                         parse_regression_annotations)
+from emotion_recognition.dataset import write_netcdf_dataset
 
 if sys.platform == 'win32':
     OPENSMILE_BIN = 'third_party\\opensmile\\SMILExtract.exe'
@@ -36,7 +33,7 @@ def main():
     # Required args
     required_args = parser.add_argument_group('Required args')
     required_args.add_argument('--corpus', required=True,
-                               help="Corpus to process",)
+                               help="Corpus to process")
     required_args.add_argument('--config', type=Path, required=True,
                                help="Config file to use")
     required_args.add_argument('--annotations', type=Path, required=True,
@@ -141,52 +138,17 @@ def main():
     full_array = np.concatenate(arr_list, axis=0)
     assert len(full_array.shape) == 2
 
-    if args.type == 'regression':
-        annotations = parse_regression_annotations(args.annotations)
-    else:
-        annotations = parse_classification_annotations(args.annotations)
-
     output_dir = args.output or Path('output') / args.corpus
     output_dir.mkdir(parents=True, exist_ok=True)
     output_file = output_dir / '{}.nc'.format(prefix)
 
-    dataset = netCDF4.Dataset(output_file, 'w')
-    dataset.createDimension('instance', len(arr_list))
-    dataset.createDimension('concat', full_array.shape[0])
-    dataset.createDimension('features', full_array.shape[1])
+    write_netcdf_dataset(
+        output_file, corpus=args.corpus, names=names, features=full_array,
+        slices=[x.shape[0] for x in arr_list],
+        annotation_path=args.annotations, annotation_type=args.type
+    )
 
-    # This is so we can have both vectors and vlen sequences in the same
-    # format. We just need to manipulate the array when we read in the dataset.
-    slices = dataset.createVariable('slices', int, ('instance',))
-    slices[:] = [x.shape[0] for x in arr_list]
-
-    filename = dataset.createVariable('filename', str, ('instance',))
-    filename[:] = np.array(names)
-
-    if args.type == 'regression':
-        keys = next(iter(annotations.values())).keys()
-        for k in keys:
-            var = dataset.createVariable(k, np.float32, ('instance',))
-            var[:] = np.array([annotations[x][k] for x in names])
-        dataset.setncattr_string(
-            'annotation_vars', json.dumps([k for k in keys]))
-    else:
-        label_nominal = dataset.createVariable('label_nominal', str,
-                                               ('instance',))
-        label_nominal[:] = np.array([annotations[x] for x in names])
-        dataset.setncattr_string(
-            'annotation_vars', json.dumps(['label_nominal']))
-
-    features = dataset.createVariable('features', np.float32,
-                                      ('concat', 'features'))
-    features[:, :] = full_array
-
-    dataset.setncattr_string('feature_dims',
-                             json.dumps(['concat', 'features']))
-    dataset.setncattr_string('corpus', args.corpus or '')
-    dataset.close()
-
-    print("Wrote {}".format(output_file))
+    print("Wrote netCDF dataset to {}".format(output_file))
 
 
 if __name__ == "__main__":
