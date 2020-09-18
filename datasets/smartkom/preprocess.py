@@ -9,9 +9,9 @@ from nltk.corpus import stopwords
 
 emotions = {
     'Neutral': 'neutral',
-    'Freude_Erfolg': 'joy',
+    'Freude_Erfolg': 'happiness',
     'Uberlegen_Nachdenken': 'pondering',
-    'Ratlosigkeit': 'helpless',
+    'Ratlosigkeit': 'helplessness',
     'Arger_Miserfolg': 'anger',
     'Uberraschung_Verwunderung': 'surprise',
     'Restklasse': 'unknown'

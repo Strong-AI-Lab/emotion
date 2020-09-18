@@ -15,9 +15,9 @@ REGEX = (r'^UTD-IMPROV-([A-Z0-9-]+)\.avi; ([A-Z]); '
          r'A:({0}); V:({0}); D:({0}) ; N:({0});$'.format(DIGIT))
 
 emotions = {
-    'A': 'angry',
-    'H': 'happy',
-    'S': 'sad',
+    'A': 'anger',
+    'H': 'happiness',
+    'S': 'sadness',
     'N': 'neutral',
 
     'O': 'other',

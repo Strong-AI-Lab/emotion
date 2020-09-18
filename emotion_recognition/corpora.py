@@ -77,6 +77,11 @@ class CorpusInfo:
     def get_speaker(self, name: str) -> str:
         raise NotImplementedError()
 
+    def get_speaker_group(self, name: str) -> int:
+        for idx, g in enumerate(self.speaker_groups):
+            if name in g:
+                return idx
+
 
 corpora: Dict[str, CorpusInfo] = {
     'cafe': CorpusInfo(
@@ -101,8 +106,8 @@ corpora: Dict[str, CorpusInfo] = {
             'A': 'anger',
             'D': 'disgust',
             'F': 'fear',
-            'H': 'happy',
-            'S': 'sad',
+            'H': 'happiness',
+            'S': 'sadness',
             'N': 'neutral',
         },
         speakers=[
@@ -213,11 +218,11 @@ corpora: Dict[str, CorpusInfo] = {
     'jl': CorpusInfo(
         'jl',
         emotion_map={
-            'angry': 'angry',
-            'sad': 'sad',
+            'angry': 'anger',
+            'sad': 'sadness',
             'neutral': 'neutral',
-            'happy': 'happy',
-            'excited': 'excited'
+            'happy': 'happiness',
+            'excited': 'excitedness'
         },
         male_speakers=['male1', 'male2'],
         female_speakers=['female1', 'female2'],
@@ -227,9 +232,9 @@ corpora: Dict[str, CorpusInfo] = {
     'msp-improv': CorpusInfo(
         'msp-improv',
         emotion_map={
-            'A': 'angry',
-            'H': 'happy',
-            'S': 'sad',
+            'A': 'anger',
+            'H': 'happiness',
+            'S': 'sadness',
             'N': 'neutral'
         },
         male_speakers=['M01', 'M02', 'M03', 'M04', 'M05', 'M06'],
@@ -242,11 +247,11 @@ corpora: Dict[str, CorpusInfo] = {
     'portuguese': CorpusInfo(
         'portuguese',
         emotion_map={
-            'angry': 'angry',
+            'angry': 'anger',
             'disgust': 'disgust',
             'fear': 'fear',
-            'happy': 'happy',
-            'sad': 'sad',
+            'happy': 'happiness',
+            'sad': 'sadness',
             'neutral': 'neutral',
             'surprise': 'surprise'
         },
@@ -260,12 +265,12 @@ corpora: Dict[str, CorpusInfo] = {
         emotion_map={
             '01': 'neutral',
             '02': 'calm',
-            '03': 'happy',
-            '04': 'sad',
-            '05': 'angry',
-            '06': 'fearful',
+            '03': 'happiness',
+            '04': 'sadness',
+            '05': 'anger',
+            '06': 'fear',
             '07': 'disgust',
-            '08': 'surprised'
+            '08': 'surprise'
         },
         male_speakers=['{:02d}'.format(i) for i in range(1, 25, 2)],
         female_speakers=['{:02d}'.format(i) for i in range(2, 25, 2)],
@@ -313,9 +318,9 @@ corpora: Dict[str, CorpusInfo] = {
         'smartkom',
         emotion_map={
             'Neutral': 'neutral',
-            'Freude_Erfolg': 'joy',
+            'Freude_Erfolg': 'happiness',
             'Uberlegen_Nachdenken': 'pondering',
-            'Ratlosigkeit': 'helpless',
+            'Ratlosigkeit': 'helplessness',
             'Arger_Miserfolg': 'anger',
             'Uberraschung_Verwunderung': 'surprise',
             'Restklasse': 'unknown'
@@ -337,12 +342,12 @@ corpora: Dict[str, CorpusInfo] = {
     'tess': CorpusInfo(
         'tess',
         emotion_map={
-            'angry': 'angry',
+            'angry': 'anger',
             'disgust': 'disgust',
             'fear': 'fear',
-            'happy': 'happy',
+            'happy': 'happiness',
             'ps': 'surprise',
-            'sad': 'sad',
+            'sad': 'sadness',
             'neutral': 'neutral'
         },
         speakers=['OAF', 'YAF'],
