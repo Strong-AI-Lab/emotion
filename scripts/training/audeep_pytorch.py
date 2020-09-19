@@ -1,14 +1,15 @@
 import argparse
 import time
 from pathlib import Path
-from typing import Union
+from typing import Any, Dict, Union
 
 import netCDF4
 import numpy as np
 import torch
+import torch.nn.functional as F
 from tqdm import tqdm
 from torch import nn
-from torch.nn import functional as F
+from torch.optim import Adam
 from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
@@ -113,6 +114,24 @@ def get_latest_save(directory: Union[str, Path]) -> Path:
     return max(saves, key=lambda p: int(p.stem.split('-')[1]))
 
 
+def save_model(directory: Union[Path, str], epoch: int,
+               model: TimeRecurrentAutoencoder, model_args: Dict[str, Any],
+               optimiser: Adam, optimiser_args: Dict[str, Any]):
+    """Saves the given model and associated training parameters."""
+    save_path = Path(directory) / 'model-{:04d}.pt'.format(epoch)
+    torch.save(
+        {
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'model_args': model_args,
+            'optimiser_state_dict': optimiser.state_dict(),
+            'optimiser_args': optimiser_args
+        },
+        save_path
+    )
+    print("Saved model to {}.".format(save_path))
+
+
 def train(args):
     print("Reading input from {}.".format(args.input))
     dataset = netCDF4.Dataset(args.input)
@@ -145,10 +164,11 @@ def train(args):
         )
         optimiser_args = dict(lr=args.learning_rate, eps=1e-5)
         initial_epoch = 1
+    final_epoch = initial_epoch + args.epochs - 1
 
     model = TimeRecurrentAutoencoder(**model_args)
     model = model.cuda(DEVICE)
-    optimiser = torch.optim.Adam(model.parameters(), **optimiser_args)
+    optimiser = Adam(model.parameters(), **optimiser_args)
 
     if args.cont:
         print("Restoring model from {}".format(save_path))
@@ -163,11 +183,12 @@ def train(args):
         train_writer.add_graph(model, input_to_model=batch)
 
     loss_fn = rmse_loss
-    for epoch in range(initial_epoch, initial_epoch + args.epochs):
+    for epoch in range(initial_epoch, final_epoch + 1):
         start_time = time.perf_counter()
         model.train()
         train_losses = []
-        for x, in tqdm(train_dl):
+        for x, in tqdm(train_dl, desc='Epoch {:03d}'.format(epoch),
+                       unit='batch', leave=False):
             x = x.to(DEVICE)
             optimiser.zero_grad()
             reconstruction, representation = model(x)
@@ -222,18 +243,16 @@ def train(args):
                 )
             )
 
-    save_path = args.logs / 'model-{:04d}.pt'.format(epoch)
-    torch.save(
-        {
-            'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'model_args': model_args,
-            'optimiser_state_dict': optimiser.state_dict(),
-            'optimiser_args': optimiser_args
-        },
-        save_path
+        if epoch % args.save_every == 0:
+            save_model(
+                args.logs, epoch=epoch, model=model, model_args=model_args,
+                optimiser=optimiser, optimiser_args=optimiser_args
+            )
+
+    save_model(
+        args.logs, epoch=final_epoch, model=model, model_args=model_args,
+        optimiser=optimiser, optimiser_args=optimiser_args
     )
-    print("Saved model to {}.".format(save_path))
 
 
 def generate(args):
@@ -265,7 +284,7 @@ def generate(args):
 
     valid_writer = SummaryWriter(save_path.parent / 'embedding')
     valid_writer.add_embedding(
-        representations, list(zip(filenames, labels)),  tag=corpus,
+        representations, list(zip(filenames, labels)), tag=corpus,
         global_step=load_dict['epoch'], metadata_header=['filenames', 'labels']
     )
 
@@ -299,6 +318,7 @@ def main():
     train_args.add_argument('--learning_rate', type=float, default=0.001)
     train_args.add_argument('--valid_fraction', type=float, default=0.2)
     train_args.add_argument('--continue', dest='cont', action='store_true')
+    train_args.add_argument('--save_every', type=int, default=20)
 
     # Feature generation arguments
     gen_args = subparsers.add_parser('generate')
