@@ -1,17 +1,16 @@
 #!/usr/bin/python3
 
 import argparse
+import itertools
 import logging
+import math
 import re
-from itertools import product, combinations
-from math import isnan
 from pathlib import Path
 from typing import Sequence
 
 import pandas as pd
-from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-from scipy.stats import ttest_rel
 
 SUBSTITUTIONS = {
     # Classifiers
@@ -82,7 +81,7 @@ clf_col_order = [
 
 
 def fmt(f: float):
-    if not isnan(f):
+    if not math.isnan(f):
         return '{:#.3g}'.format(100 * f)
     return ''
 
@@ -122,7 +121,7 @@ def plot_matrix(df: pd.DataFrame, size: tuple = (4, 4),
     cmap_min, cmap_max = im.cmap(0), im.cmap(256)
 
     thresh = 0.5
-    for i, j in product(range(len(ylabels)), range(len(xlabels))):
+    for i, j in itertools.product(range(len(ylabels)), range(len(xlabels))):
         color = cmap_max if arr[i, j] < thresh else cmap_min
         ax.text(j, i, fmt(arr[i, j]), ha="center", va="center",
                 color=color, fontweight='normal', fontsize='small')
@@ -274,21 +273,6 @@ def main():
 
         print("Average UAR of (classifier, feature) pairs:")
         print(clf_feat.to_string(float_format=fmt))
-        print()
-
-        print("T-tests on columns:")
-        for c1, c2 in combinations(clf_feat.columns, 2):
-            tstat, pval = ttest_rel(clf_feat.loc[:, c1], clf_feat.loc[:, c2],
-                                    nan_policy='omit')
-            if pval < 0.05 / 28:
-                print('{}, {}, {:.3g}, {:.3g}'.format(c1, c2, tstat, pval))
-        print()
-        print("T-tests on rows:")
-        for r1, r2 in combinations(clf_feat.index, 2):
-            tstat, pval = ttest_rel(clf_feat.loc[r1, :], clf_feat.loc[r2, :],
-                                    nan_policy='omit')
-            if pval < 0.05 / 28:
-                print('{}, {}, {:.3g}, {:.3g}'.format(r1, r2, tstat, pval))
         print()
 
         print("Mean average UAR for each classifier:")
