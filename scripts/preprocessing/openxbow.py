@@ -12,8 +12,6 @@ import netCDF4
 import numpy as np
 import pandas as pd
 
-from IPython.terminal.debugger import set_trace
-
 from emotion_recognition.dataset import write_netcdf_dataset
 
 OPENXBOW_JAR = 'third_party/openxbow/openXBOW.jar'
