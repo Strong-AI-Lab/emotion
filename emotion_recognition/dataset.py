@@ -174,8 +174,7 @@ class LabelledDataset(abc.ABC):
         print('{} features'.format(self.n_features))
         print('{} speakers:'.format(len(self.speakers)))
         counts = np.bincount(self.speaker_indices)
-        print(' '.join([format(s, '<5s') for s in self.speakers]))
-        print(' '.join([format(x, '<5d') for x in counts]))
+        print(dict(zip(self.speakers, counts)))
         print()
 
     def binarise(self, pos_val: List[str] = [], pos_aro: List[str] = []):
