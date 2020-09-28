@@ -30,7 +30,7 @@ SUBSTITUTIONS = {
     'GeMAPS': 'GeMAPS',
     'IS09': 'IS09',
     'IS13': 'IS13',
-    'audeep': 'auDeep',
+    'audeep-0.05-0.025-240-60_b64_l0.001': 'auDeep',
     'boaw_20_500': 'BoAW (20, 500)',
     'boaw_50_1000': 'BoAW (50, 1000)',
     'boaw_100_5000': 'BoAW (100, 5000)',
@@ -187,13 +187,11 @@ def main():
                              if re.search(args.regex, str(x))]:
                 name = filename.relative_to(d).with_suffix('')
                 logger.debug("Found file {}".format(str(filename)))
-                df_list[name] = pd.read_csv(filename, header=[0, 1, 2, 3],
-                                            index_col=0)
+                df_list[name] = pd.read_csv(filename, header=0, index_col=0)
             if not df_list:
                 continue
             # Pool reps and take the mean UAR across classes
-            uar = {c: df[('uar', 'all')].stack().mean(1)
-                   for c, df in df_list.items()}
+            uar = {c: df['uar'] for c, df in df_list.items()}
 
             for name in df_list:
                 feat = Path(name).name

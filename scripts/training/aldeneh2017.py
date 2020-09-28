@@ -11,6 +11,13 @@ from pathlib import Path
 
 import numpy as np
 import tensorflow as tf
+from emotion_recognition.classification import (PrecomputedSVC,
+                                                SKLearnClassifier,
+                                                TFClassifier, print_results,
+                                                within_corpus_cross_validation)
+from emotion_recognition.dataset import NetCDFDataset
+from emotion_recognition.tensorflow.classification import BatchedSequence
+from emotion_recognition.tensorflow.models.aldeneh2017 import full_model
 from sklearn.metrics import recall_score
 from sklearn.model_selection import LeaveOneGroupOut, ParameterGrid
 from sklearn.preprocessing import StandardScaler
@@ -19,13 +26,6 @@ from tensorflow.keras.layers import (Conv1D, Dense, GlobalMaxPool1D, Input,
                                      concatenate)
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import RMSprop
-
-from emotion_recognition.classification import (PrecomputedSVC,
-                                                SKLearnClassifier,
-                                                TFClassifier, print_results,
-                                                within_corpus_cross_validation)
-from emotion_recognition.dataset import NetCDFDataset
-from emotion_recognition.tensorflow.classification import BatchedSequence
 
 RESULTS_DIR = 'results/aldeneh2017'
 
@@ -206,7 +206,7 @@ def test_conv_models(dataset, config='logmel'):
 
 
 def test_full_model(dataset, config='logmel'):
-    model = get_full_model(40, dataset.n_classes)
+    model = full_model(40, dataset.n_classes)
     model.summary()
     del model
     tf.keras.backend.clear_session()
@@ -216,7 +216,7 @@ def test_full_model(dataset, config='logmel'):
     class_weight = dict(zip(range(dataset.n_classes), class_weight))
 
     df = within_corpus_cross_validation(
-        TFClassifier(partial(get_full_model, dataset.n_features,
+        TFClassifier(partial(full_model, dataset.n_features,
                              dataset.n_classes)),
         dataset,
         reps=1,

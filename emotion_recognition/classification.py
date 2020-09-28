@@ -3,11 +3,12 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import (Any, Callable, Dict, Iterable, List, Optional, Sequence,
+                    Tuple, Union)
 
 import numpy as np
 import pandas as pd
-from sklearn.base import ClassifierMixin, BaseEstimator
+from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.metrics import precision_score, recall_score
 from sklearn.model_selection import (BaseCrossValidator, KFold,
                                      LeaveOneGroupOut, ParameterGrid)
@@ -27,69 +28,82 @@ from .utils import shuffle_multiple
 ModelFunction = Callable[[], Union[ClassifierMixin, Model]]
 DataFunction = Callable[[np.ndarray, np.ndarray], tf.data.Dataset]
 ScoreFunction = Callable[[np.ndarray, np.ndarray], float]
+KernelFunction = Callable[[np.ndarray, np.ndarray], np.ndarray]
 
 METRICS = ['prec', 'rec', 'uap', 'uar', 'war']
 
 
-def linear_kernel(x, y):
+def linear_kernel(x, y) -> np.ndarray:
     return np.matmul(x, y.T)
 
 
-def poly_kernel(x, y, d=2, r=0, gamma='auto'):
-    M = linear_kernel(x, y)
+def poly_kernel(x, y, d=2, r=0,
+                gamma: Union[str, float] = 'auto') -> np.ndarray:
+    a = np.matmul(x, y.T)
     if gamma == 'auto':
         gamma = 1 / x.shape[1]
-    return (gamma * M + r)**d
+    return (gamma * a + r)**d
 
 
-def rbf_kernel(x, y, gamma='auto'):
-    M = linear_kernel(x, y)
+def rbf_kernel(x, y, gamma: Union[str, float] = 'auto') -> np.ndarray:
+    a = np.matmul(x, y.T)
     xx = np.sum(x**2, axis=1)
     yy = np.sum(y**2, axis=1)
-    D = xx[:, np.newaxis] + yy[np.newaxis, :]
+    s = xx[:, np.newaxis] + yy[np.newaxis, :]
     if gamma == 'auto':
         gamma = 1 / x.shape[1]
-    return np.exp(-gamma * (D - 2 * M))
+    return np.exp(-gamma * (s - 2 * a))
 
 
-class PrecomputedSVC(ClassifierMixin):
-    """Class that wraps scikit-learn's SVC to precompute and the kernel values in
-    order to speed up training.
-
-    Parameters:
-    -----------
-    C: float
-        SVM complexity parameter. Default is 1.
-    kernel: str
-        The kernel function to use. One of {rbf, linear, poly}.
-    degree: int
-        The degree of the polynomial. Only used for poly kernels.
-    gamma: float or str
-        The gamma paramter for RBF kernel. If 'auto', use 1/n_features.
+class PrecomputedSVC(SVC):
+    """Class that wraps scikit-learn's SVC to precompute the kernel
+    values in order to speed up training. The kernel parameter is a
+    string which is transparently mapped to and from the corresponding
+    callable function with the relevant parameters (degree, gamma,
+    coef0). All other parameters are passed directly to SVC.
     """
-    def __init__(self, C=1, kernel='rbf', degree=3, gamma='auto', coef0=0,
-                 **clf_kwargs):
-        if kernel == 'linear':
-            self.kernel_func = linear_kernel
-        elif kernel == 'poly':
-            self.kernel_func = partial(poly_kernel, d=degree, r=coef0,
-                                       gamma=gamma)
-        elif kernel == 'rbf':
-            self.kernel_func = partial(rbf_kernel, gamma=gamma)
-        else:
-            raise ValueError(
-                "kernel must be in {{'linear', 'poly', 'rbf'}}, got '{}'"
-                .format(kernel))
-        self.clf = SVC(C=C, kernel='precomputed', **clf_kwargs)
+    KERNELS = {'rbf': rbf_kernel, 'poly': poly_kernel, 'linear': linear_kernel}
 
-    def fit(self, x_train, y_train, sample_weight=None, **kwargs):
-        self.x_train = x_train
-        K = self.kernel_func(x_train, x_train)
-        return self.clf.fit(K, y_train, sample_weight=sample_weight, **kwargs)
+    def __init__(self, C=1.0, kernel='rbf', degree=3, gamma='auto', coef0=0.0,
+                 shrinking=True, probability=False, tol=1e-3, cache_size=200,
+                 class_weight=None, verbose=False, max_iter=-1,
+                 decision_function_shape='ovr', break_ties=False,
+                 random_state=None):
+        super().__init__(
+            kernel=kernel, degree=degree, gamma=gamma,
+            coef0=coef0, tol=tol, C=C, shrinking=shrinking,
+            probability=probability, cache_size=cache_size,
+            class_weight=class_weight, verbose=verbose, max_iter=max_iter,
+            decision_function_shape=decision_function_shape,
+            break_ties=break_ties, random_state=random_state
+        )
+        self.kernel_name = kernel
+        self.kernel = self._get_kernel_func()
 
-    def predict(self, x_test, **kwargs):
-        K = self.kernel_func(x_test, self.x_train)
-        return self.clf.predict(K)
+    def get_params(self, deep) -> Dict[str, Any]:
+        params = super().get_params(deep)
+        params['kernel'] = self.kernel_name
+        return params
+
+    def set_params(self, **params) -> BaseEstimator:
+        super().set_params(**params)
+        if 'kernel' in params:
+            self.kernel_name = params['kernel']
+        self.kernel = self._get_kernel_func()
+        return self
+
+    def _get_kernel_func(self) -> KernelFunction:
+        """Get the kernel function, with parameters, to use in fit() and
+        predict(). This is calculated at runtime in order to more easily handle
+        changes in parameters such as kernel, gamma, etc.
+        """
+        f = self.KERNELS[self.kernel]
+        params = {}
+        if self.kernel == 'poly':
+            params = {'d': self.degree, 'r': self.coef0, 'gamma': self.gamma}
+        elif self.kernel == 'rbf':
+            params = {'gamma': self.gamma}
+        return partial(f, **params)
 
 
 class Classifier(abc.ABC):
@@ -152,9 +166,9 @@ class SKLearnClassifier(Classifier):
                                             numpy_indexing=True)
 
         if self.param_grid:
-            self.clf = cross_validate(
+            self.clf = optimise_params(
                 self.param_grid, self.model_fn, self.cv_score_fn, x_train,
-                y_train, x_valid, y_valid, max_workers=4
+                y_train, x_valid, y_valid, max_workers=24
             )
         else:
             self.clf = self.model_fn()
@@ -247,7 +261,7 @@ class TFClassifier(Classifier):
     def predict(self, x_test: np.ndarray,
                 y_test: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         test_data = self.data_fn(x_test, y_test, shuffle=False)
-        y_true = np.concatenate([y for _, y in test_data])
+        y_true = np.concatenate([x[1] for x in test_data])
         return np.argmax(self.model.predict(test_data), axis=1), y_true
 
 
@@ -451,9 +465,9 @@ def test_one_vs_rest(model_fn,
                     x_test, y_test = x[test], y[test]
 
                     if param_grid:
-                        classifier = cross_validate(param_grid, model_fn,
-                                                    recall_score, x_train,
-                                                    y_train, x_test, y_test)
+                        classifier = optimise_params(param_grid, model_fn,
+                                                     recall_score, x_train,
+                                                     y_train, x_test, y_test)
                     else:
                         classifier = model_fn()
 
@@ -473,14 +487,14 @@ def _test_one_param(params, cls, score_fn, x_train, y_train, x_valid, y_valid):
     return classifier, score
 
 
-def cross_validate(param_grid: Iterable[Dict[str, Sequence]],
-                   cls: Callable,
-                   score_fn: ScoreFunction,
-                   x_train: np.ndarray,
-                   y_train: np.ndarray,
-                   x_valid: np.ndarray,
-                   y_valid: np.ndarray,
-                   max_workers=len(os.sched_getaffinity(0))) -> BaseEstimator:
+def optimise_params(param_grid: Iterable[Dict[str, Sequence]],
+                    cls: Callable,
+                    score_fn: ScoreFunction,
+                    x_train: np.ndarray,
+                    y_train: np.ndarray,
+                    x_valid: np.ndarray,
+                    y_valid: np.ndarray,
+                    max_workers=len(os.sched_getaffinity(0))) -> BaseEstimator:
     """Performs cross-validation for SKLearnClassifier's using the given
     parameter grid and validation data.
 
