@@ -35,8 +35,8 @@
 /docker
 /tmp
 /output
-/spectrograms
 smile.log
+/env.sh
 
 # Python related
 __pycache__

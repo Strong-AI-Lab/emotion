@@ -9,9 +9,9 @@ name=$(basename $spectrograms)
 audeep t-rae train \
     --input $spectrograms \
     --run-name logs/audeep/2x256_u_b/${name%.nc}_b64_l0.001 \
-    --num-epochs 100 \
+    --num-epochs 250 \
     --batch-size 64 \
-    --checkpoints-to-keep 1 \
+    --checkpoints-to-keep 5 \
     --learning-rate 0.001 \
     --keep-prob 0.8 \
     --num-layers 2 \
