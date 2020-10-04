@@ -24,7 +24,7 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model
 from tqdm import tqdm
 
-from emotion_recognition.tensorflow.models.audeep import create_trae
+from emotion_recognition.tensorflow.models import audeep_trae
 
 
 def _make_functions(model, optimizer, strategy, use_function=True):
@@ -106,7 +106,7 @@ def train(args):
 
     step = tf.Variable(1)
     with strategy.scope():
-        model = create_trae(
+        model = audeep_trae(
             (max_time, features), units=args.units, layers=args.layers,
             bidirectional_encoder=args.bidirectional_encoder,
             bidirectional_decoder=args.bidirectional_decoder

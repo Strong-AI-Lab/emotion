@@ -164,17 +164,25 @@ class LabelledDataset(abc.ABC):
         self._create_data()
 
         self._labels = {'all': self.y}
+        self._class_counts = np.bincount(self.y.astype(int))
+        self._speaker_counts = np.bincount(self.speaker_indices)
 
         self._print_header()
 
     def _print_header(self):
         print('Corpus: {}'.format(self.corpus))
-        print('{} classes: {}'.format(self.n_classes, tuple(self.classes)))
+        print('{} classes:'.format(self.n_classes))
+        print(dict(zip(self.classes, self.class_counts)))
         print('{} instances'.format(self.n_instances))
         print('{} features'.format(self.n_features))
-        print('{} speakers:'.format(len(self.speakers)))
-        counts = np.bincount(self.speaker_indices)
-        print(dict(zip(self.speakers, counts)))
+        print('{} speakers:'.format(self.n_speakers))
+        print(dict(zip(self.speakers, self.speaker_counts)))
+        if self.x.dtype == object:
+            lengths = [len(x) for x in self.x]
+            print('Sequences:')
+            print('min length: {}'.format(np.min(lengths)))
+            print('mean length: {}'.format(np.mean(lengths)))
+            print('max length: {}'.format(np.max(lengths)))
         print()
 
     def binarise(self, pos_val: List[str] = [], pos_aro: List[str] = []):
@@ -210,7 +218,7 @@ class LabelledDataset(abc.ABC):
                 self.x = normaliser.fit_transform(self.x)
         elif scheme == 'speaker':
             for sp in range(len(self.speakers)):
-                idx = np.flatnonzero(self.speaker_indices == sp)
+                idx = np.nonzero(self.speaker_indices == sp)[0]
                 if self.x.dtype == object:
                     flat, slices = _make_flat(self.x[idx])
                     flat = normaliser.fit_transform(flat)
@@ -233,9 +241,13 @@ class LabelledDataset(abc.ABC):
         return len(self.classes)
 
     @property
+    def class_counts(self) -> np.ndarray:
+        return self._class_counts
+
+    @property
     def labels(self) -> Dict[str, np.ndarray]:
-        """Mapping from label set to array of numeric labels. The keys of the
-        dictionary are {'all', 'arousal', 'valence', ''}
+        """Mapping from label set to array of numeric labels. The keys
+        of the dictionary are {'all', 'arousal', 'valence', ''}
         """
         return self._labels
 
@@ -276,6 +288,10 @@ class LabelledDataset(abc.ABC):
         return len(self.speakers)
 
     @property
+    def speaker_counts(self) -> np.ndarray:
+        return self._speaker_counts
+
+    @property
     def speaker_indices(self) -> np.ndarray:
         return self._speaker_indices
 
@@ -311,8 +327,8 @@ class LabelledDataset(abc.ABC):
 
     @abc.abstractmethod
     def _create_data(_):
-        """Creates the x data array and y label array in an implementation
-        specific manner.
+        """Creates the x data array and y label array in an
+        implementation specific manner.
         """
         raise NotImplementedError(
             "_create_data() should be implemented by subclasses.")
@@ -320,13 +336,21 @@ class LabelledDataset(abc.ABC):
 
 class SequenceDatasetMixin:
     def pad_arrays(self: LabelledDataset, pad: int = 32):
-        """Pads each array to the nearest multiple of `pad` greater than the
-        array size. Assumes the 0 axis of x is the time dimension.
+        """Pads each array to the nearest multiple of `pad` greater than
+        the array size. Assumes axis 0 of x is time.
         """
+        print("Padding array lengths to nearest multiple of {}.".format(pad))
         for i in range(len(self.x)):
             x = self.x[i]
             padding = int(np.ceil(x.shape[0] / pad)) * pad - x.shape[0]
             self.x[i] = np.pad(x, ((0, padding), (0, 0)))
+
+    def clip_arrays(self: LabelledDataset, length: int):
+        """Clips each array to the specified maximum length."""
+        print("Clipping arrays to max length {}.".format(length))
+        for i in range(len(self.x)):
+            self.x[i] = np.copy(self.x[i][:length])
+        assert all(len(x) <= length for x in self.x)
 
 
 class NetCDFDataset(LabelledDataset, SequenceDatasetMixin):
@@ -359,41 +383,6 @@ class NetCDFDataset(LabelledDataset, SequenceDatasetMixin):
         labels = self.dataset.variables['label_nominal']
         self._y = np.array([self.class_to_int(x) for x in labels],
                            dtype=np.float32)
-
-
-class TFRecordDataset(LabelledDataset):
-    """A dataset contained in TFRecord files."""
-    def __init__(self, file: Union[PathLike, str]):
-        import tensorflow as tf
-        self.tf_dataset = tf.data.TFRecordDataset([str(file)])
-        example = tf.train.Example()
-        example.ParseFromString(next(iter(self.tf_dataset)).numpy())
-        features = example.features.feature
-        corpus = features['corpus'].bytes_list.value[0].decode()
-        self.data_shape = tuple(features['features_shape'].int64_list.value)
-        self.data_dtype = features[
-            'features_dtype'].bytes_list.value[0].decode()
-        super().__init__(corpus)
-
-    def _create_data(self):
-        import tensorflow as tf
-        self._x = []
-        self._y = []
-        for item in self.tf_dataset:
-            example = tf.train.Example()
-            example.ParseFromString(item.numpy())
-            features = example.features.feature
-            data = np.frombuffer(
-                features['features'].bytes_list.value[0],
-                dtype=self.dtype
-            )
-            data = np.reshape(data, self.data_shape)
-            label = features['label'].bytes_list.value[0].decode()
-            label_int = self.class_to_int(label)
-            self._x.append(data)
-            self._y.append(label_int)
-        self._x = np.array(self._x, dtype=np.float32)
-        self._y = np.array(self._y, dtype=np.float32)
 
 
 class RawDataset(LabelledDataset, SequenceDatasetMixin):
@@ -434,7 +423,8 @@ class RawDataset(LabelledDataset, SequenceDatasetMixin):
 
 
 class UtteranceARFFDataset(LabelledDataset):
-    """Represents an ARFF dataset consisting of a single vector per instance.
+    """Represents an ARFF dataset consisting of a single vector per
+    instance.
     """
     def __init__(self, path: Union[PathLike, str]):
         path = Path(path)
@@ -461,7 +451,8 @@ class UtteranceARFFDataset(LabelledDataset):
 
 
 class SequenceARFFDataset(LabelledDataset, SequenceDatasetMixin):
-    """Represents a dataset consisting of a sequence of vectors per instance.
+    """Represents a dataset consisting of a sequence of vectors per
+    instance.
     """
     def __init__(self, path: Union[PathLike, str]):
         path = Path(path)
@@ -495,8 +486,8 @@ class SequenceARFFDataset(LabelledDataset, SequenceDatasetMixin):
 
 
 class CombinedDataset(LabelledDataset, SequenceDatasetMixin):
-    """A dataset that joins individual corpus datasets together and handles
-    labelling differences.
+    """A dataset that joins individual corpus datasets together and
+    handles labelling differences.
     """
     def __init__(self, *datasets: LabelledDataset,
                  labels: Optional[List[str]] = None):
@@ -541,8 +532,9 @@ class CombinedDataset(LabelledDataset, SequenceDatasetMixin):
         return self.corpora.index(corpus)
 
     def get_corpus_split(self, corpus: str) -> Tuple[np.ndarray, np.ndarray]:
-        """Returns a tuple (corpus_idx, other_idx) containing the indices of
-        x and y for the specified corpus and all other corpora.
+        """Returns a tuple (corpus_idx, other_idx) containing the
+        indices of x and y for the specified corpus and all other
+        corpora.
         """
         cond = self.speaker_indices == self.corpus_to_idx(corpus)
         corpus_idx = np.nonzero(cond)[0]

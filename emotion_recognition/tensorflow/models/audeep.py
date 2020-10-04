@@ -4,7 +4,7 @@ from tensorflow.keras.layers import (RNN, AbstractRNNCell, Bidirectional,
                                      Dense, GRUCell, Input, StackedRNNCells,
                                      concatenate)
 
-__all__ = ['create_trae']
+__all__ = ['audeep_trae']
 
 
 def _dropout_gru_cell(units: int = 256,
@@ -24,7 +24,7 @@ def _make_rnn(units: int = 256, layers: int = 2, bidirectional: bool = False,
     return rnn
 
 
-def create_trae(input_shape: tuple,
+def audeep_trae(input_shape: tuple,
                 units: int = 256,
                 layers: int = 2,
                 bidirectional_encoder: bool = False,

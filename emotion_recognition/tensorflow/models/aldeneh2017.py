@@ -1,9 +1,19 @@
+"""Implementation of the final full model architecture from [1].
+
+[1] Z. Aldeneh and E. Mower Provost, 'Using regional saliency for speech
+emotion recognition', in 2017 IEEE International Conference on
+Acoustics, Speech and Signal Processing (ICASSP), Mar. 2017, pp.
+2741–2745, doi: 10.1109/ICASSP.2017.7952655.
+"""
+
 from tensorflow.keras import Model
 from tensorflow.keras.layers import (Conv1D, Dense, GlobalMaxPool1D, Input,
                                      concatenate)
 
+__all__ = ['aldeneh2017_model']
 
-def full_model(n_features: int, n_classes: int) -> Model:
+
+def aldeneh2017_model(n_features: int, n_classes: int) -> Model:
     """Creates the final model from the Aldeneh et. al. (2017) paper."""
     inputs = Input(shape=(None, n_features), name='input')
     x = Conv1D(384, 8, activation='relu', kernel_initializer='he_normal',

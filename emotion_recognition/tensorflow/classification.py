@@ -1,67 +1,201 @@
-from typing import List, Union
+from collections import defaultdict
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import tensorflow as tf
+from sklearn.model_selection import BaseCrossValidator, LeaveOneGroupOut
+from sklearn.model_selection._validation import _score
+from sklearn.metrics import get_scorer
+from tensorflow.keras.callbacks import Callback, TensorBoard
 from tensorflow.keras.metrics import SparseCategoricalAccuracy
+from tensorflow.keras.models import Model
+from tensorflow.keras.losses import Loss, SparseCategoricalCrossentropy
+from tensorflow.keras.optimizers import Adam, Optimizer
 from tensorflow.keras.utils import Sequence
 
-from emotion_recognition.utils import shuffle_multiple
+from ..classification import Classifier, ScoreFunction
+from ..utils import batch_arrays, shuffle_multiple
+from .utils import create_tf_dataset_ragged
+
+TFModelFunction = Callable[[], Model]
+DataFunction = Callable[[np.ndarray, np.ndarray], tf.data.Dataset]
 
 
-def batch_arrays(arrays_x: List[np.ndarray], y: np.ndarray,
-                 batch_size: int = 32, shuffle: bool = True,
-                 uniform_batch_size: bool = False):
-    """Batches a list of arrays of different sizes, grouping them by size. This
-    is designed for use with variable length sequences.
+class _DummyEstimator:
+    def __init__(self, y_pred):
+        self.y_pred = y_pred
+
+    def predict(self, x, **kwargs):
+        return self.y_pred
+
+
+def tf_cross_validate(model_fn: TFModelFunction, x: np.ndarray, y: np.ndarray,
+                      groups: Optional[np.ndarray] = None,
+                      cv: BaseCrossValidator = LeaveOneGroupOut(),
+                      scoring: Union[str, List[str],
+                                     Dict[str, ScoreFunction]] = 'accuracy',
+                      data_fn: DataFunction = create_tf_dataset_ragged,
+                      model_params: Dict[str, Any] = {},
+                      data_params: Dict[str, Any] = {},
+                      fit_params: Dict[str, Any] = {}):
+    """Performs cross-validation on a TensorFlow model. This works with
+    both sequence models and single vector models.
+
+    Args:
+    -----
+    model_fn: callable,
+        The function used to create a compiled Keras model. This is
+        called repeatedly on each iteration of cross-validation.
+    x: numpy.ndarray,
+        The data array. For sequence input this will be a (ragged) 3-D
+        array (array of arrays). Otherwise it will be a contiguous 2-D
+        matrix.
+    y: numpy.ndarray,
+        A 1-D array of shape (n_instances,) containing the data labels.
+    groups: np.ndarray, optional
+        The groups to use for some cross-validation splitters (e.g.
+        LeaveOneGroupOut).
+    cv: BaseCrossValidator,
+        The cross-validator split generator to use. Default is
+        LeaveOneGroupOut.
+    scoring: str, or callable, or list of str, or dict of str to callable
+        The scoring to use. Same requirements as for sklearn
+        cross_validate().
+    data_fn: callable
+        A callable that returns a tensorflow.data.Dataset instance which
+        yields data batches. The call signature of data_fn should be
+        data_fn(x, y, shuffle=True, **kwargs).
+    model_params: dict, optional
+        Any keyword arguments to supply to model_fn. Default is no
+        keyword arguments.
+    data_params: dict, optional
+        Any keyword arguments to supply to data_fn. Default is no
+        keyword arguments.
+    fit_params: dict, optional
+        Any keyword arguments to supply to the Keras fit() method.
+        Default is no keyword arguments.
+    """
+    scores = defaultdict(list)
+    n_folds = cv.get_n_splits(x, y, groups)
+    for fold, (train, test) in enumerate(cv.split(x, y, groups)):
+        tf.keras.backend.clear_session()
+        print("\tFold {}/{}".format(fold, n_folds))
+
+        x_train = x[train]
+        y_train = y[train]
+        x_test = x[test]
+        y_test = y[test]
+        train_data = data_fn(x_train, y_train, shuffle=True, **data_params)
+        test_data = data_fn(x_test, y_test, shuffle=False, **data_params)
+
+        clf = model_fn(**model_params)
+        # Use validation data just for info
+        clf.fit(train_data, validation_data=test_data, **fit_params)
+        y_true = np.concatenate([x[1] for x in test_data])
+        y_pred = np.argmax(clf.predict(test_data), axis=-1)
+
+        dummy = _DummyEstimator(y_pred)
+        if isinstance(scoring, str):
+            val = get_scorer(scoring)(dummy, x_test, y_true)
+            scores['test_score'].append(val)
+            scores['test_' + scoring].append(val)
+        elif isinstance(scoring, (list, dict)):
+            if isinstance(scoring, list):
+                scoring = {x: get_scorer(x) for x in scoring}
+            _scores = _score(dummy, x_test, y_true, scoring)
+            for k, v in _scores.items():
+                scores['test_' + k].append(v)
+        elif callable(scoring):
+            scores['test_score'].append(scoring(dummy, x_test, y_true))
+    scores = {k: np.array(scores[k]) for k in scores}
+    return scores
+
+
+class TFClassifier(Classifier):
+    """Class wrapper for a TensorFlow Keras classifier model.
 
     Parameters:
-    -----
-    arrays_x: list of ndarray
-        A list of arrays, possibly of different sizes, to batch.
-    y: ndarray
-        The labels for each of the arrays in arrays_x.
-    batch_size: int
-        Arrays will be grouped together by size, up to a maximum of batch_size,
-        after which a new batch will be created. Thus each batch produced will
-        have between 1 and batch_size items.
-    shuffle: bool, default = True
-        Whether to shuffle array order in a batch.
-    uniform_batch_size: bool, default = False
-        Whether to keep all batches the same size, batch_size, and pad with
-        zeros if necessary, or have batches of different sizes if there aren't
-        enough sequences to group together.
-
-    Returns:
-    --------
-    x_list: ndarray,
-        The batched arrays. x_list[i] is the i'th
-        batch, having between 1 and batch_size items, each of length
-        lengths[i].
-    y_list: ndarray
-        The batched labels corresponding to sequences in x_list. y_list[i] has
-        the same size as x_list[i].
+    -----------
+    model_fn: callable
+        A callable that returns a new proper classifier that can be trained.
+    n_epochs: int, optional, default = 50
+        Maximum number of epochs to train for.
+    class_weight: dict, optional
+        A dictionary mapping class IDs to weights. Default is to ignore
+        class weights.
+    data_fn: callable, optional
+        Callable that takes x and y as input and returns a
+        tensorflow.keras.Sequence object or a tensorflow.data.Dataset
+        object.
+    callbacks: list, optional
+        A list of tensorflow.keras.callbacks.Callback objects to use during
+        training. Default is an empty list, so that the default Keras
+        callbacks are used.
+    loss: keras.losses.Loss
+        The loss to use. Default is
+        tensorflow.keras.losses.SparseCategoricalCrossentropy.
+    optimizer: keras.optimizers.Optimizer
+        The optimizer to use. Default is tensorflow.keras.optimizers.Adam.
+    verbose: bool, default = False
+        Whether to output details per epoch.
     """
-    if shuffle:
-        arrays_x, y = shuffle_multiple(arrays_x, y, numpy_indexing=False)
+    def __init__(self, model_fn: TFModelFunction,
+                 n_epochs: int = 50,
+                 class_weight: Optional[Dict[int, float]] = None,
+                 data_fn: Optional[DataFunction] = None,
+                 callbacks: List[Callback] = [],
+                 loss: Loss = SparseCategoricalCrossentropy(),
+                 optimizer: Optimizer = Adam(),
+                 verbose: bool = False):
+        self.model_fn = model_fn
+        self.n_epochs = n_epochs
+        self.class_weight = class_weight
+        if data_fn is not None:
+            self.data_fn = data_fn
+        self.callbacks = callbacks
+        self.loss = loss
+        self.optimizer = optimizer
+        self.verbose = verbose
 
-    sizes = [x.shape[0] for x in arrays_x]
-    lengths, indices = np.unique(sizes, return_inverse=True)
+    def data_fn(self, x: np.ndarray, y: np.ndarray,
+                shuffle: bool = True) -> tf.data.Dataset:
+        dataset = tf.data.Dataset.from_tensor_slices((x, y))
+        if shuffle:
+            dataset = dataset.shuffle(len(x))
+        return dataset
 
-    x_list = []
-    y_list = []
-    for l_idx in range(len(lengths)):
-        idx = np.arange(len(arrays_x))[indices == l_idx]
-        for b in range(0, len(idx), batch_size):
-            b_idx = idx[b:b + batch_size]
-            arr = np.zeros((len(b_idx), lengths[l_idx], arrays_x[0].shape[1]),
-                           dtype=np.float32)
-            for k, j in enumerate(b_idx):
-                arr[k, :, :] = arrays_x[j]
-            x_list.append(arr)
-            y_list.append(y[b_idx])
-    x_list = np.array(x_list, dtype=object)
-    y_list = np.array(y_list, dtype=object)
-    return x_list, y_list
+    def fit(self, x_train: np.ndarray, y_train: np.ndarray,
+            x_valid: np.ndarray, y_valid: np.ndarray, fold: int = 0):
+        # Clear graph
+        tf.keras.backend.clear_session()
+        # Reset optimiser and loss
+        optimizer = self.optimizer.from_config(self.optimizer.get_config())
+        loss = self.loss.from_config(self.loss.get_config())
+        for cb in self.callbacks:
+            if isinstance(cb, TensorBoard):
+                cb.log_dir = str(Path(cb.log_dir).parent / str(fold))
+
+        self.model = self.model_fn()
+        self.model.compile(loss=loss, optimizer=optimizer,
+                           metrics=tf_classification_metrics())
+
+        train_data = self.data_fn(x_train, y_train, shuffle=True)
+        valid_data = self.data_fn(x_valid, y_valid, shuffle=True)
+        self.model.fit(
+            train_data,
+            epochs=self.n_epochs,
+            class_weight=self.class_weight,
+            validation_data=valid_data,
+            callbacks=self.callbacks,
+            verbose=int(self.verbose)
+        )
+
+    def predict(self, x_test: np.ndarray,
+                y_test: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        test_data = self.data_fn(x_test, y_test, shuffle=False)
+        y_true = np.concatenate([x[1] for x in test_data])
+        return np.argmax(self.model.predict(test_data), axis=1), y_true
 
 
 class BalancedSparseCategoricalAccuracy(SparseCategoricalAccuracy):

@@ -5,7 +5,8 @@ import tensorflow as tf
 from tensorflow.keras.models import Model
 
 
-def create_tf_dataset(x: np.ndarray, y: np.ndarray,
+def create_tf_dataset(x: np.ndarray,
+                      y: np.ndarray,
                       sample_weight: Optional[np.ndarray] = None,
                       batch_size: int = 64,
                       shuffle: bool = True) -> tf.data.Dataset:
@@ -38,14 +39,12 @@ def create_tf_dataset(x: np.ndarray, y: np.ndarray,
     return data.batch(batch_size).prefetch(8)
 
 
-def create_tf_dataset_ragged(x: np.ndarray, y: np.ndarray,
+def create_tf_dataset_ragged(x: np.ndarray,
+                             y: np.ndarray,
                              sample_weight: Optional[np.ndarray] = None,
                              batch_size: int = 64,
                              shuffle: bool = True) -> tf.data.Dataset:
     """Returns a TensorFlow Dataset instance from the ragged x and y.
-
-    x , while y is a 1-D array of
-    length n_instances.
 
     Args:
     -----
@@ -65,7 +64,7 @@ def create_tf_dataset_ragged(x: np.ndarray, y: np.ndarray,
         done *after* batching, because sequences are sorted by length,
         then batched in similar lengths.
     """
-    def ragged_to_dense(x, y):
+    def ragged_to_dense(x: tf.RaggedTensor, y):
         return x.to_tensor(), y
 
     # Sort according to length

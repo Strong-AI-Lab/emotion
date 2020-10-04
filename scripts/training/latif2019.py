@@ -9,57 +9,17 @@ from pathlib import Path
 
 import numpy as np
 import tensorflow as tf
-from sklearn.model_selection import LeaveOneGroupOut
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
-from tensorflow.keras.layers import (LSTM, BatchNormalization, Conv1D, Conv2D,
-                                     Dense, Dropout, Input, MaxPool1D,
-                                     MaxPool2D, ReLU, Reshape, concatenate)
-from tensorflow.keras.models import Model
-from tensorflow.keras.optimizers import RMSprop
-
-from emotion_recognition.classification import (TFClassifier, print_results,
+from emotion_recognition.classification import (print_results,
                                                 within_corpus_cross_validation)
 from emotion_recognition.dataset import RawDataset
+from emotion_recognition.tensorflow.classification import TFClassifier
+from emotion_recognition.tensorflow.models import latif2019_model
+from emotion_recognition.tensorflow.utils import create_tf_dataset_ragged
+from sklearn.model_selection import LeaveOneGroupOut
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.optimizers import RMSprop
 
 RESULTS_DIR = 'results/latif2019'
-
-
-def get_model(n_classes: int):
-    inputs = Input((None, 1), name='input')
-
-    conv_1 = Conv1D(40, 400, strides=160, padding='same',
-                    name='conv_25ms')(inputs)
-    conv_1 = BatchNormalization()(conv_1)
-    conv_1 = ReLU()(conv_1)
-    maxpool1 = MaxPool1D(2, name='maxpool_1')(conv_1)
-
-    conv_2 = Conv1D(40, 240, strides=160, padding='same',
-                    name='conv_15ms')(inputs)
-    conv_2 = BatchNormalization()(conv_2)
-    conv_2 = ReLU()(conv_2)
-    maxpool2 = MaxPool1D(2, name='maxpool_2')(conv_2)
-
-    conv_3 = Conv1D(40, 1600, strides=160, padding='same',
-                    name='conv_100ms')(inputs)
-    conv_3 = BatchNormalization()(conv_3)
-    conv_3 = ReLU()(conv_3)
-    maxpool3 = MaxPool1D(2, name='maxpool_3')(conv_3)
-
-    concat = concatenate([maxpool1, maxpool2, maxpool3], axis=-1)
-    concat = tf.expand_dims(concat, axis=-1)
-
-    conv2d = Conv2D(32, (2, 2), name='conv2d', padding='same')(concat)
-    conv2d = BatchNormalization()(conv2d)
-    conv2d = ReLU()(conv2d)
-
-    maxpool2d = MaxPool2D((2, 2), name='maxpool2d', padding='same')(conv2d)
-    flattened = Reshape((-1, 1920), name='flatten')(maxpool2d)
-
-    lstm = LSTM(128)(flattened)
-    dropout = Dropout(0.3)(lstm)
-    dense = Dense(1024, activation='relu')(dropout)
-    x = Dense(n_classes, activation='softmax')(dense)
-    return Model(inputs=inputs, outputs=x)
 
 
 def get_tf_dataset(x: np.ndarray, y: np.ndarray, shuffle: bool = True,
@@ -88,7 +48,7 @@ def main():
     for gpu in tf.config.list_physical_devices('GPU'):
         tf.config.experimental.set_memory_growth(gpu, True)
 
-    model = get_model(4)
+    model = latif2019_model(4)
     model.summary()
     del model
     tf.keras.backend.clear_session()
@@ -102,9 +62,9 @@ def main():
                         / np.bincount(dataset.y.astype(np.int)))
         class_weight = dict(zip(range(dataset.n_classes), class_weight))
 
-        data_fn = partial(get_tf_dataset, batch_size=64)
+        data_fn = partial(create_tf_dataset_ragged, batch_size=64)
         clf = TFClassifier(
-            partial(get_model, dataset.n_classes), n_epochs=50,
+            partial(latif2019_model, dataset.n_classes), n_epochs=50,
             class_weight=class_weight, data_fn=data_fn,
             callbacks=[
                 EarlyStopping(

@@ -2,7 +2,6 @@ import abc
 import os
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from pathlib import Path
 from typing import (Any, Callable, Dict, Iterable, List, Optional, Sequence,
                     Tuple, Union)
 
@@ -14,19 +13,10 @@ from sklearn.model_selection import (BaseCrossValidator, KFold,
                                      LeaveOneGroupOut, ParameterGrid)
 from sklearn.svm import SVC
 
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras.callbacks import Callback, TensorBoard
-from tensorflow.keras.losses import Loss, SparseCategoricalCrossentropy
-from tensorflow.keras.models import Model
-from tensorflow.keras.optimizers import Adam, Optimizer
-
 from .dataset import CombinedDataset, LabelledDataset
-from .tensorflow.classification import tf_classification_metrics
 from .utils import shuffle_multiple
 
-ModelFunction = Callable[[], Union[ClassifierMixin, Model]]
-DataFunction = Callable[[np.ndarray, np.ndarray], tf.data.Dataset]
+SKClassifierFunction = Callable[[], ClassifierMixin]
 ScoreFunction = Callable[[np.ndarray, np.ndarray], float]
 KernelFunction = Callable[[np.ndarray, np.ndarray], np.ndarray]
 
@@ -107,16 +97,7 @@ class PrecomputedSVC(SVC):
 
 
 class Classifier(abc.ABC):
-    """Base class for classifiers used in test_model().
-
-    Parameters:
-    -----------
-    model_fn: callable
-        A callable that returns a new proper classifier that can be trained.
-    """
-
-    def __init__(self, model_fn: ModelFunction):
-        self.model_fn = model_fn
+    """Base class for classifiers used in test_model()."""
 
     @abc.abstractmethod
     def fit(self, x_train: np.ndarray, y_train: np.ndarray,
@@ -151,10 +132,10 @@ class SKLearnClassifier(Classifier):
         A callable that returns a new proper classifier that can be trained.
     param_grid: dict, optional
     """
-    def __init__(self, model_fn: ModelFunction,
+    def __init__(self, model_fn: SKClassifierFunction,
                  param_grid: Optional[Dict[str, Sequence]],
                  cv_score_fn: Optional[ScoreFunction]):
-        super().__init__(model_fn)
+        self.model_fn = model_fn
         self.param_grid = ParameterGrid(param_grid)
         self.cv_score_fn = cv_score_fn
 
@@ -177,92 +158,6 @@ class SKLearnClassifier(Classifier):
     def predict(self, x_test: np.ndarray,
                 y_test: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         return self.clf.predict(x_test), y_test
-
-
-class TFClassifier(Classifier):
-    """Class wrapper for a TensorFlow Keras classifier model.
-
-    Parameters:
-    -----------
-    model_fn: callable
-        A callable that returns a new proper classifier that can be trained.
-    n_epochs: int, optional, default = 50
-        Maximum number of epochs to train for.
-    class_weight: dict, optional
-        A dictionary mapping class IDs to weights. Default is to ignore
-        class weights.
-    data_fn: callable, optional
-        Callable that takes x and y as input and returns a
-        tensorflow.keras.Sequence object or a tensorflow.data.Dataset
-        object.
-    callbacks: list, optional
-        A list of tensorflow.keras.callbacks.Callback objects to use during
-        training. Default is an empty list, so that the default Keras
-        callbacks are used.
-    loss: keras.losses.Loss
-        The loss to use. Default is
-        tensorflow.keras.losses.SparseCategoricalCrossentropy.
-    optimizer: keras.optimizers.Optimizer
-        The optimizer to use. Default is tensorflow.keras.optimizers.Adam.
-    verbose: bool, default = False
-        Whether to output details per epoch.
-    """
-    def __init__(self, model_fn: ModelFunction,
-                 n_epochs: int = 50,
-                 class_weight: Optional[Dict[int, float]] = None,
-                 data_fn: Optional[DataFunction] = None,
-                 callbacks: List[Callback] = [],
-                 loss: Loss = SparseCategoricalCrossentropy(),
-                 optimizer: Optimizer = Adam(),
-                 verbose: bool = False):
-        super().__init__(model_fn)
-        self.n_epochs = n_epochs
-        self.class_weight = class_weight
-        if data_fn is not None:
-            self.data_fn = data_fn
-        self.callbacks = callbacks
-        self.loss = loss
-        self.optimizer = optimizer
-        self.verbose = verbose
-
-    def data_fn(self, x: np.ndarray, y: np.ndarray,
-                shuffle: bool = True) -> tf.data.Dataset:
-        dataset = tf.data.Dataset.from_tensor_slices((x, y))
-        if shuffle:
-            dataset = dataset.shuffle(len(x))
-        return dataset
-
-    def fit(self, x_train: np.ndarray, y_train: np.ndarray,
-            x_valid: np.ndarray, y_valid: np.ndarray, fold: int = 0):
-        # Clear graph
-        keras.backend.clear_session()
-        # Reset optimiser and loss
-        optimizer = self.optimizer.from_config(self.optimizer.get_config())
-        loss = self.loss.from_config(self.loss.get_config())
-        for cb in self.callbacks:
-            if isinstance(cb, TensorBoard):
-                cb.log_dir = str(Path(cb.log_dir).parent / str(fold))
-
-        self.model = self.model_fn()
-        self.model.compile(loss=loss, optimizer=optimizer,
-                           metrics=tf_classification_metrics())
-
-        train_data = self.data_fn(x_train, y_train, shuffle=True)
-        valid_data = self.data_fn(x_valid, y_valid, shuffle=True)
-        self.model.fit(
-            train_data,
-            epochs=self.n_epochs,
-            class_weight=self.class_weight,
-            validation_data=valid_data,
-            callbacks=self.callbacks,
-            verbose=int(self.verbose)
-        )
-
-    def predict(self, x_test: np.ndarray,
-                y_test: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        test_data = self.data_fn(x_test, y_test, shuffle=False)
-        y_true = np.concatenate([x[1] for x in test_data])
-        return np.argmax(self.model.predict(test_data), axis=1), y_true
 
 
 def within_corpus_cross_validation(model: Classifier,

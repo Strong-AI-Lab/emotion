@@ -15,5 +15,6 @@ for corpus in cafe crema-d demos emodb emofilm enterface iemocap jl msp-improv p
             python scripts/training/comparative.py --clf dnn --kind $kind --reps 5 --data output/$corpus/$features.nc --results results/comparative2020/$corpus/dnn/$kind/$features.csv
         done
     done
-    python scripts/training/comparative.py --clf cnn --kind aldeneh --reps 3 --data output/$corpus/logmel.nc --datatype frame --results results/comparative2020/$corpus/cnn/aldeneh/logmel.csv
+    python scripts/training/comparative.py --clf cnn --kind aldeneh2017 --reps 3 --data output/$corpus/logmel.nc --datatype seq --results results/comparative2020/$corpus/cnn/aldeneh2017/logmel.csv
+    python scripts/training/comparative.py --clf cnn --kind latif2019 --reps 3 --data output/$corpus/raw_audio.nc --datatype seq --results results/comparative2020/$corpus/cnn/latif2019/raw_audio.csv
 done
