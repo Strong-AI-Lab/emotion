@@ -87,8 +87,7 @@ def alpha(data: np.ndarray,
     P_ck = np.bincount(data.flat)
     for c in range(1, R + 1):
         for k in range(1, R + 1):
-
-                D_e += delta(c, k) * P_ck[c] * P_ck[k]
+            D_e += delta(c, k) * P_ck[c] * P_ck[k]
     D_e /= n * (n - 1)
 
     return 1 - D_o / D_e
