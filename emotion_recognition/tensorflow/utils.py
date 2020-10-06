@@ -68,6 +68,9 @@ def create_tf_dataset_ragged(x: np.ndarray,
     def ragged_to_dense(x: tf.RaggedTensor, y):
         return x.to_tensor(), y
 
+    def ragged_to_dense_weighted(x: tf.RaggedTensor, y, sample_weight):
+        return x.to_tensor(), y, sample_weight
+
     # Sort according to length
     perm = np.argsort([len(a) for a in x])
     x = x[perm]
@@ -81,11 +84,17 @@ def create_tf_dataset_ragged(x: np.ndarray,
         data = tf.data.Dataset.from_tensor_slices((ragged, y))
     else:
         data = tf.data.Dataset.from_tensor_slices((ragged, y, sample_weight))
+
     # Group similar lengths in batches, then shuffle batches
     data = data.batch(batch_size)
     if shuffle:
         data = data.shuffle(len(x) // batch_size + 1)
-    return data.map(ragged_to_dense)
+
+    if sample_weight is not None:
+        data = data.map(ragged_to_dense_weighted)
+    else:
+        data = data.map(ragged_to_dense)
+    return data
 
 
 def print_linear_model_structure(model: Layer, depth: int = 0):
