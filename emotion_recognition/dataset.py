@@ -13,8 +13,9 @@ import soundfile
 from sklearn.base import TransformerMixin
 from sklearn.preprocessing import StandardScaler, label_binarize
 
-from emotion_recognition.binary_arff import decode as decode_arff
-from emotion_recognition.corpora import corpora
+from .binary_arff import decode as decode_arff
+from .corpora import corpora
+from .utils import clip_arrays, pad_arrays
 
 
 def parse_regression_annotations(filename: Union[PathLike, str]) \
@@ -340,17 +341,12 @@ class SequenceDatasetMixin:
         the array size. Assumes axis 0 of x is time.
         """
         print("Padding array lengths to nearest multiple of {}.".format(pad))
-        for i in range(len(self.x)):
-            x = self.x[i]
-            padding = int(np.ceil(x.shape[0] / pad)) * pad - x.shape[0]
-            self.x[i] = np.pad(x, ((0, padding), (0, 0)))
+        pad_arrays(self.x, pad=pad)
 
     def clip_arrays(self: LabelledDataset, length: int):
         """Clips each array to the specified maximum length."""
         print("Clipping arrays to max length {}.".format(length))
-        for i in range(len(self.x)):
-            self.x[i] = np.copy(self.x[i][:length])
-        assert all(len(x) <= length for x in self.x)
+        clip_arrays(self.x, length=length)
 
 
 class NetCDFDataset(LabelledDataset, SequenceDatasetMixin):

@@ -2,6 +2,7 @@ from typing import Optional
 
 import numpy as np
 import tensorflow as tf
+from tensorflow.keras.layers import Layer, Wrapper
 from tensorflow.keras.models import Model
 
 
@@ -87,7 +88,7 @@ def create_tf_dataset_ragged(x: np.ndarray,
     return data.map(ragged_to_dense)
 
 
-def print_linear_model_structure(model: Model):
+def print_linear_model_structure(model: Layer, depth: int = 0):
     """Prints the structure of a "sequential" model by listing the layer
     types and shapes in order.
 
@@ -96,8 +97,18 @@ def print_linear_model_structure(model: Model):
     model: Model
         The model to describe.
     """
+    indent = '\t' * depth
+    if not isinstance(model, Model):
+        print(indent, model.name, model.output_shape)
+        return
+
     for layer in model.layers:
         name = layer.name
         if name.startswith('tf_op_layer_'):
             name = name[12:]
-        print(layer.name, layer.output_shape)
+
+        print(indent, layer.name, layer.output_shape)
+        if isinstance(layer, Model):
+            print_linear_model_structure(layer, depth + 1)
+        elif isinstance(layer, Wrapper):
+            print_linear_model_structure(layer.layer, depth + 1)

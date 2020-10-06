@@ -1,5 +1,24 @@
-from typing import List, Tuple
+from typing import List, Tuple, Union
 import numpy as np
+
+
+def pad_arrays(arrays: Union[List[np.ndarray], np.ndarray], pad: int = 32):
+    """Pads each array to the nearest multiple of `pad` greater than the
+    array size. Assumes axis 0 of x is time.
+    """
+    for i in range(len(arrays)):
+        x = arrays[i]
+        padding = int(np.ceil(x.shape[0] / pad)) * pad - x.shape[0]
+        arrays[i] = np.pad(x, ((0, padding), (0, 0)))
+    return arrays
+
+
+def clip_arrays(arrays: Union[List[np.ndarray], np.ndarray], length: int):
+    """Clips each array to the specified maximum length."""
+    for i in range(len(arrays)):
+        arrays[i] = np.copy(arrays[i][:length])
+    assert all(len(x) <= length for x in arrays)
+    return arrays
 
 
 def shuffle_multiple(*arrays, numpy_indexing: bool = True):
