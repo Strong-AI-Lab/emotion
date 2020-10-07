@@ -5,11 +5,10 @@
 import argparse
 import subprocess
 import sys
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
 
-import arff
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -20,11 +19,6 @@ if sys.platform == 'win32':
     OPENSMILE_BIN = 'third_party\\opensmile\\SMILExtract.exe'
 else:
     OPENSMILE_BIN = 'third_party/opensmile/SMILExtract'
-
-
-def read_arff(file: str):
-    with open(file) as fid:
-        return arff.load(fid)
 
 
 def main():
@@ -38,30 +32,29 @@ def main():
                                help="Config file to use")
     required_args.add_argument('--annotations', type=Path, required=True,
                                help="Annotations file")
-    required_args.add_argument('--input_list', type=Path, required=True,
-                               help="File containing list of filenames")
+    required_args.add_argument('--input', type=Path, required=True,
+                               help="File containing list of files")
+    required_args.add_argument('--output', type=Path, required=True,
+                               help="Output file.")
 
     # Flags
-    parser.add_argument('--debug', help="For debugging", default=False,
-                        action='store_true')
-    parser.add_argument('--skip', help="Skip audio processing",
-                        default=False, action='store_true')
-    parser.add_argument('--noagg', help="Don't aggregate (save memory)",
-                        default=False, action='store_true')
+    parser.add_argument('--debug', action='store_true',
+                        help="For debugging")
+    parser.add_argument('--skip', action='store_true',
+                        help="Skip audio processing")
+    parser.add_argument('--noagg', action='store_true',
+                        help="Don't aggregate (save memory)")
 
     # Optional args
-    parser.add_argument('--output', type=Path, help="Directory to write data")
-    parser.add_argument('--prefix', help="Output file prefix")
-    parser.add_argument('--type', help="Type of annotations",
-                        default='classification')
+    parser.add_argument('--type', default='classification',
+                        help="Type of annotations")
 
-    args = parser.parse_args()
+    args, restargs = parser.parse_known_args()
 
     if not args.config.exists():
         raise FileNotFoundError("Config file doesn't exist")
-    prefix = args.prefix or args.config.stem
 
-    with open(args.input_list) as fid:
+    with open(args.input) as fid:
         input_list = [x.strip() for x in fid.readlines()]
     names = sorted(Path(f).stem for f in input_list)
 
@@ -69,6 +62,7 @@ def main():
     if args.type not in allowed_types:
         raise ValueError("--type must be one of", allowed_types)
 
+    prefix = args.config.stem
     if args.type == 'regression':
         prefix += '_regression'
 
@@ -77,7 +71,7 @@ def main():
     if not args.skip:
         tmp_dir.mkdir(parents=True, exist_ok=True)
 
-        with ProcessPoolExecutor() as pool:
+        with ThreadPoolExecutor() as pool:
             futures = {}
             for filename in input_list:
                 name = Path(filename).stem
@@ -93,7 +87,8 @@ def main():
                     '-csvoutput', output_file,
                     '-classes', '{unknown}',
                     '-class', 'unknown',
-                    '-instname', name
+                    '-instname', name,
+                    *restargs
                 ]
 
                 stdout = subprocess.DEVNULL
@@ -103,7 +98,7 @@ def main():
                     subprocess.run,
                     smile_args,
                     stdout=stdout,
-                    stderr=stdout)
+                    stderr=subprocess.STDOUT)
 
             pbar = tqdm(futures.items(), desc="Processing audio", unit='files')
             try:
@@ -138,17 +133,15 @@ def main():
     full_array = np.concatenate(arr_list, axis=0)
     assert len(full_array.shape) == 2
 
-    output_dir = args.output or Path('output') / args.corpus
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_file = output_dir / '{}.nc'.format(prefix)
+    args.output.parent.mkdir(parents=True, exist_ok=True)
 
     write_netcdf_dataset(
-        output_file, corpus=args.corpus, names=names, features=full_array,
+        args.output, corpus=args.corpus, names=names, features=full_array,
         slices=[x.shape[0] for x in arr_list],
         annotation_path=args.annotations, annotation_type=args.type
     )
 
-    print("Wrote netCDF dataset to {}".format(output_file))
+    print("Wrote netCDF dataset to {}".format(args.output))
 
 
 if __name__ == "__main__":
