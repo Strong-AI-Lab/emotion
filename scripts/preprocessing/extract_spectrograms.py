@@ -15,36 +15,8 @@ import tensorflow as tf
 import tensorflow_io as tfio
 from matplotlib import pyplot as plt
 
-from emotion_recognition.dataset import (corpora,
+from emotion_recognition.dataset import (corpora, write_netcdf_dataset,
                                          parse_classification_annotations)
-
-
-def _bytes_feature(value):
-    return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
-
-
-def _float_feature(value):
-    return tf.train.Feature(float_list=tf.train.FloatList(value=[value]))
-
-
-def _int64_feature(value):
-    return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
-
-
-def serialise_example(name: str, features: np.ndarray, label: str, fold: int,
-                      corpus: str):
-    example = tf.train.Example(features=tf.train.Features(feature={
-        'name': _bytes_feature(name),
-        'features': _bytes_feature(features.tobytes()),
-        'label': _bytes_feature(label),
-        'fold': _int64_feature(fold),
-        'features_shape': tf.train.Feature(int64_list=tf.train.Int64List(
-            value=list(features.shape))),
-        'features_dtype': _bytes_feature(
-            np.dtype(features.dtype).str.encode()),
-        'corpus': _bytes_feature(corpus)
-    }))
-    return example.SerializeToString()
 
 
 def write_audeep_dataset(path: Path,
@@ -230,7 +202,7 @@ def get_batched_audio(path: Path, batch_size: int = 128):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('input', type=Path,
+    parser.add_argument('--input', type=Path,
                         help="File containing list of WAV audio files.")
 
     parser.add_argument('--corpus', type=str, help="Corpus name.")
@@ -239,8 +211,8 @@ def main():
     parser.add_argument('--batch_size', type=int, default=128,
                         help="Batch size for processsing.")
 
-    parser.add_argument('--tfrecord', type=Path,
-                        help="Output to TFRecord format.")
+    parser.add_argument('--netcdf', type=Path,
+                        help="Output to NetCDF4 format.")
     parser.add_argument('--audeep', type=Path,
                         help="Output to NetCDF4 in audeep format.")
 
@@ -295,21 +267,15 @@ def main():
         plt.show()
         return
 
-    if not args.audeep and not args.tfrecord:
+    if not args.audeep and not args.netcdf:
         raise ValueError(
-            "Must specify either --preview, --tfrecord or --audeep options.")
+            "Must specify either --preview, --netcdf or --audeep options.")
 
     if args.labels:
         if not args.corpus:
             raise ValueError(
                 "--corpus must be provided if labels are provided.")
         labels = parse_classification_annotations(args.labels)
-
-    if args.corpus:
-        # For labelling the speaker cross-validation folds
-        speakers = corpora[args.corpus].speakers
-        get_speaker = corpora[args.corpus].get_speaker
-        speaker_idx = [speakers.index(get_speaker(x.stem)) for x in paths]
 
     print("Processing spectrograms:")
     start_time = time.perf_counter()
@@ -328,23 +294,21 @@ def main():
     print("Processed {} spectrograms in {:.4f}s".format(
         len(spectrograms), time.perf_counter() - start_time))
 
+    filenames = [x.stem for x in paths]
     if args.audeep is not None:
-        filenames = [x.stem for x in paths]
         write_audeep_dataset(args.audeep, spectrograms, filenames,
                              args.mel_bands, labels, args.corpus)
 
         print("Wrote netCDF dataset to {}.".format(args.audeep))
 
-    if args.tfrecord is not None:
-        with tf.io.TFRecordWriter(str(args.tfrecord)) as writer:
-            for i in range(len(paths)):
-                name = paths[i].stem
-                label = labels[name]
-                writer.write(serialise_example(
-                    name, spectrograms[i], label,
-                    speaker_idx[i] if args.corpus else 0, args.corpus or ''
-                ))
-        print("Wrote TFRecord to {}.".format(args.tfrecord))
+    if args.netcdf is not None:
+        slices = [spectrograms.shape[1] for _ in range(len(spectrograms))]
+        spectrograms = np.concatenate(spectrograms)
+        write_netcdf_dataset(
+            args.netcdf, corpus=args.corpus, names=filenames, slices=slices,
+            features=spectrograms, annotation_path=args.labels)
+
+        print("Wrote netCDF dataset to {}.".format(args.netcdf))
 
 
 if __name__ == "__main__":
