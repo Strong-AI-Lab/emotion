@@ -4,12 +4,19 @@ import numpy as np
 
 def pad_arrays(arrays: Union[List[np.ndarray], np.ndarray], pad: int = 32):
     """Pads each array to the nearest multiple of `pad` greater than the
-    array size. Assumes axis 0 of x is time.
+    array size. Assumes axis 0 of each sub-array, or axis 1 of x is
+    time.
     """
-    for i in range(len(arrays)):
-        x = arrays[i]
-        padding = int(np.ceil(x.shape[0] / pad)) * pad - x.shape[0]
-        arrays[i] = np.pad(x, ((0, padding), (0, 0)))
+    if isinstance(arrays, np.ndarray) and len(arrays.shape) > 1:
+        # Pad axis 1
+        padding = int(np.ceil(arrays.shape[1] / pad)) * pad - arrays.shape[1]
+        extra_dims = tuple((0, 0) for _ in arrays.shape[2:])
+        arrays = np.pad(arrays, ((0, 0), (0, padding)) + extra_dims)
+    else:
+        for i in range(len(arrays)):
+            x = arrays[i]
+            padding = int(np.ceil(x.shape[0] / pad)) * pad - x.shape[0]
+            arrays[i] = np.pad(x, ((0, padding), (0, 0)))
     return arrays
 
 
