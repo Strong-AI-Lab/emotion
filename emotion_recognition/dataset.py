@@ -220,7 +220,7 @@ class LabelledDataset(abc.ABC):
         elif scheme == 'speaker':
             for sp in range(len(self.speakers)):
                 idx = np.nonzero(self.speaker_indices == sp)[0]
-                if self.x.dtype == object:
+                if self.x.dtype == object or len(self.x.shape) == 3:
                     flat, slices = _make_flat(self.x[idx])
                     flat = normaliser.fit_transform(flat)
                     self.x[idx] = _make_ragged(flat, slices)
