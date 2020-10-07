@@ -9,8 +9,8 @@ set -e
 DIR=$1
 shift
 
-echo mkdir --parents "$DIR"
+mkdir --parents "$DIR"
 for x in "$@"; do
     dir=$(dirname "$x")
-    echo mv -t "$DIR/$dir" "$x"
+    mv -t "$DIR/$dir" "$x"
 done
