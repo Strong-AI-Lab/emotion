@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+from functools import partial
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -12,7 +13,10 @@ from emotion_recognition.dataset import LabelledDataset, NetCDFDataset
 from emotion_recognition.tensorflow.classification import tf_cross_validate
 from emotion_recognition.tensorflow.models import (aldeneh2017_model,
                                                    latif2019_model,
-                                                   zhang2019_model)
+                                                   zhang2019_model,
+                                                   zhao2019_model)
+from emotion_recognition.tensorflow.models.zhang2019 import \
+    create_windowed_dataset
 from emotion_recognition.tensorflow.utils import create_tf_dataset_ragged
 from scikeras.wrappers import KerasClassifier
 from sklearn.metrics import (get_scorer, make_scorer, precision_score,
@@ -99,6 +103,8 @@ def get_seq_model(kind: str = 'aldeneh2017', n_features: int = None,
         model = latif2019_model(n_classes)
     elif kind == 'zhang2019':
         model = zhang2019_model(n_classes)
+    elif kind == 'zhao2019':
+        model = zhao2019_model(n_features, n_classes)
     else:
         raise NotImplementedError("Other kinds of convolutional model are not "
                                   "currently implemented.")
@@ -167,15 +173,27 @@ def test_classifier(type_: str,
             )
         else:  # type_ == 'cnn'
             os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
-            params = dict(lr=1e-4, batch_size=16, epochs=50)
+            batch_size = 64
+            epochs = 50
+            lr = 1e-4
+            data_fn = create_tf_dataset_ragged
+            if kind == 'zhang2019':
+                batch_size = 16
+                data_fn = create_windowed_dataset
+            elif kind == 'zhao2019':
+                batch_size = 64
+            data_fn = partial(data_fn, batch_size=batch_size)
+            params = dict(lr=lr, batch_size=batch_size, epochs=epochs)
+
+            model_fn = partial(
+                get_seq_model, kind=kind, n_features=dataset.n_features,
+                n_classes=dataset.n_classes, lr=lr
+            )
             scores = tf_cross_validate(
-                get_seq_model, dataset.x, dataset.y,
-                model_params=dict(kind=kind, n_features=dataset.n_features,
-                                  n_classes=dataset.n_classes, lr=1e-4),
-                groups=dataset.speaker_group_indices, cv=splitter,
-                scoring=scoring, data_fn=create_tf_dataset_ragged,
-                data_params=dict(batch_size=16),
-                fit_params=dict(epochs=50, verbose=verbose)
+                model_fn, dataset.x, dataset.y, cv=splitter, scoring=scoring,
+                groups=dataset.speaker_group_indices, data_fn=data_fn,
+                sample_weight=sample_weight,
+                fit_params=dict(epochs=epochs, verbose=verbose)
             )
         # Make string to add to final dataframe
         params = json.dumps(params)
@@ -213,6 +231,11 @@ def main():
 
     parser.add_argument('--datatype', type=str, default='utterance',
                         help="The type of data: {raw, seq, vec}.")
+    parser.add_argument('--pad', type=int,
+                        help="Pad input sequences to this length.")
+    parser.add_argument('--clip', type=int,
+                        help="Clips input sequences to this maximum length.")
+
     parser.add_argument('--name', type=str, help="The results output name.")
     parser.add_argument('--results', type=Path, help="Results directory.")
     parser.add_argument('--reps', type=int, default=1,
@@ -229,10 +252,10 @@ def main():
 
     dataset = NetCDFDataset(args.data)
     dataset.normalise(normaliser=StandardScaler(), scheme='speaker')
-    if args.datatype in ['seq', 'raw']:
-        dataset.pad_arrays(64)
-        if args.datatype == 'raw':
-            dataset.clip_arrays(5 * 16000)
+    if args.pad:
+        dataset.pad_arrays(args.pad)
+    if args.clip:
+        dataset.clip_arrays(args.clip)
 
     test_classifier(args.clf, args.kind, dataset, reps=args.reps,
                     results=args.results, verbose=args.verbose)

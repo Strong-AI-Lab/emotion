@@ -1,9 +1,52 @@
-from typing import Optional
+from typing import Callable, Optional, Tuple
 
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import Layer, Wrapper
 from tensorflow.keras.models import Model
+
+TFModelFunction = Callable[[], Model]
+DataFunction = Callable[[np.ndarray, np.ndarray], tf.data.Dataset]
+
+
+def test_fit(model_fn: TFModelFunction, input_size: Tuple[int], *args,
+             batch_size: int = 64, num_instances: int = 7000, **kwargs):
+    """Tests the given model architecture/structure by training it on
+    dummy data.
+
+    Args:
+    -----
+    model_fn: callable
+        Function that returns a Keras model. Called as model_fn(*args,
+        **kwargs).
+    input_size: tuple of int
+        Input shape to the model. This is used to generate dummy data of
+        the correct shape.
+    *args
+        Positional arguments to pass to model_fn().
+    batch_size: int
+        The batch size to use.
+    num_instances: int
+        The number of instances to generate.
+    **kwargs
+        Keyword arguments to pass to model_fn().
+    """
+    for gpu in tf.config.get_visible_devices('GPU'):
+        tf.config.experimental.set_memory_growth(gpu, True)
+
+    model = model_fn(*args, n_classes=7, **kwargs)
+    model.compile(loss='sparse_categorical_crossentropy',
+                  metrics=['sparse_categorical_accuracy'])
+    model.summary()
+
+    valid = num_instances // 10
+    x = np.random.default_rng().normal(size=(num_instances,) + input_size)
+    y = np.random.default_rng().integers(7, size=num_instances)
+    train_data = tf.data.Dataset.from_tensor_slices((x[valid:], y[valid:]))
+    train_data = train_data.batch(batch_size)
+    valid_data = tf.data.Dataset.from_tensor_slices((x[:valid], y[:valid]))
+    valid_data = valid_data.batch(batch_size)
+    model.fit(train_data, validation_data=valid_data, epochs=2, verbose=1)
 
 
 def create_tf_dataset(x: np.ndarray,

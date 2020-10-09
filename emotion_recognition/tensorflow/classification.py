@@ -1,25 +1,25 @@
 from collections import defaultdict
+from functools import partial
+from itertools import chain
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import tensorflow as tf
+from sklearn.metrics import get_scorer
 from sklearn.model_selection import BaseCrossValidator, LeaveOneGroupOut
 from sklearn.model_selection._validation import _score
-from sklearn.metrics import get_scorer
 from tensorflow.keras.callbacks import Callback, TensorBoard
+from tensorflow.keras.losses import Loss, SparseCategoricalCrossentropy
 from tensorflow.keras.metrics import SparseCategoricalAccuracy
 from tensorflow.keras.models import Model
-from tensorflow.keras.losses import Loss, SparseCategoricalCrossentropy
 from tensorflow.keras.optimizers import Adam, Optimizer
 from tensorflow.keras.utils import Sequence
+from tqdm import tqdm
 
 from ..classification import Classifier, ScoreFunction
 from ..utils import batch_arrays, shuffle_multiple
-from .utils import create_tf_dataset_ragged
-
-TFModelFunction = Callable[[], Model]
-DataFunction = Callable[[np.ndarray, np.ndarray], tf.data.Dataset]
+from .utils import create_tf_dataset_ragged, DataFunction, TFModelFunction
 
 
 class _DummyEstimator:
@@ -30,14 +30,92 @@ class _DummyEstimator:
         return self.y_pred
 
 
-def tf_cross_validate(model_fn: TFModelFunction, x: np.ndarray, y: np.ndarray,
+def fit(model: Model,
+        train_data: tf.data.Dataset,
+        valid_data: Optional[tf.data.Dataset] = None,
+        epochs: int = 1,
+        verbose: bool = False,
+        **kwargs):
+    @tf.function
+    def train_step(data, use_sample_weight=False):
+        if use_sample_weight:
+            x, y_true, sample_weight = data
+        else:
+            x, y_true = data
+            sample_weight = None
+
+        with tf.GradientTape() as tape:
+            y_pred = model(x, training=True)
+            loss = model.compiled_loss(y_true, y_pred,
+                                       sample_weight=sample_weight)
+
+        gradients = tape.gradient(loss, model.trainable_variables)
+        model.optimizer.apply_gradients(zip(gradients,
+                                            model.trainable_variables))
+        model.compiled_metrics.update_state(y_true, y_pred,
+                                            sample_weight=sample_weight)
+        return loss
+
+    @tf.function
+    def test_step(data, use_sample_weight=False):
+        if use_sample_weight:
+            x, y_true, sample_weight = data
+        else:
+            x, y_true = data
+            sample_weight = None
+
+        y_pred = model(x, training=False)
+        loss = model.compiled_loss(y_true, y_pred, sample_weight=sample_weight)
+        model.compiled_metrics.update_state(y_true, y_pred,
+                                            sample_weight=sample_weight)
+        return loss
+
+    use_sample_weight = len(train_data.element_spec) == 3
+    iter_fn = partial(tqdm, leave=False) if verbose else iter
+    for epoch in range(epochs):
+        train_loss = 0.0
+        train_metrics = []
+        n_batch = 0
+        for batch in iter_fn(train_data):
+            loss = train_step(batch, use_sample_weight)
+            train_loss += loss
+            n_batch += 1
+        train_loss /= n_batch
+        for metric in model.compiled_metrics.metrics:
+            train_metrics.append(metric.result())
+            metric.reset_states()
+
+        valid_loss = 0.0
+        valid_metrics = []
+        n_batch = 0
+        if valid_data is not None:
+            for batch in iter_fn(valid_data):
+                loss = test_step(batch, use_sample_weight)
+                valid_loss += loss
+                n_batch += 1
+            valid_loss /= n_batch
+            for metric in model.compiled_metrics.metrics:
+                valid_metrics.append(metric.result())
+                metric.reset_states()
+
+        if verbose:
+            msg = "Epoch {:03d}: train_loss = {:.4f}, valid_loss = {:.4f}"
+            for metric in model.compiled_metrics.metrics:
+                msg += ", train_{0} = {{:.4f}}, valid_{0} = {{:.4f}}".format(
+                    metric.name)
+            metric_vals = chain(*zip(train_metrics, valid_metrics))
+            print(msg.format(epoch, train_loss, valid_loss, *metric_vals))
+
+
+def tf_cross_validate(model_fn: TFModelFunction,
+                      x: np.ndarray,
+                      y: np.ndarray,
                       groups: Optional[np.ndarray] = None,
                       cv: BaseCrossValidator = LeaveOneGroupOut(),
                       scoring: Union[str, List[str],
                                      Dict[str, ScoreFunction]] = 'accuracy',
                       data_fn: DataFunction = create_tf_dataset_ragged,
-                      model_params: Dict[str, Any] = {},
-                      data_params: Dict[str, Any] = {},
+                      sample_weight=None,
                       fit_params: Dict[str, Any] = {}):
     """Performs cross-validation on a TensorFlow model. This works with
     both sequence models and single vector models.
@@ -66,12 +144,6 @@ def tf_cross_validate(model_fn: TFModelFunction, x: np.ndarray, y: np.ndarray,
         A callable that returns a tensorflow.data.Dataset instance which
         yields data batches. The call signature of data_fn should be
         data_fn(x, y, shuffle=True, **kwargs).
-    model_params: dict, optional
-        Any keyword arguments to supply to model_fn. Default is no
-        keyword arguments.
-    data_params: dict, optional
-        Any keyword arguments to supply to data_fn. Default is no
-        keyword arguments.
     fit_params: dict, optional
         Any keyword arguments to supply to the Keras fit() method.
         Default is no keyword arguments.
@@ -86,12 +158,21 @@ def tf_cross_validate(model_fn: TFModelFunction, x: np.ndarray, y: np.ndarray,
         y_train = y[train]
         x_test = x[test]
         y_test = y[test]
-        train_data = data_fn(x_train, y_train, shuffle=True, **data_params)
-        test_data = data_fn(x_test, y_test, shuffle=False, **data_params)
+        if sample_weight is not None:
+            sw_train = sample_weight[train]
+            sw_test = sample_weight[test]
+            train_data = data_fn(x_train, y_train, sample_weight=sw_train,
+                                 shuffle=True)
+            test_data = data_fn(x_test, y_test, sample_weight=sw_test,
+                                shuffle=False)
+        else:
+            train_data = data_fn(x_train, y_train, shuffle=True)
+            test_data = data_fn(x_test, y_test, shuffle=False)
 
-        clf = model_fn(**model_params)
+        clf = model_fn()
         # Use validation data just for info
         clf.fit(train_data, validation_data=test_data, **fit_params)
+        # fit(clf, train_data, valid_data=test_data, **fit_params)
         y_true = np.concatenate([x[1] for x in test_data])
         y_pred = np.argmax(clf.predict(test_data), axis=-1)
 

@@ -7,25 +7,42 @@ Processing (ICASSP), May 2019, pp. 6705–6709, doi:
 10.1109/ICASSP.2019.8682896.
 """
 
+from typing import Optional
+
+import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import (GRUCell, Conv1D, Dense, Dropout, Input, Layer, RNN,
-                                     MaxPool1D, Reshape, TimeDistributed)
+from tensorflow.keras.layers import (RNN, Conv1D, Dense, Dropout, GRUCell, GRU,
+                                     Input, MaxPool1D, Reshape,
+                                     TimeDistributed)
 from tensorflow.keras.models import Model, Sequential
 
-__all__ = ['zhang2019_model']
+from .layers import Attention1D
+from ..utils import create_tf_dataset
+
+__all__ = ['zhang2019_model', 'create_windowed_dataset']
 
 
-class Attention1D(Layer):
-    def build(self, input_shape: tuple):
-        _, _, size = input_shape
-        self.weight = self.add_weight('weight', (size, 1))
-
-    def call(self, inputs, **kwargs):
-        alpha = tf.matmul(inputs, self.weight)  # (batch, steps, 1)
-        alpha = tf.nn.softmax(alpha, axis=-2)
-        r = tf.matmul(alpha, inputs, transpose_a=True)  # (batch, 1, size)
-        r = tf.squeeze(r, axis=-2)  # (batch, size)
-        return r
+def create_windowed_dataset(x: np.ndarray,
+                            y: np.ndarray,
+                            sample_weight: Optional[np.ndarray] = None,
+                            batch_size: int = 64,
+                            shuffle: bool = True) -> tf.data.Dataset:
+    """Creates a non-ragged dataset with zero-padding. This appears to cause
+    OOM issues while using tf.signal.frame doesn't.
+    """
+    arrs = []
+    for seq in x:
+        seq = np.squeeze(seq)
+        arr = np.zeros((500, 640), dtype=np.float32)
+        for i in range(0, min(len(seq), 80000), 160):
+            idx = i // 160
+            maxl = min(len(seq) - i, 640)
+            arr[idx, :maxl] = seq[i:i + 640]
+        arrs.append(arr)
+    arrs = np.array(arrs)
+    assert tuple(arrs.shape) == (len(x), 500, 640)
+    return create_tf_dataset(arrs, y, sample_weight=sample_weight,
+                             batch_size=batch_size, shuffle=shuffle)
 
 
 def zhang2019_model(n_classes: int):
@@ -33,8 +50,8 @@ def zhang2019_model(n_classes: int):
     # samples per 40ms segment. Each subsequent vector is shifted 10ms
     # from the previous. We assume the sequences are zero-padded to a
     # multiple of 640 samples.
-    inputs = Input((None, 1), name='input')
-    frames = tf.signal.frame(inputs, 640, 160, axis=1)
+    inputs = Input((500, 640), name='input')
+    frames = tf.expand_dims(inputs, -1)
     dropout = Dropout(0.1)(frames)
 
     # Conv + maxpool over the 640 samples
@@ -47,6 +64,7 @@ def zhang2019_model(n_classes: int):
     features = TimeDistributed(extraction)(dropout)
 
     # Sequence modelling
+    # gru = GRU(128, return_sequences=True)(features)
     gru = RNN([GRUCell(128), GRUCell(128)], return_sequences=True)(features)
 
     # Attention
@@ -57,5 +75,6 @@ def zhang2019_model(n_classes: int):
 
 
 if __name__ == "__main__":
-    model = zhang2019_model(4)
-    model.summary()
+    from ..utils import test_fit
+
+    test_fit(zhang2019_model, (500, 640), batch_size=16)
