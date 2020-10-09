@@ -1,4 +1,5 @@
 flake8
+joblib
 tensorflow>=2.3
 tensorflow-probability
 tensorflow-datasets

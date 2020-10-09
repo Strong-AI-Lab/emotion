@@ -5,20 +5,49 @@
 import argparse
 import subprocess
 import sys
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from functools import partial
+import tempfile
 from pathlib import Path
+from typing import List, Union
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
-
 from emotion_recognition.dataset import write_netcdf_dataset
+from joblib import Parallel, delayed
 
 if sys.platform == 'win32':
     OPENSMILE_BIN = 'third_party\\opensmile\\SMILExtract.exe'
 else:
     OPENSMILE_BIN = 'third_party/opensmile/SMILExtract'
+
+
+def opensmile(path: Union[str, Path], config: Union[str, Path],
+              tmp: Union[str, Path] = 'tmp', debug: bool = False,
+              restargs: List[str] = []):
+    name = Path(path).stem
+    output_file = Path(tmp) / '{}.csv'.format(name)
+    if output_file.exists():
+        output_file.unlink()
+
+    smile_args = [
+        OPENSMILE_BIN,
+        '-C', str(config),
+        '-I', str(path),
+        '-csvoutput', str(output_file),
+        '-classes', '{unknown}',
+        '-class', 'unknown',
+        '-instname', name,
+        *restargs
+    ]
+
+    stdout = subprocess.DEVNULL
+    if debug:
+        stdout = None
+    subprocess.run(smile_args, stdout=stdout, stderr=subprocess.STDOUT)
+
+
+def process_csv(path: Union[str, Path]):
+    df = pd.read_csv(path, quotechar="'", header=None)
+    return df.iloc[:, 1:]
 
 
 def main():
@@ -40,10 +69,6 @@ def main():
     # Flags
     parser.add_argument('--debug', action='store_true',
                         help="For debugging")
-    parser.add_argument('--skip', action='store_true',
-                        help="Skip audio processing")
-    parser.add_argument('--noagg', action='store_true',
-                        help="Don't aggregate (save memory)")
 
     # Optional args
     parser.add_argument('--type', default='classification',
@@ -62,79 +87,26 @@ def main():
     if args.type not in allowed_types:
         raise ValueError("--type must be one of", allowed_types)
 
-    prefix = args.config.stem
-    if args.type == 'regression':
-        prefix += '_regression'
+    with tempfile.TemporaryDirectory(prefix='opensmile',
+                                     suffix=args.corpus) as tmp:
+        parallel_args = dict(n_jobs=1 if args.debug else -1, verbose=1)
+        Parallel(prefer='threads', **parallel_args)(
+            delayed(opensmile)(path, args.config, tmp, args.debug, restargs)
+            for path in input_list
+        )
 
-    tmp_dir = Path('tmp') / args.corpus
-
-    if not args.skip:
-        tmp_dir.mkdir(parents=True, exist_ok=True)
-
-        with ThreadPoolExecutor() as pool:
-            futures = {}
-            for filename in input_list:
-                name = Path(filename).stem
-
-                output_file = tmp_dir / '{}_{}.csv'.format(prefix, name)
-                if output_file.exists():
-                    output_file.unlink()
-
-                smile_args = [
-                    OPENSMILE_BIN,
-                    '-C', str(args.config),
-                    '-I', filename,
-                    '-csvoutput', output_file,
-                    '-classes', '{unknown}',
-                    '-class', 'unknown',
-                    '-instname', name,
-                    *restargs
-                ]
-
-                stdout = subprocess.DEVNULL
-                if args.debug:
-                    stdout = None
-                futures[name] = pool.submit(
-                    subprocess.run,
-                    smile_args,
-                    stdout=stdout,
-                    stderr=subprocess.STDOUT)
-
-            pbar = tqdm(futures.items(), desc="Processing audio", unit='files')
-            try:
-                for name, future in pbar:
-                    future.result()
-            except KeyboardInterrupt:
-                print("Cancelling...")
-                for future in futures.values():
-                    future.cancel()
-                pbar.close()
-                sys.exit(1)
-
-    if args.noagg:
-        return
-
-    with ProcessPoolExecutor() as pool:
-        futures = {}
-        tmp_files = (tmp_dir / '{}_{}.csv'.format(prefix, name)
-                     for name in names)
-        for filename in tmp_files:
-            name = filename.stem
-            futures[name] = pool.submit(
-                partial(pd.read_csv, quotechar="'", header=None), filename)
-
-        pbar = tqdm(futures.items(), desc="Processing data", unit='files')
-        arr_list = []
-        for name, future in pbar:
-            df = future.result()
-            arr_list.append(df.iloc[:, 1:])  # Ignore name
+        tmp_files = (Path(tmp) / '{}.csv'.format(name) for name in names)
+        # Use CPUs for this because I don't think it releases the GIL for
+        # the whole thing
+        arr_list = Parallel(**parallel_args)(
+            delayed(process_csv)(path) for path in tmp_files
+        )
 
     # This should be a 2D array
     full_array = np.concatenate(arr_list, axis=0)
     assert len(full_array.shape) == 2
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-
     write_netcdf_dataset(
         args.output, corpus=args.corpus, names=names, features=full_array,
         slices=[x.shape[0] for x in arr_list],
