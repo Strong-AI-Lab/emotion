@@ -1,11 +1,41 @@
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 import numpy as np
+
+
+def frame_arrays(arrays: Union[List[np.ndarray], np.ndarray],
+                 frame_size: int = 640, frame_shift: int = 160,
+                 num_frames: Optional[int] = None):
+    """Creates sequences of frames from the given arrays. Each input
+    array is a 1-D or Lx1 time domain signal. Each corresponding output
+    array is a 2-D array of frames of shape (num_frames, frame_size).
+    """
+    # TODO: Make option for vlen output
+    if num_frames is None:
+        max_len = max(len(x) for x in arrays)
+        num_frames = (max_len - frame_size) // frame_shift + 1
+
+    arrs = []
+    for seq in arrays:
+        seq = np.squeeze(seq)
+        arr = np.zeros((num_frames, frame_size), dtype=np.float32)
+        for i in range(0, len(seq), frame_shift):
+            idx = i // frame_shift
+            if idx >= num_frames:
+                break
+            maxl = min(len(seq) - i, frame_size)
+            arr[idx, :maxl] = seq[i:i + frame_size]
+        arrs.append(arr)
+    arrs = np.array(arrs)
+    assert tuple(arrs.shape) == (len(arrays), num_frames, frame_size)
+    return arrs
 
 
 def pad_arrays(arrays: Union[List[np.ndarray], np.ndarray], pad: int = 32):
     """Pads each array to the nearest multiple of `pad` greater than the
     array size. Assumes axis 0 of each sub-array, or axis 1 of x is
     time.
+
+    NOTE: This function modifies the arrays in-place.
     """
     if isinstance(arrays, np.ndarray) and len(arrays.shape) > 1:
         # Pad axis 1
@@ -21,7 +51,10 @@ def pad_arrays(arrays: Union[List[np.ndarray], np.ndarray], pad: int = 32):
 
 
 def clip_arrays(arrays: Union[List[np.ndarray], np.ndarray], length: int):
-    """Clips each array to the specified maximum length."""
+    """Clips each array to the specified maximum length.
+
+    NOTE: This function modifies the arrays in-place.
+    """
     for i in range(len(arrays)):
         arrays[i] = np.copy(arrays[i][:length])
     assert all(len(x) <= length for x in arrays)
@@ -62,7 +95,7 @@ def batch_arrays(arrays_x: List[np.ndarray], y: np.ndarray,
     batch will have a maximum of batch_size arrays, but may have less if
     there are fewer arrays of the same length. It is recommended to use
     the pad_arrays() method of the LabelledDataset instance before using
-    this function, in order to quantise the lengths somewhat.
+    this function, in order to quantise the lengths.
 
     Parameters:
     -----
@@ -91,7 +124,7 @@ def batch_arrays(arrays_x: List[np.ndarray], y: np.ndarray,
         lengths[i].
     y_list: ndarray
         The batched labels corresponding to sequences in x_list.
-        y_list[i] has the same size as x_list[i].
+        y_list[i] has the same length as x_list[i].
     """
     if shuffle:
         arrays_x, y = shuffle_multiple(arrays_x, y, numpy_indexing=False)
@@ -99,6 +132,8 @@ def batch_arrays(arrays_x: List[np.ndarray], y: np.ndarray,
     fixed_shape = arrays_x[0].shape[1:]
     lengths = [x.shape[0] for x in arrays_x]
     unique_len = np.unique(lengths)
+    x_dtype = arrays_x[0].dtype
+    y_dtype = y.dtype
 
     x_list = []
     y_list = []
@@ -107,14 +142,13 @@ def batch_arrays(arrays_x: List[np.ndarray], y: np.ndarray,
         for b in range(0, len(idx), batch_size):
             batch_idx = idx[b:b + batch_size]
             size = batch_size if uniform_batch_size else len(batch_idx)
-            _x = np.zeros((size, length) + fixed_shape, dtype=np.float32)
-            _y = np.zeros(size, dtype=np.float32)
+            _x = np.zeros((size, length) + fixed_shape, dtype=x_dtype)
+            _y = np.zeros(size, dtype=y_dtype)
             _y[:size] = y[batch_idx]
             for i, j in enumerate(batch_idx):
                 _x[i, ...] = arrays_x[j]
             x_list.append(_x)
             y_list.append(_y)
     x_list = np.array(x_list, dtype=object)
-    y_list = np.array(y_list,
-                      dtype=np.float32 if uniform_batch_size else object)
+    y_list = np.array(y_list, dtype=y_dtype if uniform_batch_size else object)
     return x_list, y_list
