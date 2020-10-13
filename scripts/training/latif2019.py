@@ -58,8 +58,8 @@ def main():
                              corpus=corpus)
         dataset.pad_arrays()
 
-        class_weight = ((dataset.n_instances / dataset.n_classes)
-                        / np.bincount(dataset.y.astype(np.int)))
+        class_weight = (dataset.n_instances
+                        / (dataset.n_classes * dataset.class_counts))
         class_weight = dict(zip(range(dataset.n_classes), class_weight))
 
         data_fn = partial(create_tf_dataset_ragged, batch_size=64)

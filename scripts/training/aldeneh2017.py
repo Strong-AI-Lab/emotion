@@ -117,7 +117,7 @@ def get_tf_dataset(x: np.ndarray, y: np.ndarray, shuffle=True, batch_size=50):
     return data.map(ragged_to_dense)
 
 
-def test_svm_models(dataset, config):
+def test_svm_models(dataset: NetCDFDataset, config: str):
     param_grid = ParameterGrid({
         'C': 2.0**np.arange(0, 13, 2),
         'gamma': 2.0**np.arange(-15, -2, 2)
@@ -139,14 +139,14 @@ def test_svm_models(dataset, config):
     df.to_csv(output_dir / '{}.csv'.format(config))
 
 
-def test_dense_model(dataset, config='logmel_func'):
+def test_dense_model(dataset: NetCDFDataset, config: str = 'logmel_func'):
     model = get_dense_model(480, 4)
     model.summary()
     del model
     tf.keras.backend.clear_session()
 
-    class_weight = ((dataset.n_instances / dataset.n_classes)
-                    / np.bincount(dataset.y.astype(np.int)))
+    class_weight = (dataset.n_instances
+                    / (dataset.n_classes * dataset.class_counts))
     class_weight = dict(zip(range(dataset.n_classes), class_weight))
 
     df = within_corpus_cross_validation(
@@ -169,14 +169,14 @@ def test_dense_model(dataset, config='logmel_func'):
     df.to_csv(output_dir / '{}.csv'.format(config))
 
 
-def test_conv_models(dataset, config='logmel'):
+def test_conv_models(dataset: NetCDFDataset, config: str = 'logmel'):
     model = get_conv_model(40, dataset.n_classes)
     model.summary()
     del model
     tf.keras.backend.clear_session()
 
-    class_weight = ((dataset.n_instances / dataset.n_classes)
-                    / np.bincount(dataset.y.astype(np.int)))
+    class_weight = (dataset.n_instances
+                    / (dataset.n_classes * dataset.class_counts))
     class_weight = dict(zip(range(dataset.n_classes), class_weight))
 
     for n_filters, kernel_size in [(384, 8), (288, 16), (208, 32), (128, 64),
@@ -205,14 +205,14 @@ def test_conv_models(dataset, config='logmel'):
         df.to_csv(output_dir / '{}_{}.csv'.format(config, kernel_size))
 
 
-def test_full_model(dataset, config='logmel'):
+def test_full_model(dataset: NetCDFDataset, config: str = 'logmel'):
     model = full_model(40, dataset.n_classes)
     model.summary()
     del model
     tf.keras.backend.clear_session()
 
-    class_weight = ((dataset.n_instances / dataset.n_classes)
-                    / np.bincount(dataset.y.astype(np.int)))
+    class_weight = (dataset.n_instances
+                    / (dataset.n_classes * dataset.class_counts))
     class_weight = dict(zip(range(dataset.n_classes), class_weight))
 
     df = within_corpus_cross_validation(
