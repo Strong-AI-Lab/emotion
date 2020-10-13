@@ -27,9 +27,7 @@ def create_windowed_dataset(x: np.ndarray,
                             sample_weight: Optional[np.ndarray] = None,
                             batch_size: int = 64,
                             shuffle: bool = True) -> tf.data.Dataset:
-    """Creates a non-ragged dataset with zero-padding. This appears to cause
-    OOM issues while using tf.signal.frame doesn't.
-    """
+    """Creates a non-ragged dataset with zero-padding."""
     arrs = []
     for seq in x:
         seq = np.squeeze(seq)
