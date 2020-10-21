@@ -1,5 +1,6 @@
 import argparse
 import time
+from os import PathLike
 from pathlib import Path
 from typing import Any, Dict, Union
 
@@ -20,7 +21,7 @@ import tensorflow as tf
 import tensorboard as tb
 tf.io.gfile = tb.compat.tensorflow_stub.io.gfile
 
-DEVICE = torch.device('cuda:0')
+DEVICE = torch.device('cuda')
 
 
 class TimeRecurrentAutoencoder(nn.Module):
@@ -132,13 +133,34 @@ def save_model(directory: Union[Path, str], epoch: int,
     print("Saved model to {}.".format(save_path))
 
 
+def get_data(path: Union[PathLike, str], shuffle: bool = False):
+    """Get data and metadata from netCDF dataset. Optionally shuffle x.
+    """
+    dataset = netCDF4.Dataset(path)
+    x = np.array(dataset.variables['features'])
+    num_inst = dataset.dimensions['instance'].size
+    filenames = np.array(dataset.variables['filename'])
+    labels = np.array(dataset.variables['label_nominal'])
+    corpus = dataset.corpus
+    dataset.close()
+
+    if len(x.shape) == 2:
+        assert len(x) % num_inst == 0, "Length of x is not a multiple of number of instances!"  # noqa
+        num_feat = x.shape[-1]
+        x = x.reshape((num_inst, -1, num_feat))
+
+    if shuffle:
+        perm = np.random.default_rng().permutation(len(x))
+        x = x[perm]
+        filenames = filenames[perm]
+        labels = labels[perm]
+
+    return x, filenames, labels, corpus
+
+
 def train(args):
     print("Reading input from {}.".format(args.input))
-    dataset = netCDF4.Dataset(args.input)
-    x = np.array(dataset.variables['features'])
-    dataset.close()
-    np.random.default_rng().shuffle(x)
-
+    x = get_data(args.input, shuffle=True)[0]
     x = torch.tensor(x)
 
     n_valid = int(args.valid_fraction * x.size(0))
@@ -266,12 +288,7 @@ def generate(args):
     model.cuda()
     model.load_state_dict(load_dict['model_state_dict'])
 
-    dataset = netCDF4.Dataset(args.input)
-    x = np.array(dataset.variables['features'])
-    filenames = np.array(dataset.variables['filename'])
-    labels = np.array(dataset.variables['label_nominal'])
-    corpus = dataset.corpus
-    dataset.close()
+    x, filenames, labels, corpus = get_data(args.input)
 
     representations = []
     with torch.no_grad():
@@ -304,29 +321,54 @@ def main():
 
     # Training arguments
     train_args = subparsers.add_parser('train')
-    train_args.add_argument('--input', type=Path, required=True)
-    train_args.add_argument('--logs', type=Path, required=True)
+    train_args.add_argument('--input', type=Path, required=True,
+                            help="Path to spectrogram data.")
+    train_args.add_argument('--logs', type=Path, required=True,
+                            help="Directory to log training.")
 
-    train_args.add_argument('--units', type=int, default=256)
-    train_args.add_argument('--layers', type=int, default=2)
-    train_args.add_argument('--dropout', type=float, default=0.2)
-    train_args.add_argument('--bidirectional_encoder', action='store_true')
-    train_args.add_argument('--bidirectional_decoder', action='store_true')
+    train_args.add_argument('--layers', type=int, default=2,
+                            help="Number of GRU layers.")
+    train_args.add_argument('--units', type=int, default=256,
+                            help="Number of GRU units per layer.")
+    train_args.add_argument(
+        '--dropout', type=float, default=0.2,
+        help="Dropout to apply to recurrent inputs and outputs."
+    )
+    train_args.add_argument(
+        '--bidirectional_encoder', action='store_true',
+        help="Use a bidirectional encoder instead of unidirectional."
+    )
+    train_args.add_argument(
+        '--bidirectional_decoder', action='store_true',
+        help="Use a bidirectional decoder instead of unidirectional."
+    )
 
-    train_args.add_argument('--batch_size', type=int, default=64)
-    train_args.add_argument('--epochs', type=int, default=50)
-    train_args.add_argument('--learning_rate', type=float, default=0.001)
-    train_args.add_argument('--valid_fraction', type=float, default=0.2)
-    train_args.add_argument('--continue', dest='cont', action='store_true')
-    train_args.add_argument('--save_every', type=int, default=20)
+    train_args.add_argument('--batch_size', type=int, default=64,
+                            help="Batch size to use for training.")
+    train_args.add_argument('--epochs', type=int, default=50,
+                            help="Number of epochs to train for.")
+    train_args.add_argument('--learning_rate', type=float, default=0.001,
+                            help="Learning rate to use.")
+    train_args.add_argument('--valid_fraction', type=float, default=0.1,
+                            help="Proportion of data to use for validation.")
+    train_args.add_argument('--continue', dest='cont', action='store_true',
+                            help="Continue from saved model.")
+    train_args.add_argument('--save_every', type=int, default=20,
+                            help="Save model every N epochs.")
 
     # Feature generation arguments
     gen_args = subparsers.add_parser('generate')
-    gen_args.add_argument('--input', type=Path, required=True)
-    gen_args.add_argument('--model', type=Path, required=True)
-    gen_args.add_argument('--output', type=Path, required=True)
+    gen_args.add_argument('--input', type=Path, required=True,
+                          help="Path to spectrogram data.")
+    gen_args.add_argument('--model', type=Path, required=True,
+                          help="Path to saved model file or directory.")
+    gen_args.add_argument('--output', type=Path, required=True,
+                          help="Path to output generated representations.")
 
-    gen_args.add_argument('--batch_size', type=int, default=128)
+    gen_args.add_argument(
+        '--batch_size', type=int, default=128,
+        help="Batch size to use for generating representations."
+    )
 
     args = parser.parse_args()
 
