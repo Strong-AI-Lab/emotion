@@ -46,7 +46,7 @@ def main():
 
     write_netcdf_dataset(
         args.output_file, corpus='combined', names=names, features=features,
-        slices=slices, annotations=labels, annotation_type='given'
+        slices=slices, annotations=labels, annotation_type='classification'
     )
     print("Wrote netCDF4 dataset to {}".format(args.output_file))
 
