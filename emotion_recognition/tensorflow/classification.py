@@ -116,6 +116,7 @@ def tf_cross_validate(model_fn: TFModelFunction,
                                      Dict[str, ScoreFunction]] = 'accuracy',
                       data_fn: DataFunction = create_tf_dataset_ragged,
                       sample_weight=None,
+                      log_dir: Optional[Path] = None,
                       fit_params: Dict[str, Any] = {}):
     """Performs cross-validation on a TensorFlow model. This works with
     both sequence models and single vector models.
@@ -171,7 +172,16 @@ def tf_cross_validate(model_fn: TFModelFunction,
 
         clf = model_fn()
         # Use validation data just for info
-        clf.fit(train_data, validation_data=test_data, **fit_params)
+        callbacks = []
+        if log_dir is not None:
+            tb_log_dir = log_dir / str(fold)
+            callbacks.append(
+                TensorBoard(log_dir=tb_log_dir, profile_batch=0,
+                            write_graph=False, write_images=False)
+            )
+        history = clf.fit(train_data, validation_data=test_data,
+                          callbacks=callbacks, **fit_params)
+        scores['history'].append(history.history)
         # fit(clf, train_data, valid_data=test_data, **fit_params)
         y_true = np.concatenate([x[1] for x in test_data])
         y_pred = np.argmax(clf.predict(test_data), axis=-1)
