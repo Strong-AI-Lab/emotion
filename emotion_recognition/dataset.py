@@ -15,7 +15,7 @@ from sklearn.preprocessing import StandardScaler, label_binarize
 
 from .binary_arff import decode as decode_arff
 from .corpora import corpora
-from .utils import clip_arrays, pad_arrays
+from .utils import clip_arrays, frame_arrays, pad_arrays
 
 
 def parse_regression_annotations(filename: Union[PathLike, str]) \
@@ -39,7 +39,8 @@ def write_netcdf_dataset(path: Union[PathLike, str],
                          names: List[str],
                          features: np.ndarray,
                          slices: List[int],
-                         annotation_path: Union[PathLike, str],
+                         annotations: Optional[np.ndarray] = None,
+                         annotation_path: Optional[Union[PathLike, str]] = None,  # noqa
                          annotation_type: str = 'classification'):
     """Writes a netCDF4 dataset to the given path. The dataset should contain
     features and annotations. Note that the features matrix has to be 2-D, and
@@ -62,7 +63,9 @@ def write_netcdf_dataset(path: Union[PathLike, str],
         The size of each slice along axis 0 of features. If there is one vector
         per instance, then this will be all 1's, otherwise will have the length
         of the sequence corresponding to each instance.
-    annotation_path: pathlike or str
+    annotations: np.ndarray, optional
+        Annotations obtained elsewhere.
+    annotation_path: pathlike or str, optional
         The path to an annotation file.
     annotation_type: str
         The type of annotations, one of {regression, classification}.
@@ -78,20 +81,35 @@ def write_netcdf_dataset(path: Union[PathLike, str],
     filename = dataset.createVariable('filename', str, ('instance',))
     filename[:] = np.array(names)
 
-    label_nominal = dataset.createVariable('label_nominal', str, ('instance',))
-    if annotation_type == 'regression':
-        annotations = parse_regression_annotations(annotation_path)
-        keys = next(iter(annotations.values())).keys()
-        for k in keys:
-            var = dataset.createVariable(k, np.float32, ('instance',))
-            var[:] = np.array([annotations[x][k] for x in names])
-        dataset.setncattr_string(
-            'annotation_vars', json.dumps([k for k in keys]))
-    elif annotation_type == 'classification':
-        annotations = parse_classification_annotations(annotation_path)
-        label_nominal[:] = np.array([annotations[x] for x in names])
-        dataset.setncattr_string(
-            'annotation_vars', json.dumps(['label_nominal']))
+    if annotation_path is not None:
+        if annotation_type == 'regression':
+            annotations = parse_regression_annotations(annotation_path)
+            keys = next(iter(annotations.values())).keys()
+            for k in keys:
+                var = dataset.createVariable(k, np.float32, ('instance',))
+                var[:] = np.array([annotations[x][k] for x in names])
+            dataset.setncattr_string(
+                'annotation_vars', json.dumps([k for k in keys]))
+        elif annotation_type == 'classification':
+            annotations = parse_classification_annotations(annotation_path)
+            label_nominal = dataset.createVariable('label_nominal', str,
+                                                   ('instance',))
+            label_nominal[:] = np.array([annotations[x] for x in names])
+            dataset.setncattr_string('annotation_vars',
+                                     json.dumps(['label_nominal']))
+    elif annotations is not None:
+        if annotation_type == 'regression':
+            for k, arr in annotations:
+                var = dataset.createVariable(k, np.float32, ('instance',))
+                var[:] = arr
+            dataset.setncattr_string(
+                'annotation_vars', json.dumps([k for k in annotations]))
+        elif annotation_type == 'classification':
+            label_nominal = dataset.createVariable('label_nominal', str,
+                                                   ('instance',))
+            label_nominal[:] = annotations
+            dataset.setncattr_string('annotation_vars',
+                                     json.dumps(['label_nominal']))
 
     _features = dataset.createVariable('features', np.float32,
                                        ('concat', 'features'))
@@ -165,7 +183,7 @@ class LabelledDataset(abc.ABC):
         self._create_data()
 
         self._labels = {'all': self.y}
-        self._class_counts = np.bincount(self.y.astype(int))
+        self._class_counts = np.bincount(self.y)
         self._speaker_counts = np.bincount(self.speaker_indices)
 
         self._print_header()
@@ -195,12 +213,8 @@ class LabelledDataset(abc.ABC):
             print("Binarising arousal and valence")
             arousal_map = np.array([int(c in pos_aro) for c in self.classes])
             valence_map = np.array([int(c in pos_val) for c in self.classes])
-            arousal_y = np.array(arousal_map[self.y.astype(int)],
-                                 dtype=np.float32)
-            valence_y = np.array(valence_map[self.y.astype(int)],
-                                 dtype=np.float32)
-            self._labels['arousal'] = arousal_y
-            self._labels['valence'] = valence_y
+            self._labels['arousal'] = arousal_map[self.y]
+            self._labels['valence'] = valence_map[self.y]
 
     def normalise(self, normaliser: TransformerMixin = StandardScaler(),
                   scheme: str = 'speaker'):
@@ -348,6 +362,13 @@ class SequenceDatasetMixin:
         print("Clipping arrays to max length {}.".format(length))
         clip_arrays(self.x, length=length)
 
+    def frame_arrays(self: LabelledDataset, frame_size: int = 640,
+                     frame_shift: int = 160, num_frames: Optional[int] = None):
+        print("Framing arrays with size {} and shift {}.".format(frame_size,
+                                                                 frame_shift))
+        self._x = frame_arrays(self._x, frame_size=frame_size,
+                               frame_shift=frame_shift, num_frames=num_frames)
+
 
 class NetCDFDataset(LabelledDataset, SequenceDatasetMixin):
     """A dataset contained in netCDF4 files."""
@@ -377,8 +398,7 @@ class NetCDFDataset(LabelledDataset, SequenceDatasetMixin):
             self._x = np.array(arrs)
 
         labels = self.dataset.variables['label_nominal']
-        self._y = np.array([self.class_to_int(x) for x in labels],
-                           dtype=np.float32)
+        self._y = np.array([self.class_to_int(x) for x in labels])
 
 
 class RawDataset(LabelledDataset, SequenceDatasetMixin):
@@ -405,7 +425,7 @@ class RawDataset(LabelledDataset, SequenceDatasetMixin):
 
     def _create_data(self):
         self._x = np.empty(self.n_instances, dtype=object)
-        self._y = np.empty(self.n_instances, dtype=np.float32)
+        self._y = np.empty(self.n_instances, dtype=np.int64)
         for i, filename in enumerate(self.filenames):
             audio, _ = soundfile.read(filename, dtype=np.float32)
             audio = np.expand_dims(audio, axis=1)
@@ -442,8 +462,7 @@ class UtteranceARFFDataset(LabelledDataset):
 
     def _create_data(self):
         self._x = np.array([x[1:-1] for x in self.raw_data])
-        self._y = np.array([self.class_to_int(x[-1]) for x in self.raw_data],
-                           dtype=np.float32)
+        self._y = np.array([self.class_to_int(x[-1]) for x in self.raw_data])
 
 
 class SequenceARFFDataset(LabelledDataset, SequenceDatasetMixin):
@@ -477,8 +496,7 @@ class SequenceARFFDataset(LabelledDataset, SequenceDatasetMixin):
         self._x = np.array(arrs)
 
         labels = dict.fromkeys(x[-1] for x in self.raw_data).keys()
-        self._y = np.array([self.class_to_int(x) for x in labels],
-                           dtype=np.float32)
+        self._y = np.array([self.class_to_int(x) for x in labels])
 
 
 class CombinedDataset(LabelledDataset, SequenceDatasetMixin):
@@ -509,8 +527,7 @@ class CombinedDataset(LabelledDataset, SequenceDatasetMixin):
             self._speaker_indices = self._speaker_indices[keep_idx]
             self._classes = sorted(labels)
             str_labels = [x for x in str_labels if x not in drop_labels]
-        self._y = np.array([self._classes.index(y) for y in str_labels],
-                           dtype=np.float32)
+        self._y = np.array([self._classes.index(y) for y in str_labels])
         self._speaker_group_indices = self._speaker_indices
 
         self._labels = {'all': self.y}

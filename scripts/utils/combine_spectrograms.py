@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
-"""Combines two or more datasets of spectrograms into a larger dataset."""
+"""Combines two or more datasets of spectrograms into a larger dataset.
+"""
 
 import argparse
 from pathlib import Path
@@ -12,7 +13,7 @@ import numpy as np
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('input_files', nargs='+', type=Path,
-                        help="Input files in netCDF4 format.")
+                        help="Input files in auDeep format.")
     parser.add_argument('output_file', type=Path, help="Output dataset.")
     args = parser.parse_args()
 
@@ -20,7 +21,7 @@ def main():
     all_names = []
     shape = None
     for filename in args.input_files:
-        print("Opened netCDF4 dataset {}.".format(str(filename)))
+        print("Opened netCDF4 dataset {}".format(str(filename)))
         data = netCDF4.Dataset(str(filename))
         if not shape:
             shape = data.variables['features'].shape[1:]
@@ -64,7 +65,7 @@ def main():
 
     dataset.close()
 
-    print("Wrote netCDF4 dataset to {}.".format(str(args.output_file)))
+    print("Wrote netCDF4 dataset to {}".format(args.output_file))
 
 
 if __name__ == "__main__":
