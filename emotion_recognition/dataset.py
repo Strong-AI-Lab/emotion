@@ -35,19 +35,19 @@ def parse_classification_annotations(filename: Union[PathLike, str]) \
 
 
 def write_netcdf_dataset(path: Union[PathLike, str],
-                         corpus: str,
                          names: List[str],
                          features: np.ndarray,
                          slices: List[int],
+                         corpus: str = '',
                          annotations: Optional[np.ndarray] = None,
                          annotation_path: Optional[Union[PathLike, str]] = None,  # noqa
                          annotation_type: str = 'classification'):
-    """Writes a netCDF4 dataset to the given path. The dataset should contain
-    features and annotations. Note that the features matrix has to be 2-D, and
-    can either be a vector per instance, or a sequence of vectors per instance.
-    Also note that this cannot represent the spectrograms in the format
-    required by auDeep, since that is a 3-D matrix of one spectrogram per
-    instance.
+    """Writes a netCDF4 dataset to the given path. The dataset should
+    contain features and annotations. Note that the features matrix has
+    to be 2-D, and can either be a vector per instance, or a sequence of
+    vectors per instance. Also note that this cannot represent the
+    spectrograms in the format required by auDeep, since that is a 3-D
+    matrix of one spectrogram per instance.
 
     Args:
     -----
@@ -60,9 +60,9 @@ def write_netcdf_dataset(path: Union[PathLike, str],
     features: ndarray
         A features matrix of shape (length, n_features).
     slices: list of int
-        The size of each slice along axis 0 of features. If there is one vector
-        per instance, then this will be all 1's, otherwise will have the length
-        of the sequence corresponding to each instance.
+        The size of each slice along axis 0 of features. If there is one
+        vector per instance, then this will be all 1's, otherwise will
+        have the length of the sequence corresponding to each instance.
     annotations: np.ndarray, optional
         Annotations obtained elsewhere.
     annotation_path: pathlike or str, optional
@@ -110,6 +110,12 @@ def write_netcdf_dataset(path: Union[PathLike, str],
             label_nominal[:] = annotations
             dataset.setncattr_string('annotation_vars',
                                      json.dumps(['label_nominal']))
+    else:
+        label_nominal = dataset.createVariable('label_nominal', str,
+                                               ('instance',))
+        label_nominal[:] = np.array(['unknown' for _ in range(len(names))])
+        dataset.setncattr_string('annotation_vars',
+                                 json.dumps(['label_nominal']))
 
     _features = dataset.createVariable('features', np.float32,
                                        ('concat', 'features'))
@@ -117,7 +123,7 @@ def write_netcdf_dataset(path: Union[PathLike, str],
 
     dataset.setncattr_string('feature_dims',
                              json.dumps(['concat', 'features']))
-    dataset.setncattr_string('corpus', corpus or '')
+    dataset.setncattr_string('corpus', corpus)
     dataset.close()
 
 
@@ -137,8 +143,8 @@ def _make_ragged(flat: np.ndarray,
 
 
 class LabelledDataset(abc.ABC):
-    """Abstract class representing a dataset containing discrete labels for
-    instances.
+    """Abstract class representing a dataset containing discrete labels
+    for instances.
     """
     def __init__(self, corpus: str):
         if corpus not in corpora:
@@ -179,7 +185,6 @@ class LabelledDataset(abc.ABC):
             self._gender_indices['m'] = m_indices
             self._gender_indices['f'] = f_indices
 
-        # Subclass-specific _create_data() method
         self._create_data()
 
         self._labels = {'all': self.y}
@@ -219,7 +224,8 @@ class LabelledDataset(abc.ABC):
     def normalise(self, normaliser: TransformerMixin = StandardScaler(),
                   scheme: str = 'speaker'):
         """Transforms the X data matrix of this dataset using some
-        normalisation method. I think in theory this should be idempotent.
+        normalisation method. I think in theory this should be
+        idempotent.
         """
         print("Normalising dataset with scheme '{}' using {}.".format(
             scheme, type(normaliser)))
@@ -350,6 +356,10 @@ class LabelledDataset(abc.ABC):
 
 
 class SequenceDatasetMixin:
+    """Mixin class for datasets that contain sequence data. I.e. X is a
+    sequence of (possibly variable-length) arrays instead of a 2-D
+    matrix.
+    """
     def pad_arrays(self: LabelledDataset, pad: int = 32):
         """Pads each array to the nearest multiple of `pad` greater than
         the array size. Assumes axis 0 of x is time.
@@ -371,7 +381,9 @@ class SequenceDatasetMixin:
 
 
 class NetCDFDataset(LabelledDataset, SequenceDatasetMixin):
-    """A dataset contained in netCDF4 files."""
+    """A dataset contained in netCDF4 files in our format, with
+    classification annotations.
+    """
     def __init__(self, path: Union[PathLike, str]):
         self.dataset = dataset = netCDF4.Dataset(path)
         if not hasattr(dataset, 'corpus'):
@@ -390,11 +402,16 @@ class NetCDFDataset(LabelledDataset, SequenceDatasetMixin):
         del self.dataset
 
     def _create_data(self):
-        self._x = np.array(self.dataset.variables['features'])
-        if len(self._names) != len(self._x):
-            slices = self.dataset.variables['slices']
-            indices = np.cumsum(slices)
-            arrs = np.split(self._x, indices[:-1], axis=0)
+        x = np.array(self.dataset.variables['features'])
+        if len(x) == self.n_instances:
+            self._x = x
+        elif len(x) % self.n_instances == 0:
+            seq_len = len(x) / self.n_instances
+            self._x = np.reshape(x, (self.n_instances, seq_len,
+                                     self.n_features))
+        else:
+            indices = np.cumsum(self.dataset.variables['slices'])
+            arrs = np.split(x, indices[:-1], axis=0)
             self._x = np.array(arrs)
 
         labels = self.dataset.variables['label_nominal']
