@@ -55,12 +55,10 @@ def main():
         description="Processes audio data using openSMILE.")
     # Required args
     required_args = parser.add_argument_group('Required args')
-    required_args.add_argument('--corpus', required=True,
+    required_args.add_argument('--corpus', type=str, required=True,
                                help="Corpus to process")
     required_args.add_argument('--config', type=Path, required=True,
                                help="Config file to use")
-    required_args.add_argument('--annotations', type=Path, required=True,
-                               help="Annotations file")
     required_args.add_argument('--input', type=Path, required=True,
                                help="File containing list of files")
     required_args.add_argument('--output', type=Path, required=True,
@@ -73,6 +71,7 @@ def main():
     # Optional args
     parser.add_argument('--type', default='classification',
                         help="Type of annotations")
+    parser.add_argument('--annotations', type=Path, help="Annotations file")
 
     args, restargs = parser.parse_known_args()
 
@@ -95,9 +94,14 @@ def main():
             for path in input_list
         )
 
-        tmp_files = (Path(tmp) / '{}.csv'.format(name) for name in names)
-        # Use CPUs for this because I don't think it releases the GIL for
-        # the whole thing
+        tmp_files = [Path(tmp) / '{}.csv'.format(name) for name in names]
+        missing = [f for f in tmp_files if not f.exists()]
+        if len(missing) > 0:
+            msg = "Not all audio files were processed properly. These files " \
+                  "are missing:\n" + '\n'.join(map(str, missing))
+            raise RuntimeError(msg)
+        # Use CPUs for this because I don't think it releases the GIL
+        # for the whole processing.
         arr_list = Parallel(**parallel_args)(
             delayed(process_csv)(path) for path in tmp_files
         )
