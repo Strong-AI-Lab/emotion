@@ -286,7 +286,7 @@ corpora: Dict[str, CorpusInfo] = {
             'h': 'happiness',
             'n': 'neutral',
             'sa': 'sadness',
-            'su': 'suprise'
+            'su': 'surprise'
         },
         positive_arousal=['anger', 'fear', 'happiness', 'surprise'],
         positive_valence=['happiness', 'neutral', 'surprise'],
