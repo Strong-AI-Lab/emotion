@@ -1,9 +1,9 @@
 #!/usr/bin/python3
 
-"""Resets the 'corpus' attribute of the dataset exported by the original auDeep
-code. This assumes that the dataset was originally generated from spectrograms
-extracted by our script, not auDeep's, because theirs doesn't include proper
-label information.
+"""Resets the 'corpus' attribute of the dataset exported by the original
+auDeep code. This assumes that the dataset was originally generated from
+spectrograms extracted by our script, not auDeep's, because theirs
+doesn't include proper label information.
 """
 
 import argparse
