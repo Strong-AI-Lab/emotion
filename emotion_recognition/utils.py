@@ -6,8 +6,9 @@ def frame_arrays(arrays: Union[List[np.ndarray], np.ndarray],
                  frame_size: int = 640, frame_shift: int = 160,
                  num_frames: Optional[int] = None):
     """Creates sequences of frames from the given arrays. Each input
-    array is a 1-D or Lx1 time domain signal. Each corresponding output
-    array is a 2-D array of frames of shape (num_frames, frame_size).
+    array is a 1-D or L x 1 time domain signal. Each corresponding
+    output array is a 2-D array of frames of shape (num_frames,
+    frame_size).
     """
     # TODO: Make option for vlen output
     if num_frames is None:

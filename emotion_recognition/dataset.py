@@ -186,28 +186,7 @@ class LabelledDataset(abc.ABC):
             self._gender_indices['f'] = f_indices
 
         self._create_data()
-
         self._labels = {'all': self.y}
-        self._class_counts = np.bincount(self.y)
-        self._speaker_counts = np.bincount(self.speaker_indices)
-
-        self._print_header()
-
-    def _print_header(self):
-        print('Corpus: {}'.format(self.corpus))
-        print('{} classes:'.format(self.n_classes))
-        print(dict(zip(self.classes, self.class_counts)))
-        print('{} instances'.format(self.n_instances))
-        print('{} features'.format(self.n_features))
-        print('{} speakers:'.format(self.n_speakers))
-        print(dict(zip(self.speakers, self.speaker_counts)))
-        if self.x.dtype == object:
-            lengths = [len(x) for x in self.x]
-            print('Sequences:')
-            print('min length: {}'.format(np.min(lengths)))
-            print('mean length: {}'.format(np.mean(lengths)))
-            print('max length: {}'.format(np.max(lengths)))
-        print()
 
     def binarise(self, pos_val: List[str] = [], pos_aro: List[str] = []):
         self.binary_y = label_binarize(self.y, np.arange(self.n_classes))
@@ -227,8 +206,10 @@ class LabelledDataset(abc.ABC):
         normalisation method. I think in theory this should be
         idempotent.
         """
-        print("Normalising dataset with scheme '{}' using {}.".format(
-            scheme, type(normaliser)))
+        fqn = '{}.{}'.format(normaliser.__class__.__module__,
+                             normaliser.__class__.__name__)
+        print("Normalising dataset with scheme '{}' using {}.".format(scheme,
+                                                                      fqn))
 
         if scheme == 'all':
             if self.x.dtype == object:
@@ -247,6 +228,15 @@ class LabelledDataset(abc.ABC):
                 else:
                     self.x[idx] = normaliser.fit_transform(self.x[idx])
 
+    def map_classes(self, map: Dict[str, str]):
+        """Modifies classses based on the mapping in map. All classes
+        present int dataset.classes should be keys in map.
+        """
+        new_classes = sorted(set(map.values()))
+        arr_map = np.array([new_classes.index(map[k]) for k in self.classes])
+        self._y = arr_map[self.y]
+        self._classes = new_classes
+
     @property
     def corpus(self) -> str:
         """The corpus this LabelledDataset represents."""
@@ -263,6 +253,8 @@ class LabelledDataset(abc.ABC):
 
     @property
     def class_counts(self) -> np.ndarray:
+        if not hasattr(self, '_class_counts') or self._class_counts is None:
+            self._class_counts = np.bincount(self.y)
         return self._class_counts
 
     @property
@@ -310,6 +302,9 @@ class LabelledDataset(abc.ABC):
 
     @property
     def speaker_counts(self) -> np.ndarray:
+        if (not hasattr(self, '_speaker_counts')
+                or self._speaker_counts is None):
+            self._speaker_counts = np.bincount(self.speaker_indices)
         return self._speaker_counts
 
     @property
@@ -353,6 +348,22 @@ class LabelledDataset(abc.ABC):
         """
         raise NotImplementedError(
             "_create_data() should be implemented by subclasses.")
+
+    def __str__(self):
+        s = 'Corpus: {}\n'.format(self.corpus)
+        s += '{} classes:\n'.format(self.n_classes)
+        s += '\t{}\n'.format(dict(zip(self.classes, self.class_counts)))
+        s += '{} instances\n'.format(self.n_instances)
+        s += '{} features\n'.format(self.n_features)
+        s += '{} speakers:\n'.format(self.n_speakers)
+        s += '\t{}\n'.format(dict(zip(self.speakers, self.speaker_counts)))
+        if self.x.dtype == object or len(self.x.shape) == 3:
+            lengths = [len(x) for x in self.x]
+            s += 'Sequences:\n'
+            s += 'min length: {}\n'.format(np.min(lengths))
+            s += 'mean length: {}\n'.format(np.mean(lengths))
+            s += 'max length: {}\n'.format(np.max(lengths))
+        return s
 
 
 class SequenceDatasetMixin:
@@ -548,8 +559,6 @@ class CombinedDataset(LabelledDataset, SequenceDatasetMixin):
         self._speaker_group_indices = self._speaker_indices
 
         self._labels = {'all': self.y}
-
-        self._print_header()
 
     def _create_data(_):
         pass
