@@ -140,7 +140,10 @@ def get_data(path: Union[PathLike, str], shuffle: bool = False):
     x = np.array(dataset.variables['features'])
     num_inst = dataset.dimensions['instance'].size
     filenames = np.array(dataset.variables['filename'])
-    labels = np.array(dataset.variables['label_nominal'])
+    try:
+        labels = np.array(dataset.variables['label_nominal'])
+    except KeyError:
+        labels = []
     corpus = dataset.corpus
     dataset.close()
 
@@ -153,7 +156,8 @@ def get_data(path: Union[PathLike, str], shuffle: bool = False):
         perm = np.random.default_rng().permutation(len(x))
         x = x[perm]
         filenames = filenames[perm]
-        labels = labels[perm]
+        if len(labels) > 0:
+            labels = labels[perm]
 
     return x, filenames, labels, corpus
 
