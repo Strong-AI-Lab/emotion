@@ -3,7 +3,7 @@ import json
 from collections import Counter
 from os import PathLike
 from pathlib import Path
-from typing import List, Union, Dict, Tuple, Optional
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 import arff
 import netCDF4
@@ -152,38 +152,32 @@ class LabelledDataset(abc.ABC):
                 "Corpus {} hasn't been implemented yet.".format(corpus))
         self._corpus = corpus
         self._classes = list(corpora[self.corpus].emotion_map.values())
-        self._speakers = corpora[self.corpus].speakers
-        self._male_speakers = corpora[self.corpus].male_speakers
-        self._female_speakers = corpora[self.corpus].female_speakers
 
+        self._speakers = corpora[self.corpus].speakers
         get_speaker = corpora[self.corpus].get_speaker
         self._speaker_indices = np.array(
             [self.speakers.index(get_speaker(n)) for n in self.names],
             dtype=int
         )
-
-        speaker_groups = corpora[self.corpus].speaker_groups
+        self._speaker_groups = corpora[self.corpus].speaker_groups
         speaker_indices_to_group = np.array([
-            i for sp in self.speakers for i in range(len(speaker_groups))
-            if sp in speaker_groups[i]
+            i for sp in self.speakers for i in range(len(self._speaker_groups))
+            if sp in self._speaker_groups[i]
         ])
         self._speaker_group_indices = speaker_indices_to_group[
             self.speaker_indices]
 
-        self._gender_indices = {'all': np.arange(self.n_instances)}
+        self._male_speakers = corpora[self.corpus].male_speakers
+        self._female_speakers = corpora[self.corpus].female_speakers
         if self.male_speakers and self.female_speakers:
-            m_indices = np.array(
+            self._male_indices = np.array(
                 [i for i in range(self.n_instances)
-                 if get_speaker(self.names[i]) in self.male_speakers],
-                dtype=int
+                 if get_speaker(self.names[i]) in self.male_speakers]
             )
-            f_indices = np.array(
+            self._female_indices = np.array(
                 [i for i in range(self.n_instances)
-                 if get_speaker(self.names[i]) in self.female_speakers],
-                dtype=int
+                 if get_speaker(self.names[i]) in self.female_speakers]
             )
-            self._gender_indices['m'] = m_indices
-            self._gender_indices['f'] = f_indices
 
         self._create_data()
         self._labels = {'all': self.y}
@@ -191,7 +185,7 @@ class LabelledDataset(abc.ABC):
     def binarise(self, pos_val: List[str] = [], pos_aro: List[str] = []):
         self.binary_y = label_binarize(self.y, np.arange(self.n_classes))
         self._labels.update(
-            {c: self.binary_y[:, c] for c in range(self.n_classes)})
+            {c: self.binary_y[:, i] for c, i in enumerate(self.classes)})
 
         if pos_aro and pos_val:
             print("Binarising arousal and valence")
@@ -249,10 +243,12 @@ class LabelledDataset(abc.ABC):
 
     @property
     def n_classes(self) -> int:
+        """Total number of emotion classes."""
         return len(self.classes)
 
     @property
     def class_counts(self) -> np.ndarray:
+        """Number of instances for each class."""
         if not hasattr(self, '_class_counts') or self._class_counts is None:
             self._class_counts = np.bincount(self.y)
         return self._class_counts
@@ -260,48 +256,54 @@ class LabelledDataset(abc.ABC):
     @property
     def labels(self) -> Dict[str, np.ndarray]:
         """Mapping from label set to array of numeric labels. The keys
-        of the dictionary are {'all', 'arousal', 'valence', ''}
+        of the dictionary are {'all', 'arousal', 'valence', 'class1',
+        ...}
         """
         return self._labels
 
     @property
     def n_instances(self) -> int:
+        """Number of instances in this dataset."""
         return len(self.names)
 
     @property
     def features(self) -> List[str]:
+        """List of feature names."""
         return self._features
 
     @property
     def n_features(self) -> int:
+        """Number of features."""
         return len(self.features)
 
     @property
-    def normaliser(self) -> TransformerMixin:
-        return self._normaliser
-
-    @property
-    def normalise_method(self) -> str:
-        return self._normalise_method
-
-    @property
     def speakers(self) -> List[str]:
+        """List of speakers in this dataset."""
         return self._speakers
 
     @property
     def male_speakers(self) -> List[str]:
+        """List of male speakers in this dataset."""
         return self._male_speakers
 
     @property
+    def male_indices(self) -> np.ndarray:
+        """Indices of instances which have male speakers."""
+        return self._male_indices
+
+    @property
     def female_speakers(self) -> List[str]:
+        """List of female speakers in this dataset."""
         return self._female_speakers
 
     @property
-    def n_speakers(self) -> int:
-        return len(self.speakers)
+    def female_indices(self) -> np.ndarray:
+        """Indices of instances which have female speakers."""
+        return self._female_indices
 
     @property
     def speaker_counts(self) -> np.ndarray:
+        """Number of instances for each speaker."""
         if (not hasattr(self, '_speaker_counts')
                 or self._speaker_counts is None):
             self._speaker_counts = np.bincount(self.speaker_indices)
@@ -309,26 +311,36 @@ class LabelledDataset(abc.ABC):
 
     @property
     def speaker_indices(self) -> np.ndarray:
+        """Indices into speakers array of corresponding speaker for each
+        instance.
+        """
         return self._speaker_indices
 
     @property
+    def speaker_groups(self) -> List[Set[str]]:
+        """List of speaker groups."""
+        return self._speaker_groups
+
+    @property
     def speaker_group_indices(self) -> np.ndarray:
+        """Indices into speaker groups array of corresponding speaker
+        group for each instance.
+        """
         return self._speaker_group_indices
 
     @property
-    def gender_indices(self) -> Dict[str, np.ndarray]:
-        return self._gender_indices
-
-    @property
     def names(self) -> List[str]:
+        """List of instance names."""
         return self._names
 
     @property
     def x(self) -> np.ndarray:
+        """The data matrix."""
         return self._x
 
     @property
     def y(self) -> np.ndarray:
+        """The class label array; one label per instance."""
         return self._y
 
     def class_to_int(self, c: str) -> int:
@@ -341,21 +353,13 @@ class LabelledDataset(abc.ABC):
     def __len__(self) -> int:
         return self.n_instances
 
-    @abc.abstractmethod
-    def _create_data(_):
-        """Creates the x data array and y label array in an
-        implementation specific manner.
-        """
-        raise NotImplementedError(
-            "_create_data() should be implemented by subclasses.")
-
     def __str__(self):
         s = 'Corpus: {}\n'.format(self.corpus)
         s += '{} classes:\n'.format(self.n_classes)
         s += '\t{}\n'.format(dict(zip(self.classes, self.class_counts)))
         s += '{} instances\n'.format(self.n_instances)
-        s += '{} features\n'.format(self.n_features)
-        s += '{} speakers:\n'.format(self.n_speakers)
+        s += '{} features\n'.format(len(self.features))
+        s += '{} speakers:\n'.format(len(self.speakers))
         s += '\t{}\n'.format(dict(zip(self.speakers, self.speaker_counts)))
         if self.x.dtype == object or len(self.x.shape) == 3:
             lengths = [len(x) for x in self.x]
@@ -364,6 +368,14 @@ class LabelledDataset(abc.ABC):
             s += 'mean length: {}\n'.format(np.mean(lengths))
             s += 'max length: {}\n'.format(np.max(lengths))
         return s
+
+    @abc.abstractmethod
+    def _create_data(_):
+        """Creates the x data array and y label array in an
+        implementation specific manner.
+        """
+        raise NotImplementedError(
+            "_create_data() should be implemented by subclasses.")
 
 
 class SequenceDatasetMixin:
@@ -534,17 +546,32 @@ class CombinedDataset(LabelledDataset, SequenceDatasetMixin):
     def __init__(self, *datasets: LabelledDataset,
                  labels: Optional[List[str]] = None):
         self._x = np.concatenate([x.x for x in datasets])
-        self._corpora = [x.corpus for x in datasets]
         self._corpus = 'combined'
+        self._corpora = [x.corpus for x in datasets]
         self._names = [d.corpus + '_' + n for d in datasets for n in d.names]
         self._features = datasets[0].features
-        self._speakers = self._corpora
 
         all_labels = set(c for d in datasets for c in d.classes)
         self._classes = sorted(all_labels)
 
+        self._speakers = []
+        speaker_indices = []
+        self._speaker_groups = []
+        speaker_group_indices = []
+        for d in datasets:
+            speaker_indices.append(d.speaker_indices + len(self.speakers))
+            self._speakers.extend([d.corpus + '_' + s for s in d.speakers])
+
+            speaker_group_indices.append(
+                d.speaker_group_indices + len(self.speaker_groups))
+            new_group = [{d.corpus + '_' + s for s in g}
+                         for g in d.speaker_groups]
+            self._speaker_groups.extend(new_group)
+        self._speaker_indices = np.concatenate(speaker_indices)
+        self._speaker_group_indices = np.concatenate(speaker_group_indices)
+
         sizes = [len(x.x) for x in datasets]
-        self._speaker_indices = np.repeat(np.arange(len(datasets)), sizes)
+        self._corpus_indices = np.repeat(np.arange(len(datasets)), sizes)
 
         str_labels = [d.classes[int(i)] for d in datasets for i in d.y]
         if labels:
@@ -565,7 +592,15 @@ class CombinedDataset(LabelledDataset, SequenceDatasetMixin):
 
     @property
     def corpora(self) -> List[str]:
+        """List of corpora in this CombinedDataset."""
         return self._corpora
+
+    @property
+    def corpus_indices(self) -> np.ndarray:
+        """Indices into corpora list of corresponding corpus for each
+        instance.
+        """
+        return self._corpus_indices
 
     def corpus_to_idx(self, corpus: str) -> int:
         return self.corpora.index(corpus)
@@ -575,7 +610,7 @@ class CombinedDataset(LabelledDataset, SequenceDatasetMixin):
         indices of x and y for the specified corpus and all other
         corpora.
         """
-        cond = self.speaker_indices == self.corpus_to_idx(corpus)
+        cond = self.corpus_indices == self.corpus_to_idx(corpus)
         corpus_idx = np.nonzero(cond)[0]
         other_idx = np.nonzero(~cond)[0]
         return corpus_idx, other_idx

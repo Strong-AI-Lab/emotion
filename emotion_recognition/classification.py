@@ -16,6 +16,8 @@ from sklearn.svm import SVC
 from .dataset import CombinedDataset, LabelledDataset
 from .utils import shuffle_multiple
 
+__all__ = ['PrecomputedSVC', 'Classifier', 'SKLearnClassifier']
+
 SKClassifierFunction = Callable[[], ClassifierMixin]
 ScoreFunction = Callable[[np.ndarray, np.ndarray], float]
 KernelFunction = Callable[[np.ndarray, np.ndarray], np.ndarray]
@@ -84,8 +86,8 @@ class PrecomputedSVC(SVC):
 
     def _get_kernel_func(self) -> KernelFunction:
         """Get the kernel function, with parameters, to use in fit() and
-        predict(). This is calculated at runtime in order to more easily handle
-        changes in parameters such as kernel, gamma, etc.
+        predict(). This is calculated at runtime in order to more easily
+        handle changes in parameters such as kernel, gamma, etc.
         """
         f = self.KERNELS[self.kernel]
         params = {}
@@ -129,7 +131,8 @@ class SKLearnClassifier(Classifier):
     Parameters:
     -----------
     model_fn: callable
-        A callable that returns a new proper classifier that can be trained.
+        A callable that returns a new proper classifier that can be
+        trained.
     param_grid: dict, optional
     """
     def __init__(self, model_fn: SKClassifierFunction,
@@ -163,7 +166,7 @@ class SKLearnClassifier(Classifier):
 def within_corpus_cross_validation(model: Classifier,
                                    dataset: LabelledDataset,
                                    mode: str = 'all',
-                                   genders: List[str] = ['all'],
+                                   gender: str = 'all',
                                    reps: int = 1,
                                    splitter: BaseCrossValidator = KFold(10),
                                    validation: str = 'valid'):
@@ -176,19 +179,19 @@ def within_corpus_cross_validation(model: Classifier,
     dataset: LabelledDataset
         The dataset to test on.
     mode: {'all', 'valence', 'arousal'}
-        The kind of classification data to use from the dataset.
-    genders: list
-        Which gendered data to perform the test on: 'm' for male, 'f' for
-        female, and 'all' for combined. Default is ['all'].
+        The kind of classification data to use from the dataset. Default
+        is 'all'.
+    genders: {'all', 'male', 'female'}
+        Which gendered data to perform the test on. Default is 'all'.
     reps: int
         The number of repetitions, default is 1 for a single run.
     splitter: sklearn.model_selection.BaseCrossValidator
-        A splitter used for cross-validation. Default is KFold(10) for 10 fold
-        cross-validation.
+        A splitter used for cross-validation. Default is KFold(10) for
+        10 fold cross-validation.
     validation: str, {'train', 'valid', 'test'}
-        Validation method to use for parameter optimisation. 'train' uses
-        training data, 'test' uses test data, 'valid' uses a random inner
-        cross-validation fold with the same splitting method.
+        Validation method to use for parameter optimisation. 'train'
+        uses training data, 'test' uses test data, 'valid' uses a random
+        inner cross-validation fold with the same splitting method.
 
     Returns:
     --------
@@ -197,96 +200,101 @@ def within_corpus_cross_validation(model: Classifier,
     """
 
     if mode == 'all':
-        labels = sorted([x[:3] for x in dataset.classes])
+        classes = sorted([x[:3] for x in dataset.classes])
     else:
-        labels = ['neg', 'pos']
+        classes = ['neg', 'pos']
+
+    x = dataset.x
+    y = dataset.labels[mode]
 
     df = pd.DataFrame(
         index=pd.RangeIndex(splitter.get_n_splits(
-            dataset.x, dataset.labels[mode], dataset.speaker_indices)),
+            x, y, dataset.speaker_indices)),
         columns=pd.MultiIndex.from_product(
-            [METRICS, genders, labels, range(reps)],
-            names=['metric', 'gender', 'class', 'rep']
-        )
+            [METRICS, classes, range(reps)], names=['metric', 'class', 'rep'])
     )
-    for gender in genders:
-        gender_indices = dataset.gender_indices[gender]
-        speaker_indices = dataset.speaker_indices[gender_indices]
-        groups = dataset.speaker_group_indices[gender_indices]
-        x = dataset.x[gender_indices]
-        y = dataset.labels[mode][gender_indices]
-        for rep in range(reps):
-            fold = 0
-            # LOSGO cross-validation
-            for train, test in splitter.split(x, y, groups):
-                x_train = x[train]
-                y_train = y[train]
-                x_test = x[test]
-                y_test = y[test]
+    if gender == 'male':
+        gender_indices = dataset.male_indices
+    elif gender == 'female':
+        gender_indices = dataset.female_indices
+    else:
+        gender_indices = np.arange(len(dataset.names))
 
-                # This checks to see if the test set still has different
-                # speakers, so that we can validate using each of them.
-                n_splits = splitter.get_n_splits(x_test, y_test,
-                                                 speaker_indices[test])
-                if n_splits > 1 and isinstance(splitter, LeaveOneGroupOut):
-                    for valid, test in splitter.split(x_test, y_test,
-                                                      speaker_indices[test]):
-                        print("Fold {}".format(fold + 1))
+    speaker_indices = dataset.speaker_indices[gender_indices]
+    groups = dataset.speaker_group_indices[gender_indices]
+    x = x[gender_indices]
+    y = y[gender_indices]
+    for rep in range(reps):
+        fold = 0
+        # LOSGO cross-validation
+        for train, test in splitter.split(x, y, groups):
+            x_train = x[train]
+            y_train = y[train]
+            x_test = x[test]
+            y_test = y[test]
 
-                        x_valid = x_test[valid]
-                        y_valid = y_test[valid]
-                        x_test2 = x_test[test]
-                        y_test2 = y_test[test]
-
-                        model.fit(x_train, y_train, x_valid, y_valid,
-                                  fold=fold)
-                        # We need to return y_true just in case the order is
-                        # modified by batching.
-                        y_pred, y_true = model.predict(x_test2, y_test2)
-                        _record_metrics(df, fold, rep, y_true, y_pred,
-                                        len(labels))
-                        fold += 1
-                else:
-                    # TODO: fix this in the general case when using arbitrary
-                    # cross-validation splitter
-                    # Make sure we have at least two speakers in the training
-                    # set so we can use one for validation set.
-                    if validation == 'valid' and len(
-                            np.unique(speaker_indices[train])) >= 2:
-                        n_splits = splitter.get_n_splits(
-                            x_train, y_train, speaker_indices[train])
-
-                        # Select random inner fold to use as validation set
-                        r = np.random.randint(n_splits) + 1
-                        splits = splitter.split(x_train, y_train,
-                                                speaker_indices[train])
-                        for _ in range(r):
-                            train2, valid = next(splits)
-
-                        x_valid = x_train[valid]
-                        y_valid = y_train[valid]
-                        x_train = x_train[train2]
-                        y_train = y_train[train2]
-                    elif validation == 'test':
-                        x_valid = x_test
-                        y_valid = y_test
-                    else:
-                        x_valid = x_train
-                        y_valid = y_train
-
+            # This checks to see if the test set still has different
+            # speakers, so that we can validate using each of them.
+            n_splits = splitter.get_n_splits(x_test, y_test,
+                                             speaker_indices[test])
+            if n_splits > 1 and isinstance(splitter, LeaveOneGroupOut):
+                for valid, test in splitter.split(x_test, y_test,
+                                                  speaker_indices[test]):
                     print("Fold {}".format(fold + 1))
+
+                    x_valid = x_test[valid]
+                    y_valid = y_test[valid]
+                    x_test2 = x_test[test]
+                    y_test2 = y_test[test]
+
                     model.fit(x_train, y_train, x_valid, y_valid, fold=fold)
-                    y_pred, y_true = model.predict(x_test, y_test)
-                    _record_metrics(df, fold, rep, y_true, y_pred, len(labels))
+                    # We need to return y_true just in case the order is
+                    # modified by batching.
+                    y_pred, y_true = model.predict(x_test2, y_test2)
+                    _record_metrics(df, fold, rep, y_true, y_pred,
+                                    len(classes))
                     fold += 1
+            else:
+                # TODO: fix this in the general case when using arbitrary
+                # cross-validation splitter
+                # Make sure we have at least two speakers in the training
+                # set so we can use one for validation set.
+                if validation == 'valid' and len(
+                        np.unique(speaker_indices[train])) >= 2:
+                    n_splits = splitter.get_n_splits(
+                        x_train, y_train, speaker_indices[train])
+
+                    # Select random inner fold to use as validation set
+                    r = np.random.randint(n_splits) + 1
+                    splits = splitter.split(x_train, y_train,
+                                            speaker_indices[train])
+                    for _ in range(r):
+                        train2, valid = next(splits)
+
+                    x_valid = x_train[valid]
+                    y_valid = y_train[valid]
+                    x_train = x_train[train2]
+                    y_train = y_train[train2]
+                elif validation == 'test':
+                    x_valid = x_test
+                    y_valid = y_test
+                else:
+                    x_valid = x_train
+                    y_valid = y_train
+
+                print("Fold {}".format(fold + 1))
+                model.fit(x_train, y_train, x_valid, y_valid, fold=fold)
+                y_pred, y_true = model.predict(x_test, y_test)
+                _record_metrics(df, fold, rep, y_true, y_pred, len(classes))
+                fold += 1
     return df
 
 
 def cross_corpus_cross_validation(clf: Classifier,
                                   combined_dataset: CombinedDataset,
                                   reps: int = 1):
-    """Performs cross-validation using each corpus as test set, and the rest as
-    training set.
+    """Performs cross-validation using each corpus as test set, and the
+    rest as training set.
 
     Args:
     -----
@@ -335,42 +343,47 @@ def cross_corpus_cross_validation(clf: Classifier,
 
 def test_one_vs_rest(model_fn,
                      dataset: LabelledDataset,
-                     gendered=False,
-                     reps=1,
-                     param_grid=None,
-                     splitter=KFold(10)) -> pd.DataFrame:
-    genders = ['all', 'f', 'm'] if gendered else ['all']
+                     gender: str = 'all',
+                     reps: int = 1,
+                     param_grid: Optional[Dict[str, Any]] = None,
+                     splitter: BaseCrossValidator = KFold(10)) -> pd.DataFrame:
     labels = sorted([x[:3] for x in dataset.classes])
 
     rec = pd.DataFrame(
         index=pd.RangeIndex(splitter.get_n_splits(
             dataset.x, dataset.labels[0], dataset.speaker_indices)),
         columns=pd.MultiIndex.from_product(
-            [['prec', 'rec'], genders, labels, list(range(reps))],
-            names=['metric', 'gender', 'class', 'rep']))
-    for gender in genders:
-        groups = dataset.speaker_indices[dataset.gender_indices[gender]]
-        x = dataset.x[dataset.gender_indices[gender]]
-        for idx in range(dataset.n_classes):
-            y = dataset.labels[idx][dataset.gender_indices[gender]]
-            for rep in range(reps):
-                for fold, (train, test) in enumerate(
-                        splitter.split(x, y, groups)):
-                    x_train, y_train = x[train], y[train]
-                    x_test, y_test = x[test], y[test]
+            [['prec', 'rec'], labels, list(range(reps))],
+            names=['metric', 'class', 'rep']))
+    if gender == 'male':
+        gender_indices = dataset.male_indices
+    elif gender == 'female':
+        gender_indices = dataset.female_indices
+    else:
+        gender_indices = np.arange(len(dataset.names))
 
-                    if param_grid:
-                        classifier = optimise_params(param_grid, model_fn,
-                                                     recall_score, x_train,
-                                                     y_train, x_test, y_test)
-                    else:
-                        classifier = model_fn()
+    groups = dataset.speaker_indices[gender_indices]
+    x = dataset.x[gender_indices]
+    for cls in dataset.classes:
+        y = dataset.labels[cls][gender_indices]
+        for rep in range(reps):
+            for fold, (train, test) in enumerate(
+                    splitter.split(x, y, groups)):
+                x_train, y_train = x[train], y[train]
+                x_test, y_test = x[test], y[test]
 
-                    y_pred = classifier.predict(x_test)
-                    rec[('prec', gender, labels[idx], rep)][fold] \
-                        = precision_score(y_test, y_pred)
-                    rec[('rec', gender, labels[idx], rep)][fold] \
-                        = recall_score(y_test, y_pred)
+                if param_grid:
+                    classifier = optimise_params(
+                        param_grid, model_fn, recall_score, x_train, y_train,
+                        x_test, y_test
+                    )
+                else:
+                    classifier = model_fn()
+
+                y_pred = classifier.predict(x_test)
+                rec[('prec', cls[:3], rep)][fold] = precision_score(y_test,
+                                                                    y_pred)
+                rec[('rec', cls[:3], rep)][fold] = recall_score(y_test, y_pred)
     return rec
 
 
@@ -396,7 +409,8 @@ def optimise_params(param_grid: Iterable[Dict[str, Sequence]],
     Returns:
     --------
     classifier
-        The best trained classifier for the given parameter combinations.
+        The best trained classifier for the given parameter
+        combinations.
     """
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         max_score = -1
@@ -411,41 +425,38 @@ def optimise_params(param_grid: Iterable[Dict[str, Sequence]],
 
 
 def _record_metrics(df, fold, rep, y_true, y_pred, n_classes):
-    df.loc[fold, ('war', 'all', slice(None), rep)] = recall_score(
-        y_true, y_pred, average='micro')
-    df.loc[fold, ('uar', 'all', slice(None), rep)] = recall_score(
-        y_true, y_pred, average='macro')
-    df.loc[fold, ('uap', 'all', slice(None), rep)] = precision_score(
-        y_true, y_pred, average='macro')
-    df.loc[fold, ('rec', 'all', slice(None), rep)] = recall_score(
+    df.loc[fold, ('war', 'all', rep)] = recall_score(y_true, y_pred,
+                                                     average='micro')
+    df.loc[fold, ('uar', 'all', rep)] = recall_score(y_true, y_pred,
+                                                     average='macro')
+    df.loc[fold, ('uap', 'all', rep)] = precision_score(y_true, y_pred,
+                                                        average='macro')
+    df.loc[fold, ('rec', 'all', rep)] = recall_score(
         y_true, y_pred, average=None, labels=list(range(n_classes)))
-    df.loc[fold, ('prec', 'all', slice(None), rep)] = precision_score(
+    df.loc[fold, ('prec', 'all', rep)] = precision_score(
         y_true, y_pred, average=None, labels=list(range(n_classes)))
 
 
 def print_results(df: pd.DataFrame):
     """Prints the results dataframe in a nice format."""
-    genders = df.axes[1].get_level_values('gender').unique()
     metrics = df.axes[1].get_level_values('metric').unique()
     labels = df.axes[1].get_level_values('class').unique()
-    for gender in genders:
-        print()
-        print("Metrics: mean +- std. dev. over folds")
-        print("Across reps:")
-        print('           ' + ' '.join(
-            ['{:<12}'.format(c) for c in labels]))
-        for metric in metrics:
-            print('{:<4s} ({:^3s}) {}'.format(metric, gender, ' '.join(
-                ['{:<4.2f} +- {:<4.2f}'.format(
-                  df[(metric, gender, c)].mean().mean(),
-                  df[(metric, gender, c)].std().mean()) for c in labels])))
-        print()
-        print("Across classes and reps:")
-        for metric in metrics:
-            print('{:<4s}: {:.3f} +- {:.2f} ({:.2f})'.format(
-                metric.upper(),
-                df[(metric, gender)].mean().mean(),
-                df[(metric, gender)].std().mean(),
-                df[(metric, gender)].max().max()))
-        print("")
-        print()
+    print()
+    print("Metrics: mean +- std. dev. over folds")
+    print("Across reps:")
+    print('           ' + ' '.join(['{:<12}'.format(c) for c in labels]))
+    for metric in metrics:
+        print('{:<4s} {}'.format(metric, ' '.join([
+            '{:<4.2f} +- {:<4.2f}'.format(df[(metric, c)].mean().mean(),
+                                          df[(metric, c)].std().mean())
+            for c in labels
+        ])))
+    print()
+    print("Across classes and reps:")
+    for metric in metrics:
+        print('{:<4s}: {:.3f} +- {:.2f} ({:.2f})'.format(
+            metric.upper(), df[metric].mean().mean(), df[metric].std().mean(),
+            df[metric].max().max()
+        ))
+    print("")
+    print()
