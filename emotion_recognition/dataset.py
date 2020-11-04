@@ -426,14 +426,18 @@ class NetCDFDataset(LabelledDataset, SequenceDatasetMixin):
 
     def _create_data(self):
         x = np.array(self.dataset.variables['features'])
+        slices = np.array(self.dataset.variables['slices'])
         if len(x) == self.n_instances:
+            # 2-D array
             self._x = x
-        elif len(x) % self.n_instances == 0:
+        elif all(slices == slices[0]):
+            # 3-D array
             seq_len = len(x) / self.n_instances
             self._x = np.reshape(x, (self.n_instances, seq_len,
                                      self.n_features))
         else:
-            indices = np.cumsum(self.dataset.variables['slices'])
+            # 3-D variable length array
+            indices = np.cumsum(slices)
             arrs = np.split(x, indices[:-1], axis=0)
             self._x = np.array(arrs)
 
@@ -602,6 +606,13 @@ class CombinedDataset(LabelledDataset, SequenceDatasetMixin):
         """
         return self._corpus_indices
 
+    @property
+    def corpus_counts(self) -> List[int]:
+        if (not hasattr(self, '_corpus_counts')
+                or self._corpus_counts is None):
+            self._corpus_counts = np.bincount(self.corpus_indices)
+        return self._corpus_counts
+
     def corpus_to_idx(self, corpus: str) -> int:
         return self.corpora.index(corpus)
 
@@ -614,3 +625,29 @@ class CombinedDataset(LabelledDataset, SequenceDatasetMixin):
         corpus_idx = np.nonzero(cond)[0]
         other_idx = np.nonzero(~cond)[0]
         return corpus_idx, other_idx
+
+    def normalise(self, normaliser: TransformerMixin = StandardScaler(),
+                  scheme: str = 'speaker'):
+
+        if scheme == 'corpus':
+            fqn = '{}.{}'.format(normaliser.__class__.__module__,
+                                 normaliser.__class__.__name__)
+            print("Normalising dataset with scheme 'corpus' using {}.".format(
+                fqn))
+
+            for corpus in range(len(self.corpora)):
+                idx = np.nonzero(self.corpus_indices == corpus)[0]
+                if self.x.dtype == object or len(self.x.shape) == 3:
+                    flat, slices = _make_flat(self.x[idx])
+                    flat = normaliser.fit_transform(flat)
+                    self.x[idx] = _make_ragged(flat, slices)
+                else:
+                    self.x[idx] = normaliser.fit_transform(self.x[idx])
+        else:
+            super().normalise(normaliser, scheme)
+
+    def __str__(self) -> str:
+        s = super().__str__()
+        s += '{} corpora:\n'.format(len(self.corpora))
+        s += '\t{}\n'.format(dict(zip(self.corpora, self.corpus_counts)))
+        return s
