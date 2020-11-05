@@ -1,59 +1,37 @@
+"""List of speech corpora metadata."""
+
 import re
 from typing import Callable, Dict, List, Optional, Set
 
 
 class CorpusInfo:
-    """Represents metadata for an emotional speech corpus.
+    """Represents metadata for a generic speech corpus.
 
     Parameters:
     -----------
     name: str
         The corpus name.
-
-    emotion_map: dict
-        A mapping from corpus emotion labels to English emotion words.
-
     get_speaker: callable
         A function that takes a clip name as argument and returns the
         corresponding speaker.
-
-    positive_arousal: list of str
-        Optional list of emotion classes with positive arousal. Each emotion
-        must be in emotion_map.
-
-    positive_valence: list of str
-        Optional list of emotion classes with positive valence. Each emotion
-        must be in emotion_map.
-
     male_speakers: list of str
         List of male speakers.
-
     female_speakers: list of str
         List of female speakers.
-
     speakers: list of str
         List of all speakers. At least one of speakers, male_speakers,
         female_speakers must be present. If speakers is not present, it will be
         the union of male_speakers and female_speakers.
-
-    get_emotion: callable
-        Function that takes a clip name and returns the corresponding corpus
-        emotion label present.
     """
-    def __init__(self, name: str,
-                 emotion_map: Dict[str, str],
+    def __init__(self,
+                 name: str,
                  get_speaker: Callable[[str], str],
-                 positive_arousal: List[str] = [],
-                 positive_valence: List[str] = [],
                  male_speakers: List[str] = [],
                  female_speakers: List[str] = [],
                  speakers: List[str] = [],
-                 speaker_groups: List[Set[str]] = [],
-                 get_emotion: Optional[Callable[[str], str]] = None):
+                 speaker_groups: List[Set[str]] = []):
         self.name = name
-        self.emotion_map = emotion_map
-        self.positive_arousal = positive_arousal
-        self.positive_valence = positive_valence
+
         self.male_speakers = male_speakers
         self.female_speakers = female_speakers
         self.speakers = speakers
@@ -64,15 +42,15 @@ class CorpusInfo:
                                  "and female speakers.")
             else:
                 self.speakers = all_speakers
+        if len(self.speakers) == 0:
+            raise ValueError(
+                "There must be at least one speaker for this corpus.")
+
         if speaker_groups:
             self.speaker_groups = speaker_groups
         else:
             self.speaker_groups = [{x} for x in self.speakers]
-        self.get_emotion = get_emotion
         self.get_speaker = get_speaker
-
-    def get_emotion(self, name: str) -> str:
-        raise NotImplementedError()
 
     def get_speaker(self, name: str) -> str:
         raise NotImplementedError()
@@ -83,8 +61,34 @@ class CorpusInfo:
                 return idx
 
 
-corpora: Dict[str, CorpusInfo] = {
-    'cafe': CorpusInfo(
+class EmotionalCorpusInfo(CorpusInfo):
+    """Represents metadata for an emotional speech corpus.
+
+    Parameters:
+    -----
+    name: str
+        The corpus name.
+    emotion_map: dict
+        A mapping from corpus emotion labels to English emotion words.
+    get_emotion: callable
+        Function that takes a clip name and returns the corresponding corpus
+        emotion label present.
+    """
+    def __init__(self,
+                 name: str,
+                 emotion_map: Dict[str, str] = {},
+                 get_emotion: Optional[Callable[[str], str]] = None,
+                 **kwargs):
+        super().__init__(name, **kwargs)
+        self.emotion_map = emotion_map
+        self.get_emotion = get_emotion
+
+    def get_emotion(self, name: str) -> str:
+        raise NotImplementedError()
+
+
+corpora: Dict[str, EmotionalCorpusInfo] = {
+    'cafe': EmotionalCorpusInfo(
         'cafe',
         emotion_map={
             'C': 'anger',
@@ -100,7 +104,7 @@ corpora: Dict[str, CorpusInfo] = {
         get_emotion=lambda n: n[3],
         get_speaker=lambda n: n[:2]
     ),
-    'crema-d': CorpusInfo(
+    'crema-d': EmotionalCorpusInfo(
         'crema-d',
         emotion_map={
             'A': 'anger',
@@ -127,7 +131,7 @@ corpora: Dict[str, CorpusInfo] = {
         get_emotion=lambda n: n[9],
         get_speaker=lambda n: n[:4]
     ),
-    'demos': CorpusInfo(
+    'demos': EmotionalCorpusInfo(
         'demos',
         emotion_map={
             'rab': 'anger',
@@ -138,8 +142,6 @@ corpora: Dict[str, CorpusInfo] = {
             'col': 'guilt',
             'sor': 'surprise'
         },
-        positive_arousal=['anger', 'fear', 'happiness', 'surprise'],
-        positive_valence=['happiness', 'neutral', 'surprise'],
         male_speakers=[
             '02', '03', '04', '05', '08', '09', '10', '11', '12', '14', '15',
             '16', '18', '19', '23', '24', '25', '26', '27', '28', '30', '33',
@@ -153,7 +155,7 @@ corpora: Dict[str, CorpusInfo] = {
         get_emotion=lambda n: n[-6:-3],
         get_speaker=lambda n: n[-9:-7]
     ),
-    'emodb': CorpusInfo(
+    'emodb': EmotionalCorpusInfo(
         'emodb',
         emotion_map={
             'W': 'anger',
@@ -164,14 +166,12 @@ corpora: Dict[str, CorpusInfo] = {
             'T': 'sadness',
             'N': 'neutral'
         },
-        positive_arousal=['anger', 'fear', 'happiness'],
-        positive_valence=['happiness', 'neutral'],
         male_speakers=['03', '10', '11', '12', '15'],
         female_speakers=['08', '09', '13', '14', '16'],
         get_emotion=lambda n: n[5],
         get_speaker=lambda n: n[:2]
     ),
-    'emofilm': CorpusInfo(
+    'emofilm': EmotionalCorpusInfo(
         'emofilm',
         emotion_map={
             'ans': 'fear',
@@ -184,7 +184,7 @@ corpora: Dict[str, CorpusInfo] = {
         get_emotion=lambda n: n[2:5],
         get_speaker=lambda n: n[-2:]
     ),
-    'enterface': CorpusInfo(
+    'enterface': EmotionalCorpusInfo(
         'enterface',
         emotion_map={
             'an': 'anger',
@@ -194,13 +194,11 @@ corpora: Dict[str, CorpusInfo] = {
             'sa': 'sadness',
             'su': 'surprise'
         },
-        positive_arousal=['anger', 'fear', 'happiness', 'surprise'],
-        positive_valence=['happiness', 'surprise'],
         speakers=['s' + str(i) for i in range(1, 45) if i != 6],
         get_emotion=lambda n: n[-4:-2],
         get_speaker=lambda n: n[:n.find('_')]
     ),
-    'iemocap': CorpusInfo(
+    'iemocap': EmotionalCorpusInfo(
         'iemocap',
         emotion_map={
             'ang': 'anger',
@@ -215,7 +213,7 @@ corpora: Dict[str, CorpusInfo] = {
         get_emotion=lambda n: n[-3:],
         get_speaker=lambda n: n[3:6]
     ),
-    'jl': CorpusInfo(
+    'jl': EmotionalCorpusInfo(
         'jl',
         emotion_map={
             'angry': 'anger',
@@ -229,7 +227,7 @@ corpora: Dict[str, CorpusInfo] = {
         get_emotion=lambda n: re.match(r'^\w+\d_([a-z]+)_.*$', n).group(1),
         get_speaker=lambda n: n[:n.find('_')]
     ),
-    'msp-improv': CorpusInfo(
+    'msp-improv': EmotionalCorpusInfo(
         'msp-improv',
         emotion_map={
             'A': 'anger',
@@ -244,7 +242,7 @@ corpora: Dict[str, CorpusInfo] = {
         get_emotion=lambda n: n[-1],
         get_speaker=lambda n: n[5:8]
     ),
-    'portuguese': CorpusInfo(
+    'portuguese': EmotionalCorpusInfo(
         'portuguese',
         emotion_map={
             'angry': 'anger',
@@ -260,7 +258,7 @@ corpora: Dict[str, CorpusInfo] = {
             r'^\d+[sp][AB]_([a-z]+)\d+$', n).group(1),
         get_speaker=lambda n: n[n.find('_') - 1]
     ),
-    'ravdess': CorpusInfo(
+    'ravdess': EmotionalCorpusInfo(
         'ravdess',
         emotion_map={
             '01': 'neutral',
@@ -277,7 +275,7 @@ corpora: Dict[str, CorpusInfo] = {
         get_emotion=lambda n: n[6:8],
         get_speaker=lambda n: n[-2:]
     ),
-    'savee': CorpusInfo(
+    'savee': EmotionalCorpusInfo(
         'savee',
         emotion_map={
             'a': 'anger',
@@ -288,19 +286,17 @@ corpora: Dict[str, CorpusInfo] = {
             'sa': 'sadness',
             'su': 'surprise'
         },
-        positive_arousal=['anger', 'fear', 'happiness', 'surprise'],
-        positive_valence=['happiness', 'neutral', 'surprise'],
         speakers=['DC', 'JE', 'JK', 'KL'],
         get_emotion=lambda n: n[3] if n[4].isdigit() else n[3:5],
         get_speaker=lambda n: n[:2]
     ),
-    'semaine': CorpusInfo(
+    'semaine': EmotionalCorpusInfo(
         'semaine',
         emotion_map={},
         speakers=['{:02d}'.format(i) for i in range(1, 25) if i not in [7, 8]],
         get_speaker=lambda n: n[:2]
     ),
-    'shemo': CorpusInfo(
+    'shemo': EmotionalCorpusInfo(
         'shemo',
         emotion_map={
             'A': 'anger',
@@ -314,7 +310,7 @@ corpora: Dict[str, CorpusInfo] = {
         get_emotion=lambda n: n[3],
         get_speaker=lambda n: n[:3]
     ),
-    'smartkom': CorpusInfo(
+    'smartkom': EmotionalCorpusInfo(
         'smartkom',
         emotion_map={
             'Neutral': 'neutral',
@@ -339,7 +335,7 @@ corpora: Dict[str, CorpusInfo] = {
         ],
         get_speaker=lambda n: n[8:11]
     ),
-    'tess': CorpusInfo(
+    'tess': EmotionalCorpusInfo(
         'tess',
         emotion_map={
             'angry': 'anger',
@@ -353,5 +349,32 @@ corpora: Dict[str, CorpusInfo] = {
         speakers=['OAF', 'YAF'],
         get_emotion=lambda n: n[n.rfind('_') + 1:],
         get_speaker=lambda n: n[:3]
+    ),
+
+    'accentDB': CorpusInfo(
+        'accentDB',
+        get_speaker=lambda n: n[:n.rfind('_')],
+        speakers=[
+            'australian_s01', 'australian_s01', 'bangla_s01', 'bangla_s02',
+            'indian_s01', 'indian_s02', 'malayalam_s01', 'malayalam_s02',
+            'malayalam_s03', 'odiya_s01', 'telugu_s01', 'telugu_s02',
+            'welsh_s01'
+        ]
+    ),
+    'ESF': CorpusInfo(
+        'ESF',
+        get_speaker=lambda n: n[-3:],
+        speakers=['SJA', 'SMA', 'SRA', 'SAN', 'SLA', 'SSA', 'SVI'],
+    ),
+    'Leap': CorpusInfo(
+        'Leap',
+        get_speaker=lambda n: n[:2],
+        speakers=[
+            'ab', 'ai', 'aj', 'aw', 'ax', 'ay', 'az', 'ba', 'bb', 'bc', 'bd',
+            'be', 'bf', 'bg', 'bh', 'bi', 'bj', 'bk', 'bl', 'bm', 'bn', 'bo',
+            'bp', 'bq', 'br', 'bs', 'bt', 'bu', 'bv', 'bw', 'bx', 'by', 'bz',
+            'ca', 'cb', 'cc', 'cd', 'ce', 'cf', 'cg', 'ch', 'ci', 'cl', 'cm',
+            'cn', 'cp', 'cq', 'cr', 'dv', 'ev'
+        ]
     )
 }
