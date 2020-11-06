@@ -142,17 +142,12 @@ def _make_ragged(flat: np.ndarray,
     return arrs
 
 
-class LabelledDataset(abc.ABC):
-    """Abstract class representing a dataset containing discrete labels
-    for instances.
-    """
-    def __init__(self, corpus: str):
+class Dataset(abc.ABC):
+    def __init__(self, corpus):
         if corpus not in corpora:
             raise NotImplementedError(
                 "Corpus {} hasn't been implemented yet.".format(corpus))
         self._corpus = corpus
-        self._classes = list(corpora[self.corpus].emotion_map.values())
-
         self._speakers = corpora[self.corpus].speakers
         get_speaker = corpora[self.corpus].get_speaker
         self._speaker_indices = np.array(
@@ -178,21 +173,6 @@ class LabelledDataset(abc.ABC):
                 [i for i in range(self.n_instances)
                  if get_speaker(self.names[i]) in self.female_speakers]
             )
-
-        self._create_data()
-        self._labels = {'all': self.y}
-
-    def binarise(self, pos_val: List[str] = [], pos_aro: List[str] = []):
-        self.binary_y = label_binarize(self.y, np.arange(self.n_classes))
-        self._labels.update(
-            {c: self.binary_y[:, i] for c, i in enumerate(self.classes)})
-
-        if pos_aro and pos_val:
-            print("Binarising arousal and valence")
-            arousal_map = np.array([int(c in pos_aro) for c in self.classes])
-            valence_map = np.array([int(c in pos_val) for c in self.classes])
-            self._labels['arousal'] = arousal_map[self.y]
-            self._labels['valence'] = valence_map[self.y]
 
     def normalise(self, normaliser: TransformerMixin = StandardScaler(),
                   scheme: str = 'speaker'):
@@ -222,44 +202,10 @@ class LabelledDataset(abc.ABC):
                 else:
                     self.x[idx] = normaliser.fit_transform(self.x[idx])
 
-    def map_classes(self, map: Dict[str, str]):
-        """Modifies classses based on the mapping in map. All classes
-        present int dataset.classes should be keys in map.
-        """
-        new_classes = sorted(set(map.values()))
-        arr_map = np.array([new_classes.index(map[k]) for k in self.classes])
-        self._y = arr_map[self.y]
-        self._classes = new_classes
-
     @property
     def corpus(self) -> str:
         """The corpus this LabelledDataset represents."""
         return self._corpus
-
-    @property
-    def classes(self) -> List[str]:
-        """A list of emotion class labels."""
-        return self._classes
-
-    @property
-    def n_classes(self) -> int:
-        """Total number of emotion classes."""
-        return len(self.classes)
-
-    @property
-    def class_counts(self) -> np.ndarray:
-        """Number of instances for each class."""
-        if not hasattr(self, '_class_counts') or self._class_counts is None:
-            self._class_counts = np.bincount(self.y)
-        return self._class_counts
-
-    @property
-    def labels(self) -> Dict[str, np.ndarray]:
-        """Mapping from label set to array of numeric labels. The keys
-        of the dictionary are {'all', 'arousal', 'valence', 'class1',
-        ...}
-        """
-        return self._labels
 
     @property
     def n_instances(self) -> int:
@@ -339,6 +285,85 @@ class LabelledDataset(abc.ABC):
         return self._x
 
     @property
+    def y(self) -> None:
+        return None
+
+    def __len__(self) -> int:
+        return self.n_instances
+
+    def __getitem__(self, idx) -> Union[np.ndarray, Tuple[np.ndarray,
+                                                          np.ndarray]]:
+        if self.y is not None:
+            return self.x[idx], self.y[idx]
+        return self.x[idx]
+
+    @abc.abstractmethod
+    def _create_data(_):
+        """Creates the x data array and y label array in an
+        implementation specific manner.
+        """
+        raise NotImplementedError(
+            "_create_data() should be implemented by subclasses.")
+
+
+class LabelledDataset(Dataset):
+    """Abstract class representing a dataset containing discrete labels
+    for instances.
+    """
+    def __init__(self, corpus: str):
+        super().__init__(corpus)
+        self._classes = list(corpora[self.corpus].emotion_map.values())
+
+        self._create_data()
+        self._labels = {'all': self.y}
+
+    def binarise(self, pos_val: List[str] = [], pos_aro: List[str] = []):
+        self.binary_y = label_binarize(self.y, np.arange(self.n_classes))
+        self._labels.update(
+            {c: self.binary_y[:, i] for c, i in enumerate(self.classes)})
+
+        if pos_aro and pos_val:
+            print("Binarising arousal and valence")
+            arousal_map = np.array([int(c in pos_aro) for c in self.classes])
+            valence_map = np.array([int(c in pos_val) for c in self.classes])
+            self._labels['arousal'] = arousal_map[self.y]
+            self._labels['valence'] = valence_map[self.y]
+
+    def map_classes(self, map: Dict[str, str]):
+        """Modifies classses based on the mapping in map. All classes
+        present int dataset.classes should be keys in map.
+        """
+        new_classes = sorted(set(map.values()))
+        arr_map = np.array([new_classes.index(map[k]) for k in self.classes])
+        self._y = arr_map[self.y]
+        self._classes = new_classes
+
+    @property
+    def classes(self) -> List[str]:
+        """A list of emotion class labels."""
+        return self._classes
+
+    @property
+    def n_classes(self) -> int:
+        """Total number of emotion classes."""
+        return len(self.classes)
+
+    @property
+    def class_counts(self) -> np.ndarray:
+        """Number of instances for each class."""
+        if not hasattr(self, '_class_counts') or self._class_counts is None:
+            self._class_counts = np.bincount(self.y)
+        return self._class_counts
+
+    @property
+    def labels(self) -> Dict[str, np.ndarray]:
+        """Mapping from label set to array of numeric labels. The keys
+        of the dictionary are {'all', 'arousal', 'valence', 'class1',
+        ...}
+        """
+        return self._labels
+
+    @property
     def y(self) -> np.ndarray:
         """The class label array; one label per instance."""
         return self._y
@@ -346,12 +371,6 @@ class LabelledDataset(abc.ABC):
     def class_to_int(self, c: str) -> int:
         """Returns the index of the given class label."""
         return self.classes.index(c)
-
-    def __getitem__(self, idx) -> Tuple[np.ndarray, np.ndarray]:
-        return self.x[idx], self.y[idx]
-
-    def __len__(self) -> int:
-        return self.n_instances
 
     def __str__(self):
         s = 'Corpus: {}\n'.format(self.corpus)
@@ -368,14 +387,6 @@ class LabelledDataset(abc.ABC):
             s += 'mean length: {}\n'.format(np.mean(lengths))
             s += 'max length: {}\n'.format(np.max(lengths))
         return s
-
-    @abc.abstractmethod
-    def _create_data(_):
-        """Creates the x data array and y label array in an
-        implementation specific manner.
-        """
-        raise NotImplementedError(
-            "_create_data() should be implemented by subclasses.")
 
 
 class SequenceDatasetMixin:
