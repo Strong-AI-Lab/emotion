@@ -10,7 +10,7 @@ import soundfile
 from joblib import Parallel, delayed
 
 REGEX = re.compile(
-    r'^\*([A-Z]{3}):\t.*(?:\n\t.*)*[.?!](?: \x15(\d+)_(\d+)\x15)?$',
+    r'^\*([A-Z]{3}):\t.*(?:\n\t.*)*[.?!](?: .*\x15(\d+)_(\d+)\x15)?$',
     re.MULTILINE
 )
 
