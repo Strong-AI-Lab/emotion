@@ -2,8 +2,8 @@ import abc
 import os
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from typing import (Any, Callable, Dict, Iterable, List, Optional, Sequence,
-                    Tuple, Union)
+from typing import (Any, Callable, Dict, Iterable, Optional, Sequence, Tuple,
+                    Union)
 
 import numpy as np
 import pandas as pd

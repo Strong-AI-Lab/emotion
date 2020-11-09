@@ -8,9 +8,8 @@ import argparse
 import pickle
 from pathlib import Path
 
-import netCDF4
 import numpy as np
-from sklearn.preprocessing import StandardScaler
+from emotion_recognition.dataset import Dataset
 
 
 def main():
@@ -23,18 +22,16 @@ def main():
                         help="Output.")
     args = parser.parse_args()
 
-    dataset = netCDF4.Dataset(args.input)
-    data = np.array(dataset.variables['features'])
-    names = np.array(dataset.variables['filename'])
-    scaler = StandardScaler()
-    data = scaler.fit_transform(data)
+    dataset = Dataset(args.input)
+    names = np.array(dataset.names)
+    dataset.normalise()
     with open(args.model, 'rb') as fid:
         clf = pickle.load(fid)
 
-    pred = clf.predict_proba(data)
-    top_emo = np.argsort(pred[:, 0])[::-1]
-    names = names[top_emo]
-    prob = pred[top_emo, 0]
+    pred = clf.predict_proba(dataset.x)
+    sort = np.argsort(pred[:, 0])[::-1]
+    names = names[sort]
+    prob = pred[sort, 0]
 
     with open(args.output, 'w') as fid:
         for name, p in zip(names, prob):

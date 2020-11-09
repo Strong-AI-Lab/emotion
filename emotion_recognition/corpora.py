@@ -351,7 +351,7 @@ corpora: Dict[str, EmotionalCorpusInfo] = {
         get_speaker=lambda n: n[:3]
     ),
 
-    'accentDB': CorpusInfo(
+    'accentdb': CorpusInfo(
         'accentDB',
         get_speaker=lambda n: n[:n.rfind('_')],
         speakers=[
@@ -361,12 +361,12 @@ corpora: Dict[str, EmotionalCorpusInfo] = {
             'welsh_s01'
         ]
     ),
-    'ESF': CorpusInfo(
+    'esf': CorpusInfo(
         'ESF',
-        get_speaker=lambda n: n[-3:],
-        speakers=['SJA', 'SMA', 'SRA', 'SAN', 'SLA', 'SSA', 'SVI'],
+        get_speaker=lambda n: n[-2:],
+        speakers=['JA', 'MA', 'RA', 'AN', 'LA', 'SA', 'VI'],
     ),
-    'Leap': CorpusInfo(
+    'leap': CorpusInfo(
         'Leap',
         get_speaker=lambda n: n[:2],
         speakers=[
