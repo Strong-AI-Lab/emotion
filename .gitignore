@@ -1,29 +1,30 @@
 # Datasets
 /datasets/*
-!/datasets/crema-d
-!/datasets/emodb
-!/datasets/iemocap
-!/datasets/msp-improv
-!/datasets/semaine
-!/datasets/smartkom
+!/datasets/metadata_schema.json
 
+!/datasets/crema-d
 /datasets/crema-d/*
 !/datasets/crema-d/preprocess.py
 
+!/datasets/emodb
 /datasets/emodb/*
 !/datasets/emodb/process_transcripts.py
 
+!/datasets/iemocap
 /datasets/iemocap/*
 !/datasets/iemocap/preprocess.py
 !/datasets/iemocap/process_transcripts.py
 
+!/datasets/msp-improv
 /datasets/msp-improv/*
 !/datasets/msp-improv/preprocess.py
 
+!/datasets/semaine
 /datasets/semaine/*
 !/datasets/semaine/preprocess.py
 !/datasets/semaine/extract_turns.py
 
+!/datasets/smartkom
 /datasets/smartkom/*
 !/datasets/smartkom/preprocess.py
 

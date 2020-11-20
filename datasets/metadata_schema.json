@@ -1,0 +1,370 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "https://agkphysics.github.io/schemas/emotional-speech-data/0.1",
+  "description": "Metadata schema for an emotional speech dataset.",
+  "definitions": {
+    "doiType": {
+      "type": "string",
+      "format": "regex",
+      "pattern": "^10\\.[^/]+/[^/]+$"
+    },
+    "langType": {
+      "description": "Language represented by IETF Language tag (simplified).",
+      "type": "string",
+      "format": "regex",
+      "pattern": "^[a-z]{2,3}-[A-Z]{2}$"
+    },
+    "countryType": {
+      "description": "Country tag as specified in ISO-3166 alpha-2.",
+      "type": "string",
+      "format": "regex",
+      "pattern": "^[A-Z]{2}$"
+    },
+    "dimensionalAnnotationType": {
+      "description": "Type of dimensional annotations such as valence or arousal.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "discrete",
+            "continuous"
+          ]
+        },
+        "minimum": {
+          "type": "integer"
+        },
+        "maximum": {
+          "type": "integer"
+        }
+      },
+      "if": {
+        "properties": {
+          "type": {
+            "const": "discrete"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "steps": {
+            "type": "integer",
+            "minimum": 2
+          }
+        }
+      }
+    }
+  },
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "0.1"
+    },
+    "dataset": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "doi": {
+          "$ref": "#/definitions/doiType"
+        },
+        "paper": {
+          "type": "object",
+          "properties": {
+            "doi": {
+              "$ref": "#/definitions/doiType"
+            },
+            "url": {
+              "type": "string",
+              "format": "url"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "doi",
+            "url",
+            "title"
+          ]
+        },
+        "license": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "ISC",
+                "MIT",
+                "BSD",
+                "CC",
+                "None",
+                "Custom"
+              ]
+            },
+            "subtype": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "authors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "institution": {
+                "type": "string",
+                "minLength": 1
+              },
+              "email": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "name",
+              "institution"
+            ]
+          }
+        },
+        "initial_release": {
+          "type": "string",
+          "format": "date"
+        },
+        "latest_release": {
+          "type": "string",
+          "format": "date"
+        },
+        "languages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/langType"
+          }
+        },
+        "countries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/countryType"
+          }
+        },
+        "accents": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "elicitation": {
+          "type": "string",
+          "enum": [
+            "acted-explicit",
+            "acted-induced",
+            "natural"
+          ]
+        },
+        "speakers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "name": {
+                "type": "string"
+              },
+              "age": {
+                "type": "integer"
+              },
+              "languages": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/langType"
+                }
+              },
+              "country": {
+                "$ref": "#/definitions/countryType"
+              },
+              "accent": {
+                "type": "string"
+              },
+              "gender": {
+                "type": "string",
+                "enum": [
+                  "male",
+                  "female"
+                ]
+              },
+              "group": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "languages",
+              "country",
+              "accent"
+            ]
+          }
+        },
+        "emotions": {
+          "type": "object",
+          "properties": {
+            "labels": {
+              "type": "array",
+              "items": {
+                "$comment": "Is it possible to feasibly make this an enum?",
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "arousal": {
+              "$ref": "#/definitions/dimensionalAnnotationType"
+            },
+            "valence": {
+              "$ref": "#/definitions/dimensionalAnnotationType"
+            },
+            "dominance": {
+              "$ref": "#/definitions/dimensionalAnnotationType"
+            },
+            "intensity": {
+              "$ref": "#/definitions/dimensionalAnnotationType"
+            },
+            "power": {
+              "$ref": "#/definitions/dimensionalAnnotationType"
+            }
+          },
+          "anyOf": [
+            {
+              "required": [
+                "labels"
+              ]
+            },
+            {
+              "required": [
+                "arousal"
+              ]
+            },
+            {
+              "required": [
+                "valence"
+              ]
+            },
+            {
+              "required": [
+                "dominance"
+              ]
+            },
+            {
+              "required": [
+                "intensity"
+              ]
+            },
+            {
+              "required": [
+                "power"
+              ]
+            }
+          ]
+        },
+        "clipsets": {
+          "type": "array",
+          "items": {
+            "description": "File describing a set of clips in this dataset.",
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "path": {
+                "description": "Must be a relative path to the file.",
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "name",
+              "path"
+            ]
+          }
+        },
+        "annotationsets": {
+          "type": "array",
+          "items": {
+            "description": "File describing annotations for clips in this dataset.",
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "labels",
+                  "valence",
+                  "arousal",
+                  "dominance",
+                  "intensity",
+                  "power"
+                ]
+              },
+              "path": {
+                "description": "Must be a relative path to the file.",
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "name",
+              "type",
+              "path"
+            ]
+          }
+        }
+      },
+      "required": [
+        "name",
+        "url",
+        "license",
+        "authors",
+        "latest_release",
+        "languages",
+        "countries",
+        "accents",
+        "speakers",
+        "emotions",
+        "clipsets",
+        "annotationsets"
+      ]
+    }
+  },
+  "required": [
+    "version",
+    "dataset"
+  ]
+}
