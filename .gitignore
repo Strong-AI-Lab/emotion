@@ -28,25 +28,20 @@
 /datasets/smartkom/*
 !/datasets/smartkom/preprocess.py
 
-# Misc project related
-/audeep
-/results
-/todo.sh
+# Misc. project related
 /logs
-/docker
-/tmp
 /output
-smile.log
+/results
 /env.sh
+/todo.sh
+tmp
+smile.log
 
 # Python related
-__pycache__
-.ipynb_checkpoints
-/build
-/dist
-venv
 .venv
+.ipynb_checkpoints
 *.egg-info
+__pycache__
 
 # Misc general
 .vscode
