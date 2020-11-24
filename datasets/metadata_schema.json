@@ -1,12 +1,19 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema",
   "$id": "https://agkphysics.github.io/schemas/emotional-speech-data/0.1",
-  "description": "Metadata schema for an emotional speech dataset.",
+  "description": "Metadata for an emotional speech dataset.",
   "definitions": {
     "doiType": {
+      "description": "A DOI.",
       "type": "string",
       "format": "regex",
       "pattern": "^10\\.[^/]+/[^/]+$"
+    },
+    "hdlType": {
+      "description": "A handle.",
+      "type": "string",
+      "format": "regex",
+      "pattern": "^[^/]+/[^/]+$"
     },
     "langType": {
       "description": "Language represented by IETF Language tag (simplified).",
@@ -20,100 +27,183 @@
       "format": "regex",
       "pattern": "^[A-Z]{2}$"
     },
-    "dimensionalAnnotationType": {
-      "description": "Type of dimensional annotations such as valence or arousal.",
+    "annotationType": {
       "type": "object",
       "properties": {
-        "type": {
+        "name": {
+          "description": "The name of this annotation (e.g. \"valence\").",
           "type": "string",
-          "enum": [
-            "discrete",
-            "continuous"
+          "minLength": 1
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "dimensionalAnnotationType": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/annotationType"
+        },
+        {
+          "description": "A dimensional annotation such as valence or arousal.",
+          "properties": {
+            "type": {
+              "description": "The type of annotation, either discrete or continuous.",
+              "type": "string",
+              "enum": [
+                "discrete",
+                "continuous"
+              ]
+            },
+            "minimum": {
+              "description": "The minumum numeric value.",
+              "type": "integer"
+            },
+            "maximum": {
+              "description": "The maximum numeric value.",
+              "type": "integer"
+            }
+          },
+          "if": {
+            "properties": {
+              "type": {
+                "const": "discrete"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "steps": {
+                "description": "The number of distinct values in this discrete annotation.",
+                "type": "integer",
+                "minimum": 2
+              }
+            },
+            "required": [
+              "type",
+              "minimum",
+              "maximum",
+              "steps"
+            ]
+          },
+          "else": {
+            "required": [
+              "type",
+              "minimum",
+              "maximum"
+            ]
+          }
+        }
+      ]
+    },
+    "labelAnnotationType": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/annotationType"
+        },
+        {
+          "properties": {
+            "labels": {
+              "description": "List of discrete emotion labels.",
+              "type": "array",
+              "items": {
+                "$comment": "Is it possible to feasibly make this an enum?",
+                "description": "An emotional label.",
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "labels"
           ]
-        },
-        "minimum": {
-          "type": "integer"
-        },
-        "maximum": {
-          "type": "integer"
         }
-      },
-      "if": {
-        "properties": {
-          "type": {
-            "const": "discrete"
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "steps": {
-            "type": "integer",
-            "minimum": 2
-          }
-        }
-      }
+      ]
     }
   },
   "type": "object",
   "properties": {
     "version": {
+      "description": "The metadata version.",
       "type": "string",
-      "const": "0.1"
+      "const": "0.2"
     },
     "dataset": {
+      "description": "A dataset object.",
       "type": "object",
       "properties": {
-        "name": {
+        "id": {
+          "description": "A dataset ID consisting only of ASCII alphabetic characters.",
+          "type": "string",
+          "format": "regex",
+          "pattern": "^[a-zA-Z]+$"
+        },
+        "title": {
+          "description": "A title for the dataset.",
           "type": "string",
           "minLength": 1
         },
         "description": {
+          "description": "A description of the dataset.",
           "type": "string"
         },
         "url": {
+          "description": "The URL this dataset or information about this dataset is located at.",
           "type": "string",
           "format": "uri"
         },
         "doi": {
+          "description": "The DOI for this dataset.",
           "$ref": "#/definitions/doiType"
         },
+        "hdl": {
+          "description": "The handle for this dataset.",
+          "$ref": "#/definitions/hdlType"
+        },
         "paper": {
+          "description": "A paper associated with this dataset.",
           "type": "object",
           "properties": {
             "doi": {
+              "description": "The paper's DOI.",
               "$ref": "#/definitions/doiType"
             },
             "url": {
+              "description": "A URL that points to the paper.",
               "type": "string",
               "format": "url"
             },
             "title": {
+              "description": "The paper title.",
               "type": "string",
               "minLength": 1
             }
           },
           "required": [
-            "doi",
             "url",
             "title"
           ]
         },
         "license": {
+          "description": "The datset license.",
           "type": "object",
           "properties": {
             "type": {
+              "description": "The major type of license.",
               "type": "string",
               "enum": [
                 "ISC",
                 "MIT",
                 "BSD",
                 "CC",
-                "None",
+                "Public",
+                "Academic",
                 "Custom"
               ]
             },
             "subtype": {
+              "description": "An optional license subtype.",
               "type": "string"
             }
           },
@@ -122,23 +212,28 @@
           ]
         },
         "version": {
+          "description": "An optional dataset version.",
           "type": "string",
           "minLength": 1
         },
         "authors": {
+          "description": "List of authors of the dataset. These may or may not be the same authors of the paper.",
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
               "name": {
+                "description": "The author's name.",
                 "type": "string",
                 "minLength": 1
               },
               "institution": {
+                "description": "The author's institution.",
                 "type": "string",
                 "minLength": 1
               },
               "email": {
+                "description": "The author's email.",
                 "type": "string",
                 "minLength": 1
               }
@@ -150,14 +245,17 @@
           }
         },
         "initial_release": {
+          "description": "The dataset's initial release date.",
           "type": "string",
           "format": "date"
         },
         "latest_release": {
+          "description": "The dataset's most recent release date.",
           "type": "string",
           "format": "date"
         },
         "languages": {
+          "description": "List of languages present in the datset.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/langType"
@@ -170,13 +268,16 @@
           }
         },
         "accents": {
+          "description": "List of regional accents present in the dataset.",
           "type": "array",
           "items": {
+            "description": "An accent present in the dataset.",
             "type": "string",
             "minLength": 1
           }
         },
         "elicitation": {
+          "description": "Method used to generate emotional speech.",
           "type": "string",
           "enum": [
             "acted-explicit",
@@ -185,33 +286,45 @@
           ]
         },
         "speakers": {
+          "description": "List of speakers in the dataset.",
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
               "id": {
+                "description": "Speaker ID.",
                 "type": "string",
                 "minLength": 1
               },
               "name": {
+                "description": "Speaker name.",
                 "type": "string"
               },
               "age": {
+                "description": "Speaker age.",
                 "type": "integer"
               },
               "languages": {
+                "description": "List of languages this person speaks.",
                 "type": "array",
                 "items": {
                   "$ref": "#/definitions/langType"
                 }
               },
-              "country": {
+              "country_origin": {
+                "description": "Speaker's country of origin.",
+                "$ref": "#/definitions/countryType"
+              },
+              "country_residence": {
+                "description": "Speaker's current country of residence.",
                 "$ref": "#/definitions/countryType"
               },
               "accent": {
+                "description": "Speaker's regional accent.",
                 "type": "string"
               },
               "gender": {
+                "description": "The gender of the speaker.",
                 "type": "string",
                 "enum": [
                   "male",
@@ -219,84 +332,69 @@
                 ]
               },
               "group": {
+                "description": "The speaker group this speaker is in. Default is own group containing only self.",
                 "type": "integer"
               }
             },
             "required": [
               "id",
               "languages",
-              "country",
+              "country_residence",
               "accent"
             ]
           }
         },
-        "emotions": {
-          "type": "object",
-          "properties": {
-            "labels": {
-              "type": "array",
-              "items": {
-                "$comment": "Is it possible to feasibly make this an enum?",
+        "cliptypes": {
+          "description": "Types of audio clips in this dataset.",
+          "type": "array",
+          "items": {
+            "properties": {
+              "format": {
+                "description": "Audio format.",
                 "type": "string",
-                "minLength": 1
+                "enum": [
+                  "wav",
+                  "mp3",
+                  "mp4",
+                  "flac",
+                  "aiff",
+                  "nist"
+                ]
+              },
+              "samplerate": {
+                "description": "Sample rate in Hz.",
+                "type": "integer"
+              },
+              "channels": {
+                "description": "Number of audio channels, either 1 or 2.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2
+              },
+              "bits": {
+                "description": "Number of bits of audio per sample. Note that this is not the stored number of bits.",
+                "type": "integer",
+                "minimum": 16,
+                "maximum": 32
               }
             },
-            "arousal": {
-              "$ref": "#/definitions/dimensionalAnnotationType"
-            },
-            "valence": {
-              "$ref": "#/definitions/dimensionalAnnotationType"
-            },
-            "dominance": {
-              "$ref": "#/definitions/dimensionalAnnotationType"
-            },
-            "intensity": {
-              "$ref": "#/definitions/dimensionalAnnotationType"
-            },
-            "power": {
-              "$ref": "#/definitions/dimensionalAnnotationType"
-            }
-          },
-          "anyOf": [
-            {
-              "required": [
-                "labels"
-              ]
-            },
-            {
-              "required": [
-                "arousal"
-              ]
-            },
-            {
-              "required": [
-                "valence"
-              ]
-            },
-            {
-              "required": [
-                "dominance"
-              ]
-            },
-            {
-              "required": [
-                "intensity"
-              ]
-            },
-            {
-              "required": [
-                "power"
-              ]
-            }
-          ]
+            "required": [
+              "format",
+              "samplerate",
+              "channels",
+              "bits"
+            ]
+          }
         },
         "clipsets": {
+          "description": "List of clip sets in this dataset. A clip set is a list of clips in the dataset, and there may be multiple sets per dataset.",
           "type": "array",
           "items": {
             "description": "File describing a set of clips in this dataset.",
             "type": "object",
             "properties": {
               "name": {
+                "description": "Name of this clip set. If there is only one it should be called \"default\".",
                 "type": "string",
                 "minLength": 1
               },
@@ -312,26 +410,36 @@
             ]
           }
         },
+        "annotationtypes": {
+          "description": "Types of annotations present in this dataset.",
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/dimensionalAnnotationType"
+              },
+              {
+                "$ref": "#/definitions/labelAnnotationType"
+              }
+            ]
+          }
+        },
         "annotationsets": {
+          "description": "List of annotation sets in this dataset. An annotation set is a set of annotations for some clips, and there may be multiple sets per dataset.",
           "type": "array",
           "items": {
             "description": "File describing annotations for clips in this dataset.",
             "type": "object",
             "properties": {
               "name": {
+                "description": "The name of this annotation set. If there is only one set, this name should be \"default\".",
                 "type": "string",
                 "minLength": 1
               },
               "type": {
+                "description": "The annotation type. Must be one of the annotations present in annotations.",
                 "type": "string",
-                "enum": [
-                  "labels",
-                  "valence",
-                  "arousal",
-                  "dominance",
-                  "intensity",
-                  "power"
-                ]
+                "minLength": 1
               },
               "path": {
                 "description": "Must be a relative path to the file.",
@@ -348,7 +456,8 @@
         }
       },
       "required": [
-        "name",
+        "id",
+        "title",
         "url",
         "license",
         "authors",
@@ -357,8 +466,9 @@
         "countries",
         "accents",
         "speakers",
-        "emotions",
+        "cliptypes",
         "clipsets",
+        "annotationtypes",
         "annotationsets"
       ]
     }
