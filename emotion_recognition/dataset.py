@@ -201,7 +201,8 @@ class NetCDFBackend(DatasetBackend):
             self._features = x
         elif all(slices == slices[0]):
             # 3-D array
-            seq_len = len(x) / len(self.names)
+            assert len(x) % len(self.names) == 0
+            seq_len = len(x) // len(self.names)
             self._features = np.reshape(x, (len(self.names), seq_len,
                                         len(self.feature_names)))
         else:
