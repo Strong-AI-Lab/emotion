@@ -159,28 +159,39 @@ class DatasetBackend(abc.ABC):
 
     @property
     def features(self) -> np.ndarray:
+        """Feature matrix."""
         return self._features
 
     @property
     def labels(self) -> Optional[List[str]]:
+        """Nominal (string) labels."""
         return self._labels
 
     @property
     def names(self) -> List[str]:
+        """Instance names."""
         return self._names
 
     @property
     def feature_names(self) -> List[str]:
+        """Names of features in feature matrix."""
         return self._feature_names
 
     @property
     def corpus(self) -> str:
+        """Corpus ID."""
         return self._corpus
+
+    _features: np.ndarray = np.empty(0)
+    _labels: Optional[List[str]] = None
+    _names: List[str] = []
+    _feature_names: List[str] = []
+    _corpus: str = ''
 
 
 class NetCDFBackend(DatasetBackend):
-    """Class that reads data from a netCDF4 file in our format, which is
-    modified from the format used by the auDeep toolkit.
+    """Backend that reads data from a netCDF4 file in our format, which
+    is modified from the format used by the auDeep toolkit.
     """
     def __init__(self, path: Union[PathLike, str]):
         dataset = netCDF4.Dataset(path)
@@ -213,10 +224,75 @@ class NetCDFBackend(DatasetBackend):
 
         if 'label_nominal' in dataset.variables:
             self._labels = list(dataset.variables['label_nominal'])
-        else:
-            self._labels = None
 
         dataset.close()
+
+
+class RawAudioBackend(DatasetBackend):
+    """Backend that uses audio clip filepaths from a file and loads the
+    audio as raw data.
+    """
+    def __init__(self, path: Union[PathLike, str]) -> None:
+        path = Path(path)
+        self.feature_names.append('pcm')
+
+        filenames = []
+        with open(path) as fid:
+            for line in fid:
+                filenames.append(line.strip())
+
+        self._features = np.empty(len(filenames), dtype=object)
+        for i, filename in enumerate(filenames):
+            self.names.append(Path(filename).stem)
+            audio, _ = soundfile.read(filename, always_2d=True,
+                                      dtype='float32')
+            self._features[i] = audio
+
+        # We assume the file list is at the root of the dataset directory
+        self._corpus = path.parent.stem
+        label_file = path.parent / 'labels.csv'
+        if label_file.exists():
+            annotations = parse_classification_annotations(label_file)
+            self._labels = []
+            for name in self.names:
+                self._labels.append(annotations[name])
+
+
+class ARFFBackend(DatasetBackend):
+    """Backend that uses an ARFF (text or binary) file to load data from."""
+    def __init__(self, path: Union[PathLike, str]) -> None:
+        path = Path(path)
+        if path.suffix == '.bin':
+            with open(path, 'rb') as fid:
+                data = decode_arff(fid)
+        else:
+            with open(path) as fid:
+                data = arff.load(fid)
+
+        self._corpus = data['relation']
+        self._feature_names = [x[0] for x in data['attributes'][1:-1]]
+
+        counts = Counter([x[0] for x in data['data']])
+        self._names = list(counts.keys())
+
+        x = np.array([x[1:-1] for x in data['data']])
+        slices = np.array(counts.values())
+        if len(x) == len(self.names):
+            # 2-D array
+            self._features = x
+        elif all(slices == slices[0]):
+            # 3-D array
+            assert len(x) % len(self.names) == 0
+            seq_len = len(x) // len(self.names)
+            self._features = np.reshape(x, (len(self.names), seq_len,
+                                        len(self.feature_names)))
+        else:
+            # 3-D variable length array
+            indices = np.cumsum(slices)
+            arrs = np.split(x, indices[:-1], axis=0)
+            self._features = np.array(arrs, dtype=object)
+
+        self._labels = list(dict.fromkeys(x[-1] for x in data['data']).keys())
 
 
 class Dataset(abc.ABC):
@@ -224,6 +300,10 @@ class Dataset(abc.ABC):
         path = Path(path)
         if path.suffix == '.nc':
             self.backend = NetCDFBackend(path)
+        elif path.suffix == '.txt':
+            self.backend = RawAudioBackend(path)
+        elif path.suffixes[0] == '.arff':
+            self.backend = ARFFBackend(path)
         else:
             raise NotImplementedError('Unknown filetype.')
 
@@ -498,105 +578,6 @@ class LabelledDataset(Dataset):
         s += '{} classes:\n'.format(self.n_classes)
         s += '\t{}\n'.format(dict(zip(self.classes, self.class_counts)))
         return s
-
-
-class RawDataset(LabelledDataset):
-    """A raw audio dataset. Should be in WAV files."""
-    def __init__(self, path: Union[PathLike, str], corpus: str):
-        self._features = ['pcm']
-
-        self.file = path
-
-        self._names = []
-        self.filenames = []
-        with open(path) as fid:
-            for line in fid:
-                filename = line.strip()
-                self.filenames.append(filename)
-                name = Path(filename).stem
-                self._names.append(name)
-
-        super().__init__(corpus)
-
-        print("{} audio files".format(self.n_instances))
-
-        del self.filenames
-
-    def _create_data(self):
-        self._x = np.empty(self.n_instances, dtype=object)
-        self._y = np.empty(self.n_instances, dtype=np.int64)
-        for i, filename in enumerate(self.filenames):
-            audio, _ = soundfile.read(filename, dtype=np.float32)
-            audio = np.expand_dims(audio, axis=1)
-            self._x[i] = audio
-
-            annotations = parse_classification_annotations(
-                Path(self.file).parent / 'labels.csv')
-            name = Path(filename).stem
-            emotion = annotations[name]
-            self._y[i] = self.class_to_int(emotion)
-
-
-class UtteranceARFFDataset(LabelledDataset):
-    """Represents an ARFF dataset consisting of a single vector per
-    instance.
-    """
-    def __init__(self, path: Union[PathLike, str]):
-        path = Path(path)
-        if path.suffix == '.bin':
-            with open(path, 'rb') as fid:
-                data = decode_arff(fid)
-        else:
-            with open(path) as fid:
-                data = arff.load(fid)
-
-        self.raw_data = data['data']
-        self._names = [x[0] for x in self.raw_data]
-        self._features = [x[0] for x in data['attributes'][1:-1]]
-
-        corpus = data['relation']
-        super().__init__(corpus)
-
-        del self.raw_data
-
-    def _create_data(self):
-        self._x = np.array([x[1:-1] for x in self.raw_data])
-        self._y = np.array([self.class_to_int(x[-1]) for x in self.raw_data])
-
-
-class SequenceARFFDataset(LabelledDataset):
-    """Represents a dataset consisting of a sequence of vectors per
-    instance.
-    """
-    def __init__(self, path: Union[PathLike, str]):
-        path = Path(path)
-        if path.suffix == '.bin':
-            with open(path, 'rb') as fid:
-                data = decode_arff(fid)
-        else:
-            with open(path) as fid:
-                data = arff.load(fid)
-
-        self.raw_data = data['data']
-        # Ordered by insertion in Python 3.7+
-        names = Counter([x[0] for x in self.raw_data])
-        self._names = list(names.keys())
-        self.slices = np.array(names.values())
-        self._features = [x[0] for x in data['attributes'][1:-1]]
-
-        corpus = data['relation']
-        super().__init__(corpus)
-
-        del self.raw_data, self.slices
-
-    def _create_data(self):
-        self._x = np.array([x[1:-1] for x in self.raw_data])
-        indices = np.cumsum(self.slices)
-        arrs = np.split(self._x, indices[:-1], axis=0)
-        self._x = np.array(arrs)
-
-        labels = dict.fromkeys(x[-1] for x in self.raw_data).keys()
-        self._y = np.array([self.class_to_int(x) for x in labels])
 
 
 class CombinedDataset(LabelledDataset):
