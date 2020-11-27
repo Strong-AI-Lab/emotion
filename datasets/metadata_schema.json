@@ -27,83 +27,108 @@
       "format": "regex",
       "pattern": "^[A-Z]{2}$"
     },
-    "dimensionalAnnotationType": {
-      "description": "A dimensional annotation such as valence or arousal.",
+    "annotationType": {
+      "type": "object",
       "properties": {
         "name": {
-          "description": "The name of this annotation (e.g. \"valence\").",
+          "description": "The name of this annotation type (e.g. \"labels\", \"valence\").",
           "type": "string",
           "minLength": 1
         },
         "type": {
-          "description": "The type of annotation, either discrete or continuous.",
-          "type": "string",
-          "enum": [
-            "discrete",
-            "continuous"
-          ]
-        },
-        "minimum": {
-          "description": "The minumum numeric value.",
-          "type": "integer"
-        },
-        "maximum": {
-          "description": "The maximum numeric value.",
-          "type": "integer"
-        }
-      },
-      "if": {
-        "properties": {
-          "type": {
-            "const": "discrete"
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "steps": {
-            "description": "The number of distinct values in this discrete annotation.",
-            "type": "integer",
-            "minimum": 2
-          }
-        },
-        "required": [
-          "type",
-          "minimum",
-          "maximum",
-          "steps"
-        ]
-      },
-      "else": {
-        "required": [
-          "name",
-          "type",
-          "minimum",
-          "maximum"
-        ]
-      }
-    },
-    "labelAnnotationType": {
-      "properties": {
-        "name": {
-          "description": "The name of this annotation. Must be \"labels\" for discrete labels.",
-          "type": "string",
-          "const": "labels"
-        },
-        "labels": {
-          "description": "List of discrete emotion labels.",
-          "type": "array",
-          "items": {
-            "$comment": "Is it possible to feasibly make this an enum?",
-            "description": "An emotional label.",
-            "type": "string",
-            "minLength": 1
-          }
+          "description": "The type of annotation.",
+          "type": "string"
         }
       },
       "required": [
         "name",
-        "labels"
+        "type"
+      ]
+    },
+    "dimensionalAnnotationType": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/annotationType"
+        },
+        {
+          "description": "A dimensional annotation such as valence or arousal.",
+          "properties": {
+            "type": {
+              "description": "The type of dimensional annotation, either discrete or continuous.",
+              "type": "string",
+              "enum": [
+                "discrete",
+                "continuous"
+              ]
+            },
+            "minimum": {
+              "description": "The minumum numeric value.",
+              "type": "integer"
+            },
+            "maximum": {
+              "description": "The maximum numeric value.",
+              "type": "integer"
+            }
+          },
+          "if": {
+            "properties": {
+              "type": {
+                "const": "discrete"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "steps": {
+                "description": "The number of distinct values in this discrete annotation.",
+                "type": "integer",
+                "minimum": 2
+              }
+            },
+            "required": [
+              "type",
+              "minimum",
+              "maximum",
+              "steps"
+            ]
+          },
+          "else": {
+            "required": [
+              "type",
+              "minimum",
+              "maximum"
+            ]
+          }
+        }
+      ]
+    },
+    "labelAnnotationType": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/annotationType"
+        },
+        {
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "labels"
+            },
+            "labels": {
+              "description": "List of discrete emotion labels.",
+              "type": "array",
+              "items": {
+                "$comment": "Is it possible to feasibly make this an enum?",
+                "description": "An emotional label.",
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "type",
+            "labels"
+          ]
+        }
       ]
     }
   },
@@ -409,7 +434,8 @@
                 "const": "default"
               }
             }
-          }
+          },
+          "uniqueItems": true
         },
         "annotationtypes": {
           "description": "Types of annotations present in this dataset.",
@@ -437,8 +463,8 @@
                 "type": "string",
                 "minLength": 1
               },
-              "type": {
-                "description": "The annotation type. Must be one of the annotations present in annotations.",
+              "annotationtype": {
+                "description": "The annotation type. Must be the name of one of the defined annotation types.",
                 "type": "string",
                 "minLength": 1
               },
@@ -450,7 +476,7 @@
             },
             "required": [
               "name",
-              "type",
+              "annotationtype",
               "path"
             ]
           },
