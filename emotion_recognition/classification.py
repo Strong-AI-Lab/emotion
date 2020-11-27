@@ -425,15 +425,15 @@ def optimise_params(param_grid: Iterable[Dict[str, Sequence]],
 
 
 def _record_metrics(df, fold, rep, y_true, y_pred, n_classes):
-    df.loc[fold, ('war', 'all', rep)] = recall_score(y_true, y_pred,
-                                                     average='micro')
-    df.loc[fold, ('uar', 'all', rep)] = recall_score(y_true, y_pred,
-                                                     average='macro')
-    df.loc[fold, ('uap', 'all', rep)] = precision_score(y_true, y_pred,
-                                                        average='macro')
-    df.loc[fold, ('rec', 'all', rep)] = recall_score(
+    df.loc[fold, ('war', slice(None), rep)] = recall_score(y_true, y_pred,
+                                                           average='micro')
+    df.loc[fold, ('uar', slice(None), rep)] = recall_score(y_true, y_pred,
+                                                           average='macro')
+    df.loc[fold, ('uap', slice(None), rep)] = precision_score(y_true, y_pred,
+                                                              average='macro')
+    df.loc[fold, ('rec', slice(None), rep)] = recall_score(
         y_true, y_pred, average=None, labels=list(range(n_classes)))
-    df.loc[fold, ('prec', 'all', rep)] = precision_score(
+    df.loc[fold, ('prec', slice(None), rep)] = precision_score(
         y_true, y_pred, average=None, labels=list(range(n_classes)))
 
 
