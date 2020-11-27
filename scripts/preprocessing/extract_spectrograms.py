@@ -165,9 +165,9 @@ def calculate_spectrogram(audio: tf.Tensor,
 
     # Calculate power spectrum in dB units and clip
     power = tf.square(mel_spectrogram)
-    max_power = tf.reduce_max(power, axis=[1, 2], keepdims=True)
-    log_spec = 10 * log10(power / max_power)
-    db_spectrogram = tf.maximum(log_spec, -clip)
+    db = 10 * log10(power)
+    max_db = tf.reduce_max(db, axis=[1, 2], keepdims=True)
+    db_spectrogram = tf.maximum(db - max_db, -clip)
 
     # Scale spectrogram values to [-1, 1] as per auDeep.
     db_min = tf.reduce_min(db_spectrogram, axis=[1, 2], keepdims=True)
