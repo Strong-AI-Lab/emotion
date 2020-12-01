@@ -143,6 +143,25 @@ def _make_ragged(flat: np.ndarray,
     return arrs
 
 
+def _reshape_data_array(x: np.ndarray, slices: np.ndarray) -> np.ndarray:
+    """Takes a possibly 2D data array and converts it to either a
+    contiguous 2D/3D array or a variable-length 3D array.
+    """
+    if len(x) == len(slices):
+        # 2-D contiguous array
+        return x
+    elif all(slices == slices[0]):
+        # 3-D contiguous array
+        assert len(x) % len(slices) == 0
+        seq_len = len(x) // len(slices)
+        return np.reshape(x, (len(slices), seq_len, x[0].shape[-1]))
+    else:
+        # 3-D variable length array
+        indices = np.cumsum(slices)
+        arrs = np.split(x, indices[:-1], axis=0)
+        return np.array(arrs, dtype=object)
+
+
 class DatasetBackend(abc.ABC):
     """Opens the file/directory given by path and reads in the
     relevant data in an implementation specific manner.
@@ -207,21 +226,7 @@ class NetCDFBackend(DatasetBackend):
 
         x = np.array(dataset.variables['features'])
         slices = np.array(dataset.variables['slices'])
-        if len(x) == len(self.names):
-            # 2-D array
-            self._features = x
-        elif all(slices == slices[0]):
-            # 3-D array
-            assert len(x) % len(self.names) == 0
-            seq_len = len(x) // len(self.names)
-            self._features = np.reshape(x, (len(self.names), seq_len,
-                                        len(self.feature_names)))
-        else:
-            # 3-D variable length array
-            indices = np.cumsum(slices)
-            arrs = np.split(x, indices[:-1], axis=0)
-            self._features = np.array(arrs, dtype=object)
-
+        self._features = _reshape_data_array(x, slices)
         if 'label_nominal' in dataset.variables:
             self._labels = list(dataset.variables['label_nominal'])
 
@@ -259,7 +264,7 @@ class RawAudioBackend(DatasetBackend):
 
 
 class ARFFBackend(DatasetBackend):
-    """Backend that uses an ARFF (text or binary) file to load data from."""
+    """Backend that loads data from an ARFF (text or binary) file."""
     def __init__(self, path: Union[PathLike, str]) -> None:
         path = Path(path)
         if path.suffix == '.bin':
@@ -277,21 +282,7 @@ class ARFFBackend(DatasetBackend):
 
         x = np.array([x[1:-1] for x in data['data']])
         slices = np.array(counts.values())
-        if len(x) == len(self.names):
-            # 2-D array
-            self._features = x
-        elif all(slices == slices[0]):
-            # 3-D array
-            assert len(x) % len(self.names) == 0
-            seq_len = len(x) // len(self.names)
-            self._features = np.reshape(x, (len(self.names), seq_len,
-                                        len(self.feature_names)))
-        else:
-            # 3-D variable length array
-            indices = np.cumsum(slices)
-            arrs = np.split(x, indices[:-1], axis=0)
-            self._features = np.array(arrs, dtype=object)
-
+        self._features = _reshape_data_array(x, slices)
         self._labels = list(dict.fromkeys(x[-1] for x in data['data']).keys())
 
 
