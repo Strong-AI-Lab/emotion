@@ -376,7 +376,7 @@
                   "mp4",
                   "flac",
                   "aiff",
-                  "nist"
+                  "sph"
                 ]
               },
               "samplerate": {
