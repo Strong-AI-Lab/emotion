@@ -153,7 +153,7 @@ def tf_cross_validate(model_fn: TFModelFunction,
     n_folds = cv.get_n_splits(x, y, groups)
     for fold, (train, test) in enumerate(cv.split(x, y, groups)):
         tf.keras.backend.clear_session()
-        print("\tFold {}/{}".format(fold, n_folds))
+        print("\tFold {}/{}".format(fold + 1, n_folds))
 
         x_train = x[train]
         y_train = y[train]

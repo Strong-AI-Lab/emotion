@@ -3,13 +3,13 @@ import json
 import os
 from functools import partial
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 from emotion_recognition.classification import PrecomputedSVC
-from emotion_recognition.dataset import LabelledDataset, NetCDFDataset
+from emotion_recognition.dataset import LabelledDataset
 from emotion_recognition.tensorflow.classification import tf_cross_validate
 from emotion_recognition.tensorflow.models import (aldeneh2017_model,
                                                    latif2019_model,
@@ -120,23 +120,26 @@ def test_classifier(type_: str,
                     kind: str,
                     dataset: LabelledDataset,
                     reps: int = 1,
-                    results: Optional[Union[str, Path]] = None,
-                    verbose: bool = False):
+                    results: Optional[Path] = None,
+                    logs: Optional[Path] = None,
+                    verbose: bool = False,
+                    lr: float = 1e-4,
+                    epochs: int = 50,
+                    bs: int = 64):
     splitter = LeaveOneGroupOut()
-    if dataset.n_speakers > 12:
+    if len(dataset.speakers) > 12:
         splitter = GroupKFold(6)
 
-    class_counts = np.bincount(dataset.y.astype(int))
-    class_weight = dataset.n_instances / (dataset.n_classes * class_counts)
+    class_weight = (dataset.n_instances
+                    / (dataset.n_classes * dataset.class_counts))
     # Necessary until scikeras supports passing in class_weights directly
-    sample_weight = class_weight[dataset.y.astype(int)]
+    sample_weight = class_weight[dataset.y]
 
     metrics = (['uar', 'war'] + [x + '_rec' for x in dataset.classes]
                + [x + '_prec' for x in dataset.classes])
     df = pd.DataFrame(index=pd.RangeIndex(reps, name='rep'),
                       columns=metrics + ['params'])
 
-    # Dict of scoring functions to use
     scoring = {'war': get_scorer('accuracy'),
                'uar': get_scorer('balanced_accuracy')}
     for i, c in enumerate(dataset.classes):
@@ -148,19 +151,22 @@ def test_classifier(type_: str,
     for rep in range(reps):
         print("Rep {}".format(rep))
         if type_ in ['svm', 'dnn']:
+            fit_params = dict(sample_weight=sample_weight)
             if type_ == 'svm':
                 param_grid = get_svm_params(kind)
                 clf = GridSearchCV(PrecomputedSVC(), param_grid, cv=splitter,
                                    scoring='balanced_accuracy', n_jobs=-1)
-                clf.fit(dataset.x, dataset.y, groups=dataset.speaker_indices,
-                        sample_weight=sample_weight)
+                clf.fit(
+                    dataset.x, dataset.y, groups=dataset.speaker_group_indices,
+                    sample_weight=sample_weight
+                )
                 params = clf.best_params_
                 clf = clf.best_estimator_
             else:
                 # Force CPU only to do in parallel, supress TF errors
                 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
                 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-                params = dict(lr=1e-4, batch_size=64, epochs=50)
+                params = dict(lr=lr, batch_size=bs, epochs=epochs)
                 clf = KerasClassifier(
                     get_vec_model, kind=kind, n_features=dataset.n_features,
                     n_classes=dataset.n_classes, **params, verbose=False
@@ -168,22 +174,24 @@ def test_classifier(type_: str,
             scores = cross_validate(
                 clf, dataset.x, dataset.y, cv=splitter, scoring=scoring,
                 groups=dataset.speaker_group_indices,
-                fit_params=dict(sample_weight=sample_weight),
-                n_jobs=-1, verbose=int(verbose)
+                fit_params=fit_params, n_jobs=-1, verbose=int(verbose)
             )
         else:  # type_ == 'cnn'
             os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
-            batch_size = 64
-            epochs = 50
-            lr = 1e-4
             data_fn = create_tf_dataset_ragged
             if kind == 'zhang2019':
-                batch_size = 16
                 data_fn = create_windowed_dataset
-            elif kind == 'zhao2019':
-                batch_size = 64
-            data_fn = partial(data_fn, batch_size=batch_size)
-            params = dict(lr=lr, batch_size=batch_size, epochs=epochs)
+            data_fn = partial(data_fn, batch_size=bs)
+            params = dict(lr=lr, batch_size=bs, epochs=epochs)
+
+            # To print model params
+            _model = get_seq_model(
+                kind=kind, n_features=dataset.n_features,
+                n_classes=dataset.n_classes, lr=lr
+            )
+            _model.summary()
+            del _model
+            tf.keras.backend.clear_session()
 
             model_fn = partial(
                 get_seq_model, kind=kind, n_features=dataset.n_features,
@@ -192,9 +200,19 @@ def test_classifier(type_: str,
             scores = tf_cross_validate(
                 model_fn, dataset.x, dataset.y, cv=splitter, scoring=scoring,
                 groups=dataset.speaker_group_indices, data_fn=data_fn,
-                sample_weight=sample_weight,
+                sample_weight=sample_weight, log_dir=None,
                 fit_params=dict(epochs=epochs, verbose=verbose)
             )
+            if logs:
+                log_dir = logs / ('rep_' + str(rep))
+                log_dir.mkdir(parents=True, exist_ok=True)
+                log_df = pd.DataFrame.from_dict({
+                    # e.g. (0, 'loss'): 1.431...
+                    (fold, key): val
+                    for fold in range(len(scores['history']))
+                    for key, val in scores['history'][fold].items()
+                })
+                log_df.to_csv(log_dir / 'history.csv', header=True, index=True)
         # Make string to add to final dataframe
         params = json.dumps(params)
 
@@ -222,25 +240,40 @@ def test_classifier(type_: str,
 
 def main():
     parser = argparse.ArgumentParser()
+
+    # Required options
     parser.add_argument('--clf', type=str, required=True,
                         help="The type of classifier: {svm, dnn, cnn}.")
-    parser.add_argument('--data', type=Path, required=True,
-                        help="The data to use.")
     parser.add_argument('--kind', type=str, required=True,
                         help="The kind of classifier.")
+    parser.add_argument('--data', type=Path, required=True,
+                        help="The data to use.")
 
-    parser.add_argument('--datatype', type=str, default='utterance',
-                        help="The type of data: {raw, seq, vec}.")
+    # Dataset options
     parser.add_argument('--pad', type=int,
                         help="Pad input sequences to this length.")
-    parser.add_argument('--clip', type=int,
-                        help="Clips input sequences to this maximum length.")
+    parser.add_argument(
+        '--clip', type=int,
+        help="Clips input sequences to this maximum length, after any padding."
+    )
 
+    # Results options
     parser.add_argument('--name', type=str, help="The results output name.")
     parser.add_argument('--results', type=Path, help="Results directory.")
+
+    # Cross-validation options
     parser.add_argument('--reps', type=int, default=1,
                         help="The number of repetitions to do per test.")
+
+    # Misc. options
     parser.add_argument('--verbose', action='store_true')
+    parser.add_argument('--logs', type=Path,
+                        help="Folder to write training logs per fold.")
+
+    # Model-specific options
+    parser.add_argument('--learning_rate', type=float, default=1e-4)
+    parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--epochs', type=int, default=50)
     args = parser.parse_args()
 
     if args.clf not in ['svm', 'dnn', 'cnn']:
@@ -250,15 +283,18 @@ def main():
     for gpu in tf.config.list_physical_devices('GPU'):
         tf.config.experimental.set_memory_growth(gpu, True)
 
-    dataset = NetCDFDataset(args.data)
+    dataset = LabelledDataset(args.data)
     dataset.normalise(normaliser=StandardScaler(), scheme='speaker')
     if args.pad:
         dataset.pad_arrays(args.pad)
     if args.clip:
         dataset.clip_arrays(args.clip)
 
-    test_classifier(args.clf, args.kind, dataset, reps=args.reps,
-                    results=args.results, verbose=args.verbose)
+    test_classifier(
+        args.clf, args.kind, dataset, reps=args.reps, results=args.results,
+        logs=args.logs, verbose=args.verbose, lr=args.learning_rate,
+        epochs=args.epochs, bs=args.batch_size
+    )
 
 
 if __name__ == "__main__":
