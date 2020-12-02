@@ -152,7 +152,7 @@ def main():
     logger.setLevel(logging.INFO)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--results', nargs='+', type=Path, required=True)
+    parser.add_argument('--results', type=Path, required=True)
     parser.add_argument('--metrics', nargs='*', type=str,
                         help="Metrics to output.")
     parser.add_argument('--plot', help="Show matplotlib figures.",
@@ -170,20 +170,11 @@ def main():
                         help="Don't rename and reorder columns.")
     args = parser.parse_args()
 
-    cache_file = Path(args.results[0])
-    if len(args.results) == 1 and cache_file.is_file():
-        logger.info("Found results cache at {}.".format(str(cache_file)))
-        df = pd.read_csv(cache_file, index_col=[0, 1, 2])
+    if args.results.is_file():
+        logger.info("Found results cache at {}.".format(str(args.results)))
+        df = pd.read_csv(args.results, index_col=[0, 1, 2])
     else:
-        _dirs = [d for d in args.results if d.is_dir()]
-        dirs = []
-        for d in _dirs:
-            # This takes into account Windows CMD globbing issues
-            if '*' in d.stem:
-                dirs.extend(d.parent.glob(d.stem))
-            else:
-                dirs.append(d)
-        dirs = sorted(dirs)
+        dirs = sorted([d for d in args.results.glob('*') if d.is_dir()])
 
         uar_list = {}
         for d in dirs:
@@ -222,9 +213,10 @@ def main():
     df = df.unstack(0).swaplevel(axis=1)
     df.columns.names = [None, 'metric']
 
-    metrics = ['mean']
+    metrics = {'mean'}
     if args.metrics:
-        metrics += args.metrics
+        metrics.union(args.metrics)
+    metrics = tuple(metrics)
     if len(metrics) == 1:
         metrics = metrics[0]
     df = df.xs(metrics, axis=1, level='metric')
