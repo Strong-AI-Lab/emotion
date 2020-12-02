@@ -25,7 +25,11 @@ SUBSTITUTIONS = {
     'svm/rbf': 'SVM (RBF)',
 
     # Feature sets
-    'logmel': 'log MFB',
+    'logmel_40': '40 vlen log-mspec',
+    'logmel_240': '240 vlen log-mspec',
+    'spectrograms_40': '5s x 40 clip log-mspec.',
+    'spectrograms_240': '5s x 240 clip log-mspec.',
+    'raw_audio': 'Raw audio',
     'eGeMAPS': 'eGeMAPS',
     'GeMAPS': 'GeMAPS',
     'IS09': 'IS09',
@@ -136,6 +140,9 @@ def plot_matrix(df: pd.DataFrame, size: tuple = (4, 4),
 
 
 def ordered_intersect(a: Sequence, b: Sequence):
+    """Returns a list of all elements in `a` which are also in `b`, in
+    the same order they appear in `a`.
+    """
     return [x for x in a if x in b]
 
 
