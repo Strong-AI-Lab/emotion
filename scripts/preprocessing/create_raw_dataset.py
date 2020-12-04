@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 """Creates a NetCDF dataset containing the raw audio and labels."""
 
 import argparse

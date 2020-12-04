@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 """Perform inference on a given dataset using a pre-trained model.
 Return the predicted class and the estimated confidence information.
 """

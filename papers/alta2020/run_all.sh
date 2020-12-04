@@ -1,4 +1,4 @@
-#!/usr/bin/sh
+#!/bin/sh
 
 # This script runs all tests on each corpus.
 # It must be run from the root directory of the repository.

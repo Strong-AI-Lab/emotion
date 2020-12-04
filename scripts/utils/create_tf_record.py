@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 """Exports a TFRecord file from ARFF or raw audio data."""
 
 import argparse

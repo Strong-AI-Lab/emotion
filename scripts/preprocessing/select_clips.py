@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 """Selects speech clips of a given length."""
 
 import argparse

@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 """Create directory structure with cross-validation folds."""
 
 import argparse

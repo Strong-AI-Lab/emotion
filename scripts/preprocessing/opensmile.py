@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 """Batch process a list of files in a dataset using the openSMILE Toolkit."""
 
 import argparse

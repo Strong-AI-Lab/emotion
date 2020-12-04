@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 """Splits a CHAT file into respective turns designated by timecodes."""
 
 import argparse

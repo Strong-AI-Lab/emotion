@@ -1,4 +1,4 @@
-#!/usr/bin/sh
+#!/bin/sh
 
 # This script runs the main experiment script on various combinations of
 # classifier and features on a given dataset.

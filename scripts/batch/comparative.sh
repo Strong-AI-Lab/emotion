@@ -1,4 +1,4 @@
-#!/usr/bin/sh
+#!/bin/sh
 
 # This script runs all combinations of classifier, feature set and corpus.
 # Must be run from the root directory of the project.

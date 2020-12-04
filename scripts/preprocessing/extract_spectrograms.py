@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 """Extracts spectrograms from several audio files and creates a netCFD4 file or
 TFRecord file holding the data.
 """

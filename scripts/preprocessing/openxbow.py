@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 """Process sequences of LLD vectors using the openXBOW software."""
 
 import argparse

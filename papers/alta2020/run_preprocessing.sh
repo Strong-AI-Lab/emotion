@@ -1,4 +1,4 @@
-#!/usr/bin/sh
+#!/bin/sh
 
 # This script runs all the data preprocessing scripts (feature
 # generation) on a given corpus.

@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 """Displays plot of training epochs for cross-validation rounds."""
 
 import argparse

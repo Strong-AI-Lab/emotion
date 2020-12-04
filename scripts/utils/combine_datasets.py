@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 """Combines two or more datasets of spectrograms into a larger dataset.
 """
 

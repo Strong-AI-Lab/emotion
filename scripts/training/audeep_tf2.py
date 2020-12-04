@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 """A TensorFlow 2 implementation of the auDeep representation learning
 framework. Original implementation is available at
 https://github.com/auDeep/auDeep.
