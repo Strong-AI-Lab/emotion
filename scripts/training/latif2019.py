@@ -11,15 +11,13 @@ import numpy as np
 import tensorflow as tf
 from emotion_recognition.classification import (print_results,
                                                 within_corpus_cross_validation)
-from emotion_recognition.dataset import RawDataset
+from emotion_recognition.dataset import LabelledDataset
 from emotion_recognition.tensorflow.classification import TFClassifier
 from emotion_recognition.tensorflow.models import latif2019_model
 from emotion_recognition.tensorflow.utils import create_tf_dataset_ragged
 from sklearn.model_selection import LeaveOneGroupOut
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.optimizers import RMSprop
-
-RESULTS_DIR = 'results/latif2019'
 
 
 def get_tf_dataset(x: np.ndarray, y: np.ndarray, shuffle: bool = True,
@@ -54,8 +52,8 @@ def main():
     tf.keras.backend.clear_session()
 
     for corpus in ['iemocap', 'msp-improv']:
-        dataset = RawDataset('datasets/{}/files.txt'.format(corpus),
-                             corpus=corpus)
+        # dataset = LabelledDataset('output/{}/raw_audio.nc'.format(corpus))
+        dataset = LabelledDataset('datasets/{}/files.txt'.format(corpus))
         dataset.pad_arrays()
 
         class_weight = (dataset.n_instances
@@ -80,7 +78,7 @@ def main():
         df = within_corpus_cross_validation(clf, dataset,
                                             splitter=LeaveOneGroupOut())
         print_results(df)
-        output_dir = Path(RESULTS_DIR) / corpus
+        output_dir = Path('results') / 'latif2019' / corpus
         output_dir.mkdir(parents=True, exist_ok=True)
         df.to_csv(output_dir / 'raw_audio.csv')
 
