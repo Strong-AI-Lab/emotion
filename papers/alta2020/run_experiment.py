@@ -68,7 +68,7 @@ def test_classifier(kind: str,
 
     metrics = (['uar', 'war'] + [x + '_rec' for x in dataset.classes]
                + [x + '_prec' for x in dataset.classes])
-    df = pd.DataFrame(index=pd.RangeIndex(reps, name='rep'),
+    df = pd.DataFrame(index=pd.RangeIndex(1, reps + 1, name='rep'),
                       columns=metrics + ['params'])
 
     scoring = {'war': get_scorer('accuracy'),
@@ -79,7 +79,7 @@ def test_classifier(kind: str,
             c + '_prec': make_scorer(precision_score, average=None, labels=[i])
         })
 
-    for rep in range(reps):
+    for rep in range(1, reps + 1):
         print("Rep {}".format(rep))
         if kind == 'svm':
             fit_params = dict(sample_weight=sample_weight)
@@ -171,7 +171,6 @@ def main():
     )
 
     # Results options
-    parser.add_argument('--name', type=str, help="The results output name.")
     parser.add_argument('--results', type=Path, help="Results directory.")
 
     # Cross-validation options
