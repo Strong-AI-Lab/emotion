@@ -22,7 +22,7 @@ from ..utils import batch_arrays, shuffle_multiple
 from .utils import create_tf_dataset_ragged, DataFunction, TFModelFunction
 
 
-class _DummyEstimator:
+class DummyEstimator:
     def __init__(self, y_pred):
         self.y_pred = y_pred
 
@@ -174,7 +174,7 @@ def tf_cross_validate(model_fn: TFModelFunction,
         # Use validation data just for info
         callbacks = []
         if log_dir is not None:
-            tb_log_dir = log_dir / str(fold)
+            tb_log_dir = log_dir / str(fold + 1)
             callbacks.append(
                 TensorBoard(log_dir=tb_log_dir, profile_batch=0,
                             write_graph=False, write_images=False)
@@ -186,7 +186,7 @@ def tf_cross_validate(model_fn: TFModelFunction,
         y_true = np.concatenate([x[1] for x in test_data])
         y_pred = np.argmax(clf.predict(test_data), axis=-1)
 
-        dummy = _DummyEstimator(y_pred)
+        dummy = DummyEstimator(y_pred)
         if isinstance(scoring, str):
             val = get_scorer(scoring)(dummy, x_test, y_true)
             scores['test_score'].append(val)

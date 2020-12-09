@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+from collections import defaultdict
 from functools import partial
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -10,7 +11,8 @@ import pandas as pd
 import tensorflow as tf
 from emotion_recognition.classification import PrecomputedSVC
 from emotion_recognition.dataset import LabelledDataset
-from emotion_recognition.tensorflow.classification import tf_cross_validate
+from emotion_recognition.tensorflow.classification import (DummyEstimator,
+                                                           tf_cross_validate)
 from emotion_recognition.tensorflow.models import (aldeneh2017_model,
                                                    latif2019_model,
                                                    zhang2019_model,
@@ -19,12 +21,12 @@ from emotion_recognition.tensorflow.models.zhang2019 import \
     create_windowed_dataset
 from emotion_recognition.tensorflow.utils import create_tf_dataset_ragged
 from scikeras.wrappers import KerasClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (get_scorer, make_scorer, precision_score,
                              recall_score)
-from sklearn.model_selection import (GridSearchCV, GroupKFold,
-                                     LeaveOneGroupOut, cross_validate)
+from sklearn.model_selection import GridSearchCV, GroupKFold
+from sklearn.model_selection._validation import _score
 from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestClassifier
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Dense, Dropout, Input
 from tensorflow.keras.optimizers import Adam
@@ -113,7 +115,8 @@ def get_seq_model(kind: str = 'aldeneh2017', n_features: int = None,
 
 
 def test_classifier(kind: str,
-                    dataset: LabelledDataset,
+                    train_data: LabelledDataset,
+                    test_data: LabelledDataset,
                     reps: int = 1,
                     results: Optional[Path] = None,
                     logs: Optional[Path] = None,
@@ -121,23 +124,18 @@ def test_classifier(kind: str,
                     lr: float = 1e-4,
                     epochs: int = 50,
                     bs: int = 64):
-    splitter = LeaveOneGroupOut()
-    if len(dataset.speakers) > 12:
-        splitter = GroupKFold(6)
-
-    class_weight = (dataset.n_instances
-                    / (dataset.n_classes * dataset.class_counts))
+    class_weight = (train_data.n_instances
+                    / (train_data.n_classes * train_data.class_counts))
     # Necessary until scikeras supports passing in class_weights directly
-    sample_weight = class_weight[dataset.y]
+    sample_weight = class_weight[train_data.y]
 
-    metrics = (['uar', 'war'] + [x + '_rec' for x in dataset.classes]
-               + [x + '_prec' for x in dataset.classes])
+    metrics = (['uar', 'war'] + [x + '_rec' for x in train_data.classes]
+               + [x + '_prec' for x in train_data.classes])
     df = pd.DataFrame(index=pd.RangeIndex(1, reps + 1, name='rep'),
                       columns=metrics + ['params'])
-
     scoring = {'war': get_scorer('accuracy'),
                'uar': get_scorer('balanced_accuracy')}
-    for i, c in enumerate(dataset.classes):
+    for i, c in enumerate(train_data.classes):
         scoring.update({
             c + '_rec': make_scorer(recall_score, average=None, labels=[i]),
             c + '_prec': make_scorer(precision_score, average=None, labels=[i])
@@ -157,8 +155,8 @@ def test_classifier(kind: str,
                 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
                 params = dict(lr=lr, batch_size=bs, epochs=epochs)
                 clf = KerasClassifier(
-                    get_vec_model, kind=kind, n_features=dataset.n_features,
-                    n_classes=dataset.n_classes, **params, verbose=False
+                    get_vec_model, kind=kind, n_features=train_data.n_features,
+                    n_classes=train_data.n_classes, **params, verbose=False
                 )
             else:
                 if type_ == 'svm':
@@ -167,21 +165,23 @@ def test_classifier(kind: str,
                 else:
                     param_grid = get_rf_params()
                     _clf = RandomForestClassifier()
-                clf = GridSearchCV(_clf, param_grid, cv=splitter,
+                clf = GridSearchCV(_clf, param_grid, cv=GroupKFold(5),
                                    scoring='balanced_accuracy', n_jobs=-1)
                 # Get best hyperparameters through inner CV
                 clf.fit(
-                    dataset.x, dataset.y, groups=dataset.speaker_group_indices,
+                    train_data.x, train_data.y,
+                    groups=train_data.speaker_group_indices,
                     sample_weight=sample_weight
                 )
                 params = clf.best_params_
                 clf = clf.best_estimator_
-            fit_params = dict(sample_weight=sample_weight)
-            scores = cross_validate(
-                clf, dataset.x, dataset.y, cv=splitter, scoring=scoring,
-                groups=dataset.speaker_group_indices,
-                fit_params=fit_params, n_jobs=-1, verbose=int(verbose)
-            )
+            clf.fit(train_data.x, train_data.y, sample_weight=sample_weight)
+            y_pred = clf.predict(test_data.x)
+            dummy = DummyEstimator(y_pred)
+            scores = defaultdict(list)
+            _scores = _score(dummy, y_pred, test_data.y, scoring)
+            for k, v in _scores.items():
+                scores['test_' + k].append(v)
         else:  # type_ == 'cnn'
             os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
             data_fn = create_tf_dataset_ragged
@@ -192,20 +192,20 @@ def test_classifier(kind: str,
 
             # To print model params
             _model = get_seq_model(
-                kind=kind, n_features=dataset.n_features,
-                n_classes=dataset.n_classes, lr=lr
+                kind=kind, n_features=train_data.n_features,
+                n_classes=train_data.n_classes, lr=lr
             )
             _model.summary()
             del _model
             tf.keras.backend.clear_session()
 
             model_fn = partial(
-                get_seq_model, kind=kind, n_features=dataset.n_features,
-                n_classes=dataset.n_classes, lr=lr
+                get_seq_model, kind=kind, n_features=train_data.n_features,
+                n_classes=train_data.n_classes, lr=lr
             )
             scores = tf_cross_validate(
-                model_fn, dataset.x, dataset.y, cv=splitter, scoring=scoring,
-                groups=dataset.speaker_group_indices, data_fn=data_fn,
+                model_fn, train_data.x, train_data.y, cv=splitter, scoring=scoring,
+                groups=train_data.speaker_group_indices, data_fn=data_fn,
                 sample_weight=sample_weight, log_dir=None,
                 fit_params=dict(epochs=epochs, verbose=verbose)
             )
@@ -226,13 +226,13 @@ def test_classifier(kind: str,
                        if k.startswith('test_')}
         war = mean_scores['war']
         uar = mean_scores['uar']
-        recall = tuple(mean_scores[c + '_rec'] for c in dataset.classes)
-        precision = tuple(mean_scores[c + '_prec'] for c in dataset.classes)
+        recall = tuple(mean_scores[c + '_rec'] for c in train_data.classes)
+        precision = tuple(mean_scores[c + '_prec'] for c in train_data.classes)
 
         df.loc[rep, 'params'] = params
         df.loc[rep, 'war'] = war
         df.loc[rep, 'uar'] = uar
-        for i, c in enumerate(dataset.classes):
+        for i, c in enumerate(train_data.classes):
             df.loc[rep, c + '_rec'] = recall[i]
             df.loc[rep, c + '_prec'] = precision[i]
 
@@ -250,8 +250,10 @@ def main():
     # Required options
     parser.add_argument('--kind', type=str, required=True,
                         help="The kind of classifier.")
-    parser.add_argument('--data', type=Path, required=True,
-                        help="The data to use.")
+    parser.add_argument('--train', type=Path, required=True,
+                        help="The train data.")
+    parser.add_argument('--test', type=Path, required=True,
+                        help="The test data.")
 
     # Dataset options
     parser.add_argument('--pad', type=int,
@@ -283,15 +285,21 @@ def main():
     for gpu in tf.config.list_physical_devices('GPU'):
         tf.config.experimental.set_memory_growth(gpu, True)
 
-    dataset = LabelledDataset(args.data)
-    dataset.normalise(normaliser=StandardScaler(), scheme='speaker')
+    train_data = LabelledDataset(args.train)
+    test_data = LabelledDataset(args.test)
+    train_data.remove_classes({'anger', 'happiness', 'sadness'})
+    test_data.remove_classes({'anger', 'happiness', 'sadness'})
+    train_data.normalise(normaliser=StandardScaler(), scheme='speaker')
+    test_data.normalise(normaliser=StandardScaler(), scheme='speaker')
     if args.pad:
-        dataset.pad_arrays(args.pad)
+        train_data.pad_arrays(args.pad)
+        test_data.pad_arrays(args.pad)
     if args.clip:
-        dataset.clip_arrays(args.clip)
+        train_data.clip_arrays(args.clip)
+        test_data.clip_arrays(args.clip)
 
     test_classifier(
-        args.kind, dataset, reps=args.reps, results=args.results,
+        args.kind, train_data, test_data, reps=args.reps, results=args.results,
         logs=args.logs, verbose=args.verbose, lr=args.learning_rate,
         epochs=args.epochs, bs=args.batch_size
     )

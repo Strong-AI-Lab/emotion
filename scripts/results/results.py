@@ -38,23 +38,22 @@ SUBSTITUTIONS = {
     'boaw_100_5000': 'BoAW (100, 5000)',
     'bow': 'Bag of words',
 
-    # Datasets
-    'cafe': 'CaFE',
-    'crema-d_nominal': 'CREMA-D Nom.',
-    'crema-d_multimodal': 'CREMA-D AV',
-    'demos': 'DEMoS',
-    'emodb': 'EMO-DB',
-    'emofilm': 'EmoFilm',
-    'enterface': 'eNTERFACE',
-    'iemocap': 'IEMOCAP',
-    'jl': 'JL Corpus',
-    'msp-improv': 'MSP-IMPROV',
-    'portuguese': 'Portuguese',
-    'ravdess': 'RAVDESS',
-    'savee': 'SAVEE',
-    'shemo': 'ShEMO',
-    'smartkom': 'SmartKom',
-    'tess': 'TESS'
+    # Dataset initials
+    'cafe': 'CA',
+    'crema-d': 'CREMA-D',
+    'demos': 'DE',
+    'emodb': 'ED',
+    'emofilm': 'EF',
+    'enterface': 'EN',
+    'iemocap': 'IE',
+    'jl': 'JL',
+    'msp-improv': 'MS',
+    'portuguese': 'PO',
+    'ravdess': 'RA',
+    'savee': 'SA',
+    'shemo': 'SH',
+    'smartkom': 'SM',
+    'tess': 'TE'
 }
 
 feat_col_order = [
