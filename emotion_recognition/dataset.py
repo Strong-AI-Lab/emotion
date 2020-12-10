@@ -251,16 +251,17 @@ class RawAudioBackend(DatasetBackend):
             self.names.append(Path(filename).stem)
             audio, _ = soundfile.read(filename, always_2d=True,
                                       dtype='float32')
-            self._features[i] = audio
+            self.features[i] = audio
 
         # We assume the file list is at the root of the dataset directory
         self._corpus = path.parent.stem
         label_file = path.parent / 'labels.csv'
         if label_file.exists():
-            annotations = parse_classification_annotations(label_file)
             self._labels = []
+            annotations = parse_classification_annotations(label_file)
+            self._names = sorted(x for x in self.names if x in annotations)
             for name in self.names:
-                self._labels.append(annotations[name])
+                self.labels.append(annotations[name])
 
 
 class ARFFBackend(DatasetBackend):
