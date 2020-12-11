@@ -1,34 +1,29 @@
 import argparse
-import os
 import re
+from pathlib import Path
 from xml.etree import ElementTree as et
 
-import PyWave
 import numpy as np
-
-BITS_PER_SAMPLE = 16
-SAMPLE_RATE = 16000
-
-parser = argparse.ArgumentParser()
-parser.add_argument("session_dir", default="Sessions")
-parser.add_argument("output_dir", default="combined")
+import soundfile
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("session_dir", type=Path, default="Sessions")
+    parser.add_argument("output_dir", type=Path, default="combined")
     args = parser.parse_args()
 
     recordings = {}
-    sessions = os.listdir(args.session_dir)
-    for session in sessions:
-        session_id = int(session)
-        session_dir = os.path.join(args.session_dir, session)
+    session_dirs = args.session_dir.glob('*')
+    for session_dir in session_dirs:
+        session_id = int(session_dir.stem)
 
-        session_file = os.path.join(session_dir, 'session.xml')
+        session_file = session_dir / 'session.xml'
         session_xml = et.parse(session_file).getroot()
         recording = int(session_xml.attrib['recording'])
         character = session_xml.attrib['character']
 
-        files = [os.path.join(session_dir, x) for x in os.listdir(session_dir)]
+        files = session_dir.glob('*')
         word_annotations_user = next((f for f in files if re.search(
             r'wordLevel_alignedTranscript.*_user', f)), None)
         word_annotations_operator = next((f for f in files if re.search(
@@ -41,7 +36,8 @@ def main():
         for trace in feeltraces:
             match = re.search(
                 r'[AR]([0-9]+)[RS]([0-9]+)TUC(Ob|Po|Pr|Sp)2?D([AEPV])\.txt',
-                trace)
+                trace
+            )
             if match:
                 rater = int(match.group(1))
                 emotion = {'A': 'Activation', 'E': 'Expectation', 'P': 'Power',
@@ -67,8 +63,8 @@ def main():
 
     for recording, sessions in sorted(recordings.items()):
         duration = 0
-        concat_user_audio = bytes()
-        concat_operator_audio = bytes()
+        concat_user_audio = []
+        concat_operator_audio = []
         concat_words_user = ''
         concat_words_operator = ''
         concat_transcript = ''
@@ -87,10 +83,10 @@ def main():
                     or not word_annotations_user):
                 continue
 
-            with PyWave.Wave(user_audio) as w:
-                concat_user_audio += w.read()
-            with PyWave.Wave(operator_audio) as w:
-                concat_operator_audio += w.read()
+            audio, _ = soundfile.read(user_audio)
+            concat_user_audio.append(audio.data)
+            audio, _ = soundfile.read(operator_audio)
+            concat_operator_audio.append(audio.data)
 
             print('\t', word_annotations_operator)
             print('\t', word_annotations_user)
@@ -111,7 +107,7 @@ def main():
                     rater_data[i] = rater_data[i][:num_indices, :]
 
                 min_size = num_indices
-                print('\t', trace, len(rater_data), rater_data[0].shape)
+                print('\t', emotion, len(rater_data), rater_data[0].shape)
                 if max_size - min_size > 2:
                     print("\t\t WARNING: Raters difference: ",
                           max_size - min_size)
@@ -164,30 +160,27 @@ def main():
                                 int(m.group(2)) + duration,
                                 m.group(3))
                         concat_words_operator += line
-            duration += int(1000 * w.samples / w.samples_per_sec)
+            duration += int(1000 * len(audio) / 16000)
 
         if len(emotion_data.keys()) < 4:
             continue
 
-        output_dir = os.path.join(args.output_dir, str(recording))
-        os.makedirs(output_dir, exist_ok=True)
-        with PyWave.Wave(
-            os.path.join(output_dir, 'user_audio.wav'), mode='w',
-            channels=1, frequency=SAMPLE_RATE, bps=BITS_PER_SAMPLE
-        ) as user_wav:
-            user_wav.write(concat_user_audio)
-        with PyWave.Wave(
-            os.path.join(output_dir, 'operator_audio.wav'), mode='w',
-            channels=1, frequency=SAMPLE_RATE, bps=BITS_PER_SAMPLE
-        ) as operator_wav:
-            operator_wav.write(concat_operator_audio)
-        # with open(os.path.join(output_dir, 'transcript.txt'), 'w') as fid:
-        #     fid.write(concat_transcript)
-        with open(os.path.join(output_dir, 'words_user.txt'), 'w') as fid:
+        concat_user_audio = np.array(concat_user_audio)
+        concat_operator_audio = np.array(concat_operator_audio)
+
+        output_dir = args.output_dir / str(recording)
+        output_dir.mkdir(exist_ok=True)
+        soundfile.write(output_dir / 'user_audio.wav', concat_user_audio,
+                        samplerate=16000)
+        soundfile.write(output_dir / 'operator_audio.wav',
+                        concat_operator_audio, samplerate=16000)
+        with open(output_dir / 'transcript.txt', 'w') as fid:
+            fid.write(concat_transcript)
+        with open(output_dir / 'words_user.txt', 'w') as fid:
             fid.write(concat_words_user)
-        with open(os.path.join(output_dir, 'words_operator.txt'), 'w') as fid:
+        with open(output_dir / 'words_operator.txt', 'w') as fid:
             fid.write(concat_words_operator)
-        with open(os.path.join(output_dir, 'emotions.txt'), 'w') as fid:
+        with open(output_dir / 'emotions.txt', 'w') as fid:
             fid.write("Time")
             sorted_emotions = sorted(emotion_data.keys())  # For consistency
             for emotion in sorted_emotions:

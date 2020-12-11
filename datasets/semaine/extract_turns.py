@@ -1,40 +1,31 @@
 import argparse
-import os
 import re
+from pathlib import Path
 
 import numpy as np
-import PyWave
-
-COMBINED_DIR = 'combined'
-BITS_PER_SAMPLE = 16
-SAMPLE_RATE = 16000
-
-parser = argparse.ArgumentParser()
-parser.add_argument("input_dir", default="combined")
-parser.add_argument("annotation_file", default="annot.txt")
+import soundfile
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input_dir", type=Path, default="combined")
+    parser.add_argument("annotation_file", type=Path, default="annot.txt")
     args = parser.parse_args()
 
-    if not os.path.exists(args.input_dir):
+    if not args.input_dir.exists():
         raise FileNotFoundError("Directory doesn't exist: " + args.input_dir)
 
     annot_file = open(args.annotation_file, 'w')
 
-    recordings = os.listdir(args.input_dir)
-    for recording in sorted(recordings):
-        recording_dir = os.path.join(args.input_dir, recording)
-        if not os.path.isdir(recording_dir):
+    recording_dirs = filter(Path.is_dir, args.input_dir.glob('*'))
+    for recording_dir in sorted(recording_dirs):
+        if not recording_dir.is_dir():
             continue
 
-        with PyWave.Wave(os.path.join(recording_dir,
-                                      'operator_audio.wav')) as w:
-            operator_audio = w.read()
-        with PyWave.Wave(os.path.join(recording_dir,
-                                      'user_audio.wav')) as w:
-            user_audio = w.read()
-        with open(os.path.join(recording_dir, 'emotions.txt')) as fid:
+        operator_audio, _ = soundfile.read(
+            recording_dir / 'operator_audio.wav')
+        user_audio, _ = soundfile.read(recording_dir / 'user_audio.wav')
+        with open(recording_dir / 'emotions.txt') as fid:
             lines = [l.strip() for l in fid][1:]  # Ignore header line
             emotion_data = np.array([
                 [float(x) for x in l.split()] for l in lines])
@@ -43,7 +34,8 @@ def main():
         operator_turns = {}
         for d, f in [(user_turns, 'words_user.txt'),
                      (operator_turns, 'words_operator.txt')]:
-            with open(os.path.join(recording_dir, f)) as fid:
+            with open(recording_dir / f) as fid:
+                turn = 0
                 for line in fid:
                     if line.startswith('---'):
                         m = re.search(r'---recording.*turn ([0-9]+)---', line)
@@ -52,8 +44,8 @@ def main():
                         m = re.search(r'([0-9]+) ([0-9]+) <?([A-Z\'?!]+)>?',
                                       line)
                         if m:
-                            start = int(m.group(1)) * (SAMPLE_RATE // 1000)
-                            end = int(m.group(2)) * (SAMPLE_RATE // 1000)
+                            start = int(m.group(1)) * 16
+                            end = int(m.group(2)) * 16
                             word = m.group(3)
                             if turn not in d:
                                 d[turn] = []
@@ -61,27 +53,22 @@ def main():
 
         for d, p, audio in [(user_turns, 'u', user_audio),
                             (operator_turns, 'o', operator_audio)]:
-            out_dir = os.path.join(recording_dir, 'turns')
-            os.makedirs(out_dir, exist_ok=True)
+            out_dir = recording_dir / 'turns'
+            out_dir.mkdir(exist_ok=True)
             for turn, words in sorted(d.items()):
                 start = words[0][0]
                 end = words[-1][1]
 
-                name = "{:02d}_{}_{:03d}".format(int(recording), p, turn)
+                name = "{:02d}_{}_{:03d}".format(int(recording_dir.stem), p,
+                                                 turn)
                 filename = name + '.wav'
-                w = PyWave.Wave(os.path.join(recording_dir, 'turns', filename),
-                                mode='w',
-                                channels=1,
-                                frequency=SAMPLE_RATE,
-                                bps=BITS_PER_SAMPLE)
-                w.write(audio[
-                    start * (BITS_PER_SAMPLE // 8):end * (BITS_PER_SAMPLE // 8)
-                ])
+                soundfile.write(out_dir / filename, audio[start:end],
+                                samplerate=16000)
 
                 if p == 'u':
                     start_idx, end_idx = np.searchsorted(
                         emotion_data[:, 0],
-                        [start / SAMPLE_RATE, end / SAMPLE_RATE]
+                        [start / 16000, end / 16000]
                     )
                     if start_idx != end_idx:
                         mean_emotions = emotion_data[
