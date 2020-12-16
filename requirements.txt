@@ -3,7 +3,6 @@ joblib
 tensorflow>=2.3
 tensorflow-probability
 tensorflow-datasets
-tensorflow-addons
 tensorflow-io
 tensorboard
 tensorboard_plugin_profile
@@ -13,12 +12,6 @@ matplotlib>=3.0.0
 scipy
 liac-arff
 tqdm
-jupyterlab
-jupyter_http_over_ws
-ipywidgets
 librosa
-PyWave
-autopep8
 netCDF4
 nltk
-pyqt5
