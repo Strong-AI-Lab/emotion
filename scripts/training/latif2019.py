@@ -1,44 +1,112 @@
-"""Implementation of the paper
+"""Implementation of [1].
 
-S. Latif, R. Rana, S. Khalifa, R. Jurdak, and J. Epps, 'Direct Modelling of
-Speech Emotion from Raw Speech', arXiv:1904.03833 [cs, eess], Jul. 2019.
+[1] S. Latif, R. Rana, S. Khalifa, R. Jurdak, and J. Epps, "Direct
+Modelling of Speech Emotion from Raw Speech," in Interspeech 2019, Graz,
+Sep. 2019, pp. 3920–3924, doi: 10.21437/Interspeech.2019-3252.
 """
 
-from functools import partial
+from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import tensorflow as tf
-from emotion_recognition.classification import (print_results,
-                                                within_corpus_cross_validation)
 from emotion_recognition.dataset import LabelledDataset
-from emotion_recognition.tensorflow.classification import TFClassifier
+from emotion_recognition.tensorflow.classification import (
+    BalancedSparseCategoricalAccuracy, tf_train_val_test)
 from emotion_recognition.tensorflow.models import latif2019_model
 from emotion_recognition.tensorflow.utils import create_tf_dataset_ragged
+from sklearn.metrics import (get_scorer, make_scorer, precision_score,
+                             recall_score)
 from sklearn.model_selection import LeaveOneGroupOut
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.metrics import SparseCategoricalAccuracy
 from tensorflow.keras.optimizers import RMSprop
 
 
-def get_tf_dataset(x: np.ndarray, y: np.ndarray, shuffle: bool = True,
-                   batch_size: int = 16):
-    def ragged_to_dense(x, y):
-        return x.to_tensor(), y
+def test_corpus(corpus: str):
+    cv = LeaveOneGroupOut()
+    reps = 1
 
-    # Sort according to length
-    slices = np.array([len(a) for a in x])
-    perm = np.argsort(slices)
-    x = x[perm]
-    y = y[perm]
-    slices = slices[perm]
+    dataset = LabelledDataset('datasets/{}/files.txt'.format(corpus))
+    dataset.pad_arrays()
+    dataset.clip_arrays
 
-    ragged = tf.RaggedTensor.from_row_lengths(np.concatenate(x), slices)
-    data = tf.data.Dataset.from_tensor_slices((ragged, y))
-    # Group similar lengths in batches, then shuffle batches
-    data = data.batch(batch_size)
-    if shuffle:
-        data = data.shuffle(1000)
-    return data.map(ragged_to_dense)
+    def model_fn():
+        model = latif2019_model(dataset.n_classes)
+        model.compile(
+            optimizer=RMSprop(learning_rate=0.0001),
+            loss='sparse_categorical_crossentropy',
+            metrics=[SparseCategoricalAccuracy(name='war'),
+                     BalancedSparseCategoricalAccuracy(name='uar')]
+        )
+        return model
+
+    metrics = (['uar', 'war'] + [x + '_rec' for x in dataset.classes]
+               + [x + '_prec' for x in dataset.classes])
+    df = pd.DataFrame(index=pd.RangeIndex(1, reps + 1, name='rep'),
+                      columns=metrics + ['params'])
+
+    scoring = {'war': get_scorer('accuracy'),
+               'uar': get_scorer('balanced_accuracy')}
+    for i, c in enumerate(dataset.classes):
+        scoring.update({
+            c + '_rec': make_scorer(recall_score, average=None, labels=[i]),
+            c + '_prec': make_scorer(precision_score, average=None, labels=[i])
+        })
+
+    for rep in range(1, reps + 1):
+        print("Rep {}/{}".format(rep, reps))
+        fold = 1
+        scores = defaultdict(list)
+        for train, _test in cv.split(dataset.x, dataset.y,
+                                     dataset.speaker_group_indices):
+            train_data = create_tf_dataset_ragged(
+                dataset.x[train], dataset.y[train], batch_size=64, shuffle=True
+            )
+            _test_x = dataset.x[_test]
+            _test_y = dataset.y[_test]
+            for valid, test in cv.split(_test_x, _test_y,
+                                        dataset.speaker_indices[_test]):
+                print("Fold {}/{}".format(fold, len(dataset.speakers)))
+                callbacks = [
+                    EarlyStopping(monitor='val_uar', patience=20,
+                                  restore_best_weights=True, mode='max'),
+                    ReduceLROnPlateau(monitor='val_uar', factor=0.5,
+                                      patience=5, mode='max')
+                ],
+                valid_data = create_tf_dataset_ragged(
+                    _test_x[valid], _test_y[valid], batch_size=64, shuffle=True
+                )
+                test_data = create_tf_dataset_ragged(
+                    _test_x[test], _test_y[test], batch_size=64, shuffle=False)
+                _scores = tf_train_val_test(
+                    model_fn, train_data=train_data, valid_data=valid_data,
+                    test_data=test_data, scoring=scoring, callbacks=callbacks,
+                    epochs=100, verbose=0
+                )
+                for k in _scores:
+                    scores[k].append(_scores[k])
+                print("Fold {} finished after {} epochs.".format(
+                    fold, len(_scores['history']['loss'])))
+                fold += 1
+
+        mean_scores = {k[5:]: np.mean(v) for k, v in scores.items()
+                       if k.startswith('test_')}
+        war = mean_scores['war']
+        uar = mean_scores['uar']
+        recall = tuple(mean_scores[c + '_rec'] for c in dataset.classes)
+        precision = tuple(mean_scores[c + '_prec'] for c in dataset.classes)
+
+        df.loc[rep, 'war'] = war
+        df.loc[rep, 'uar'] = uar
+        for i, c in enumerate(dataset.classes):
+            df.loc[rep, c + '_rec'] = recall[i]
+            df.loc[rep, c + '_prec'] = precision[i]
+    output_dir = Path('results') / 'latif2019' / corpus / 'model'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    df.to_csv(output_dir / 'raw_audio.csv')
+    print("Wrote CSV to {}.".format(output_dir / 'raw_audio.csv'))
 
 
 def main():
@@ -46,41 +114,14 @@ def main():
     for gpu in tf.config.list_physical_devices('GPU'):
         tf.config.experimental.set_memory_growth(gpu, True)
 
+    # Print model structure summary
     model = latif2019_model(4)
     model.summary()
     del model
     tf.keras.backend.clear_session()
 
-    for corpus in ['iemocap', 'msp-improv']:
-        # dataset = LabelledDataset('output/{}/raw_audio.nc'.format(corpus))
-        dataset = LabelledDataset('datasets/{}/files.txt'.format(corpus))
-        dataset.pad_arrays()
-
-        class_weight = (dataset.n_instances
-                        / (dataset.n_classes * dataset.class_counts))
-        class_weight = dict(zip(range(dataset.n_classes), class_weight))
-
-        data_fn = partial(create_tf_dataset_ragged, batch_size=64)
-        clf = TFClassifier(
-            partial(latif2019_model, dataset.n_classes), n_epochs=50,
-            class_weight=class_weight, data_fn=data_fn,
-            callbacks=[
-                EarlyStopping(
-                    monitor='val_uar', patience=20, restore_best_weights=True,
-                    mode='max'
-                ),
-                ReduceLROnPlateau(
-                    monitor='val_uar', factor=0.5, patience=5, mode='max')
-            ],
-            optimizer=RMSprop(learning_rate=0.0001),
-            verbose=1
-        )
-        df = within_corpus_cross_validation(clf, dataset,
-                                            splitter=LeaveOneGroupOut())
-        print_results(df)
-        output_dir = Path('results') / 'latif2019' / corpus
-        output_dir.mkdir(parents=True, exist_ok=True)
-        df.to_csv(output_dir / 'raw_audio.csv')
+    test_corpus('iemocap')
+    test_corpus('msp-improv')
 
 
 if __name__ == "__main__":

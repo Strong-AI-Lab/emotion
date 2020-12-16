@@ -9,7 +9,7 @@ import tensorflow as tf
 from sklearn.metrics import get_scorer
 from sklearn.model_selection import BaseCrossValidator, LeaveOneGroupOut
 from sklearn.model_selection._validation import _score
-from tensorflow.keras.callbacks import Callback, TensorBoard
+from tensorflow.keras.callbacks import Callback, History, TensorBoard
 from tensorflow.keras.losses import Loss, SparseCategoricalCrossentropy
 from tensorflow.keras.metrics import SparseCategoricalAccuracy
 from tensorflow.keras.models import Model
@@ -23,10 +23,19 @@ from .utils import create_tf_dataset_ragged, DataFunction, TFModelFunction
 
 
 class DummyEstimator:
+    """Class that implements a dummy estimator for scoring, to avoid
+    repeated invocations of `predict()` etc.
+    """
     def __init__(self, y_pred):
         self.y_pred = y_pred
 
     def predict(self, x, **kwargs):
+        return self.y_pred
+
+    def predict_proba(self, x, **kwargs):
+        return self.y_pred
+
+    def decision_function(self, x, **kwargs):
         return self.y_pred
 
 
@@ -36,6 +45,7 @@ def fit(model: Model,
         epochs: int = 1,
         verbose: bool = False,
         **kwargs):
+    """Simple fit functions that trains a model with tf.function's."""
     @tf.function
     def train_step(data, use_sample_weight=False):
         if use_sample_weight:
@@ -107,6 +117,46 @@ def fit(model: Model,
             print(msg.format(epoch, train_loss, valid_loss, *metric_vals))
 
 
+def tf_train_val_test(model_fn: TFModelFunction,
+                      train_data: tf.data.Dataset,
+                      valid_data: tf.data.Dataset,
+                      test_data: tf.data.Dataset,
+                      scoring: Union[str, List[str],
+                                     Dict[str, ScoreFunction]] = 'accuracy',
+                      **fit_params) -> Dict[str, Union[float, History]]:
+    """Trains on given data, using given validation data, and tests on
+    given test data.
+
+    Returns:
+    --------
+    scores, dict
+        A dictionary with scorer names as keys and scores as values.
+    """
+    scores = {}
+    tf.keras.backend.clear_session()
+    clf = model_fn()
+
+    history = clf.fit(train_data, validation_data=valid_data, **fit_params)
+    scores['history'] = history.history
+
+    y_pred = np.argmax(clf.predict(test_data), axis=-1)
+    y_true = np.concatenate([x[1] for x in test_data])
+    dummy = DummyEstimator(y_pred)
+    if isinstance(scoring, str):
+        val = get_scorer(scoring)(dummy, None, y_true)
+        scores['test_score'] = val
+        scores['test_' + scoring] = val
+    elif isinstance(scoring, (list, dict)):
+        if isinstance(scoring, list):
+            scoring = {x: get_scorer(x) for x in scoring}
+        _scores = _score(dummy, None, y_true, scoring)
+        for k, v in _scores.items():
+            scores['test_' + k] = v
+    elif callable(scoring):
+        scores['test_score'] = scoring(dummy, None, y_true)
+    return scores
+
+
 def tf_cross_validate(model_fn: TFModelFunction,
                       x: np.ndarray,
                       y: np.ndarray,
@@ -152,7 +202,6 @@ def tf_cross_validate(model_fn: TFModelFunction,
     scores = defaultdict(list)
     n_folds = cv.get_n_splits(x, y, groups)
     for fold, (train, test) in enumerate(cv.split(x, y, groups)):
-        tf.keras.backend.clear_session()
         print("\tFold {}/{}".format(fold + 1, n_folds))
 
         x_train = x[train]
@@ -170,7 +219,6 @@ def tf_cross_validate(model_fn: TFModelFunction,
             train_data = data_fn(x_train, y_train, shuffle=True)
             test_data = data_fn(x_test, y_test, shuffle=False)
 
-        clf = model_fn()
         # Use validation data just for info
         callbacks = []
         if log_dir is not None:
@@ -179,26 +227,15 @@ def tf_cross_validate(model_fn: TFModelFunction,
                 TensorBoard(log_dir=tb_log_dir, profile_batch=0,
                             write_graph=False, write_images=False)
             )
-        history = clf.fit(train_data, validation_data=test_data,
-                          callbacks=callbacks, **fit_params)
-        scores['history'].append(history.history)
-        # fit(clf, train_data, valid_data=test_data, **fit_params)
-        y_true = np.concatenate([x[1] for x in test_data])
-        y_pred = np.argmax(clf.predict(test_data), axis=-1)
 
-        dummy = DummyEstimator(y_pred)
-        if isinstance(scoring, str):
-            val = get_scorer(scoring)(dummy, x_test, y_true)
-            scores['test_score'].append(val)
-            scores['test_' + scoring].append(val)
-        elif isinstance(scoring, (list, dict)):
-            if isinstance(scoring, list):
-                scoring = {x: get_scorer(x) for x in scoring}
-            _scores = _score(dummy, x_test, y_true, scoring)
-            for k, v in _scores.items():
-                scores['test_' + k].append(v)
-        elif callable(scoring):
-            scores['test_score'].append(scoring(dummy, x_test, y_true))
+        fit_params['callbacks'] = callbacks
+        _scores = tf_train_val_test(
+            model_fn, train_data=train_data, valid_data=test_data,
+            test_data=test_data, scoring=scoring, **fit_params
+        )
+
+        for k in _scores:
+            scores[k].append(_scores[k])
     scores = {k: np.array(scores[k]) for k in scores}
     return scores
 
@@ -291,9 +328,9 @@ class TFClassifier(Classifier):
 
 class BalancedSparseCategoricalAccuracy(SparseCategoricalAccuracy):
     """Calculates categorical accuracy with class weights inversely
-    proportional to their size. This behaves as if classes are balanced having
-    the same number of instances, and is equivalent to the arithmetic mean
-    recall over all classes.
+    proportional to their size. This behaves as if classes are balanced
+    having the same number of instances, and is equivalent to the
+    arithmetic mean recall over all classes.
     """
     def __init__(self, name='balanced_sparse_categorical_accuracy', **kwargs):
         super().__init__(name, **kwargs)
