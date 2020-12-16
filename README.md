@@ -1,31 +1,10 @@
 # Speech Emotion Recognition
-
 This repository contains scripts for processing various emotional speech
 datasets, and training machine learning models on these datasets.
 
 ## Datasets
-Currently the following datasets are supported, along with their
-respective directories in the `datasets` directory:
-- `cafe` - [CaFE](https://zenodo.org/record/1478765)
-- `crema-d` - [CREMA-D](https://github.com/CheyneyComputerScience/CREMA-D)
-- `demos` - [DEMoS](https://zenodo.org/record/2544829)
-- `emodb` - [EMO-DB](http://emodb.bilderbar.info/)
-- `emofilm` - [EmoFilm](https://zenodo.org/record/1326428)
-- `enterface` - [eNTERFACE](http://www.enterface.net/results/)
-- `iemocap` - [IEMOCAP](https://sail.usc.edu/iemocap/)
-- `jl` - [JL-corpus](https://www.kaggle.com/tli725/jl-corpus)
-- `msp-improv` - [MSP-IMPROV](https://ecs.utdallas.edu/research/researchlabs/msp-lab/MSP-Improv.html)
-- `portuguese` - [Portuguese corpus](https://link.springer.com/article/10.3758/BRM.42.1.74)
-- `ravdess` - [RAVDESS](https://zenodo.org/record/1188976)
-- `savee` - [SAVEE](http://kahlan.eps.surrey.ac.uk/savee/)
-- `semaine` - [SEMAINE](https://semaine-db.eu/)
-- `shemo` - [ShEMO](https://github.com/mansourehk/ShEMO)
-- `smartkom` - [SmartKom](https://clarin.phonetik.uni-muenchen.de/BASRepository/index.php)
-- `tess` - [TESS](https://tspace.library.utoronto.ca/handle/1807/24487/)
-
-Some of these datasets, (e.g. IEMOCAP), have more specific preprocessing
-scripts that must be run before the general preprocessing scripts, in
-order to generate the annotations, transcripts, etc.
+See [`datsets/README.md`](datasets/README.md) for more information about
+the supported datasets and the required processing.
 
 ## Installation
 This project requires Python 3.7+. It is advised to run the scripts in a
@@ -63,4 +42,6 @@ Some third-party tools are included in this repository, under the
 [auDeep](https://github.com/auDeep/auDeep),
 [OpenSMILE](https://www.audeering.com/opensmile/), and
 [openXBOW](https://github.com/openXBOW/openXBOW) are included as
-dependencies.
+dependencies. The binaries of OpenSMILE are distributed along with stock
+and custom config files. The openXBOW JAR file is also distributed. The
+relevant LICENCE files are in each directory.

@@ -4,10 +4,10 @@ import argparse
 import re
 from pathlib import Path
 
-from nltk import WordNetLemmatizer, word_tokenize
+from nltk import word_tokenize
 from nltk.corpus import stopwords
 
-REGEX = r'^(Ses0[1-5][MF]_(?:impro|script)0[1-9][ab]?(?:_\db?)?_[MF][X\d]{2}\d) \[\d+\.\d+-\d+\.\d+\]:(.*)$'  # noqa
+REGEX = re.compile(r'^(Ses0[1-5][MF]_(?:impro|script)0[1-9][ab]?(?:_\db?)?_[MF][X\d]{2}\d) \[\d+\.\d+-\d+\.\d+\]:(.*)$')  # noqa
 
 parser = argparse.ArgumentParser()
 parser.add_argument('dir', help="IEMOCAP transcriptions directory",
@@ -26,14 +26,12 @@ def clean(words):
 def main():
     args = parser.parse_args()
 
-    regex = re.compile(REGEX)
-
     utterances = {}
     for p in Path(args.dir).glob('*.txt'):
         with open(p) as fid:
             for line in fid:
                 line = line.strip()
-                match = regex.match(line)
+                match = REGEX.match(line)
                 if match:
                     utterances[match.group(1)] = match.group(2).strip()
     utterances = {u: clean(x) for u, x in utterances.items()}

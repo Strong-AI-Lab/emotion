@@ -1,10 +1,11 @@
 # Datasets
 /datasets/*
 !/datasets/metadata_schema.json
+!/datasets/README.md
 
 !/datasets/crema-d
 /datasets/crema-d/*
-!/datasets/crema-d/preprocess.py
+!/datasets/crema-d/process.py
 
 !/datasets/emodb
 /datasets/emodb/*
@@ -12,21 +13,21 @@
 
 !/datasets/iemocap
 /datasets/iemocap/*
-!/datasets/iemocap/preprocess.py
+!/datasets/iemocap/process.py
 !/datasets/iemocap/process_transcripts.py
 
 !/datasets/msp-improv
 /datasets/msp-improv/*
-!/datasets/msp-improv/preprocess.py
+!/datasets/msp-improv/process.py
 
 !/datasets/semaine
 /datasets/semaine/*
-!/datasets/semaine/preprocess.py
+!/datasets/semaine/process.py
 !/datasets/semaine/extract_turns.py
 
 !/datasets/smartkom
 /datasets/smartkom/*
-!/datasets/smartkom/preprocess.py
+!/datasets/smartkom/process.py
 
 # Misc. project related
 /logs

@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 import argparse
 from pathlib import Path
 
@@ -17,25 +15,22 @@ emotions = {
     'Restklasse': 'unknown'
 }
 
-parser = argparse.ArgumentParser()
-parser.add_argument(
-    '--set', type=str, required=True,
-    help="SmartKom set to process, one of {Home, Mobil, Public}",
-)
-parser.add_argument('--labels', help="File to write annotations to",
-                    default='labels.csv', type=Path)
-parser.add_argument('--wav_out', help="Directory to individual turns",
-                    default='wav_corpus', type=Path)
-parser.add_argument('--transcripts', help="Transcripts file",
-                    default='transcripts.csv', type=Path)
-
 stops = set(stopwords.words('german'))
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--set', type=str, required=True,
+        help="SmartKom set to process, one of {Home, Mobil, Public}",
+    )
+    parser.add_argument('--wav_out', help="Directory to individual turns",
+                        default='wav_corpus', type=Path)
+    parser.add_argument('--transcripts', help="Transcripts file",
+                        default='transcripts.csv', type=Path)
     args = parser.parse_args()
 
-    labels_file = open(args.labels, 'w')
+    labels_file = open('labels.csv', 'w')
     transcripts_file = open(args.transcripts, 'w')
     print('Name,Emotion', file=labels_file)
     print('Name,Transcript', file=transcripts_file)
