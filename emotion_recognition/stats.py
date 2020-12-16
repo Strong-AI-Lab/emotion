@@ -38,15 +38,19 @@ class Deltas:
 
 def alpha(data: np.ndarray,
           delta: Union[Callable[[int, int], float], Matrix] = Deltas.nominal):
-    """Calculates Krippendorf's alpha coefficient for inter-rater agreement.
+    """Calculates Krippendorf's alpha coefficient [1, sec. 11.3] for
+    inter-rater agreement.
+
+    [1] K. Krippendorff, Content analysis: An introduction to its
+    methodology. Sage publications, 2004.
 
     Args:
     -----
     data: numpy.ndarray
-        The data matrix, in the form (raters x units).
+        The data matrix, with raters as rows and units as columns.
     delta: callable or 2-D array-like
-        The delta metric. Default is the nominal metric, which takes the value
-        1 in case c != k and 0 otherwise.
+        The delta metric. Default is the nominal metric, which takes the
+        value 1 in case c != k and 0 otherwise.
     """
     def _pad(x):
         return np.pad(x, [(0, R + 1 - x.shape[0])])
@@ -61,6 +65,8 @@ def alpha(data: np.ndarray,
             return delta[c, k]
         delta = _delta
 
+    # The following implementation was based off the Wikipedia article:
+    # https://en.wikipedia.org/wiki/Krippendorff%27s_alpha
     R = np.max(data)
 
     counts = np.apply_along_axis(lambda x: _pad(np.bincount(x)), 0, data).T
