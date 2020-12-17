@@ -4,19 +4,21 @@ import logging
 import math
 import re
 from pathlib import Path
-from typing import Sequence
 
-import pandas as pd
 import matplotlib.pyplot as plt
+import pandas as pd
+from emotion_recognition.utils import itmap, ordered_intersect
 from matplotlib.backends.backend_pdf import PdfPages
 
 SUBSTITUTIONS = {
     # Classifiers
-    'cnn/aldeneh': 'CNN',
-    'dnn/basic': 'Basic MLP',
-    'dnn/1layer': 'FCN (1 layer)',
-    'dnn/2layer': 'FCN (2 layers)',
-    'dnn/3layer': 'FCN (3 layers)',
+    'aldeneh2017': 'Aldeneh (2017)',
+    'latif2019': 'Latif (2019)',
+    'zhang2019': 'Zhang (2019)',
+    'zhao2019': 'Zhao (2019)',
+    'mlp/1layer': 'FCN (1 layer)',
+    'mlp/2layer': 'FCN (2 layers)',
+    'mlp/3layer': 'FCN (3 layers)',
     'svm/linear': 'SVM (Linear)',
     'svm/poly2': 'SVM (Quadratic)',
     'svm/poly3': 'SVM (Cubic)',
@@ -40,7 +42,7 @@ SUBSTITUTIONS = {
 
     # Dataset initials
     'cafe': 'CA',
-    'crema-d': 'CREMA-D',
+    'crema-d': 'CR',
     'demos': 'DE',
     'emodb': 'ED',
     'emofilm': 'EF',
@@ -73,15 +75,26 @@ clf_col_order = [
     'SVM (Quadratic)',
     'SVM (Cubic)',
     'SVM (RBF)',
-    'Basic MLP',
     'FCN (1 layer)',
     'FCN (2 layers)',
-    'FCN (3 layers)',
-    'CNN'
+    'FCN (3 layers)'
 ]
 
 
-def fmt(f: float):
+def subs(x: str) -> str:
+    return SUBSTITUTIONS.get(x, x)
+
+
+def latex_subs(x: str) -> str:
+    return x.replace('_', '\\_')
+
+
+def substitute_labels(df: pd.DataFrame):
+    df.index = df.index.map(itmap(subs))
+    df.columns = df.columns.map(itmap(subs))
+
+
+def fmt(f: float) -> str:
     if not math.isnan(f):
         return '{:#.3g}'.format(100 * f)
     return ''
@@ -89,21 +102,11 @@ def fmt(f: float):
 
 def to_latex(df: pd.DataFrame, output: str, label: str, caption: str):
     df = df.copy()  # So that we don't modify the original frame
-    df.columns = (
-        df.columns.map(
-            lambda x: '\\rotatebox{{90}}{{{}}}'.format(x).replace('_', '\\_'))
-        .map(lambda x: SUBSTITUTIONS.get(x, x))
-    )
+    df.columns = df.columns.map(
+        itmap(lambda x: '\\rotatebox{{90}}{{{}}}'.format(x)))
+    df.columns = df.columns.map(itmap(latex_subs)).map(itmap(subs))
     df.columns.name = None
-    if isinstance(df.index, pd.MultiIndex):
-        df.index = df.index.map(
-            lambda t: tuple([x.replace('_', '\\_') for x in t]))
-    else:
-        df.index = (
-            df.index.map(lambda x: x.replace('_', '\\_'))
-                    .map(lambda x: SUBSTITUTIONS.get(x, x))
-        )
-
+    df.index = df.index.map(itmap(latex_subs)).map(itmap(subs))
     df.to_latex(output, float_format=fmt, longtable=False, na_rep='',
                 escape=False, caption=caption, label=label)
 
@@ -134,13 +137,6 @@ def plot_matrix(df: pd.DataFrame, size: tuple = (4, 4),
     ax.set_yticklabels(ylabels, fontsize='small')
 
     return fig
-
-
-def ordered_intersect(a: Sequence, b: Sequence):
-    """Returns a list of all elements in `a` which are also in `b`, in
-    the same order they appear in `a`.
-    """
-    return [x for x in a if x in b]
 
 
 def main():
@@ -180,21 +176,19 @@ def main():
             df_list = {}
             for filename in [x for x in sorted(d.glob('**/*.csv'))
                              if re.search(args.regex, str(x))]:
+                logger.debug("Found file {}".format(filename))
                 name = filename.relative_to(d).with_suffix('')
-                logger.debug("Found file {}".format(str(filename)))
                 df_list[name] = pd.read_csv(filename, header=0, index_col=0)
             if not df_list:
                 continue
-            # Pool reps and take the mean UAR across classes
-            uar = {c: df['uar'] for c, df in df_list.items()}
 
-            for name in df_list:
-                feat = Path(name).name
-                # name is assumed to be clf/kind/features.csv
-                clf = str(Path(name).parent)
-                table[(clf, feat)] = (uar[name].mean(), uar[name].std(),
-                                      uar[name].max())
+            for name, df in df_list.items():
+                p = Path(name).parts
+                # name is assumed to be cla/ssi/fier/features
+                table[('/'.join(p[:-1]), p[-1])] = (
+                    df['uar'].mean(), df['uar'].std(), df['uar'].max())
 
+            # multi-index, each value in table is a tuple of floats
             df_uar = pd.DataFrame(list(table.values()), index=table.keys(),
                                   columns=['mean', 'std', 'max'])
             # d.name is assumed to be the corpus name
@@ -203,6 +197,7 @@ def main():
         if not uar_list:
             raise FileNotFoundError("No valid files found matching regex.")
 
+        # Concatenate DataFrames for all datasets
         df = pd.concat(uar_list.values(), keys=uar_list.keys(),
                        names=['Dataset', 'Classifier', 'Features'])
         df.to_csv('/tmp/emotion_results.csv')
@@ -219,10 +214,8 @@ def main():
     df = df.xs(metrics, axis=1, level='metric')
 
     if not args.raw_columns:
-        df.columns = df.columns.map(lambda x: SUBSTITUTIONS.get(x, x))
-        # DataFrame has a MultiIndex so each index is a tuple.
-        df.index = df.index.map(
-            lambda t: tuple(SUBSTITUTIONS.get(x, x) for x in t))
+        df.columns = df.columns.map(itmap(subs))
+        df.index = df.index.map(itmap(subs))
 
     # Get the best (classifier, features) combination and corresponding UAR
     best = pd.concat([df.idxmax(0), df.max(0)], 1, keys=['Combination', 'UAR'])
@@ -230,13 +223,10 @@ def main():
     best['Features'] = best['Combination'].map(lambda t: t[1])
     best.drop(columns='Combination')
     best = best[['Classifier', 'Features', 'UAR']]
+    substitute_labels(best)
 
     # Classifier-features table
     clf_feat = df.mean(1).unstack(1)
-    clf_feat = clf_feat.loc[
-        ordered_intersect(clf_col_order, clf_feat.index),
-        ordered_intersect(feat_col_order, clf_feat.columns)
-    ]
 
     # {mean, max} per {classifier, features}
     mean_clf = df.mean(level=0).T
@@ -246,15 +236,23 @@ def main():
 
     if not args.raw_columns:
         # Order the columns how we want
-        logging.debug(ordered_intersect(feat_col_order, mean_feat.columns))
-        mean_feat = mean_feat[ordered_intersect(feat_col_order,
+        clf_feat = clf_feat.loc[
+            ordered_intersect(SUBSTITUTIONS, clf_feat.index),
+            ordered_intersect(SUBSTITUTIONS, clf_feat.columns)
+        ]
+        substitute_labels(clf_feat)
+        mean_feat = mean_feat[ordered_intersect(SUBSTITUTIONS,
                                                 mean_feat.columns)]
-        max_feat = max_feat[ordered_intersect(feat_col_order,
+        substitute_labels(mean_feat)
+        max_feat = max_feat[ordered_intersect(SUBSTITUTIONS,
                                               max_feat.columns)]
-        mean_clf = mean_clf[ordered_intersect(clf_col_order, mean_clf.columns)]
-        max_clf = max_clf[ordered_intersect(clf_col_order, max_clf.columns)]
+        substitute_labels(max_feat)
+        mean_clf = mean_clf[ordered_intersect(SUBSTITUTIONS, mean_clf.columns)]
+        substitute_labels(mean_clf)
+        max_clf = max_clf[ordered_intersect(SUBSTITUTIONS, max_clf.columns)]
+        substitute_labels(max_clf)
 
-    if args.print:
+    if args.print or not any((args.plot, args.latex, args.images, args.excel)):
         print("Data table:")
         print(df.to_string(float_format=fmt))
         print()
@@ -302,6 +300,9 @@ def main():
             with PdfPages(args.images / 'max_feat_matrix.pdf') as pdf:
                 pdf.savefig(max_feat_fig)
 
+        if args.plot:
+            plt.show()
+
     if args.latex:
         to_latex(df, args.latex / 'combined.tex',
                  label='tab:CombinedResults', caption="Combined results table")
@@ -339,9 +340,6 @@ def main():
              'max_feat']
         ):
             tab.to_excel(args.excel / (name + '.xlsx'), merge_cells=False)
-
-    if args.plot:
-        plt.show()
 
 
 if __name__ == "__main__":
