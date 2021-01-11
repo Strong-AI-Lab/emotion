@@ -4,7 +4,7 @@ import warnings
 from collections import Counter
 from os import PathLike
 from pathlib import Path
-from typing import Collection, Dict, List, Optional, Set, Tuple, Union
+from typing import Collection, Dict, List, Mapping, Optional, Set, Tuple, Union
 
 import arff
 import netCDF4
@@ -502,6 +502,7 @@ class LabelledDataset(Dataset):
         super().__init__(path)
         self._classes = list(corpora[self.corpus.lower()].emotion_map.values())
         self._y = np.array([self.class_to_int(x) for x in self.backend.labels])
+        self._class_counts = np.bincount(self.y)
         self._labels = {'all': self.y}
 
     def binarise(self, pos_val: List[str] = [], pos_aro: List[str] = []):
@@ -519,34 +520,34 @@ class LabelledDataset(Dataset):
             self._labels['arousal'] = arousal_map[self.y]
             self._labels['valence'] = valence_map[self.y]
 
-    def map_classes(self, map: Dict[str, str]):
-        """Modifies classses based on the mapping in map. If any classes
-        aren't present as keys, the corresponding instances are removed
-        using `remove_classes()`. The new classes will be sorted
-        lexicographically.
+    def map_classes(self, map: Mapping[str, str]):
+        """Modifies classses based on the mapping in map. Keys not
+        corresponding to classes are ignored. The new classes will be
+        sorted lexicographically.
         """
-        if len(map) < len(self.classes):
-            self.remove_classes(map.keys())
-        new_classes = sorted(set(map.values()))
-        arr_map = np.array([new_classes.index(map[k]) for k in self.classes])
+        new_classes = sorted(set([map.get(x, x) for x in self.classes]))
+        arr_map = np.array([new_classes.index(map.get(k, k))
+                            for k in self.classes])
         self._y = arr_map[self.y]
+        self._class_counts = np.bincount(self.y)
         self._classes = new_classes
 
-    def remove_classes(self, classes: Collection[str]):
-        """Remove instances for classes not specified in `classes`."""
-        classes = set(classes)
+    def remove_classes(self, keep: Collection[str]):
+        """Remove instances with labels not in `keep`."""
+        keep = set(keep)
         str_labels = [self.classes[int(i)] for i in self.y]
-        drop_labels = set(self.classes) - classes
-        keep_idx = [i for i, x in enumerate(str_labels)
-                    if x not in drop_labels]
+        keep_idx = [i for i, x in enumerate(str_labels) if x in keep]
         self._x = self._x[keep_idx]
+        self._names = [self.names[i] for i in keep_idx]
         self._speaker_indices = self._speaker_indices[keep_idx]
         self._speaker_counts = np.bincount(self.speaker_indices,
                                            minlength=len(self.speakers))
         self._speaker_group_indices = self._speaker_indices
-        self._classes = sorted(classes)
-        str_labels = [x for x in str_labels if x not in drop_labels]
+
+        self._classes = sorted(keep.intersection(self.classes))
+        str_labels = [x for x in str_labels if x in keep]
         self._y = np.array([self._classes.index(y) for y in str_labels])
+        self._class_counts = np.bincount(self.y)
 
     @property
     def classes(self) -> List[str]:
@@ -561,8 +562,6 @@ class LabelledDataset(Dataset):
     @property
     def class_counts(self) -> np.ndarray:
         """Number of instances for each class."""
-        if not hasattr(self, '_class_counts') or self._class_counts is None:
-            self._class_counts = np.bincount(self.y)
         return self._class_counts
 
     @property

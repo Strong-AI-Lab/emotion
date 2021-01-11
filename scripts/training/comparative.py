@@ -84,8 +84,9 @@ def get_vec_model(kind: str = '1layer', n_features: int = None,
         raise NotImplementedError("Other kinds of dense model are not "
                                   "currently implemented.")
     model.compile(
-        optimizer=Adam(learning_rate=lr), metrics=['categorical_accuracy'],
-        loss='categorical_crossentropy'
+        optimizer=Adam(learning_rate=lr),
+        metrics=['sparse_categorical_crossentropy'],
+        loss='sparse_categorical_crossentropy'
     )
     return model
 

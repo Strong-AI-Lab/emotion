@@ -24,7 +24,7 @@ from scikeras.wrappers import KerasClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (get_scorer, make_scorer, precision_score,
                              recall_score)
-from sklearn.model_selection import GridSearchCV, GroupKFold
+from sklearn.model_selection import GridSearchCV, GroupKFold, LeaveOneGroupOut
 from sklearn.model_selection._validation import _score
 from sklearn.preprocessing import StandardScaler
 from tensorflow.keras import Model
@@ -86,8 +86,9 @@ def get_vec_model(kind: str = '1layer', n_features: int = None,
         raise NotImplementedError("Other kinds of dense model are not "
                                   "currently implemented.")
     model.compile(
-        optimizer=Adam(learning_rate=lr), metrics=['categorical_accuracy'],
-        loss='categorical_crossentropy'
+        optimizer=Adam(learning_rate=lr),
+        metrics=['sparse_categorical_crossentropy'],
+        loss='sparse_categorical_crossentropy'
     )
     return model
 
@@ -165,7 +166,11 @@ def test_classifier(kind: str,
                 else:
                     param_grid = get_rf_params()
                     _clf = RandomForestClassifier()
-                clf = GridSearchCV(_clf, param_grid, cv=GroupKFold(5),
+                # Inner CV for hyperparameter optimisation
+                cv = GroupKFold(5)
+                if len(set(train_data.speaker_group_indices)) < 5:
+                    cv = LeaveOneGroupOut()
+                clf = GridSearchCV(_clf, param_grid, cv=cv,
                                    scoring='balanced_accuracy', n_jobs=-1)
                 # Get best hyperparameters through inner CV
                 clf.fit(
@@ -287,8 +292,11 @@ def main():
 
     train_data = LabelledDataset(args.train)
     test_data = LabelledDataset(args.test)
-    train_data.remove_classes({'anger', 'happiness', 'sadness'})
-    test_data.remove_classes({'anger', 'happiness', 'sadness'})
+    # helplessness is for SmartKom
+    train_data.map_classes({'helplessness': 'sadness'})
+    test_data.map_classes({'helplessness': 'sadness'})
+    train_data.remove_classes(keep=['anger', 'happiness', 'sadness'])
+    test_data.remove_classes(keep=['anger', 'happiness', 'sadness'])
     train_data.normalise(normaliser=StandardScaler(), scheme='speaker')
     test_data.normalise(normaliser=StandardScaler(), scheme='speaker')
     if args.pad:
