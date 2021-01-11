@@ -1,9 +1,9 @@
-"""Implementation of the paper,
+"""Implementation of [1].
 
-Z. Aldeneh and E. Mower Provost, 'Using regional saliency for speech emotion
-recognition', in IEEE International Conference on Acoustics, Speech and
-Signal Processing (ICASSP), 2017, pp. 2741–2745,
-doi: 10.1109/ICASSP.2017.7952655
+[1] Z. Aldeneh and E. Mower Provost, “Using regional saliency for speech
+emotion recognition,” in 2017 IEEE International Conference on
+Acoustics, Speech and Signal Processing (ICASSP), Mar. 2017, pp.
+2741–2745, doi: 10.1109/ICASSP.2017.7952655.
 """
 
 from functools import partial

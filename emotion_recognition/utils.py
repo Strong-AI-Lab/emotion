@@ -1,5 +1,45 @@
-from typing import List, Optional, Tuple, Union
+"""Various utility functions for modifying arrays and other things."""
+
+from typing import (Callable, List, Optional, Sequence, Tuple, TypeVar, Union,
+                    overload)
+
 import numpy as np
+
+T1 = TypeVar('T1')
+T2 = TypeVar('T2')
+
+
+def itmap(s: Callable[[T1], T2]):
+    """Returns a new map function that additionally maps tuples to
+    tuples and lists to lists.
+    """
+    @overload
+    def _map(x: T1) -> T2:
+        ...
+
+    @overload
+    def _map(x: List[T1]) -> List[T2]:
+        ...
+
+    @overload
+    def _map(x: Tuple[T1, ...]) -> Tuple[T2, ...]:
+        ...
+
+    def _map(x):
+        if isinstance(x, list):
+            return list(s(y) for y in x)
+        elif isinstance(x, tuple):
+            return tuple(s(y) for y in x)
+        else:
+            return s(x)
+    return _map
+
+
+def ordered_intersect(a: Sequence, b: Sequence) -> List:
+    """Returns a list of the intersection of `a` and `b`, in the order
+    elements appear in `a`.
+    """
+    return [x for x in a if x in b]
 
 
 def frame_arrays(arrays: Union[List[np.ndarray], np.ndarray],

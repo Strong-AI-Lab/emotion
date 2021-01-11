@@ -2,8 +2,8 @@ import abc
 import os
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from typing import (Any, Callable, Dict, Iterable, Optional, Sequence, Tuple,
-                    Union)
+from typing import (Any, Callable, Dict, Iterable, List, Optional, Sequence,
+                    Tuple, Union)
 
 import numpy as np
 import pandas as pd
@@ -44,6 +44,7 @@ def rbf_kernel(x, y, gamma: Union[str, float] = 'auto') -> np.ndarray:
     s = xx[:, np.newaxis] + yy[np.newaxis, :]
     if gamma == 'auto':
         gamma = 1 / x.shape[1]
+    # <x - y, x - y> = <x, x> + <y, y> - 2<x, y>
     return np.exp(-gamma * (s - 2 * a))
 
 
@@ -164,9 +165,11 @@ class SKLearnClassifier(Classifier):
 
 
 def within_corpus_cross_validation(model: Classifier,
-                                   dataset: LabelledDataset,
-                                   mode: str = 'all',
-                                   gender: str = 'all',
+                                   x: np.ndarray,
+                                   y: np.ndarray,
+                                   speakers: np.ndarray,
+                                   groups: np.ndarray,
+                                   classes: List[str],
                                    reps: int = 1,
                                    splitter: BaseCrossValidator = KFold(10),
                                    validation: str = 'valid'):
@@ -176,13 +179,14 @@ def within_corpus_cross_validation(model: Classifier,
     -----------
     model: Classifier
         The classifier to test.
-    dataset: LabelledDataset
-        The dataset to test on.
-    mode: {'all', 'valence', 'arousal'}
-        The kind of classification data to use from the dataset. Default
-        is 'all'.
-    genders: {'all', 'male', 'female'}
-        Which gendered data to perform the test on. Default is 'all'.
+    x: numpy.ndarray
+        Full feature matrix
+    y: numpy.ndarray
+        Labels for x.
+    speakers: numpy.ndarray
+        Speakers for x.
+    groups: numpy.ndarray
+        Speaker groups for x.
     reps: int
         The number of repetitions, default is 1 for a single run.
     splitter: sklearn.model_selection.BaseCrossValidator
@@ -198,95 +202,72 @@ def within_corpus_cross_validation(model: Classifier,
     df: pandas.DataFrame
         A dataframe holding the results from all runs with this model.
     """
-
-    if mode == 'all':
-        classes = sorted([x[:3] for x in dataset.classes])
-    else:
-        classes = ['neg', 'pos']
-
-    x = dataset.x
-    y = dataset.labels[mode]
-
+    folds = splitter.get_n_splits(x, y, speakers)
     df = pd.DataFrame(
-        index=pd.RangeIndex(splitter.get_n_splits(
-            x, y, dataset.speaker_indices)),
+        index=pd.RangeIndex(1, folds + 1),
         columns=pd.MultiIndex.from_product(
             [METRICS, classes, range(reps)], names=['metric', 'class', 'rep'])
     )
-    if gender == 'male':
-        gender_indices = dataset.male_indices
-    elif gender == 'female':
-        gender_indices = dataset.female_indices
-    else:
-        gender_indices = np.arange(len(dataset.names))
 
-    speaker_indices = dataset.speaker_indices[gender_indices]
-    groups = dataset.speaker_group_indices[gender_indices]
-    x = x[gender_indices]
-    y = y[gender_indices]
-    for rep in range(reps):
-        fold = 0
-        # LOSGO cross-validation
-        for train, test in splitter.split(x, y, groups):
-            x_train = x[train]
-            y_train = y[train]
-            x_test = x[test]
-            y_test = y[test]
+    fold = 1
+    # LOSGO cross-validation
+    for train, test in splitter.split(x, y, groups):
+        x_train = x[train]
+        y_train = y[train]
+        x_test = x[test]
+        y_test = y[test]
 
-            # This checks to see if the test set still has different
-            # speakers, so that we can validate using each of them.
-            n_splits = splitter.get_n_splits(x_test, y_test,
-                                             speaker_indices[test])
-            if n_splits > 1 and isinstance(splitter, LeaveOneGroupOut):
-                for valid, test in splitter.split(x_test, y_test,
-                                                  speaker_indices[test]):
-                    print("Fold {}".format(fold + 1))
+        # This checks to see if the test set still has different
+        # speakers, so that we can validate using each of them. This is
+        # used for IEMOCAP and MSP-IMPROV sessions.
+        n_splits = splitter.get_n_splits(x_test, y_test, speakers[test])
+        if n_splits > 1 and isinstance(splitter, LeaveOneGroupOut):
+            for valid, test in splitter.split(x_test, y_test, speakers[test]):
+                print("Fold {}/{}".format(fold, folds))
 
-                    x_valid = x_test[valid]
-                    y_valid = y_test[valid]
-                    x_test2 = x_test[test]
-                    y_test2 = y_test[test]
+                x_valid = x_test[valid]
+                y_valid = y_test[valid]
+                x_test2 = x_test[test]
+                y_test2 = y_test[test]
 
-                    model.fit(x_train, y_train, x_valid, y_valid, fold=fold)
-                    # We need to return y_true just in case the order is
-                    # modified by batching.
-                    y_pred, y_true = model.predict(x_test2, y_test2)
-                    _record_metrics(df, fold, rep, y_true, y_pred,
-                                    len(classes))
-                    fold += 1
-            else:
-                # TODO: fix this in the general case when using arbitrary
-                # cross-validation splitter
-                # Make sure we have at least two speakers in the training
-                # set so we can use one for validation set.
-                if validation == 'valid' and len(
-                        np.unique(speaker_indices[train])) >= 2:
-                    n_splits = splitter.get_n_splits(
-                        x_train, y_train, speaker_indices[train])
-
-                    # Select random inner fold to use as validation set
-                    r = np.random.randint(n_splits) + 1
-                    splits = splitter.split(x_train, y_train,
-                                            speaker_indices[train])
-                    for _ in range(r):
-                        train2, valid = next(splits)
-
-                    x_valid = x_train[valid]
-                    y_valid = y_train[valid]
-                    x_train = x_train[train2]
-                    y_train = y_train[train2]
-                elif validation == 'test':
-                    x_valid = x_test
-                    y_valid = y_test
-                else:
-                    x_valid = x_train
-                    y_valid = y_train
-
-                print("Fold {}".format(fold + 1))
                 model.fit(x_train, y_train, x_valid, y_valid, fold=fold)
-                y_pred, y_true = model.predict(x_test, y_test)
-                _record_metrics(df, fold, rep, y_true, y_pred, len(classes))
+                # We need to return y_true just in case the order is
+                # modified by batching.
+                y_pred, y_true = model.predict(x_test2, y_test2)
+                _record_metrics(df, fold, y_true, y_pred, len(classes))
                 fold += 1
+        else:
+            # TODO: fix this in the general case when using arbitrary
+            # cross-validation splitter
+            # Make sure we have at least two speakers in the training
+            # set so we can use one for validation set.
+            if validation == 'valid' and len(
+                    np.unique(speakers[train])) >= 2:
+                n_splits = splitter.get_n_splits(
+                    x_train, y_train, speakers[train])
+
+                # Select random inner fold to use as validation set
+                r = np.random.randint(n_splits) + 1
+                splits = splitter.split(x_train, y_train, speakers[train])
+                for _ in range(r):
+                    train2, valid = next(splits)
+
+                x_valid = x_train[valid]
+                y_valid = y_train[valid]
+                x_train = x_train[train2]
+                y_train = y_train[train2]
+            elif validation == 'test':
+                x_valid = x_test
+                y_valid = y_test
+            else:
+                x_valid = x_train
+                y_valid = y_train
+
+            print("Fold {}/{}".format(fold, folds))
+            model.fit(x_train, y_train, x_valid, y_valid, fold=fold)
+            y_pred, y_true = model.predict(x_test, y_test)
+            _record_metrics(df, fold, y_true, y_pred, len(classes))
+            fold += 1
     return df
 
 
@@ -424,16 +405,16 @@ def optimise_params(param_grid: Iterable[Dict[str, Sequence]],
     return classifier
 
 
-def _record_metrics(df, fold, rep, y_true, y_pred, n_classes):
-    df.loc[fold, ('war', slice(None), rep)] = recall_score(y_true, y_pred,
-                                                           average='micro')
-    df.loc[fold, ('uar', slice(None), rep)] = recall_score(y_true, y_pred,
-                                                           average='macro')
-    df.loc[fold, ('uap', slice(None), rep)] = precision_score(y_true, y_pred,
-                                                              average='macro')
-    df.loc[fold, ('rec', slice(None), rep)] = recall_score(
+def _record_metrics(df, fold, y_true, y_pred, n_classes):
+    df.loc[fold, ('war', slice(None))] = recall_score(y_true, y_pred,
+                                                      average='micro')
+    df.loc[fold, ('uar', slice(None))] = recall_score(y_true, y_pred,
+                                                      average='macro')
+    df.loc[fold, ('uap', slice(None))] = precision_score(y_true, y_pred,
+                                                         average='macro')
+    df.loc[fold, ('rec', slice(None))] = recall_score(
         y_true, y_pred, average=None, labels=list(range(n_classes)))
-    df.loc[fold, ('prec', slice(None), rep)] = precision_score(
+    df.loc[fold, ('prec', slice(None))] = precision_score(
         y_true, y_pred, average=None, labels=list(range(n_classes)))
 
 
