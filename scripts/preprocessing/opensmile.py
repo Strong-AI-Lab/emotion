@@ -9,7 +9,7 @@ from typing import List, Union
 
 import numpy as np
 import pandas as pd
-from emotion_recognition.dataset import write_netcdf_dataset
+from emotion_recognition.dataset import get_audio_paths, write_netcdf_dataset
 from joblib import Parallel, delayed
 
 if sys.platform == 'win32':
@@ -76,9 +76,8 @@ def main():
     if not args.config.exists():
         raise FileNotFoundError("Config file doesn't exist")
 
-    with open(args.input) as fid:
-        input_list = [x.strip() for x in fid.readlines()]
-    names = sorted(Path(f).stem for f in input_list)
+    input_list = get_audio_paths(args.input)
+    names = sorted(f.stem for f in input_list)
 
     allowed_types = ['regression', 'classification']
     if args.type not in allowed_types:

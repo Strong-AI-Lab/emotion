@@ -4,7 +4,8 @@ import warnings
 from collections import Counter
 from os import PathLike
 from pathlib import Path
-from typing import Collection, Dict, List, Mapping, Optional, Set, Tuple, Union
+from typing import (Collection, Dict, List, Mapping, Optional, Sequence, Set,
+                    Tuple, Union)
 
 import arff
 import netCDF4
@@ -33,6 +34,28 @@ def parse_classification_annotations(filename: Union[PathLike, str]) \
     df = pd.read_csv(filename, index_col=0)
     annotations = df.to_dict()[df.columns[0]]
     return annotations
+
+
+def get_audio_paths(file: Union[PathLike, str]) -> Sequence[Path]:
+    """Given a path to a file containing a list of audio files, returns
+    a sequence of absolute paths to the audio files.
+
+    Args:
+    -----
+    file: pathlike or str
+        Path to a file containing a list of paths to audio clips.
+
+    Returns:
+    --------
+        Sequence of paths to audio files.
+    """
+    file = Path(file)
+    paths = []
+    with open(file) as fid:
+        for line in fid:
+            p = Path(line.strip())
+            paths.append(p if p.is_absolute() else (file.parent / p).resolve())
+    return paths
 
 
 def write_netcdf_dataset(path: Union[PathLike, str],
@@ -241,15 +264,11 @@ class RawAudioBackend(DatasetBackend):
         path = Path(path)
         self.feature_names.append('pcm')
 
-        filenames = []
-        with open(path) as fid:
-            for line in fid:
-                filenames.append(line.strip())
-
-        self._features = np.empty(len(filenames), dtype=object)
-        for i, filename in enumerate(filenames):
-            self.names.append(Path(filename).stem)
-            audio, _ = soundfile.read(filename, always_2d=True,
+        filepaths = get_audio_paths(path)
+        self._features = np.empty(len(filepaths), dtype=object)
+        for i, filepath in enumerate(filepaths):
+            self.names.append(filepath.stem)
+            audio, _ = soundfile.read(filepath, always_2d=True,
                                       dtype='float32')
             self.features[i] = audio
 

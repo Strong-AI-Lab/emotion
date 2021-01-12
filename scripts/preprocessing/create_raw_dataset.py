@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import soundfile
-from emotion_recognition.dataset import write_netcdf_dataset
+from emotion_recognition.dataset import get_audio_paths, write_netcdf_dataset
 
 
 def main():
@@ -17,8 +17,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
 
-    with open(args.input) as fid:
-        filenames = [line.strip() for line in fid]
+    filenames = get_audio_paths(args.input)
 
     print("Processing {} audio files.".format(len(filenames)))
     audio_arr = []
@@ -40,7 +39,7 @@ def main():
     print("\tmean: {}".format(np.mean(slices)))
     print("\tstd: {}".format(np.std(slices)))
 
-    names = [Path(f).stem for f in filenames]
+    names = [f.stem for f in filenames]
     write_netcdf_dataset(
         args.output, corpus=args.corpus, names=names, slices=slices,
         features=audio_arr, annotation_path=args.annotations
