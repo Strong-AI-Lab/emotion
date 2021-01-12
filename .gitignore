@@ -29,6 +29,10 @@
 /datasets/smartkom/*
 !/datasets/smartkom/process.py
 
+!/datasets/venec
+/datasets/venec/*
+!/datasets/venec/process.py
+
 # Misc. project related
 /logs
 /output
