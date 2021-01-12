@@ -76,8 +76,6 @@ def main():
     for emo, count in emo_dist.items():
         print("{:<12s}: {:d}".format(emotions[emo], count))
 
-    return
-
     # Aggregated dimensional annotations per utterance
     with open('valence.csv', 'w') as vfile, \
             open('activation.csv', 'w') as afile, \
