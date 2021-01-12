@@ -1,4 +1,4 @@
-"""Selects speech clips of a given length."""
+"""Selects speech clips in a given length range."""
 
 import argparse
 from pathlib import Path
