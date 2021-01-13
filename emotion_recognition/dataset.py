@@ -17,7 +17,7 @@ from sklearn.preprocessing import StandardScaler, label_binarize
 
 from .binary_arff import decode as decode_arff
 from .corpora import corpora
-from .utils import clip_arrays, frame_arrays, pad_arrays
+from .utils import clip_arrays, frame_arrays, pad_arrays, transpose_time
 
 
 def parse_regression_annotations(filename: Union[PathLike, str]) \
@@ -405,10 +405,16 @@ class Dataset(abc.ABC):
 
     def frame_arrays(self, frame_size: int = 640, frame_shift: int = 160,
                      num_frames: Optional[int] = None):
+        """Create a sequence of frames from the raw signal."""
         print("Framing arrays with size {} and shift {}.".format(frame_size,
                                                                  frame_shift))
         self._x = frame_arrays(self._x, frame_size=frame_size,
                                frame_shift=frame_shift, num_frames=num_frames)
+
+    def transpose_time(self):
+        """Transpose the time and feature axis of each instance."""
+        print("Transposing time and feature axis of data.")
+        self._x = transpose_time(self._x)
 
     @property
     def corpus(self) -> str:

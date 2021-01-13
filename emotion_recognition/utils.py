@@ -102,6 +102,21 @@ def clip_arrays(arrays: Union[List[np.ndarray], np.ndarray], length: int):
     return arrays
 
 
+def transpose_time(arrays: Union[List[np.ndarray], np.ndarray]):
+    """Transpose the time and feature axis of each array. Requires each
+    array be 2-D.
+
+    NOTE: This function modifies the arrays in-place.
+    """
+    if isinstance(arrays, np.ndarray) and len(arrays.shape) == 3:
+        arrays = arrays.transpose(0, 2, 1)
+    else:
+        for i in range(len(arrays)):
+            arrays[i] = arrays[i].transpose()
+    assert all(x.shape[0] == arrays[0].shape[0] for x in arrays)
+    return arrays
+
+
 def shuffle_multiple(*arrays, numpy_indexing: bool = True):
     """Shuffles multiple arrays or lists in sync. Useful for shuffling the data
     and labels in a dataset separately while keeping them synchronised.
