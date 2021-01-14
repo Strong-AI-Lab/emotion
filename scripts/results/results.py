@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from emotion_recognition.utils import itmap, ordered_intersect
 from matplotlib.backends.backend_pdf import PdfPages
+from statsmodels.stats.anova import AnovaRM
 
 SUBSTITUTIONS = {
     # Classifiers
@@ -57,28 +58,6 @@ SUBSTITUTIONS = {
     'smartkom': 'SM',
     'tess': 'TE'
 }
-
-feat_col_order = [
-    'auDeep',
-    'IS09',
-    'IS13',
-    'GeMAPS',
-    'eGeMAPS',
-    'BoAW (20, 500)',
-    'BoAW (50, 1000)',
-    'BoAW (100, 5000)',
-    'log MFB'
-]
-
-clf_col_order = [
-    'SVM (Linear)',
-    'SVM (Quadratic)',
-    'SVM (Cubic)',
-    'SVM (RBF)',
-    'FCN (1 layer)',
-    'FCN (2 layers)',
-    'FCN (3 layers)'
-]
 
 
 def subs(x: str) -> str:
@@ -159,7 +138,7 @@ def main():
                         help="Directory to output images.")
     parser.add_argument('--excel', type=Path,
                         help="Directory to output Excel files.")
-    parser.add_argument('--raw_columns', action='store_true',
+    parser.add_argument('--raw', action='store_true',
                         help="Don't rename and reorder columns.")
     args = parser.parse_args()
 
@@ -183,13 +162,13 @@ def main():
                 continue
 
             for name, df in df_list.items():
-                p = Path(name).parts
+                p = name.parts
                 # name is assumed to be cla/ssi/fier/features
                 table[('/'.join(p[:-1]), p[-1])] = (
                     df['uar'].mean(), df['uar'].std(), df['uar'].max())
 
-            # multi-index, each value in table is a tuple of floats
-            df_uar = pd.DataFrame(list(table.values()), index=table.keys(),
+            # multi-index, each value in table is a tuple of 3 floats
+            df_uar = pd.DataFrame(table.values(), index=table.keys(),
                                   columns=['mean', 'std', 'max'])
             # d.name is assumed to be the corpus name
             uar_list[d.name] = df_uar
@@ -198,24 +177,29 @@ def main():
             raise FileNotFoundError("No valid files found matching regex.")
 
         # Concatenate DataFrames for all datasets
-        df = pd.concat(uar_list.values(), keys=uar_list.keys(),
-                       names=['Dataset', 'Classifier', 'Features'])
+        df = pd.concat(uar_list, names=['Dataset', 'Classifier', 'Features'])
         df.to_csv('/tmp/emotion_results.csv')
 
+    # Move corpus to columns, outermost level
     df = df.unstack(0).swaplevel(axis=1)
-    df.columns.names = [None, 'metric']
+    df.columns.names = ['Corpus', 'Metric']
 
     metrics = {'mean'}
     if args.metrics:
-        metrics.union(args.metrics)
+        metrics = metrics.union(args.metrics)
     metrics = tuple(metrics)
     if len(metrics) == 1:
         metrics = metrics[0]
-    df = df.xs(metrics, axis=1, level='metric')
 
-    if not args.raw_columns:
+    df = df.loc[:, (slice(None), metrics)]
+    df = df.sort_index(axis=1, level=0)
+
+    if not args.raw:
         df.columns = df.columns.map(itmap(subs))
         df.index = df.index.map(itmap(subs))
+
+    full = df
+    df = df.loc[:, (slice(None), 'mean')].droplevel('Metric', axis=1)
 
     # Get the best (classifier, features) combination and corresponding UAR
     best = pd.concat([df.idxmax(0), df.max(0)], 1, keys=['Combination', 'UAR'])
@@ -234,7 +218,7 @@ def main():
     max_clf = df.max(level=0).T
     max_feat = df.max(level=1).T
 
-    if not args.raw_columns:
+    if not args.raw:
         # Order the columns how we want
         clf_feat = clf_feat.loc[
             ordered_intersect(SUBSTITUTIONS, clf_feat.index),
@@ -254,10 +238,18 @@ def main():
 
     if args.print or not any((args.plot, args.latex, args.images, args.excel)):
         print("Data table:")
-        print(df.to_string(float_format=fmt))
+        print(full.to_string(float_format=fmt))
         print()
-        print(df.swaplevel().sort_index().to_string(float_format=fmt))
+        print(full.swaplevel().sort_index().to_string(float_format=fmt))
         print()
+
+        flat = df.stack().reset_index().rename(columns={0: 'UAR'})
+        flat = flat[~flat['Classifier'].isin(['aldeneh2017', 'latif2019',
+                                              'zhang2019', 'zhao2019'])]
+        model = AnovaRM(flat, 'UAR', 'Corpus', within=['Classifier',
+                                                       'Features'])
+        res = model.fit()
+        print(res.anova_table)
 
         print("Best classifier-features combinations:")
         print(best.to_string(float_format=fmt))
@@ -335,7 +327,7 @@ def main():
 
     if args.excel:
         for tab, name in zip(
-            [df.stack(), clf_feat, mean_clf, mean_feat, max_clf, max_feat],
+            [full.stack(), clf_feat, mean_clf, mean_feat, max_clf, max_feat],
             ['combined', 'clf_feat', 'mean_clf', 'mean_feat', 'max_clf',
              'max_feat']
         ):
