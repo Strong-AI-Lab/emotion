@@ -383,7 +383,7 @@ def optimise_params(param_grid: Iterable[Dict[str, Sequence]],
                     y_train: np.ndarray,
                     x_valid: np.ndarray,
                     y_valid: np.ndarray,
-                    max_workers=len(os.sched_getaffinity(0))) -> BaseEstimator:
+                    max_workers=None) -> BaseEstimator:
     """Performs cross-validation for SKLearnClassifier's using the given
     parameter grid and validation data.
 
@@ -393,6 +393,12 @@ def optimise_params(param_grid: Iterable[Dict[str, Sequence]],
         The best trained classifier for the given parameter
         combinations.
     """
+    if max_workers is None:
+        try:
+            max_workers = len(os.sched_getaffinity(0))
+        except AttributeError:  # sched_getaffinity is only on Unix
+            max_workers = os.cpu_count()
+
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         max_score = -1
         fn = partial(_test_one_param, cls=cls, score_fn=score_fn,
