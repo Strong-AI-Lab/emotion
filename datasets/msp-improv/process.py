@@ -117,7 +117,7 @@ def main():
             if emo not in 'AHSN':
                 continue
             src = args.audio / '{}.wav'.format(name)
-            print(src.resolve(), file=fid)
+            print(src, file=fid)
 
 
 if __name__ == "__main__":
