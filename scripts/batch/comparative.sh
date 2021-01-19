@@ -15,13 +15,13 @@ for corpus in cafe crema-d demos emodb emofilm enterface iemocap jl msp-improv p
             python scripts/training/comparative.py --kind mlp/$kind --reps 5 --data output/$corpus/$features.nc --results results/comparative2020/$corpus/mlp/$kind/$features.csv
         done
     done
-    python scripts/training/comparative.py --kind aldeneh2017 --reps 3 --data output/$corpus/logmel_40.nc --pad 64 --results results/comparative2020/$corpus/cnn/aldeneh2017/logmel_40.csv
-    python scripts/training/comparative.py --kind aldeneh2017 --reps 3 --data output/$corpus/logmel_240.nc --pad 64 --results results/comparative2020/$corpus/cnn/aldeneh2017/logmel_240.csv
-    python scripts/training/comparative.py --kind aldeneh2017 --reps 3 --data output/$corpus/spectrograms_240.nc --pad 64 --results results/comparative2020/$corpus/cnn/aldeneh2017/spectrograms_240.csv
+    python scripts/training/comparative.py --kind aldeneh2017 --reps 3 --data output/$corpus/logmel_40.nc --pad 64 --results results/comparative2020/$corpus/aldeneh2017/logmel_40.csv
+    python scripts/training/comparative.py --kind aldeneh2017 --reps 3 --data output/$corpus/logmel_240.nc --pad 64 --results results/comparative2020/$corpus/aldeneh2017/logmel_240.csv
+    python scripts/training/comparative.py --kind aldeneh2017 --reps 3 --data output/$corpus/spectrograms_240.nc --pad 64 --results results/comparative2020/$corpus/aldeneh2017/spectrograms_240.csv
 
-    python scripts/training/comparative.py --kind latif2019 --reps 3 --data output/$corpus/raw_audio.nc --clip 80000 --results results/comparative2020/$corpus/cnn/latif2019/raw_audio.csv
+    python scripts/training/comparative.py --kind latif2019 --reps 3 --data output/$corpus/raw_audio.nc --clip 80000 --results results/comparative2020/$corpus/latif2019/raw_audio.csv
 
-    python scripts/training/comparative.py --kind zhang2019 --reps 1 --data output/$corpus/raw_audio.nc --clip 80000 --results results/comparative2020/$corpus/cnn/zhang2019/raw_audio.csv
+    python scripts/training/comparative.py --kind zhang2019 --reps 1 --data output/$corpus/raw_audio.nc --clip 80000 --results results/comparative2020/$corpus/zhang2019/raw_audio.csv
 
-    python scripts/training/comparative.py --kind zhao2019 --reps 3 --data output/$corpus/spectrograms_40.nc --pad 512 --results results/comparative2020/$corpus/cnn/zhao2019/spectrograms_40.csv
+    python scripts/training/comparative.py --kind zhao2019 --reps 3 --data output/$corpus/spectrograms_40.nc --pad 512 --results results/comparative2020/$corpus/zhao2019/spectrograms_40.csv
 done
