@@ -1,9 +1,20 @@
 """Various utility functions for modifying arrays and other things."""
 
+from pathlib import Path
 from typing import (Callable, List, Optional, Sequence, Tuple, TypeVar, Union,
                     overload)
 
+import click
 import numpy as np
+
+
+class PathlibPath(click.Path):
+    """Convenience class that acts identically to `click.Path` except it
+    converts the value to a `pathlib.Path` object.
+    """
+    def convert(self, value, param, ctx) -> Path:
+        return Path(super().convert(value, param, ctx))
+
 
 T1 = TypeVar('T1')
 T2 = TypeVar('T2')
