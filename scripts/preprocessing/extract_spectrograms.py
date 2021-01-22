@@ -5,16 +5,16 @@ TFRecord file holding the data.
 import argparse
 import time
 from pathlib import Path
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
 
 import netCDF4
 import numpy as np
 import tensorflow as tf
 import tensorflow_io as tfio
+from emotion_recognition.dataset import (corpora, get_audio_paths,
+                                         parse_classification_annotations,
+                                         write_netcdf_dataset)
 from matplotlib import pyplot as plt
-
-from emotion_recognition.dataset import (corpora, write_netcdf_dataset,
-                                         parse_classification_annotations)
 
 
 def write_audeep_dataset(path: Path,
@@ -184,7 +184,8 @@ def get_batched_audio(path: Path, batch_size: int = 128):
         pad_dims = tf.transpose(tf.stack([tf.zeros_like(shape), diff]))
         return tf.pad(t, pad_dims)
 
-    dataset = tf.data.TextLineDataset([str(path)])
+    strings = [tf.constant(str(x)) for x in get_audio_paths(path)]
+    dataset = tf.data.Dataset.from_tensor_slices(strings)
     map_args = dict(deterministic=True,
                     num_parallel_calls=tf.data.experimental.AUTOTUNE)
     dataset = dataset.map(tf.io.read_file, **map_args)
