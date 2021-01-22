@@ -1,6 +1,6 @@
 # Speech Emotion Recognition
-This repository contains scripts for processing various emotional speech
-datasets, and training machine learning models on these datasets.
+This repository contains scripts for processing emotional speech
+datasets, and training machine learning models on the datasets.
 
 ## Datasets
 See [`datsets/README.md`](datasets/README.md) for more information about
@@ -45,3 +45,22 @@ Some third-party tools are included in this repository, under the
 dependencies. The binaries of OpenSMILE are distributed along with stock
 and custom config files. The openXBOW JAR file is also distributed. The
 relevant LICENCE files are in each directory.
+
+## Scripts
+All scripts are contained in the [`scripts/`](scripts/) directory. The
+four main types of scripts are preprocessing, training, utility and
+results analysis. Each script should have usage info if you give
+`--help` as an argument.
+
+There are also some scripts for batch processing all corpora for
+classification experiments, although these are subject to change until
+a paper is published, in which case they will be put in the
+[`papers/`](papers/) directory.
+
+## Papers
+The [`papers/`](papers/) directory contains copies of scripts used to
+run experiments and results for a given paper. Each directory
+corresponds to a publicaiton and has a README with a description of the
+paper and how to run the experiments. Each publication will also be
+associated with a git tag and a GitHub release on the
+[releases](https://github.com/Broad-AI-Lab/emotion/releases) page.

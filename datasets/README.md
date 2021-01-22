@@ -48,7 +48,21 @@ They will output any annotation files in CSV format, as well as print
 the emotion label distribution and any inter-rater agreement metrics
 that can be calculated (e.g. Krippendorf's alpha, Fleiss' kappa).
 
+A list of audio clips must then be created, to be used for later
+preprocessing scripts that extract/generate features. For example,
+```
+find wav_corpus -name "*.mp3" | sort > files.txt
+```
+Usually all audio clips will be used to generate a dataset file.
+Multiple file lists can be created if different subsets want to be
+tested independently (e.g. testing IEMOCAP's scripted and improvised
+sessions independently.)
+
+Once these steps are done, you can use the feature extraction and
+dataset creation scripts.
+
 
 ## Schema
 The JSON metadata schema is currently unused, as most datasets use
-entirely different metadata formats. It may be used in future.
+entirely different metadata formats that would be too difficult to
+unify. It may be used in future.
