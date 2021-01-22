@@ -127,10 +127,8 @@ def main():
     parser.add_argument('--results', type=Path, required=True)
     parser.add_argument('--metrics', nargs='*', type=str,
                         help="Metrics to output.")
-    parser.add_argument('--plot', help="Show matplotlib figures.",
-                        action='store_true')
-    parser.add_argument('--print', help="Print tables to console.",
-                        action='store_true')
+    parser.add_argument('--plot', action='store_true',
+                        help="Show matplotlib figures.")
     parser.add_argument('--latex', type=Path,
                         help="Directory to output latex tables.")
     parser.add_argument('--regex', type=str, default='.*')
@@ -140,6 +138,10 @@ def main():
                         help="Directory to output Excel files.")
     parser.add_argument('--raw', action='store_true',
                         help="Don't rename and reorder columns.")
+    parser.add_argument(
+        '--anova', action='store_true', help="Perform repeated measures ANOVA "
+        "on classifiers x features for all datasets."
+    )
     args = parser.parse_args()
 
     if args.results.is_file():
@@ -236,40 +238,41 @@ def main():
         max_clf = max_clf[ordered_intersect(SUBSTITUTIONS, max_clf.columns)]
         substitute_labels(max_clf)
 
-    if args.print or not any((args.plot, args.latex, args.images, args.excel)):
-        print("Data table:")
-        print(full.to_string(float_format=fmt))
-        print()
-        print(full.swaplevel().sort_index().to_string(float_format=fmt))
-        print()
+    print("Data table:")
+    print(full.to_string(float_format=fmt))
+    print()
+    print(full.swaplevel().sort_index().to_string(float_format=fmt))
+    print()
 
+    if args.anova:
         flat = df.stack().reset_index().rename(columns={0: 'UAR'})
         flat = flat[~flat['Classifier'].isin(['aldeneh2017', 'latif2019',
                                               'zhang2019', 'zhao2019'])]
-        model = AnovaRM(flat, 'UAR', 'Corpus', within=['Classifier',
-                                                       'Features'])
-        res = model.fit()
-        print(res.anova_table)
+        if not flat.empty:
+            model = AnovaRM(flat, 'UAR', 'Corpus', within=['Classifier',
+                                                           'Features'])
+            res = model.fit()
+            print(res.anova_table)
 
-        print("Best classifier-features combinations:")
-        print(best.to_string(float_format=fmt))
-        print()
+    print("Best classifier-features combinations:")
+    print(best.to_string(float_format=fmt))
+    print()
 
-        print("Average UAR of (classifier, feature) pairs:")
-        print(clf_feat.to_string(float_format=fmt))
-        print()
+    print("Average UAR of (classifier, feature) pairs:")
+    print(clf_feat.to_string(float_format=fmt))
+    print()
 
-        print("Mean average UAR for each classifier:")
-        print(mean_clf.to_string(float_format=fmt))
-        print()
-        print("Mean average UAR for each feature set:")
-        print(mean_feat.to_string(float_format=fmt))
-        print()
-        print("Best average UAR achieved for each classifier:")
-        print(max_clf.to_string(float_format=fmt))
-        print()
-        print("Best average UAR achieved for each feature set:")
-        print(max_feat.to_string(float_format=fmt))
+    print("Mean average UAR for each classifier:")
+    print(mean_clf.to_string(float_format=fmt))
+    print()
+    print("Mean average UAR for each feature set:")
+    print(mean_feat.to_string(float_format=fmt))
+    print()
+    print("Best average UAR achieved for each classifier:")
+    print(max_clf.to_string(float_format=fmt))
+    print()
+    print("Best average UAR achieved for each feature set:")
+    print(max_feat.to_string(float_format=fmt))
 
     if args.images or args.plot:
         mean_clf_fig = plot_matrix(mean_clf, size=(4, 3.5))
