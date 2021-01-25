@@ -51,8 +51,8 @@ def mh2009_vad(path: Path, energy_thresh: float, freq_thresh: float,
                      hop_length=window_samples)
     sxx = np.abs(s) ** 2
 
-    e = sxx.sum(0)
-    min_e = e[:30].min()
+    e = np.log(sxx.mean(0))
+    min_e = e.min()
 
     freq = librosa.fft_frequencies(sr, 512)[1:]
     f = freq[sxx[1:, :].argmax(0)]
@@ -94,7 +94,7 @@ def mh2009_vad(path: Path, energy_thresh: float, freq_thresh: float,
 
 def librosa_vad(path: Path) -> np.ndarray:
     audio, _ = librosa.load(path, sr=16000)
-    trimmed = librosa.effects.trim(audio)
+    trimmed, _ = librosa.effects.trim(audio)
     return trimmed
 
 
@@ -107,7 +107,7 @@ def librosa_vad(path: Path) -> np.ndarray:
 )
 @click.option('--debug', is_flag=True)
 @optgroup.group('Arguments for method "mh2009"')
-@optgroup.option('--energy', 'energy_thresh', type=click.FLOAT, default=0.5,
+@optgroup.option('--energy', 'energy_thresh', type=click.FLOAT, default=2.5,
                  help="Energy threshold")
 @optgroup.option('--freq', 'freq_thresh', type=click.FLOAT, default=150,
                  help="Max-frequency threshold")
@@ -125,7 +125,7 @@ def main(file: Path, output: Path, energy_thresh: float, freq_thresh: float,
     for path in paths:
         if method == 'mh2009':
             trimmed = mh2009_vad(path, energy_thresh, freq_thresh, sf_thresh,
-                                 window)
+                                 window, debug)
         else:
             trimmed = librosa_vad(path)
 
