@@ -6,7 +6,7 @@
 export CUDA_VISIBLE_DEVICES=0
 export TF_CPP_MIN_LOG_LEVEL=1
 
-for corpus in cafe crema-d demos emodb emofilm enterface iemocap jl msp-improv portuguese ravdess savee shemo smartkom tess; do
+for corpus in cafe crema-d demos emodb emofilm enterface iemocap jl msp-improv portuguese ravdess savee shemo smartkom tess venec; do
     for features in IS09 IS13 eGeMAPS GeMAPS boaw_20_500 boaw_50_1000 boaw_100_5000 audeep-0.05-0.025-240-60_b64_l0.001; do
         for kind in linear poly2 poly3 rbf; do
             python scripts/training/comparative.py --kind svm/$kind --reps 5 --data output/$corpus/$features.nc --results results/comparative2020/$corpus/svm/$kind/$features.csv
