@@ -14,7 +14,6 @@ __all__ = ['aldeneh2017_model']
 
 
 def aldeneh2017_model(n_features: int, n_classes: int) -> Model:
-    """Creates the final model from the Aldeneh et. al. (2017) paper."""
     inputs = Input(shape=(None, n_features), name='input')
     x = Conv1D(384, 8, activation='relu', kernel_initializer='he_normal',
                name='conv8')(inputs)
@@ -39,4 +38,4 @@ def aldeneh2017_model(n_features: int, n_classes: int) -> Model:
               name='dense_2')(x)
     x = Dense(n_classes, activation='softmax', kernel_initializer='he_normal',
               name='emotion_prediction')(x)
-    return Model(inputs=inputs, outputs=x, name='aldeneh_full_model')
+    return Model(inputs=inputs, outputs=x)
