@@ -15,10 +15,10 @@ from tensorflow.keras.models import Model
 
 from .layers import Attention1D
 
-__all__ = ['zhao2019_model']
+__all__ = ['model']
 
 
-def zhao2019_model(n_features: int, n_classes: int, steps: int = 512):
+def model(n_features: int, n_classes: int, steps: int = 512):
     inputs = Input((steps, n_features))
 
     # BLSTM

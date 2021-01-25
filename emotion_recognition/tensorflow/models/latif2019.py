@@ -13,10 +13,10 @@ from tensorflow.keras.layers import (LSTM, BatchNormalization, Conv1D, Conv2D,
 from tensorflow.keras.models import Model
 
 
-__all__ = ['latif2019_model']
+__all__ = ['model']
 
 
-def latif2019_model(n_classes: int):
+def model(n_classes: int):
     inputs = Input((None, 1), name='input')
 
     # 3x 1D convs and maxpool over time

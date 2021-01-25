@@ -19,7 +19,7 @@ from tensorflow.keras.models import Model, Sequential
 from .layers import Attention1D
 from ..utils import create_tf_dataset
 
-__all__ = ['zhang2019_model', 'create_windowed_dataset']
+__all__ = ['model', 'create_windowed_dataset']
 
 
 def create_windowed_dataset(x: np.ndarray,
@@ -43,7 +43,7 @@ def create_windowed_dataset(x: np.ndarray,
                              batch_size=batch_size, shuffle=shuffle)
 
 
-def zhang2019_model(n_classes: int):
+def model(n_classes: int):
     # Input dimensionality is 640 'features' which are actually 640
     # samples per 40ms segment. Each subsequent vector is shifted 10ms
     # from the previous. We assume the sequences are zero-padded to a

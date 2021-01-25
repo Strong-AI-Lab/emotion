@@ -10,10 +10,10 @@ from tensorflow.keras import Model
 from tensorflow.keras.layers import (Conv1D, Dense, GlobalMaxPool1D, Input,
                                      concatenate)
 
-__all__ = ['aldeneh2017_model']
+__all__ = ['model']
 
 
-def aldeneh2017_model(n_features: int, n_classes: int) -> Model:
+def model(n_features: int, n_classes: int) -> Model:
     inputs = Input(shape=(None, n_features), name='input')
     x = Conv1D(384, 8, activation='relu', kernel_initializer='he_normal',
                name='conv8')(inputs)
