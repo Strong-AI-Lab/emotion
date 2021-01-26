@@ -352,6 +352,23 @@ corpora: Dict[str, EmotionalCorpusInfo] = {
         get_emotion=lambda n: n[n.rfind('_') + 1:],
         get_speaker=lambda n: n[:3]
     ),
+    'urdu': EmotionalCorpusInfo(
+        'URDU',
+        emotion_map={
+            'A': 'anger',
+            'S': 'sadness',
+            'H': 'happiness',
+            'N': 'neutral'
+        },
+        speakers=[
+            'SF1', 'SF2', 'SF3', 'SF4', 'SF5', 'SF6', 'SF7', 'SF8', 'SF9',
+            'SF10', 'SF11', 'SM1', 'SM2', 'SM3', 'SM4', 'SM5', 'SM6', 'SM7',
+            'SM17', 'SM18', 'SM19', 'SM20', 'SM21', 'SM22', 'SM23', 'SM24',
+            'SM25', 'SM26', 'SM27'
+        ],
+        get_emotion=lambda n: n[n.rfind('_') + 1],
+        get_speaker=lambda n: n[:n.index('_')]
+    ),
     'venec': EmotionalCorpusInfo(
         'VENEC',
         emotion_map={

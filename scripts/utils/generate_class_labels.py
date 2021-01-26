@@ -4,13 +4,12 @@ from pathlib import Path
 
 from emotion_recognition.dataset import corpora
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--corpus', required=True)
-parser.add_argument('--directory', required=True, type=Path)
-parser.add_argument('--output', type=Path)
-
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--corpus', required=True)
+    parser.add_argument('--directory', required=True, type=Path)
+    parser.add_argument('--output', type=Path)
     args = parser.parse_args()
 
     corpus_info = corpora[args.corpus]
