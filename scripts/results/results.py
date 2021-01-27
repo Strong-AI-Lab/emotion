@@ -124,7 +124,7 @@ def main():
     logger.setLevel(logging.INFO)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--results', type=Path, required=True)
+    parser.add_argument('results', type=Path)
     parser.add_argument('--metrics', nargs='*', type=str,
                         help="Metrics to output.")
     parser.add_argument('--plot', action='store_true',

@@ -30,7 +30,7 @@ def worker(gpu: int):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--input', type=Path, required=True,
+        'input', type=Path,
         help="File containing train commands that can each run on a single "
              "GPU."
     )
@@ -40,6 +40,8 @@ def main():
     with open(args.input) as fid:
         for line in fid:
             line = line.strip()
+            if len(line) == 0:
+                continue
             q.put(line)
             print("Command {}".format(line))
 
