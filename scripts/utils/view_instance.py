@@ -32,10 +32,10 @@ def main():
         else:
             instance = dataset.names.index(args.instance)
     arr = dataset.x[instance]
-    if arr.dtype == object:
-        pass
     if len(arr.shape) == 1:
         arr = np.expand_dims(arr, 0)
+
+    print(dataset.names[instance])
 
     plt.figure()
     plt.imshow(arr, aspect='equal', origin='upper',
