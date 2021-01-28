@@ -75,11 +75,13 @@ def calculate_spectrogram(path: Path,
                           channels: str = 'mean',
                           pre_emphasis: float = 0.95,
                           skip: float = 0,
-                          length: Optional[float] = 5,
+                          length: float = 0,
                           window_size: float = 0.025,
                           window_shift: float = 0.01,
                           n_mels: int = 240,
-                          clip: float = 60):
+                          clip: Optional[float] = None,
+                          fmin: float = 0,
+                          fmax: float = 8000):
     audio, sr = librosa.core.load(path, sr=None, mono=False, offset=skip,
                                   duration=length)
     if len(audio.shape) == 1:
@@ -99,7 +101,7 @@ def calculate_spectrogram(path: Path,
         audio = audio[:, 0] - audio[:, 1]
 
     # Padding
-    if length is not None:
+    if length > 0:
         length_samples = int(length * sr)
         if len(audio) < length_samples:
             audio = np.pad(audio, (0, length_samples - len(audio)))
@@ -113,7 +115,7 @@ def calculate_spectrogram(path: Path,
     n_fft = 2**int(np.math.ceil(np.log2(window_samples)))
     melspec = librosa.feature.melspectrogram(
         audio, n_mels=n_mels, sr=sr, n_fft=n_fft, hop_length=stride_samples,
-        win_length=window_samples
+        win_length=window_samples, fmin=fmin, fmax=fmax
     )
     db_spectrogram = librosa.power_to_db(melspec, ref=np.max, top_db=clip)
     db_min = db_spectrogram.min()
@@ -135,13 +137,21 @@ def main():
                         help="Output to NetCDF4 format.")
     parser.add_argument('--audeep', type=Path,
                         help="Output to NetCDF4 in audeep format.")
+    parser.add_argument(
+        '--preview', type=int, help="Display nth spectrogram without writing "
+        "to a file. A random spectrogram is displayed if p = -1."
+    )
 
-    parser.add_argument('--length', type=float, default=5,
-                        help="Seconds of audio clip to take or pad.")
+    parser.add_argument(
+        '--length', type=float, default=5,
+        help="Seconds of audio clip to take or pad. Set to 0 for no clipping."
+    )
     parser.add_argument('--skip', type=float, default=0,
                         help="Seconds of initial audio to skip.")
-    parser.add_argument('--clip', type=float, default=60,
-                        help="Clip below this (negative) dB level.")
+    parser.add_argument(
+        '--clip', type=float, default=60,
+        help="Clip below this (negative) dB level. Set to 0 for no clipping."
+    )
     parser.add_argument('--window_size', type=float, default=0.025,
                         help="Window size in seconds.")
     parser.add_argument('--window_shift', type=float, default=0.01,
@@ -151,13 +161,13 @@ def main():
     parser.add_argument('--pre_emphasis', type=float, default=0.95,
                         help="Pre-emphasis factor.")
     parser.add_argument(
-        '--preview', type=int, help="Display nth spectrogram without writing "
-        "to a file. A random spectrogram is displayed if p = -1."
-    )
-    parser.add_argument(
         '--channels', type=str, default='mean', help="Method for combining "
         "stereo channels. One of {mean, left, right, diff}. Default is mean."
     )
+    parser.add_argument('--fmin', type=float, default=0,
+                        help="Minimum mel-frequency.")
+    parser.add_argument('--fmax', type=float, default=8000,
+                        help="Minimum mel-frequency.")
     args = parser.parse_args()
 
     paths = get_audio_paths(args.input)
@@ -170,7 +180,8 @@ def main():
             paths[idx], channels=args.channels,
             skip=args.skip, length=args.length, window_size=args.window_size,
             pre_emphasis=args.pre_emphasis, window_shift=args.window_shift,
-            n_mels=args.mel_bands, clip=args.clip
+            n_mels=args.mel_bands, clip=args.clip, fmin=args.fmin,
+            fmax=args.fmax
         )
         print("Spectrogram for {}.".format(paths[idx]))
 
@@ -190,7 +201,7 @@ def main():
             path, channels=args.channels, skip=args.skip, length=args.length,
             window_size=args.window_size, pre_emphasis=args.pre_emphasis,
             window_shift=args.window_shift, n_mels=args.mel_bands,
-            clip=args.clip
+            clip=args.clip, fmin=args.fmin, fmax=args.fmax
         ) for path in paths
     )
     print("Processed {} spectrograms in {:.4f}s".format(
