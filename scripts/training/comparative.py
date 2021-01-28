@@ -1,9 +1,10 @@
 import argparse
+import importlib
 import json
 import os
 from functools import partial
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional, Sequence
 
 import numpy as np
 import pandas as pd
@@ -11,27 +12,23 @@ import tensorflow as tf
 from emotion_recognition.classification import PrecomputedSVC
 from emotion_recognition.dataset import LabelledDataset
 from emotion_recognition.tensorflow.classification import tf_cross_validate
-from emotion_recognition.tensorflow.models import (aldeneh2017_model,
-                                                   latif2019_model,
-                                                   zhang2019_model,
-                                                   zhao2019_model)
 from emotion_recognition.tensorflow.models.zhang2019 import \
     create_windowed_dataset
 from emotion_recognition.tensorflow.utils import create_tf_dataset_ragged
 from scikeras.wrappers import KerasClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (get_scorer, make_scorer, precision_score,
                              recall_score)
 from sklearn.model_selection import (GridSearchCV, GroupKFold,
                                      LeaveOneGroupOut, cross_validate)
 from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestClassifier
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Dense, Dropout, Input
 from tensorflow.keras.optimizers import Adam
 
 
 # SVM classifiers
-def get_svm_params(kind='linear') -> Dict[str, List]:
+def get_svm_params(kind='linear') -> Dict[str, Sequence]:
     param_grid = {'C': 2.0**np.arange(-6, 7, 2)}
     if kind == 'linear':
         param_grid.update({'kernel': ['poly'], 'degree': [1], 'coef0': [0]})
@@ -51,15 +48,15 @@ def get_svm_params(kind='linear') -> Dict[str, List]:
 
 
 # Random forest classifiers
-def get_rf_params() -> Dict[str, List]:
+def get_rf_params() -> Dict[str, Sequence]:
     param_grid = {'n_estimators': [100, 250, 500],
                   'max_depth': [None, 10, 20, 50]}
     return param_grid
 
 
 # Fully connected feedforward networks.
-def dense_keras_model(n_features: int, n_classes: int,
-                      layers: int = 1) -> Model:
+def dense_keras_model(n_features: int, n_classes: int, layers: int = 1,
+                      lr: float = 0.0001) -> Model:
     """Creates a Keras model with hidden layers and ReLU activation,
     with 50% dropout.
     """
@@ -69,42 +66,24 @@ def dense_keras_model(n_features: int, n_classes: int,
         x = Dense(512, activation='relu')(x)
         x = Dropout(0.5)(x)
     x = Dense(n_classes, activation='softmax')(x)
-    return Model(inputs=inputs, outputs=x)
-
-
-def get_vec_model(kind: str = '1layer', n_features: int = None,
-                  n_classes: int = None, lr: float = 0.0001) -> Model:
-    if kind == '1layer':
-        model = dense_keras_model(n_features, n_classes, layers=1)
-    elif kind == '2layer':
-        model = dense_keras_model(n_features, n_classes, layers=2)
-    elif kind == '3layer':
-        model = dense_keras_model(n_features, n_classes, layers=3)
-    else:
-        raise NotImplementedError("Other kinds of dense model are not "
-                                  "currently implemented.")
+    model = Model(inputs=inputs, outputs=x)
     model.compile(
         optimizer=Adam(learning_rate=lr),
-        metrics=['sparse_categorical_crossentropy'],
+        metrics=['sparse_categorical_accuracy'],
         loss='sparse_categorical_crossentropy'
     )
     return model
 
 
-# Sequence models
-def get_seq_model(kind: str = 'aldeneh2017', n_features: int = None,
-                  n_classes: int = None, lr: float = 0.0001) -> Model:
-    if kind == 'aldeneh2017':
-        model = aldeneh2017_model(n_features, n_classes)
-    elif kind == 'latif2019':
-        model = latif2019_model(n_classes)
-    elif kind == 'zhang2019':
-        model = zhang2019_model(n_classes)
-    elif kind == 'zhao2019':
-        model = zhao2019_model(n_features, n_classes)
+# Arbitrary TF models
+def get_tf_model(name, n_features, n_classes, lr: float = 0.0001) -> Model:
+    module = importlib.import_module(
+        'emotion_recognition.tensorflow.models.{}'.format(name))
+    model_fn = getattr(module, 'model')
+    if n_features > 1:
+        model = model_fn(n_features, n_classes)
     else:
-        raise NotImplementedError("Other kinds of convolutional model are not "
-                                  "currently implemented.")
+        model = model_fn(n_classes)
     model.compile(
         optimizer=Adam(learning_rate=lr),
         metrics=['sparse_categorical_accuracy'],
@@ -149,6 +128,7 @@ def test_classifier(kind: str,
     if kind.find('/') >= 0:
         type_ = kind[:_slash]
         kind = kind[_slash + 1:]
+
     for rep in range(1, reps + 1):
         print("Rep {}/{}".format(rep, reps))
         if type_ in ['svm', 'mlp'] or kind == 'rf':
@@ -157,9 +137,15 @@ def test_classifier(kind: str,
                 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
                 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
                 params = dict(lr=lr, batch_size=bs, epochs=epochs)
+                layers = 1
+                if kind == '2layer':
+                    layers = 2
+                elif kind == '3layer':
+                    layers = 3
                 clf = KerasClassifier(
-                    get_vec_model, kind=kind, n_features=dataset.n_features,
-                    n_classes=dataset.n_classes, **params, verbose=False
+                    dense_keras_model, n_features=dataset.n_features,
+                    n_classes=dataset.n_classes, layers=layers, **params,
+                    verbose=False
                 )
             else:
                 if type_ == 'svm':
@@ -183,7 +169,7 @@ def test_classifier(kind: str,
                 groups=dataset.speaker_group_indices,
                 fit_params=fit_params, n_jobs=-1, verbose=int(verbose)
             )
-        else:  # type_ == 'cnn'
+        else:
             os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
             data_fn = create_tf_dataset_ragged
             if kind == 'zhang2019':
@@ -192,16 +178,14 @@ def test_classifier(kind: str,
             params = dict(lr=lr, batch_size=bs, epochs=epochs)
 
             # To print model params
-            _model = get_seq_model(
-                kind=kind, n_features=dataset.n_features,
-                n_classes=dataset.n_classes, lr=lr
-            )
+            _model = get_tf_model(kind, n_features=dataset.n_features,
+                                  n_classes=dataset.n_classes, lr=lr)
             _model.summary()
             del _model
             tf.keras.backend.clear_session()
 
             model_fn = partial(
-                get_seq_model, kind=kind, n_features=dataset.n_features,
+                get_tf_model, kind, n_features=dataset.n_features,
                 n_classes=dataset.n_classes, lr=lr
             )
             scores = tf_cross_validate(
