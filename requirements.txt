@@ -1,6 +1,5 @@
 click
 click-option-group
-flake8
 joblib
 liac-arff
 librosa
@@ -11,11 +10,8 @@ numpy
 pandas>=1.0.0
 scikeras
 scipy
+soundfile
 statsmodels
-tensorboard
-tensorboard_plugin_profile
-tensorflow-datasets
-tensorflow-io
-tensorflow-probability
 tensorflow>=2.3
+torch
 tqdm
