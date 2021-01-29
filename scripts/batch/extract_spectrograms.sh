@@ -2,7 +2,7 @@
 
 for corpus in cafe crema-d demos emodb emofilm enterface iemocap jl msp-improv portuguese ravdess savee shemo smartkom tess urdu venec; do
     echo "Extracting spectrograms for $corpus"
-    python scripts/preprocessing/extract_spectrograms.py \
+    python scripts/preprocessing/spectrograms.py \
         datasets/$corpus/files.txt \
         --corpus $corpus \
         --labels datasets/$corpus/labels.csv \
@@ -17,7 +17,7 @@ for corpus in cafe crema-d demos emodb emofilm enterface iemocap jl msp-improv p
         --pre_emphasis 0.95 \
         --channels mean
 
-    python scripts/preprocessing/extract_spectrograms.py \
+    python scripts/preprocessing/spectrograms.py \
         datasets/$corpus/files.txt \
         --corpus $corpus \
         --labels datasets/$corpus/labels.csv \
