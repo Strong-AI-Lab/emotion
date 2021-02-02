@@ -1,3 +1,5 @@
+![License: MIT](https://img.shields.io/github/license/Broad-Ai-Lab/emotion)
+
 # Speech Emotion Recognition
 This repository contains scripts for processing emotional speech
 datasets, and training machine learning models on the datasets.
