@@ -75,7 +75,7 @@ def calculate_spectrogram(path: Path,
                           channels: str = 'mean',
                           pre_emphasis: float = 0.95,
                           skip: float = 0,
-                          length: float = 0,
+                          length: Optional[float] = None,
                           window_size: float = 0.025,
                           window_shift: float = 0.01,
                           n_mels: int = 240,
@@ -85,23 +85,23 @@ def calculate_spectrogram(path: Path,
     audio, sr = librosa.core.load(path, sr=None, mono=False, offset=skip,
                                   duration=length)
     if len(audio.shape) == 1:
-        audio = np.expand_dims(audio, 1)
+        audio = np.expand_dims(audio, 0)
 
     window_samples = int(window_size * sr)
     stride_samples = int(window_shift * sr)
 
     # Channel fusion
     if channels == 'left':
-        audio = audio[:, 0]
+        audio = audio[0]
     elif channels == 'right':
-        audio = audio[:, 1]
+        audio = audio[1]
     elif channels == 'mean':
-        audio = np.mean(audio[:, :2], axis=1)
+        audio = np.mean(audio[:2], axis=0)
     elif channels == 'diff':
-        audio = audio[:, 0] - audio[:, 1]
+        audio = audio[0] - audio[1]
 
     # Padding
-    if length > 0:
+    if length is not None and length > 0:
         length_samples = int(length * sr)
         if len(audio) < length_samples:
             audio = np.pad(audio, (0, length_samples - len(audio)))
@@ -142,16 +142,12 @@ def main():
         "to a file. A random spectrogram is displayed if p = -1."
     )
 
-    parser.add_argument(
-        '--length', type=float, default=5,
-        help="Seconds of audio clip to take or pad. Set to 0 for no clipping."
-    )
+    parser.add_argument('--length', type=float,
+                        help="Seconds of audio clip to take or pad.")
     parser.add_argument('--skip', type=float, default=0,
                         help="Seconds of initial audio to skip.")
-    parser.add_argument(
-        '--clip', type=float, default=60,
-        help="Clip below this (negative) dB level. Set to 0 for no clipping."
-    )
+    parser.add_argument('--clip', type=float,
+                        help="Clip below this (negative) dB level.")
     parser.add_argument('--window_size', type=float, default=0.025,
                         help="Window size in seconds.")
     parser.add_argument('--window_shift', type=float, default=0.01,
@@ -210,23 +206,21 @@ def main():
     if args.labels and not args.corpus:
         raise ValueError("--corpus must be provided if labels are provided.")
 
-    spectrograms = np.stack(specs)
-
     filenames = [x.stem for x in paths]
     if args.audeep is not None:
-        write_audeep_dataset(args.audeep, spectrograms, filenames,
+        write_audeep_dataset(args.audeep, np.stack(specs), filenames,
                              args.mel_bands, args.labels, args.corpus)
 
         print("Wrote auDeep-specific dataset to {}.".format(args.audeep))
 
     if args.netcdf is not None:
-        slices = [spectrograms.shape[1] for _ in range(len(spectrograms))]
-        spectrograms = np.concatenate(spectrograms)
+        slices = [len(x) for x in specs]
+        spectrograms = np.concatenate(specs)
         write_netcdf_dataset(
             args.netcdf, corpus=args.corpus, names=filenames, slices=slices,
             features=spectrograms, annotation_path=args.labels)
 
-        print("Wrote netCDF dataset to {}.".format(args.netcdf))
+        print("Wrote netCDF dataset to {}".format(args.netcdf))
 
 
 if __name__ == "__main__":
