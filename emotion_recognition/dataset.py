@@ -61,7 +61,7 @@ def get_audio_paths(file: Union[PathLike, str]) -> Sequence[Path]:
 def write_netcdf_dataset(path: Union[PathLike, str],
                          names: List[str],
                          features: np.ndarray,
-                         slices: List[int],
+                         slices: Optional[List[int]] = None,
                          corpus: str = '',
                          annotations: Optional[np.ndarray] = None,
                          annotation_path: Optional[Union[PathLike, str]] = None,  # noqa
@@ -83,7 +83,7 @@ def write_netcdf_dataset(path: Union[PathLike, str],
         A list of instance names.
     features: ndarray
         A features matrix of shape (length, n_features).
-    slices: list of int
+    slices: list of int, optional
         The size of each slice along axis 0 of features. If there is one
         vector per instance, then this will be all 1's, otherwise will
         have the length of the sequence corresponding to each instance.
@@ -99,6 +99,8 @@ def write_netcdf_dataset(path: Union[PathLike, str],
     dataset.createDimension('concat', features.shape[0])
     dataset.createDimension('features', features.shape[1])
 
+    if not slices:
+        slices = [1] * len(names)
     _slices = dataset.createVariable('slices', int, ('instance',))
     _slices[:] = slices
 
