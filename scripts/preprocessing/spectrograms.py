@@ -118,9 +118,7 @@ def calculate_spectrogram(path: Path,
         win_length=window_samples, fmin=fmin, fmax=fmax
     )
     db_spectrogram = librosa.power_to_db(melspec, ref=np.max, top_db=clip)
-    db_min = db_spectrogram.min()
-    db_max = db_spectrogram.max()
-    db_spectrogram = 2 * (db_spectrogram - db_min) / (db_max - db_min) - 1
+
     return db_spectrogram.T
 
 
@@ -208,17 +206,21 @@ def main():
 
     filenames = [x.stem for x in paths]
     if args.audeep is not None:
-        write_audeep_dataset(args.audeep, np.stack(specs), filenames,
+        specs = np.stack(specs)
+        amin = np.min(specs, axis=(1, 2))
+        amax = np.max(specs, axis=(1, 2))
+        specs = 2 * (specs - amin) / (amax - amin) - 1
+        write_audeep_dataset(args.audeep, specs, filenames,
                              args.mel_bands, args.labels, args.corpus)
 
         print("Wrote auDeep-specific dataset to {}.".format(args.audeep))
 
     if args.netcdf is not None:
         slices = [len(x) for x in specs]
-        spectrograms = np.concatenate(specs)
+        specs = np.concatenate(specs)
         write_netcdf_dataset(
             args.netcdf, corpus=args.corpus, names=filenames, slices=slices,
-            features=spectrograms, annotation_path=args.labels)
+            features=specs, annotation_path=args.labels)
 
         print("Wrote netCDF dataset to {}".format(args.netcdf))
 

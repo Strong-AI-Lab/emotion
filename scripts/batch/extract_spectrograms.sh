@@ -11,8 +11,8 @@ for corpus in cafe crema-d demos emodb emofilm enterface iemocap jl msp-improv p
         --length 5 \
         --skip 0 \
         --clip 60 \
-        --window_size 0.05 \
-        --window_shift 0.025 \
+        --window_size 0.025 \
+        --window_shift 0.010 \
         --mel_bands 240 \
         --pre_emphasis 0.95 \
         --channels mean
@@ -26,8 +26,8 @@ for corpus in cafe crema-d demos emodb emofilm enterface iemocap jl msp-improv p
         --length 5 \
         --skip 0 \
         --clip 60 \
-        --window_size 0.05 \
-        --window_shift 0.025 \
+        --window_size 0.025 \
+        --window_shift 0.010 \
         --mel_bands 40 \
         --pre_emphasis 0.95 \
         --channels mean
