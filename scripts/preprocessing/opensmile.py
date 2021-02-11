@@ -57,10 +57,9 @@ def main():
                                help="Corpus to process")
     required_args.add_argument('--config', type=Path, required=True,
                                help="Config file to use")
-    required_args.add_argument('--input', type=Path, required=True,
+    required_args.add_argument('input', type=Path,
                                help="File containing list of files")
-    required_args.add_argument('--output', type=Path, required=True,
-                               help="Output file.")
+    required_args.add_argument('output', type=Path, help="Output file.")
 
     # Flags
     parser.add_argument('--debug', action='store_true',

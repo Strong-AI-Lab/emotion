@@ -4,6 +4,7 @@ TFRecord file holding the data.
 
 import argparse
 import time
+import warnings
 from pathlib import Path
 from typing import List, Optional
 
@@ -112,11 +113,13 @@ def calculate_spectrogram(path: Path,
         audio = librosa.effects.preemphasis(audio, pre_emphasis)
 
     # Mel spectrogram
+    warnings.simplefilter('ignore', UserWarning)
     n_fft = 2**int(np.math.ceil(np.log2(window_samples)))
     melspec = librosa.feature.melspectrogram(
         audio, n_mels=n_mels, sr=sr, n_fft=n_fft, hop_length=stride_samples,
         win_length=window_samples, fmin=fmin, fmax=fmax
     )
+    warnings.simplefilter('default', UserWarning)
     db_spectrogram = librosa.power_to_db(melspec, ref=np.max, top_db=clip)
 
     return db_spectrogram.T
@@ -207,8 +210,8 @@ def main():
     filenames = [x.stem for x in paths]
     if args.audeep is not None:
         specs = np.stack(specs)
-        amin = np.min(specs, axis=(1, 2))
-        amax = np.max(specs, axis=(1, 2))
+        amin = np.min(specs, axis=(1, 2), keepdims=True)
+        amax = np.max(specs, axis=(1, 2), keepdims=True)
         specs = 2 * (specs - amin) / (amax - amin) - 1
         write_audeep_dataset(args.audeep, specs, filenames,
                              args.mel_bands, args.labels, args.corpus)
