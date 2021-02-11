@@ -35,11 +35,13 @@ def main():
     if len(arr.shape) == 1:
         arr = np.expand_dims(arr, 0)
 
-    print(dataset.names[instance])
+    names = dataset.names[instance]
+    print(names)
 
     plt.figure()
-    plt.imshow(arr, aspect='equal', origin='upper',
-               interpolation='nearest')
+    plt.imshow(arr, aspect='equal', origin='upper', interpolation='nearest')
+    plt.xlabel('Features')
+    plt.ylabel('Instance' if len(names) > 1 else 'Time')
     plt.show()
 
 
