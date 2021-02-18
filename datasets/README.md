@@ -21,39 +21,32 @@ respective directories in the `datasets` directory:
 - `shemo` - [ShEMO](https://github.com/mansourehk/ShEMO)
 - `smartkom` - [SmartKom](https://clarin.phonetik.uni-muenchen.de/BASRepository/index.php)
 - `tess` - [TESS](https://tspace.library.utoronto.ca/handle/1807/24487/)
+- `urdu` - [URDU](https://github.com/siddiquelatif/URDU-Dataset/)
 - `venec` - [VENEC](https://www.nature.com/articles/s41562-019-0533-6)
 
 ## Processing
-Before any processing can be done, all audio must be converted to s16_le
-encoded WAV, with a sample rate of 16 kHz. This can be accomplished with
-the FFmpeg program:
+Each dataset has a `process.py` script that can be used to process the
+data into a usable format.
 ```
-ffmpeg -i file.wav -ar 16000 wav_corpus/out.wav
+python process.py /path/to/data
 ```
-In some cases (e.g. EMO-DB) this isn't necessary as the audio is already
-in this format. If you have GNU Parallel installed, you can use that to
-batch process many audio files in parallel, e.g.
-```
-find -name "*.mp3" | parallel ffmpeg -i {} -ar 16000 wav_corpus/{/.}.wav
-```
+For most datasets this just involves resampling to 16 kHz 16-bit WAV
+audio using FFmpeg, but some dataset (e.g. IEMOCAP, MSP-IMPROV) have
+some more specific requirements.
 
-Some datasets require more customised scripts to process the data from
-annotation files. Currently there are scripts for CREMA-D, IEMOCAP,
-MSP-IMPROV, SEMAINE (unused for classification) and SmartKom. Each of
-the scripts can be run like so, from the relevant directory:
-```
-python process.py
-```
-They will output any annotation files in CSV format, as well as print
-the emotion label distribution and any inter-rater agreement metrics
-that can be calculated (e.g. Krippendorf's alpha, Fleiss' kappa).
+All scripts will output any annotation files in CSV format, as well as
+print the emotion label distribution and any inter-rater agreement
+metrics that can be calculated (e.g. Krippendorf's alpha, Fleiss'
+kappa).
 
-A list of audio clips must then be created, to be used for later
-preprocessing scripts that extract/generate features. For example,
+A list of file paths to the resampled audio clips will be created for
+later preprocessing scripts that extract/generate features. Usually all
+audio clips will be used to generate a dataset file. If you want to only
+use a subset of audio clips for processing, you can create this list
+yourself. For example,
 ```
-find wav_corpus -name "*.mp3" | sort > files.txt
+find /path/to/audio/subset/ -name "*.wav" | sort > files.txt
 ```
-Usually all audio clips will be used to generate a dataset file.
 Multiple file lists can be created if different subsets want to be
 tested independently (e.g. testing IEMOCAP's scripted and improvised
 sessions independently.)
@@ -61,6 +54,18 @@ sessions independently.)
 Once these steps are done, you can use the feature extraction and
 dataset creation scripts.
 
+## Labels
+The format of the labels file is a simple mapping from *name* to
+emotional label, where *name* is the name of the audio file without file
+extension, (i.e. `name.wav` -> `name`). Some datasets (e.g. SAVEE) have
+duplicate names, so the speaker is prepended to make the names unique.
+The first column of the CSV is the name, and the second is the emotional
+label.
+
+Multiple label files can be created, just like multiple lists of clips.
+Label files act independently of clip lists, but when a given label file
+is used, it must have a label for each name in the clip list (but may
+contain superfluous labels).
 
 ## Schema
 The JSON metadata schema is currently unused, as most datasets use
