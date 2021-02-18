@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 from emotion_recognition.classification import PrecomputedSVC
-from emotion_recognition.dataset import CombinedDataset, NetCDFDataset
+from emotion_recognition.dataset import CombinedDataset, LabelledDataset
 from sklearn.metrics import (average_precision_score, f1_score, get_scorer,
                              make_scorer, precision_score, recall_score)
 from sklearn.model_selection import (GroupKFold, LeaveOneGroupOut, KFold,
@@ -13,22 +13,21 @@ from sklearn.model_selection import (GroupKFold, LeaveOneGroupOut, KFold,
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input', type=Path, nargs='+', required=True,
-                        help="Input datasets.")
+    parser.add_argument('input', type=Path, nargs='+', help="Input datasets.")
     parser.add_argument(
         '--cv', type=str, default='speaker',
         help="Cross-validation method. One of {speaker, corpus}."
     )
     parser.add_argument('--norm', type=str, default='speaker',
                         help="Normalisation method. One of {speaker, corpus}.")
-    parser.add_argument('--save', type=Path,
-                        help="Path to save trained model.")
+    parser.add_argument('--save', type=Path, help="Path to save model.")
     args = parser.parse_args()
 
-    dataset = CombinedDataset(*(NetCDFDataset(path) for path in args.input))
+    dataset = CombinedDataset(*(LabelledDataset(path) for path in args.input))
     emotion_map = {x: 'emotional' for x in dataset.classes}
     emotion_map['neutral'] = 'neutral'
     dataset.map_classes(emotion_map)
+    dataset.remove_classes(['emotional', 'neutral'])
     print(dataset.class_counts)
 
     dataset.normalise(scheme=args.norm)
@@ -48,7 +47,6 @@ def main():
 
     class_weight = (dataset.n_instances
                     / (dataset.n_classes * dataset.class_counts))
-    # Necessary until scikeras supports passing in class_weights directly
     sample_weight = class_weight[dataset.y]
 
     scoring = {
