@@ -1,50 +1,48 @@
-import argparse
+"""Process the raw CaFE dataset.
+
+This assumes the file structure from the original compressed file:
+/.../
+    AudioMP3/
+        *.mp3 [for 44.1 kHz]
+    AudioWAV/
+        *.wav [for 16 kHz]
+    ...
+"""
+
 from pathlib import Path
 from typing import Dict
 
+import click
 import pandas as pd
 
+from emotion_recognition.dataset import write_filelist, write_labels
 from emotion_recognition.stats import alpha
+from emotion_recognition.utils import PathlibPath
 
 emotion_map = {
     'A': 'anger',
     'D': 'disgust',
     'F': 'fear',
-    'H': 'happy',
-    'S': 'sad',
+    'H': 'happiness',
+    'S': 'sadness',
     'N': 'neutral',
 }
 
 
 def write_labelset(name: str, labels: Dict[str, str]):
-    with open('labels_{}.csv'.format(name), 'w') as label_file:
-        label_file.write("Name,Emotion\n")
-        for name, emo in labels.items():
-            if name == '1076_MTI_SAD_XX':
-                # This one has no audio signal
-                continue
-            label_file.write("{},{}\n".format(name, emotion_map[name[9]]))
+    df = pd.DataFrame({'Name': labels.keys(), 'Emotion': labels.values()})
+    df.to_csv('labels_{}.csv'.format(name), header=True, index=False)
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--input', type=Path, help="Location of CREMA-D data.")
-    args = parser.parse_args()
+@click.command()
+@click.argument('input_dir', type=PathlibPath(exists=True, file_okay=False))
+def main(input_dir: Path):
+    """Process CREMA-D dataset at location INPUT_DIR."""
 
-    files = sorted(args.input.glob('AudioWAV/*.wav'))
-    # Write default clipset and annotationset using acted emotion
-    with open('clips2.csv', 'w') as clip_file, \
-            open('labels2.csv', 'w') as label_file:
-        clip_file.write("Name,Path,Speaker\n")
-        label_file.write("Name,Emotion\n")
-        for path in files:
-            name = path.stem
-            if name == '1076_MTI_SAD_XX':
-                # This one has no audio signal
-                continue
-            speaker = name[:4]
-            clip_file.write("{0},AudioWAV/{0}.wav,{1}\n".format(name, speaker))
-            label_file.write("{},{}\n".format(name, emotion_map[name[9]]))
+    paths = list(input_dir.glob('AudioWAV/*.wav'))
+    # 1076_MTI_SAD_XX has no audio signal
+    write_filelist([p for p in paths if p.stem != '1076_MTI_SAD_XX'])
+    write_labels({p.stem: emotion_map[p.stem[9]] for p in paths})
 
     summaryTable = pd.read_csv('processedResults/summaryTable.csv',
                                low_memory=False, index_col=0)
@@ -52,9 +50,10 @@ def main():
 
     for mode in ['VoiceVote', 'FaceVote', 'MultiModalVote']:
         # Proportion of majority vote equivalent to acted emotion
-        accuracy = (summaryTable[mode] == summaryTable['ActedEmo'].sum()
+        accuracy = ((summaryTable[mode] == summaryTable['ActedEmo']).sum()
                     / len(summaryTable))
         print("Acted accuracy using {}: {:.3f}".format(mode, accuracy))
+    print()
 
     # Majority vote annotations from other modalities
     valid = summaryTable['MultiModalVote'].isin(list('NHDFAS'))
@@ -103,20 +102,24 @@ def main():
     faceResp = goodResponses.query('queryType == 2')
     multiModalResp = goodResponses.query('queryType == 3')
 
-    for mode in [voiceResp, faceResp, multiModalResp]:
+    resp_d = {'voice': voiceResp, 'face': faceResp, 'both': multiModalResp}
+    for s, mode in resp_d.items():
         # Proportion of human responses equal to acted emotion
         accuracy = (mode['respEmo'] == mode['dispEmo']).sum() / len(mode)
-        print("Human accuracy: {:.3f}".format(accuracy))
+        print("Human accuracy using {}: {:.3f}".format(s, accuracy))
 
         dataTable = (mode.set_index(['sessionNums', 'clipNum'])['respEmo']
                      .astype('category').cat.codes.unstack() + 1)
         dataTable[dataTable.isna()] = 0
         data = dataTable.astype(int).to_numpy()
-        print("Krippendorf's alpha: {:.3f}".format(alpha(data)))
+        print("Krippendorf's alpha using {}: {:.3f}".format(s, alpha(data)))
+        print()
 
     tabulatedVotes = pd.read_csv('processedResults/tabulatedVotes.csv',
                                  low_memory=False, index_col=0)
     tabulatedVotes['mode'] = tabulatedVotes.index // 100000
+    tabulatedVotes['mode'] = tabulatedVotes['mode'].map(
+        lambda x: [None, 'voice', 'face', 'both'][x])
     print("Average vote agreement per annotation mode:")
     print(tabulatedVotes.groupby('mode')['agreement'].describe())
 

@@ -1,156 +1,16 @@
 import abc
-import json
 import warnings
-from collections import Counter
 from os import PathLike
 from pathlib import Path
-from typing import (Collection, Dict, List, Mapping, Optional, Sequence, Set,
-                    Tuple, Union)
+from typing import Collection, Dict, List, Mapping, Optional, Set, Tuple, Union
 
-import arff
-import netCDF4
 import numpy as np
-import pandas as pd
-import soundfile
 from sklearn.base import TransformerMixin
 from sklearn.preprocessing import StandardScaler, label_binarize
 
-from .binary_arff import decode as decode_arff
+from ..utils import clip_arrays, frame_arrays, pad_arrays, transpose_time
+from .backend import ARFFBackend, NetCDFBackend, RawAudioBackend
 from .corpora import corpora
-from .utils import clip_arrays, frame_arrays, pad_arrays, transpose_time
-
-
-def parse_regression_annotations(filename: Union[PathLike, str]) \
-        -> Dict[str, Dict[str, float]]:
-    """Returns a dict of the form {'name': {'v1': v1, ...}}."""
-    df = pd.read_csv(filename, index_col=0)
-    annotations = df.to_dict(orient='index')
-    return annotations
-
-
-def parse_classification_annotations(filename: Union[PathLike, str]) \
-        -> Dict[str, str]:
-    """Returns a dict of the form {'name': emotion}."""
-    df = pd.read_csv(filename, index_col=0)
-    annotations = df.to_dict()[df.columns[0]]
-    return annotations
-
-
-def get_audio_paths(file: Union[PathLike, str]) -> Sequence[Path]:
-    """Given a path to a file containing a list of audio files, returns
-    a sequence of absolute paths to the audio files.
-
-    Args:
-    -----
-    file: pathlike or str
-        Path to a file containing a list of paths to audio clips.
-
-    Returns:
-    --------
-        Sequence of paths to audio files.
-    """
-    file = Path(file)
-    paths = []
-    with open(file) as fid:
-        for line in fid:
-            p = Path(line.strip())
-            paths.append(p if p.is_absolute() else (file.parent / p).resolve())
-    return paths
-
-
-def write_netcdf_dataset(path: Union[PathLike, str],
-                         names: List[str],
-                         features: np.ndarray,
-                         slices: Optional[List[int]] = None,
-                         corpus: str = '',
-                         annotations: Optional[np.ndarray] = None,
-                         annotation_path: Optional[Union[PathLike, str]] = None,  # noqa
-                         annotation_type: str = 'classification'):
-    """Writes a netCDF4 dataset to the given path. The dataset should
-    contain features and annotations. Note that the features matrix has
-    to be 2-D, and can either be a vector per instance, or a sequence of
-    vectors per instance. Also note that this cannot represent the
-    spectrograms in the format required by auDeep, since that is a 3-D
-    matrix of one spectrogram per instance.
-
-    Args:
-    -----
-    path: pathlike or str
-        The path to write the dataset.
-    corpus: str
-        The corpus name
-    names: list of str
-        A list of instance names.
-    features: ndarray
-        A features matrix of shape (length, n_features).
-    slices: list of int, optional
-        The size of each slice along axis 0 of features. If there is one
-        vector per instance, then this will be all 1's, otherwise will
-        have the length of the sequence corresponding to each instance.
-    annotations: np.ndarray, optional
-        Annotations obtained elsewhere.
-    annotation_path: pathlike or str, optional
-        The path to an annotation file.
-    annotation_type: str
-        The type of annotations, one of {regression, classification}.
-    """
-    dataset = netCDF4.Dataset(path, 'w')
-    dataset.createDimension('instance', len(names))
-    dataset.createDimension('concat', features.shape[0])
-    dataset.createDimension('features', features.shape[1])
-
-    if not slices:
-        slices = [1] * len(names)
-    _slices = dataset.createVariable('slices', int, ('instance',))
-    _slices[:] = slices
-
-    filename = dataset.createVariable('filename', str, ('instance',))
-    filename[:] = np.array(names)
-
-    if annotation_path is not None:
-        if annotation_type == 'regression':
-            annotations = parse_regression_annotations(annotation_path)
-            keys = next(iter(annotations.values())).keys()
-            for k in keys:
-                var = dataset.createVariable(k, np.float32, ('instance',))
-                var[:] = np.array([annotations[x][k] for x in names])
-            dataset.setncattr_string(
-                'annotation_vars', json.dumps([k for k in keys]))
-        elif annotation_type == 'classification':
-            annotations = parse_classification_annotations(annotation_path)
-            label_nominal = dataset.createVariable('label_nominal', str,
-                                                   ('instance',))
-            label_nominal[:] = np.array([annotations[x] for x in names])
-            dataset.setncattr_string('annotation_vars',
-                                     json.dumps(['label_nominal']))
-    elif annotations is not None:
-        if annotation_type == 'regression':
-            for k, arr in annotations:
-                var = dataset.createVariable(k, np.float32, ('instance',))
-                var[:] = arr
-            dataset.setncattr_string(
-                'annotation_vars', json.dumps([k for k in annotations]))
-        elif annotation_type == 'classification':
-            label_nominal = dataset.createVariable('label_nominal', str,
-                                                   ('instance',))
-            label_nominal[:] = annotations
-            dataset.setncattr_string('annotation_vars',
-                                     json.dumps(['label_nominal']))
-    else:
-        label_nominal = dataset.createVariable('label_nominal', str,
-                                               ('instance',))
-        label_nominal[:] = np.array(['unknown' for _ in range(len(names))])
-        dataset.setncattr_string('annotation_vars',
-                                 json.dumps(['label_nominal']))
-
-    _features = dataset.createVariable('features', np.float32,
-                                       ('concat', 'features'))
-    _features[:, :] = features
-
-    dataset.setncattr_string('feature_dims',
-                             json.dumps(['concat', 'features']))
-    dataset.setncattr_string('corpus', corpus)
-    dataset.close()
 
 
 def _make_flat(a: np.ndarray) -> Tuple[np.ndarray, List[int]]:
@@ -168,146 +28,6 @@ def _make_ragged(flat: np.ndarray,
     return arrs
 
 
-def _reshape_data_array(x: np.ndarray, slices: np.ndarray) -> np.ndarray:
-    """Takes a possibly 2D data array and converts it to either a
-    contiguous 2D/3D array or a variable-length 3D array.
-    """
-    if len(x) == len(slices):
-        # 2-D contiguous array
-        return x
-    elif all(slices == slices[0]):
-        # 3-D contiguous array
-        assert len(x) % len(slices) == 0
-        seq_len = len(x) // len(slices)
-        return np.reshape(x, (len(slices), seq_len, x[0].shape[-1]))
-    else:
-        # 3-D variable length array
-        indices = np.cumsum(slices)
-        arrs = np.split(x, indices[:-1], axis=0)
-        return np.array(arrs, dtype=object)
-
-
-class DatasetBackend(abc.ABC):
-    """Opens the file/directory given by path and reads in the
-    relevant data in an implementation specific manner.
-
-    Args:
-    -----
-    path: pathlike
-        The file/directory to read data from.
-    """
-
-    @abc.abstractmethod
-    def __init__(self, path: Union[PathLike, str]):
-        pass
-
-    @property
-    def features(self) -> np.ndarray:
-        """Feature matrix."""
-        return self._features
-
-    @property
-    def labels(self) -> Optional[List[str]]:
-        """Nominal (string) labels."""
-        return self._labels
-
-    @property
-    def names(self) -> List[str]:
-        """Instance names."""
-        return self._names
-
-    @property
-    def feature_names(self) -> List[str]:
-        """Names of features in feature matrix."""
-        return self._feature_names
-
-    @property
-    def corpus(self) -> str:
-        """Corpus ID."""
-        return self._corpus
-
-    _features: np.ndarray = np.empty(0)
-    _labels: Optional[List[str]] = None
-    _names: List[str] = []
-    _feature_names: List[str] = []
-    _corpus: str = ''
-
-
-class NetCDFBackend(DatasetBackend):
-    """Backend that reads data from a netCDF4 file in our format, which
-    is modified from the format used by the auDeep toolkit.
-    """
-    def __init__(self, path: Union[PathLike, str]):
-        dataset = netCDF4.Dataset(path)
-        if not hasattr(dataset, 'corpus'):
-            raise AttributeError(
-                "Dataset at {} has no corpus metadata.".format(path))
-        self._corpus = dataset.corpus
-
-        self._names = [Path(f).stem for f in dataset.variables['filename']]
-        feature_dim = json.loads(dataset.feature_dims)[-1]
-        self._feature_names = ['feature_{}'.format(i + 1) for i in range(
-            dataset.dimensions[feature_dim].size)]
-
-        x = np.array(dataset.variables['features'])
-        slices = np.array(dataset.variables['slices'])
-        self._features = _reshape_data_array(x, slices)
-        if 'label_nominal' in dataset.variables:
-            self._labels = list(dataset.variables['label_nominal'])
-
-        dataset.close()
-
-
-class RawAudioBackend(DatasetBackend):
-    """Backend that uses audio clip filepaths from a file and loads the
-    audio as raw data.
-    """
-    def __init__(self, path: Union[PathLike, str]) -> None:
-        path = Path(path)
-        self.feature_names.append('pcm')
-
-        filepaths = get_audio_paths(path)
-        self._features = np.empty(len(filepaths), dtype=object)
-        for i, filepath in enumerate(filepaths):
-            self.names.append(filepath.stem)
-            audio, _ = soundfile.read(filepath, always_2d=True,
-                                      dtype='float32')
-            self.features[i] = audio
-
-        # We assume the file list is at the root of the dataset directory
-        self._corpus = path.parent.stem
-        label_file = path.parent / 'labels.csv'
-        if label_file.exists():
-            self._labels = []
-            annotations = parse_classification_annotations(label_file)
-            self._names = sorted(x for x in self.names if x in annotations)
-            for name in self.names:
-                self.labels.append(annotations[name])
-
-
-class ARFFBackend(DatasetBackend):
-    """Backend that loads data from an ARFF (text or binary) file."""
-    def __init__(self, path: Union[PathLike, str]) -> None:
-        path = Path(path)
-        if path.suffix == '.bin':
-            with open(path, 'rb') as fid:
-                data = decode_arff(fid)
-        else:
-            with open(path) as fid:
-                data = arff.load(fid)
-
-        self._corpus = data['relation']
-        self._feature_names = [x[0] for x in data['attributes'][1:-1]]
-
-        counts = Counter([x[0] for x in data['data']])
-        self._names = list(counts.keys())
-
-        x = np.array([x[1:-1] for x in data['data']])
-        slices = np.array(counts.values())
-        self._features = _reshape_data_array(x, slices)
-        self._labels = list(dict.fromkeys(x[-1] for x in data['data']).keys())
-
-
 class Dataset(abc.ABC):
     def __init__(self, path: Union[PathLike, str]):
         path = Path(path)
@@ -321,10 +41,6 @@ class Dataset(abc.ABC):
             raise NotImplementedError('Unknown filetype.')
 
         self._corpus = self.backend.corpus
-
-        if self.corpus.lower() not in corpora:
-            raise NotImplementedError(
-                "Corpus {} hasn't been implemented yet.".format(self.corpus))
         self._names = self.backend.names
         self._features = self.backend.feature_names
         self._x = self.backend.features
@@ -527,7 +243,7 @@ class LabelledDataset(Dataset):
     """
     def __init__(self, path: Union[PathLike, str]):
         super().__init__(path)
-        self._classes = list(corpora[self.corpus.lower()].emotion_map.values())
+        self._classes = sorted(set(self.backend.labels))
         self._y = np.array([self.class_to_int(x) for x in self.backend.labels])
         self._class_counts = np.bincount(self.y)
         self._labels = {'all': self.y}

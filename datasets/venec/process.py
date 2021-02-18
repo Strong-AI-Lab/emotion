@@ -1,8 +1,24 @@
+"""Process the raw VENEC dataset.
+
+This assumes the file structure from the original compressed file:
+/.../
+    NoNameProsody/
+        *.mp3
+        *.mp3.wav [duplicated by mistake?]
+    CowenEtAlAnalysisCode/
+        ...
+    veneccountryinfo.csv
+    ...
+"""
+
 import re
-import shutil
 from pathlib import Path
 
+import click
 import pandas as pd
+from emotion_recognition.dataset import (resample_audio, write_filelist,
+                                         write_labels)
+from emotion_recognition.utils import PathlibPath
 
 MED_INT_REGEX = re.compile(r'^(\d\d?)([A-Za-z]+)$')
 HIGH_INT_REGEX = re.compile(r'^[A-Za-z]+(\d+)([A-Za-z]+)\d?(?:[Hh]igh|Hi|H)$')
@@ -50,14 +66,28 @@ def get_emotion(s: str):
     return EMOTIONS.get(emo, emo)
 
 
-def main():
-    clip_info = pd.read_csv('veneccountryinfo.csv', index_col=0,
+@click.command()
+@click.argument('input_dir', type=PathlibPath(exists=True, file_okay=False))
+def main(input_dir: Path):
+    """Process the VENEC dataset at location INPUT_DIR and resample
+    audio to 16 kHz 16-bit WAV audio.
+    """
+
+    paths = list(input_dir.glob('NoNameProsody/*.mp3'))
+    resample_dir = Path('resampled')
+    resample_audio(paths, resample_dir)
+
+    clip_info = pd.read_csv(input_dir / 'veneccountryinfo.csv', index_col=0,
                             names=['Filename', 'Country', 'Original'])
+    # Acted labels
+    labels = clip_info['Original'].map(lambda x: Path(x).stem).map(get_emotion)
+    write_labels(labels.to_dict())
 
     def get_ratings(country: str = 'USA') -> pd.DataFrame:
-        ratings = pd.read_csv('CategoryRatings{}.csv'.format(country),
-                              index_col=0, header=0)
-        ratings.index.name = 'File'
+        ratings = pd.read_csv(
+            input_dir / 'CategoryRatings{}.csv'.format(country), index_col=0,
+            header=0
+        )
 
         mode_count = ratings.apply(
             lambda x: x.value_counts().sort_index().iloc[-1], axis=1)
@@ -69,6 +99,7 @@ def main():
         print("Mean label agreement: {:.3f}".format(agreement))
 
         ratings = ratings.join(clip_info)
+        ratings.index = ratings.index.map(lambda x: x[:-4])
         ratings['Country'] = ratings['Country'].map(str.upper)
         # Correct the three errors where country is STR
         ratings.loc[ratings['Country'] == 'STR', 'Country'] = 'AUS'
@@ -77,38 +108,30 @@ def main():
             lambda x: Path(x).parts[0].split('_')[0])
         ratings['Speaker_No'] = ratings['Original'].map(
             lambda x: Path(x).stem).map(get_speaker).map(int)
-        ratings['Speaker_ID'] = ratings['Country'] + '_' + ratings['Speaker_No'].map(
-            '{:02d}'.format)
+        ratings['Speaker_ID'] = (ratings['Country'] + '_'
+                                 + ratings['Speaker_No'].map('{:02d}'.format))
         ratings['Emotion'] = ratings['Original'].map(
             lambda x: Path(x).stem).map(get_emotion)
         del ratings['Original']
         del ratings['Country']
         del ratings['Speaker_No']
 
-        # Remove 'neutral' since it has only 10 clips in medium
-        # intensity in 3 countries.
+        # Remove 'neutral' since it has only 10 clips, in medium
+        # intensity, in 3 countries.
         ratings = ratings[ratings['Emotion'] != 'neutral']
         keep_emotions = set(EMOTIONS.values()) - {'neutral'}
 
         # Keep only (country, speaker) pairs for which there are clips
-        # for all emotions. This gives us around 2262 clips.
+        # for all emotions. This gives around 2262 clips.
         ratings = ratings.groupby('Speaker_ID').filter(
             lambda x: set(x['Emotion']) == keep_emotions)
         ratings = ratings.sort_values(['Speaker_ID', 'Emotion'])
         return ratings
 
-    ratings = get_ratings()
-    ratings.index = ratings.index.map(lambda x: x[:-4])
+    ratings = get_ratings('USA')
 
-    out_dir = Path('wav_corpus')
-    out_dir.mkdir(exist_ok=True)
-    for clip in ratings.index:
-        name = clip + '_' + ratings.loc[clip, 'Speaker_ID'] + '.wav'
-        shutil.copy('audio/' + clip + '.wav', out_dir / name)
-
-    ratings.index = ratings.index.str.cat('_' + ratings['Speaker_ID'])
-    # Acted labels
-    ratings['Emotion'].to_csv('labels.csv')
+    write_filelist([p for p in resample_dir.glob('*.wav')
+                    if p.stem in ratings.index])
 
 
 if __name__ == "__main__":

@@ -56,8 +56,8 @@ def write_audeep_dataset(path: Path,
     if labelpath:
         labels = parse_classification_annotations(labelpath)
         label_nominal[:] = np.array([labels[x] for x in filenames])
-        emotions = list(corpora[corpus].emotion_map.values())
-        label_numeric[:] = np.array([emotions.index(labels[x])
+        unique = sorted(set(labels.values()))
+        label_numeric[:] = np.array([unique.index(labels[x])
                                      for x in filenames])
     else:
         label_nominal[:] = np.zeros(spectrograms.shape[0], dtype=str)

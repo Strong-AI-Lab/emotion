@@ -1,25 +1,40 @@
-import argparse
+"""Process the raw eNTERFACE dataset.
+
+This assumes the file structure from the original compressed file:
+/.../
+    Session1/
+        sentences/
+            wav/
+                Ses01F_impro01/
+                    *.wav
+                ...
+            ...
+        ...
+    ...
+"""
+
 import re
-from collections import Counter
 from pathlib import Path
 
+import click
 import numpy as np
 import pandas as pd
-
+from emotion_recognition.dataset import (resample_audio, write_filelist,
+                                         write_labels)
 from emotion_recognition.stats import alpha
+from emotion_recognition.utils import PathlibPath
 
 # [START_TIME - END_TIME] TURN_NAME EMOTION [V, A, D]
 REGEX = re.compile(r'^\[(\d+\.\d+) - (\d+\.\d+)\]\t(\w+)\t(\w+)\t\[(\d+\.\d+), (\d+\.\d+), (\d+\.\d+)\]$')  # noqa
 
-emotions = {
+emotion_map = {
     'ang': 'anger',
     'hap': 'happiness',
     'sad': 'sadness',
     'neu': 'neutral',
-
-    # Generally unused for discrete emoton classification
+    # Excitement is usually mapped to happiness
+    'exc': 'happiness',
     'dis': 'disgust',
-    'exc': 'excitement',
     'fru': 'frustration',
     'fea': 'fear',
     'sur': 'surprise',
@@ -27,17 +42,24 @@ emotions = {
     'xxx': 'unknown'
 }
 
+unused_emotions = ['dis', 'fru', 'fea', 'sur', 'oth', 'xxx']
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--audio', type=Path, default='wav_corpus',
-                        help="Directory storing WAV files")
-    args = parser.parse_args()
+
+@click.command()
+@click.argument('input_dir', type=PathlibPath(exists=True, file_okay=False))
+def main(input_dir: Path):
+    """Process the IEMOCAP dataset at location INPUT_DIR and resample
+    audio to 16 kHz 16-bit WAV audio.
+    """
+
+    paths = list(input_dir.glob('Session?/sentences/wav/*/*.wav'))
+    resample_dir = Path('resampled')
+    resample_audio(paths, resample_dir)
 
     dimensions = {}
     labels = {}
     ratings = []
-    for filename in Path('annotations').glob('*.txt'):
+    for filename in input_dir.glob('Session?/dialog/EmoEvaluation/*.txt'):
         with open(filename) as fid:
             name = ''
             for line in fid:
@@ -57,7 +79,21 @@ def main():
                     *annotations, comments = annotations.strip().split(';')
                     label = annotations[0].strip()
                     ratings.append((name, rater, label))
+    write_filelist([p for p in resample_dir.glob('*.wav')
+                    if labels[p.stem] not in unused_emotions])
+    write_labels({n: emotion_map[labels[n]] for n in labels})
+
+    # Aggregated dimensional annotations per utterance
+    df = pd.DataFrame.from_dict(dimensions, orient='index',
+                                columns=['Valence', 'Activation', 'Dominance'])
+    df.index.name = 'Name'
+    for dim in ['Valence', 'Activation', 'Dominance']:
+        df[dim].to_csv(dim.lower() + '.csv', index=True, header=True)
+        print("Wrote CSV to {}".format(dim.lower() + '.csv'))
+
+    # Ratings analysis
     ratings = pd.DataFrame(sorted(ratings), columns=['name', 'rater', 'label'])
+
     # There are 3 (non-self) raters per utterance. Agreement is the
     # proportion of labels which are the same. This formula only works
     # for 3 raters.
@@ -70,39 +106,6 @@ def main():
     data[data.isna()] = 0
     data = data.astype(int).to_numpy()
     print("Krippendorf's alpha: {:.3f}".format(alpha(data)))
-
-    emo_dist = Counter(labels.values())
-    print("Emotion distribution:")
-    for emo, count in emo_dist.items():
-        print("{:<12s}: {:d}".format(emotions[emo], count))
-
-    # Aggregated dimensional annotations per utterance
-    with open('valence.csv', 'w') as vfile, \
-            open('activation.csv', 'w') as afile, \
-            open('dominance.csv', 'w') as dfile:
-        print("Name,Valence", file=vfile)
-        print("Name,Activation", file=afile)
-        print("Name,Dominance", file=dfile)
-        for name, (v, a, d) in sorted(dimensions.items()):
-            print('{},{}'.format(name, v), file=vfile)
-            print('{},{}'.format(name, a), file=afile)
-            print('{},{}'.format(name, d), file=dfile)
-
-    # Emotion labels per utterance
-    with open('labels.csv', 'w') as fid:
-        print("Name,Emotion", file=fid)
-        for name, emo in sorted(labels.items()):
-            # Merge happiness and excitement
-            emo = 'happiness' if emo == 'exc' else emotions[emo]
-            print('{},{}'.format(name, emo), file=fid)
-
-    # Audio filepaths
-    with open('files.txt', 'w') as fid:
-        for name, emo in sorted(labels.items()):
-            if emo not in ['ang', 'hap', 'neu', 'sad', 'exc']:
-                continue
-            src = args.audio / '{}.wav'.format(name)
-            print(src, file=fid)
 
 
 if __name__ == "__main__":

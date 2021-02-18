@@ -1,45 +1,11 @@
 # Datasets
-/datasets/*
-!/datasets/metadata_schema.json
-!/datasets/README.md
+/datasets/*/*
+!/datasets/*/process.py
+!/datasets/*/process_transcripts.py
 
-!/datasets/crema-d
-/datasets/crema-d/*
-!/datasets/crema-d/process.py
-
-!/datasets/emodb
-/datasets/emodb/*
-!/datasets/emodb/process_transcripts.py
-
-!/datasets/iemocap
-/datasets/iemocap/*
-!/datasets/iemocap/process.py
-!/datasets/iemocap/process_transcripts.py
-
-!/datasets/msp-improv
-/datasets/msp-improv/*
-!/datasets/msp-improv/process.py
-
-!/datasets/semaine
-/datasets/semaine/*
-!/datasets/semaine/process.py
 !/datasets/semaine/extract_turns.py
 
-!/datasets/smartkom
-/datasets/smartkom/*
-!/datasets/smartkom/process.py
-
-!/datasets/venec
-/datasets/venec/*
-!/datasets/venec/process.py
-
 # Misc. project related
-/logs
-/output
-/results
-/env.sh
-/todo.sh
-tmp
 smile.log
 
 # Python related

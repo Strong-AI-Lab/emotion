@@ -1,38 +1,34 @@
-#!/usr/bin/python3
-
-import argparse
 from pathlib import Path
 
-parser = argparse.ArgumentParser()
-parser.add_argument('dir', help="EMO-DB transcriptions directory",
-                    default='silb', type=str)
-parser.add_argument('--wordlist', type=str,
-                    help="File to write wordlist to.")
+import click
+import pandas as pd
+from emotion_recognition.utils import PathlibPath
 
 
-def main():
-    args = parser.parse_args()
+@click.command()
+@click.argument('input_dir', type=PathlibPath(exists=True, file_okay=False))
+@click.argument('csv_file', type=Path, default='transcripts.csv')
+def main(input_dir: Path, csv_file: Path):
+    """Process EMO-DB transcripts.
 
-    utterances = {}
-    for p in Path(args.dir).glob('*.silb'):
+    INPUT_DIR is the main EMO-DB directory containing the `silb/`
+    directory.
+    """
+    utt = {}
+    for p in input_dir.glob('silb/*.silb'):
         with open(p, encoding='latin_1') as fid:
             words = []
             for line in fid:
                 line = line.strip()
-                time, word = line.split()
+                _, word = line.split()
                 if word in ['.', '(']:
                     continue
                 words.append(word.strip())
-            utterances[p.stem] = ' '.join(words)
+            utt[p.stem] = ' '.join(words)
 
-    if args.wordlist:
-        with open(args.wordlist, 'w') as fid:
-            for u, s in sorted(utterances.items()):
-                print('{}, {}'.format(u, s), file=fid)
-
-        with open(Path(args.wordlist).with_suffix('.csv'), 'w') as fid:
-            for u, s in sorted(utterances.items()):
-                print('{};"{}"'.format(u, s), file=fid)
+    df = pd.DataFrame({'Name': utt.keys(), 'Transcript': utt.values()})
+    df.sort_values('Name').to_csv(csv_file, index=False, header=True)
+    print("Wrote CSV to {}".format(csv_file))
 
 
 if __name__ == "__main__":
