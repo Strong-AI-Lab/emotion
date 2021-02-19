@@ -12,9 +12,9 @@ import shutil
 from pathlib import Path
 
 import click
-from emotion_recognition.dataset import (resample_audio, write_filelist,
+from emorec.dataset import (resample_audio, write_filelist,
                                          write_labels)
-from emotion_recognition.utils import PathlibPath
+from emorec.utils import PathlibPath
 
 REGEX = re.compile(r'^(DC|JE|JK|KL)([a-z][a-z]?)[0-9][0-9]$')
 

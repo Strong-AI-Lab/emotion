@@ -9,17 +9,13 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from emotion_recognition.classification import PrecomputedSVC
-from emotion_recognition.dataset import LabelledDataset
-from emotion_recognition.tensorflow.classification import (DummyEstimator,
-                                                           tf_cross_validate)
-from emotion_recognition.tensorflow.models import (aldeneh2017_model,
-                                                   latif2019_model,
-                                                   zhang2019_model,
-                                                   zhao2019_model)
-from emotion_recognition.tensorflow.models.zhang2019 import \
-    create_windowed_dataset
-from emotion_recognition.tensorflow.utils import create_tf_dataset_ragged
+from emorec.classification import PrecomputedSVC
+from emorec.dataset import LabelledDataset
+from emorec.tensorflow.classification import DummyEstimator, tf_cross_validate
+from emorec.tensorflow.models import (aldeneh2017_model, latif2019_model,
+                                      zhang2019_model, zhao2019_model)
+from emorec.tensorflow.models.zhang2019 import create_windowed_dataset
+from emorec.tensorflow.utils import create_tf_dataset_ragged
 from scikeras.wrappers import KerasClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (get_scorer, make_scorer, precision_score,

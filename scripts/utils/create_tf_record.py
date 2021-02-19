@@ -8,7 +8,7 @@ import numpy as np
 import soundfile
 import tensorflow as tf
 
-from emotion_recognition.dataset import parse_classification_annotations
+from emorec.dataset import parse_classification_annotations
 
 parser = argparse.ArgumentParser()
 parser.add_argument('input', type=Path,

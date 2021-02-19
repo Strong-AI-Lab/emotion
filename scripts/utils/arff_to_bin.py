@@ -2,7 +2,7 @@ import argparse
 
 import arff
 
-from emotion_recognition.dataset.binary_arff import decode, encode
+from emorec.dataset.binary_arff import decode, encode
 
 parser = argparse.ArgumentParser()
 parser.add_argument('infile')

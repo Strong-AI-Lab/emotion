@@ -5,7 +5,7 @@ import netCDF4
 import numpy as np
 import tensorflow as tf
 
-from emotion_recognition.tensorflow.models import BBRBM, DecayType
+from emorec.tensorflow.models import BBRBM, DecayType
 
 
 def get_spectrograms(file, batch_size):

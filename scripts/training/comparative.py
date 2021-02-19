@@ -9,12 +9,11 @@ from typing import Dict, Optional, Sequence
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from emotion_recognition.classification import PrecomputedSVC
-from emotion_recognition.dataset import LabelledDataset
-from emotion_recognition.tensorflow.classification import tf_cross_validate
-from emotion_recognition.tensorflow.models.zhang2019 import \
-    create_windowed_dataset
-from emotion_recognition.tensorflow.utils import create_tf_dataset_ragged
+from emorec.classification import PrecomputedSVC
+from emorec.dataset import LabelledDataset
+from emorec.tensorflow.classification import tf_cross_validate
+from emorec.tensorflow.models.zhang2019 import create_windowed_dataset
+from emorec.tensorflow.utils import create_tf_dataset_ragged
 from scikeras.wrappers import KerasClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (get_scorer, make_scorer, precision_score,
@@ -78,7 +77,7 @@ def dense_keras_model(n_features: int, n_classes: int, layers: int = 1,
 # Arbitrary TF models
 def get_tf_model(name, n_features, n_classes, lr: float = 0.0001) -> Model:
     module = importlib.import_module(
-        'emotion_recognition.tensorflow.models.{}'.format(name))
+        'emorec.tensorflow.models.{}'.format(name))
     model_fn = getattr(module, 'model')
     if n_features > 1:
         model = model_fn(n_features, n_classes)

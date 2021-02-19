@@ -6,7 +6,7 @@ from pathlib import Path
 
 import netCDF4
 import numpy as np
-from emotion_recognition.dataset import write_netcdf_dataset
+from emorec.dataset import write_netcdf_dataset
 
 
 def main():

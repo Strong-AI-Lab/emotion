@@ -15,9 +15,9 @@ from typing import Dict
 import click
 import pandas as pd
 
-from emotion_recognition.dataset import write_filelist, write_labels
-from emotion_recognition.stats import alpha
-from emotion_recognition.utils import PathlibPath
+from emorec.dataset import write_filelist, write_labels
+from emorec.stats import alpha
+from emorec.utils import PathlibPath
 
 emotion_map = {
     'A': 'anger',

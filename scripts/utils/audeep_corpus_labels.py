@@ -7,7 +7,7 @@ from pathlib import Path
 
 import netCDF4
 import numpy as np
-from emotion_recognition.dataset import parse_classification_annotations
+from emorec.dataset import parse_classification_annotations
 
 
 def main():

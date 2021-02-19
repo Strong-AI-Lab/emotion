@@ -16,9 +16,9 @@ from pathlib import Path
 
 import click
 import pandas as pd
-from emotion_recognition.dataset import (resample_audio, write_filelist,
+from emorec.dataset import (resample_audio, write_filelist,
                                          write_labels)
-from emotion_recognition.utils import PathlibPath
+from emorec.utils import PathlibPath
 
 MED_INT_REGEX = re.compile(r'^(\d\d?)([A-Za-z]+)$')
 HIGH_INT_REGEX = re.compile(r'^[A-Za-z]+(\d+)([A-Za-z]+)\d?(?:[Hh]igh|Hi|H)$')

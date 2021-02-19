@@ -18,8 +18,8 @@ import click
 import numpy as np
 import pandas as pd
 import soundfile
-from emotion_recognition.dataset import write_filelist, write_labels
-from emotion_recognition.utils import PathlibPath
+from emorec.dataset import write_filelist, write_labels
+from emorec.utils import PathlibPath
 from joblib import Parallel, delayed
 from nltk.corpus import stopwords
 

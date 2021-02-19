@@ -19,10 +19,10 @@ from pathlib import Path
 import click
 import numpy as np
 import pandas as pd
-from emotion_recognition.dataset import (resample_audio, write_filelist,
+from emorec.dataset import (resample_audio, write_filelist,
                                          write_labels)
-from emotion_recognition.stats import alpha
-from emotion_recognition.utils import PathlibPath
+from emorec.stats import alpha
+from emorec.utils import PathlibPath
 
 # [START_TIME - END_TIME] TURN_NAME EMOTION [V, A, D]
 REGEX = re.compile(r'^\[(\d+\.\d+) - (\d+\.\d+)\]\t(\w+)\t(\w+)\t\[(\d+\.\d+), (\d+\.\d+), (\d+\.\d+)\]$')  # noqa

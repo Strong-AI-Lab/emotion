@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import soundfile
-from emotion_recognition.dataset import get_audio_paths, write_netcdf_dataset
+from emorec.dataset import get_audio_paths, write_netcdf_dataset
 
 
 def main():

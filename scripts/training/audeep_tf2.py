@@ -22,7 +22,7 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model
 from tqdm import tqdm
 
-from emotion_recognition.tensorflow.models import audeep_trae
+from emorec.tensorflow.models import audeep_trae
 
 
 def _make_functions(model, optimizer, strategy, use_function=True):

@@ -9,7 +9,7 @@ from typing import List, Union
 
 import numpy as np
 import pandas as pd
-from emotion_recognition.dataset import get_audio_paths, write_netcdf_dataset
+from emorec.dataset import get_audio_paths, write_netcdf_dataset
 from joblib import Parallel, delayed
 
 if sys.platform == 'win32':

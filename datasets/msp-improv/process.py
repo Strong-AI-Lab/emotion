@@ -20,10 +20,10 @@ from pathlib import Path
 import click
 import numpy as np
 import pandas as pd
-from emotion_recognition.dataset import (resample_audio, write_filelist,
+from emorec.dataset import (resample_audio, write_filelist,
                                          write_labels)
-from emotion_recognition.stats import alpha
-from emotion_recognition.utils import PathlibPath
+from emorec.stats import alpha
+from emorec.utils import PathlibPath
 
 REGEX = re.compile(r'^UTD-IMPROV-([A-Z0-9-]+)\.avi; ([A-Z]); A:(\d+\.\d+|NaN); V:(\d+\.\d+|NaN); D:(\d+\.\d+|NaN) ; N:(\d+\.\d+|NaN);$')  # noqa
 

@@ -4,8 +4,7 @@ import argparse
 import shutil
 from pathlib import Path
 
-from emotion_recognition.dataset import (corpora,
-                                         parse_classification_annotations)
+from emorec.dataset import corpora, parse_classification_annotations
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--corpus', required=True, type=str)

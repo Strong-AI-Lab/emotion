@@ -14,7 +14,7 @@ from torch.optim import Adam
 from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from emotion_recognition.dataset import write_netcdf_dataset
+from emorec.dataset import write_netcdf_dataset
 
 # Workaround for having both PyTorch and TensorFlow installed.
 import tensorflow as tf

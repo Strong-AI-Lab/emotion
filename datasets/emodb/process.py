@@ -12,8 +12,8 @@ This assumes the file structure from the original compressed file:
 from pathlib import Path
 
 import click
-from emotion_recognition.dataset import write_filelist, write_labels
-from emotion_recognition.utils import PathlibPath
+from emorec.dataset import write_filelist, write_labels
+from emorec.utils import PathlibPath
 
 emotion_map = {
     'W': 'anger',

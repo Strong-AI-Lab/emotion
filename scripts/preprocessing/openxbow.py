@@ -10,7 +10,7 @@ import netCDF4
 import numpy as np
 import pandas as pd
 
-from emotion_recognition.dataset import write_netcdf_dataset
+from emorec.dataset import write_netcdf_dataset
 
 OPENXBOW_JAR = 'third_party/openxbow/openXBOW.jar'
 

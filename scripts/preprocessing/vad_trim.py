@@ -14,8 +14,8 @@ import librosa
 import numpy as np
 import soundfile
 from click_option_group import optgroup
-from emotion_recognition.dataset import get_audio_paths
-from emotion_recognition.utils import PathlibPath
+from emorec.dataset import get_audio_paths
+from emorec.utils import PathlibPath
 
 
 def filter_silence_speech(speech: np.ndarray, min_speech: int = 5,

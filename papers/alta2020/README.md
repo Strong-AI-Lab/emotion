@@ -6,7 +6,7 @@ to the ALTA 2020 conference [[1]](#References).
 The datasets used are the 15 datasets specified in the `datasets`
 directory. In order to run the scripts properly, each dataset folder
 must be named according to the IDs given in
-`../../emotion_recognition/corpora.py` (lowercase). Each directory must
+`../../emorec/corpora.py` (lowercase). Each directory must
 have a `files.txt` file and a `labels.csv` file in it. `files.txt`
 contains a list of absolute paths to audio files to process.
 `labels.csv` is a CSV file with records mapping clip names to emotions.

@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 import numpy as np
-from emotion_recognition.dataset import Dataset
+from emorec.dataset import Dataset
 
 
 def main():

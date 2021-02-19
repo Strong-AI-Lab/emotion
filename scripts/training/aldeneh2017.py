@@ -11,13 +11,12 @@ from pathlib import Path
 
 import numpy as np
 import tensorflow as tf
-from emotion_recognition.classification import (PrecomputedSVC,
-                                                SKLearnClassifier,
-                                                TFClassifier, print_results,
-                                                within_corpus_cross_validation)
-from emotion_recognition.dataset import NetCDFDataset
-from emotion_recognition.tensorflow.classification import BatchedSequence
-from emotion_recognition.tensorflow.models.aldeneh2017 import full_model
+from emorec.classification import (PrecomputedSVC, SKLearnClassifier,
+                                   TFClassifier, print_results,
+                                   within_corpus_cross_validation)
+from emorec.dataset import NetCDFDataset
+from emorec.tensorflow.classification import BatchedSequence
+from emorec.tensorflow.models.aldeneh2017 import full_model
 from sklearn.metrics import recall_score
 from sklearn.model_selection import LeaveOneGroupOut, ParameterGrid
 from sklearn.preprocessing import StandardScaler

@@ -18,7 +18,7 @@ Then you can use this virtual environment:
 ```
 . .venv/bin/activate
 ```
-To install the `emotion_recognition` library:
+To install the `emorec` library:
 ```
 python setup.py install
 ```

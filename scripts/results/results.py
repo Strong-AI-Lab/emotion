@@ -7,7 +7,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
-from emotion_recognition.utils import itmap, ordered_intersect
+from emorec.utils import itmap, ordered_intersect
 from matplotlib.backends.backend_pdf import PdfPages
 from statsmodels.stats.anova import AnovaRM
 

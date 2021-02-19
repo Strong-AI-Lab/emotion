@@ -12,9 +12,8 @@ import joblib
 import librosa
 import netCDF4
 import numpy as np
-from emotion_recognition.dataset import (get_audio_paths,
-                                         parse_classification_annotations,
-                                         write_netcdf_dataset)
+from emorec.dataset import (get_audio_paths, parse_classification_annotations,
+                            write_netcdf_dataset)
 from matplotlib import pyplot as plt
 
 
