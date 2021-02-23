@@ -20,8 +20,7 @@ from pathlib import Path
 import click
 import numpy as np
 import pandas as pd
-from emorec.dataset import (resample_audio, write_filelist,
-                                         write_labels)
+from emorec.dataset import resample_audio, write_filelist, write_labels
 from emorec.stats import alpha
 from emorec.utils import PathlibPath
 

@@ -16,8 +16,7 @@ from pathlib import Path
 
 import click
 import pandas as pd
-from emorec.dataset import (resample_audio, write_filelist,
-                                         write_labels)
+from emorec.dataset import resample_audio, write_filelist, write_labels
 from emorec.utils import PathlibPath
 
 MED_INT_REGEX = re.compile(r'^(\d\d?)([A-Za-z]+)$')
@@ -79,15 +78,16 @@ def main(input_dir: Path):
 
     clip_info = pd.read_csv(input_dir / 'veneccountryinfo.csv', index_col=0,
                             names=['Filename', 'Country', 'Original'])
+    clip_info.index = clip_info.index.map(lambda x: x[:-4])
+
     # Acted labels
     labels = clip_info['Original'].map(lambda x: Path(x).stem).map(get_emotion)
     write_labels(labels.to_dict())
 
     def get_ratings(country: str = 'USA') -> pd.DataFrame:
-        ratings = pd.read_csv(
-            input_dir / 'CategoryRatings{}.csv'.format(country), index_col=0,
-            header=0
-        )
+        csvfile = input_dir / 'CategoryRatings{}.csv'.format(country)
+        ratings = pd.read_csv(csvfile, index_col=0, header=0)
+        ratings.index = ratings.index.map(lambda x: x[:-4])
 
         mode_count = ratings.apply(
             lambda x: x.value_counts().sort_index().iloc[-1], axis=1)
@@ -99,7 +99,6 @@ def main(input_dir: Path):
         print("Mean label agreement: {:.3f}".format(agreement))
 
         ratings = ratings.join(clip_info)
-        ratings.index = ratings.index.map(lambda x: x[:-4])
         ratings['Country'] = ratings['Country'].map(str.upper)
         # Correct the three errors where country is STR
         ratings.loc[ratings['Country'] == 'STR', 'Country'] = 'AUS'
