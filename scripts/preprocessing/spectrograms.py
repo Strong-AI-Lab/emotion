@@ -48,8 +48,7 @@ def write_audeep_dataset(path: Path,
 
     dataset.createVariable('cv_folds', np.int64, ('instance', 'fold'))
 
-    label_nominal = dataset.createVariable('label_nominal', str,
-                                           ('instance',))
+    label_nominal = dataset.createVariable('label_nominal', str, ('instance',))
     label_numeric = dataset.createVariable('label_numeric', np.int64,
                                            ('instance',))
     if labelpath:
@@ -208,14 +207,14 @@ def main():
 
     filenames = [x.stem for x in paths]
     if args.audeep is not None:
-        specs = np.stack(specs)
-        amin = np.min(specs, axis=(1, 2), keepdims=True)
-        amax = np.max(specs, axis=(1, 2), keepdims=True)
-        specs = 2 * (specs - amin) / (amax - amin) - 1
-        write_audeep_dataset(args.audeep, specs, filenames,
+        stacked = np.stack(specs)
+        amin = np.min(stacked, axis=(1, 2), keepdims=True)
+        amax = np.max(stacked, axis=(1, 2), keepdims=True)
+        stacked = 2 * (stacked - amin) / (amax - amin) - 1
+        write_audeep_dataset(args.audeep, stacked, filenames,
                              args.mel_bands, args.labels, args.corpus)
 
-        print("Wrote auDeep-specific dataset to {}.".format(args.audeep))
+        print("Wrote auDeep-specific dataset to {}".format(args.audeep))
 
     if args.netcdf is not None:
         slices = [len(x) for x in specs]

@@ -15,7 +15,10 @@ FFMPEG_RESAMPLE_CMD = "ffmpeg -i '{}' -ar 16000 -sample_fmt s16 -y '{}'"
 def parse_regression_annotations(filename: Union[PathLike, str]) \
         -> Dict[str, Dict[str, float]]:
     """Returns a dict of the form {'name': {'v1': v1, ...}}."""
-    df = pd.read_csv(filename, index_col=0)
+    # Need index_col to be False or None due to
+    # https://github.com/pandas-dev/pandas/issues/9435
+    df = pd.read_csv(filename, index_col=False, dtype='str')
+    df = df.set_index(df.columns[0])
     annotations = df.to_dict(orient='index')
     return annotations
 
@@ -23,7 +26,10 @@ def parse_regression_annotations(filename: Union[PathLike, str]) \
 def parse_classification_annotations(filename: Union[PathLike, str]) \
         -> Dict[str, str]:
     """Returns a dict of the form {'name': emotion}."""
-    df = pd.read_csv(filename, index_col=0)
+    # Need index_col to be False or None due to
+    # https://github.com/pandas-dev/pandas/issues/9435
+    df = pd.read_csv(filename, index_col=False, dtype='str')
+    df = df.set_index(df.columns[0])
     annotations = df.to_dict()[df.columns[0]]
     return annotations
 
@@ -91,7 +97,7 @@ def write_netcdf_dataset(path: Union[PathLike, str],
     dataset.createDimension('concat', features.shape[0])
     dataset.createDimension('features', features.shape[1])
 
-    if not slices:
+    if slices is None:
         slices = [1] * len(names)
     _slices = dataset.createVariable('slices', int, ('instance',))
     _slices[:] = slices
