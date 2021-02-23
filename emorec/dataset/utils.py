@@ -9,8 +9,6 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 
-FFMPEG_RESAMPLE_CMD = "ffmpeg -i '{}' -ar 16000 -sample_fmt s16 -y '{}'"
-
 
 def parse_regression_annotations(filename: Union[PathLike, str]) \
         -> Dict[str, Dict[str, float]]:
@@ -163,11 +161,12 @@ def resample_audio(paths: Iterable[Path], dir: Union[PathLike, str]):
     dir.mkdir(exist_ok=True, parents=True)
     print("Resampling {} audio files to {}".format(len(paths), dir))
 
-    print("Using command line:\n{}".format(FFMPEG_RESAMPLE_CMD))
+    print("Using FFmpeg options: -nostdin -ar 16000 -sample_fmt s16")
     Parallel(n_jobs=-1, verbose=1)(
         delayed(subprocess.run)(
-            FFMPEG_RESAMPLE_CMD.format(path, dir / (path.stem + '.wav')),
-            shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
+            ['ffmpeg', '-nostdin', '-i', str(path), '-ar', '16000',
+             '-sample_fmt', 's16', '-y', str(dir / (path.stem + '.wav'))],
+            stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
         ) for path in paths
     )
 
