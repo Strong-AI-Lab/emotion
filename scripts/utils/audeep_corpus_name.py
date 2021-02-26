@@ -4,21 +4,19 @@ spectrograms extracted by our script, not auDeep's, because theirs
 doesn't include proper label information.
 """
 
-import argparse
+import sys
 
 import netCDF4
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('filename')
-    parser.add_argument('corpus')
-    args = parser.parse_args()
-
-    dataset = netCDF4.Dataset(args.filename, 'a')
-    dataset.setncattr_string('corpus', args.corpus)
+    dataset = netCDF4.Dataset(sys.argv[1], 'a')
+    dataset.setncattr_string('corpus', sys.argv[2])
+    if 'slices' not in dataset.variables:
+        slices = dataset.createVariable('slices', int, ('instance',))
+        slices[:] = [1] * dataset.dimensions['instance'].size
     dataset.close()
-    print("Changed corpus to {} in {}".format(args.corpus, args.filename))
+    print("Changed corpus to {} in {}".format(sys.argv[2], sys.argv[1]))
 
 
 if __name__ == "__main__":

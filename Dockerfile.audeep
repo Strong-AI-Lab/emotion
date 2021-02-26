@@ -1,5 +1,5 @@
 # Builds the auDeep docker image to use old TensorFlow 1.x.
-FROM tensorflow/tensorflow:1.15.2-gpu
+FROM tensorflow/tensorflow:1.15.5-gpu
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y \
@@ -11,5 +11,9 @@ COPY setup.py DESCRIPTION.md /home/audeep/
 COPY audeep /home/audeep/audeep
 RUN python3 setup.py install \
     && rm -rf /home/audeep
+# To keep matplotlib happy
+RUN mkdir -p /.{cache,config}/matplotlib \
+    && chmod 777 /.{cache,config}/matplotlib
 
 WORKDIR /work
+CMD [ "/bin/bash" ]
