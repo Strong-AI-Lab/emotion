@@ -3,100 +3,20 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from typing import (Any, Callable, Dict, Iterable, List, Optional, Sequence,
-                    Tuple, Union)
+                    Tuple)
 
 import numpy as np
 import pandas as pd
-from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.base import BaseEstimator
 from sklearn.metrics import precision_score, recall_score
 from sklearn.model_selection import (BaseCrossValidator, KFold,
-                                     LeaveOneGroupOut, ParameterGrid)
-from sklearn.svm import SVC
+                                     LeaveOneGroupOut)
 
 from .dataset import CombinedDataset, LabelledDataset
-from .utils import shuffle_multiple
 
-__all__ = ['PrecomputedSVC', 'Classifier', 'SKLearnClassifier']
-
-SKClassifierFunction = Callable[[], ClassifierMixin]
 ScoreFunction = Callable[[np.ndarray, np.ndarray], float]
-KernelFunction = Callable[[np.ndarray, np.ndarray], np.ndarray]
 
 METRICS = ['prec', 'rec', 'uap', 'uar', 'war']
-
-
-def linear_kernel(x, y) -> np.ndarray:
-    return np.matmul(x, y.T)
-
-
-def poly_kernel(x, y, d=2, r=0,
-                gamma: Union[str, float] = 'auto') -> np.ndarray:
-    a = np.matmul(x, y.T)
-    if gamma == 'auto':
-        gamma = 1 / x.shape[1]
-    return (gamma * a + r)**d
-
-
-def rbf_kernel(x, y, gamma: Union[str, float] = 'auto') -> np.ndarray:
-    a = np.matmul(x, y.T)
-    xx = np.sum(x**2, axis=1)
-    yy = np.sum(y**2, axis=1)
-    s = xx[:, np.newaxis] + yy[np.newaxis, :]
-    if gamma == 'auto':
-        gamma = 1 / x.shape[1]
-    # <x - y, x - y> = <x, x> + <y, y> - 2<x, y>
-    return np.exp(-gamma * (s - 2 * a))
-
-
-class PrecomputedSVC(SVC):
-    """Class that wraps scikit-learn's SVC to precompute the kernel
-    values in order to speed up training. The kernel parameter is a
-    string which is transparently mapped to and from the corresponding
-    callable function with the relevant parameters (degree, gamma,
-    coef0). All other parameters are passed directly to SVC.
-    """
-    KERNELS = {'rbf': rbf_kernel, 'poly': poly_kernel, 'linear': linear_kernel}
-
-    def __init__(self, C=1.0, kernel='rbf', degree=3, gamma='auto', coef0=0.0,
-                 shrinking=True, probability=False, tol=1e-3, cache_size=200,
-                 class_weight=None, verbose=False, max_iter=-1,
-                 decision_function_shape='ovr', break_ties=False,
-                 random_state=None):
-        super().__init__(
-            kernel=kernel, degree=degree, gamma=gamma,
-            coef0=coef0, tol=tol, C=C, shrinking=shrinking,
-            probability=probability, cache_size=cache_size,
-            class_weight=class_weight, verbose=verbose, max_iter=max_iter,
-            decision_function_shape=decision_function_shape,
-            break_ties=break_ties, random_state=random_state
-        )
-        self.kernel_name = kernel
-        self.kernel = self._get_kernel_func()
-
-    def get_params(self, deep) -> Dict[str, Any]:
-        params = super().get_params(deep)
-        params['kernel'] = self.kernel_name
-        return params
-
-    def set_params(self, **params) -> BaseEstimator:
-        super().set_params(**params)
-        if 'kernel' in params:
-            self.kernel_name = params['kernel']
-        self.kernel = self._get_kernel_func()
-        return self
-
-    def _get_kernel_func(self) -> KernelFunction:
-        """Get the kernel function, with parameters, to use in fit() and
-        predict(). This is calculated at runtime in order to more easily
-        handle changes in parameters such as kernel, gamma, etc.
-        """
-        f = self.KERNELS[self.kernel]
-        params = {}
-        if self.kernel == 'poly':
-            params = {'d': self.degree, 'r': self.coef0, 'gamma': self.gamma}
-        elif self.kernel == 'rbf':
-            params = {'gamma': self.gamma}
-        return partial(f, **params)
 
 
 class Classifier(abc.ABC):
@@ -124,44 +44,6 @@ class Classifier(abc.ABC):
                 y_test: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Generates predictions for the given input."""
         return NotImplementedError()
-
-
-class SKLearnClassifier(Classifier):
-    """Class wrapper for a scikit-learn classifier instance.
-
-    Parameters:
-    -----------
-    model_fn: callable
-        A callable that returns a new proper classifier that can be
-        trained.
-    param_grid: dict, optional
-    """
-    def __init__(self, model_fn: SKClassifierFunction,
-                 param_grid: Optional[Dict[str, Sequence]],
-                 cv_score_fn: Optional[ScoreFunction]):
-        self.model_fn = model_fn
-        self.param_grid = ParameterGrid(param_grid)
-        self.cv_score_fn = cv_score_fn
-
-    def fit(self, x_train: np.ndarray, y_train: np.ndarray,
-            x_valid: np.ndarray, y_valid: np.ndarray, fold=None):
-        x_train, y_train = shuffle_multiple(x_train, y_train,
-                                            numpy_indexing=True)
-        x_valid, y_valid = shuffle_multiple(x_valid, y_valid,
-                                            numpy_indexing=True)
-
-        if self.param_grid:
-            self.clf = optimise_params(
-                self.param_grid, self.model_fn, self.cv_score_fn, x_train,
-                y_train, x_valid, y_valid, max_workers=24
-            )
-        else:
-            self.clf = self.model_fn()
-            self.clf.fit(x_train, y_train)
-
-    def predict(self, x_test: np.ndarray,
-                y_test: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        return self.clf.predict(x_test), y_test
 
 
 def within_corpus_cross_validation(model: Classifier,
@@ -384,8 +266,8 @@ def optimise_params(param_grid: Iterable[Dict[str, Sequence]],
                     x_valid: np.ndarray,
                     y_valid: np.ndarray,
                     max_workers=None) -> BaseEstimator:
-    """Performs cross-validation for SKLearnClassifier's using the given
-    parameter grid and validation data.
+    """Performs cross-validation using the given parameter grid and
+    validation data.
 
     Returns:
     --------

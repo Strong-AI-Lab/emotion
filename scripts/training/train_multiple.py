@@ -3,11 +3,11 @@ import pickle
 from pathlib import Path
 
 import numpy as np
-from emorec.classification import PrecomputedSVC
 from emorec.dataset import CombinedDataset, LabelledDataset
+from emorec.sklearn.models import PrecomputedSVC
 from sklearn.metrics import (average_precision_score, f1_score, get_scorer,
                              make_scorer, precision_score, recall_score)
-from sklearn.model_selection import (GroupKFold, LeaveOneGroupOut, KFold,
+from sklearn.model_selection import (GroupKFold, KFold, LeaveOneGroupOut,
                                      cross_validate)
 
 

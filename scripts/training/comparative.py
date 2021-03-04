@@ -9,8 +9,8 @@ from typing import Dict, Optional, Sequence
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from emorec.classification import PrecomputedSVC
 from emorec.dataset import LabelledDataset
+from emorec.sklearn.models import PrecomputedSVC
 from emorec.tensorflow.classification import tf_cross_validate
 from emorec.tensorflow.models.zhang2019 import create_windowed_dataset
 from emorec.tensorflow.utils import create_tf_dataset_ragged
