@@ -28,6 +28,10 @@ def _make_ragged(flat: np.ndarray,
     return arrs
 
 
+def _unknown_speaker(_):
+    return 'unknown'
+
+
 class Dataset(abc.ABC):
     def __init__(self, path: Union[PathLike, str]):
         path = Path(path)
@@ -45,19 +49,27 @@ class Dataset(abc.ABC):
         self._features = self.backend.feature_names
         self._x = self.backend.features
 
-        self._speakers = corpora[self.corpus.lower()].speakers
-        get_speaker = corpora[self.corpus.lower()].get_speaker
-        self._speaker_indices = np.array(
-            [self.speakers.index(get_speaker(n)) for n in self.names],
-            dtype=int
-        )
+        if self.corpus.lower() in corpora:
+            self._speakers = corpora[self.corpus.lower()].speakers
+            self._male_speakers = corpora[self.corpus.lower()].male_speakers
+            self._female_speakers = corpora[
+                self.corpus.lower()].female_speakers
+            self._speaker_groups = corpora[self.corpus.lower()].speaker_groups
+            get_speaker = corpora[self.corpus.lower()].get_speaker
+        else:
+            self._speakers = ['unknown']
+            self._male_speakers = []
+            self._female_speakers = []
+            self._speaker_groups = [{'unknown'}]
+            get_speaker = _unknown_speaker
+
+        self._speaker_indices = np.array([self.speakers.index(get_speaker(n))
+                                          for n in self.names], dtype=int)
         self._speaker_counts = np.bincount(self.speaker_indices,
                                            minlength=len(self.speakers))
         if any(x == 0 for x in self.speaker_counts):
             warnings.warn("Some speakers have no corresponding instances.")
 
-        self._male_speakers = corpora[self.corpus.lower()].male_speakers
-        self._female_speakers = corpora[self.corpus.lower()].female_speakers
         if self.male_speakers and self.female_speakers:
             self._male_indices = np.array(
                 [i for i in range(self.n_instances)
@@ -68,7 +80,6 @@ class Dataset(abc.ABC):
                  if get_speaker(self.names[i]) in self.female_speakers]
             )
 
-        self._speaker_groups = corpora[self.corpus.lower()].speaker_groups
         speaker_indices_to_group = np.array([
             i for sp in self.speakers for i in range(len(self._speaker_groups))
             if sp in self._speaker_groups[i]

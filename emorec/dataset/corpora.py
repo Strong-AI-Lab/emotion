@@ -135,7 +135,7 @@ corpora: Dict[str, CorpusInfo] = {
         female_speakers=['F01', 'F02', 'F03', 'F04', 'F05', 'F06'],
         speaker_groups=[{'M01', 'F01'}, {'M02', 'F02'}, {'M03', 'F03'},
                         {'M04', 'F04'}, {'M05', 'F05'}, {'M06', 'F06'}],
-        get_speaker=lambda n: n[5:8]
+        get_speaker=lambda n: n[16:19]
     ),
     'portuguese': CorpusInfo(
         'Portuguese',
