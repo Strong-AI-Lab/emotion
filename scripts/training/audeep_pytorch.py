@@ -1,25 +1,20 @@
-import argparse
 import time
 from os import PathLike
 from pathlib import Path
 from typing import Any, Dict, Union
 
+import click
 import netCDF4
 import numpy as np
 import torch
 import torch.nn.functional as F
-from tqdm import tqdm
+from emorec.dataset import write_netcdf_dataset
+from emorec.utils import PathlibPath
 from torch import nn
 from torch.optim import Adam
 from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
-
-from emorec.dataset import write_netcdf_dataset
-
-# Workaround for having both PyTorch and TensorFlow installed.
-import tensorflow as tf
-import tensorboard as tb
-tf.io.gfile = tb.compat.tensorflow_stub.io.gfile
+from tqdm import tqdm
 
 DEVICE = torch.device('cuda')
 
@@ -130,16 +125,15 @@ def save_model(directory: Union[Path, str], epoch: int,
         },
         save_path
     )
-    print("Saved model to {}.".format(save_path))
+    print("Saved model to {}".format(save_path))
 
 
 def get_data(path: Union[PathLike, str], shuffle: bool = False):
-    """Get data and metadata from netCDF dataset. Optionally shuffle x.
-    """
+    """Get data and metadata from netCDF dataset. Optionally shuffle x."""
     dataset = netCDF4.Dataset(path)
     x = np.array(dataset.variables['features'])
     num_inst = dataset.dimensions['instance'].size
-    filenames = np.array(dataset.variables['filename'])
+    names = np.array(dataset.variables['name'])
     try:
         labels = np.array(dataset.variables['label_nominal'])
     except KeyError:
@@ -155,55 +149,75 @@ def get_data(path: Union[PathLike, str], shuffle: bool = False):
     if shuffle:
         perm = np.random.default_rng().permutation(len(x))
         x = x[perm]
-        filenames = filenames[perm]
+        names = names[perm]
         if len(labels) > 0:
             labels = labels[perm]
 
-    return x, filenames, labels, corpus
+    xmin = np.min(x, axis=(1, 2), keepdims=True)
+    xmax = np.max(x, axis=(1, 2), keepdims=True)
+    x = 2 * (x - xmin) / (xmax - xmin) - 1
+    return x, names, labels, corpus
 
 
-def train(args):
-    print("Reading input from {}.".format(args.input))
-    x = get_data(args.input, shuffle=True)[0]
+@click.command()
+@click.argument('input', type=PathlibPath(exists=True, dir_okay=False))
+@click.option('--logs', type=Path, required=True)
+@click.option('--layers', type=int, default=2)
+@click.option('--units', type=int, default=256)
+@click.option('--dropout', type=float, default=0.2)
+@click.option('--bidirectional_encoder', is_flag=True)
+@click.option('--bidirectional_decoder', is_flag=True)
+@click.option('--batch_size', type=int, default=64)
+@click.option('--epochs', type=int, default=50)
+@click.option('--learning_rate', type=float, default=0.001)
+@click.option('--valid_fraction', type=float, default=0.1)
+@click.option('--continue', 'cont', is_flag=True)
+@click.option('--save_every', type=int, default=20)
+def train(input: Path, logs: Path, layers: int, units: int, dropout: float,
+          bidirectional_encoder: bool, bidirectional_decoder: bool,
+          batch_size: int, epochs: int, learning_rate: float,
+          valid_fraction: float, cont: bool, save_every: int):
+    print("Reading input from {}".format(input))
+    x = get_data(input, shuffle=True)[0]
     x = torch.tensor(x)
 
-    n_valid = int(args.valid_fraction * x.size(0))
+    n_valid = int(valid_fraction * x.size(0))
     train_data = TensorDataset(x[n_valid:])
     valid_data = TensorDataset(x[:n_valid])
-    train_dl = DataLoader(train_data, batch_size=args.batch_size, shuffle=True,
+    train_dl = DataLoader(train_data, batch_size=batch_size, shuffle=True,
                           pin_memory=True)
-    valid_dl = DataLoader(valid_data, batch_size=args.batch_size,
+    valid_dl = DataLoader(valid_data, batch_size=batch_size,
                           pin_memory=True)
 
-    if args.cont:
-        save_path = get_latest_save(args.logs)
+    if cont:
+        save_path = get_latest_save(logs)
         load_dict = torch.load(save_path)
         model_args = load_dict['model_args']
         optimiser_args = load_dict['optimiser_args']
         initial_epoch = 1 + load_dict['epoch']
     else:
         model_args = dict(
-            n_features=x.size(2), n_units=args.units, n_layers=args.layers,
-            dropout=args.dropout,
-            bidirectional_encoder=args.bidirectional_encoder,
-            bidirectional_decoder=args.bidirectional_decoder
+            n_features=x.size(2), n_units=units, n_layers=layers,
+            dropout=dropout,
+            bidirectional_encoder=bidirectional_encoder,
+            bidirectional_decoder=bidirectional_decoder
         )
-        optimiser_args = dict(lr=args.learning_rate, eps=1e-5)
+        optimiser_args = dict(lr=learning_rate, eps=1e-5)
         initial_epoch = 1
-    final_epoch = initial_epoch + args.epochs - 1
+    final_epoch = initial_epoch + epochs - 1
 
     model = TimeRecurrentAutoencoder(**model_args)
     model = model.cuda(DEVICE)
     optimiser = Adam(model.parameters(), **optimiser_args)
 
-    if args.cont:
+    if cont:
         print("Restoring model from {}".format(save_path))
         model.load_state_dict(load_dict['model_state_dict'])
         optimiser.load_state_dict(load_dict['optimiser_state_dict'])
 
-    args.logs.mkdir(parents=True, exist_ok=True)
-    train_writer = SummaryWriter(args.logs / 'train')
-    valid_writer = SummaryWriter(args.logs / 'valid')
+    logs.mkdir(parents=True, exist_ok=True)
+    train_writer = SummaryWriter(logs / 'train')
+    valid_writer = SummaryWriter(logs / 'valid')
     with torch.no_grad():
         batch = next(iter(train_dl))[0].to(DEVICE)
         train_writer.add_graph(model, input_to_model=batch)
@@ -269,36 +283,42 @@ def train(args):
                 )
             )
 
-        if epoch % args.save_every == 0:
+        if epoch % save_every == 0:
             save_model(
-                args.logs, epoch=epoch, model=model, model_args=model_args,
+                logs, epoch=epoch, model=model, model_args=model_args,
                 optimiser=optimiser, optimiser_args=optimiser_args
             )
 
     save_model(
-        args.logs, epoch=final_epoch, model=model, model_args=model_args,
+        logs, epoch=final_epoch, model=model, model_args=model_args,
         optimiser=optimiser, optimiser_args=optimiser_args
     )
 
 
-def generate(args):
-    if args.model.is_dir():
-        save_path = get_latest_save(args.model)
+@click.command()
+@click.argument('input', type=PathlibPath(exists=True, dir_okay=False))
+@click.argument('output', type=Path)
+@click.option('--model', type=PathlibPath(exists=True, dir_okay=False),
+              required=True)
+@click.option('--batch_size', type=int, default=128)
+def generate(input: Path, output: Path, model: Path, batch_size: int):
+    if model.is_dir():
+        save_path = get_latest_save(model)
     else:
-        save_path = args.model
-    print("Restoring model from {}.".format(save_path))
+        save_path = model
+    print("Restoring model from {}".format(save_path))
     load_dict = torch.load(save_path)
     model = TimeRecurrentAutoencoder(**load_dict['model_args'])
     model.cuda()
     model.load_state_dict(load_dict['model_state_dict'])
 
-    x, filenames, labels, corpus = get_data(args.input)
+    x, filenames, labels, corpus = get_data(input)
 
     representations = []
     with torch.no_grad():
         model.eval()
-        for i in range(0, len(x), args.batch_size):
-            batch = torch.tensor(x[i:i + args.batch_size], device=DEVICE)
+        for i in range(0, len(x), batch_size):
+            batch = torch.tensor(x[i:i + batch_size], device=DEVICE)
             _, representation = model(batch)
             representations.append(representation.cpu().numpy())
     representations = np.concatenate(representations)
@@ -311,76 +331,24 @@ def generate(args):
 
     annotation_path = Path('datasets') / corpus / 'labels.csv'
     write_netcdf_dataset(
-        args.output, corpus=corpus, names=filenames,
+        output, corpus=corpus, names=filenames,
         features=representations, slices=np.arange(len(filenames)),
-        annotation_path=annotation_path, annotation_type='classification'
+        annotations={'label': annotation_path}
     )
-    print("Wrote netCDF4 file to {}.".format(args.output))
+    print("Wrote netCDF4 file to {}".format(output))
 
 
+@click.group(no_args_is_help=True)
 def main():
-    parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers(title='command', dest='command',
-                                       required=True)
-
-    # Training arguments
-    train_args = subparsers.add_parser('train')
-    train_args.add_argument('--input', type=Path, required=True,
-                            help="Path to spectrogram data.")
-    train_args.add_argument('--logs', type=Path, required=True,
-                            help="Directory to log training.")
-
-    train_args.add_argument('--layers', type=int, default=2,
-                            help="Number of GRU layers.")
-    train_args.add_argument('--units', type=int, default=256,
-                            help="Number of GRU units per layer.")
-    train_args.add_argument(
-        '--dropout', type=float, default=0.2,
-        help="Dropout to apply to recurrent inputs and outputs."
-    )
-    train_args.add_argument(
-        '--bidirectional_encoder', action='store_true',
-        help="Use a bidirectional encoder instead of unidirectional."
-    )
-    train_args.add_argument(
-        '--bidirectional_decoder', action='store_true',
-        help="Use a bidirectional decoder instead of unidirectional."
-    )
-
-    train_args.add_argument('--batch_size', type=int, default=64,
-                            help="Batch size to use for training.")
-    train_args.add_argument('--epochs', type=int, default=50,
-                            help="Number of epochs to train for.")
-    train_args.add_argument('--learning_rate', type=float, default=0.001,
-                            help="Learning rate to use.")
-    train_args.add_argument('--valid_fraction', type=float, default=0.1,
-                            help="Proportion of data to use for validation.")
-    train_args.add_argument('--continue', dest='cont', action='store_true',
-                            help="Continue from saved model.")
-    train_args.add_argument('--save_every', type=int, default=20,
-                            help="Save model every N epochs.")
-
-    # Feature generation arguments
-    gen_args = subparsers.add_parser('generate')
-    gen_args.add_argument('--input', type=Path, required=True,
-                          help="Path to spectrogram data.")
-    gen_args.add_argument('--model', type=Path, required=True,
-                          help="Path to saved model file or directory.")
-    gen_args.add_argument('--output', type=Path, required=True,
-                          help="Path to output generated representations.")
-
-    gen_args.add_argument(
-        '--batch_size', type=int, default=128,
-        help="Batch size to use for generating representations."
-    )
-
-    args = parser.parse_args()
-
-    if args.command == 'train':
-        train(args)
-    elif args.command == 'generate':
-        generate(args)
+    import os
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+    # Workaround for having both PyTorch and TensorFlow installed.
+    import tensorflow as _tensorflow
+    import tensorboard.compat.tensorflow_stub.io.gfile as _gfile
+    _tensorflow.io.gfile = _gfile
 
 
 if __name__ == "__main__":
+    main.add_command(generate)
+    main.add_command(train)
     main()
