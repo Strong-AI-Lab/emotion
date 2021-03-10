@@ -39,7 +39,7 @@ def main():
     if args.wordlist:
         with open(args.wordlist, 'w') as fid:
             for u, s in sorted(utterances.items()):
-                print('{}, {}'.format(u, s), file=fid)
+                fid.write(f'{u}: {s}\n')
 
         with open(Path(args.wordlist).with_suffix('.csv'), 'w') as fid:
             for u, s in sorted(utterances.items()):
@@ -48,7 +48,7 @@ def main():
                 tokens = [x for x in tokens if x.lower() not in stops]
                 s = ' '.join(tokens)
                 s = s.replace('"', r'\"')
-                print('{};"{}"'.format(u, s), file=fid)
+                fid.write(f'{u},"{s}"\n')
 
 
 if __name__ == "__main__":

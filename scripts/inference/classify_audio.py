@@ -32,7 +32,7 @@ def main():
 
     df = pd.DataFrame({'Clip': names, 'Score': prob})
     df.to_csv(args.output, header=True, index=False)
-    print("Wrote CSV to {}".format(args.output))
+    print(f"Wrote CSV to {args.output}")
 
 
 if __name__ == "__main__":

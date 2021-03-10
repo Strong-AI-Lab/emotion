@@ -12,7 +12,7 @@ This assumes the file structure from the original compressed file:
 from pathlib import Path
 
 import click
-from emorec.dataset import resample_audio, write_filelist, write_labels
+from emorec.dataset import resample_audio, write_filelist, write_annotations
 from emorec.utils import PathlibPath
 
 emotion_map = {
@@ -39,7 +39,8 @@ def main(input_dir: Path):
     resample_audio(paths, resample_dir)
 
     write_filelist(resample_dir.glob('*.wav'))
-    write_labels({p.stem: emotion_map[p.stem[6:8]] for p in paths})
+    write_annotations({p.stem: emotion_map[p.stem[6:8]] for p in paths})
+    write_annotations({p.stem: p.stem[-2:] for p in paths}, 'speaker')
 
 
 if __name__ == "__main__":

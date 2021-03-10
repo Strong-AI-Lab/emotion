@@ -1,19 +1,17 @@
-"""Extracts spectrograms from several audio files and creates a netCFD4 file or
-TFRecord file holding the data.
-"""
-
-import argparse
 import time
 import warnings
 from pathlib import Path
 from typing import List, Optional
 
+import click
+from click.types import Choice
 import joblib
 import librosa
 import netCDF4
 import numpy as np
-from emorec.dataset import (get_audio_paths, parse_classification_annotations,
-                            write_netcdf_dataset)
+from click_option_group import optgroup, RequiredAnyOptionGroup
+from emorec.dataset import get_audio_paths, write_netcdf_dataset
+from emorec.utils import PathlibPath
 from matplotlib import pyplot as plt
 
 
@@ -21,7 +19,6 @@ def write_audeep_dataset(path: Path,
                          spectrograms: np.ndarray,
                          filenames: List[str],
                          n_mels: int,
-                         labelpath: Optional[Path] = None,
                          corpus: Optional[str] = None):
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -51,15 +48,8 @@ def write_audeep_dataset(path: Path,
     label_nominal = dataset.createVariable('label_nominal', str, ('instance',))
     label_numeric = dataset.createVariable('label_numeric', np.int64,
                                            ('instance',))
-    if labelpath:
-        labels = parse_classification_annotations(labelpath)
-        label_nominal[:] = np.array([labels[x] for x in filenames])
-        unique = sorted(set(labels.values()))
-        label_numeric[:] = np.array([unique.index(labels[x])
-                                     for x in filenames])
-    else:
-        label_nominal[:] = np.zeros(spectrograms.shape[0], dtype=str)
-        label_numeric[:] = np.zeros(spectrograms.shape[0], dtype=np.int64)
+    label_nominal[:] = np.zeros(spectrograms.shape[0], dtype=str)
+    label_numeric[:] = np.zeros(spectrograms.shape[0], dtype=np.int64)
 
     features = dataset.createVariable('features', np.float32,
                                       ('instance', 'time', 'freq'))
@@ -112,7 +102,7 @@ def calculate_spectrogram(path: Path,
 
     # Mel spectrogram
     warnings.simplefilter('ignore', UserWarning)
-    n_fft = 2**int(np.math.ceil(np.log2(window_samples)))
+    n_fft = 2**int(np.ceil(np.log2(window_samples)))
     melspec = librosa.feature.melspectrogram(
         audio, n_mels=n_mels, sr=sr, n_fft=n_fft, hop_length=stride_samples,
         win_length=window_samples, fmin=fmin, fmax=fmax
@@ -123,107 +113,97 @@ def calculate_spectrogram(path: Path,
     return db_spectrogram.T
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('input', type=Path,
-                        help="File containing list of WAV audio files.")
+@click.command()
+@click.argument('corpus', type=str)
+@click.argument('input', type=PathlibPath(exists=True, dir_okay=False))
+@optgroup.group('Output format', cls=RequiredAnyOptionGroup)
+@optgroup.option('--netcdf', type=Path, help="Write dataset")
+@optgroup.option('--audeep', type=Path, help="Write auDeep dataset")
+@optgroup.option('--preview', type=int, help="Preview spectrogram")
+@optgroup.group('Spectrogram options')
+@optgroup.option('--length', type=float, help="Optional max clip length")
+@optgroup.option('--skip', type=float, default=0,
+                 help="Optional amount to skip, in seconds")
+@optgroup.option('--clip', type=float, help="Optional minimum power in dB")
+@optgroup.option('--window_size', type=float, default=0.025, show_default=True,
+                 help="Window size in seconds")
+@optgroup.option('--window_shift', type=float, default=0.010,
+                 show_default=True, help="Window shift in seconds")
+@optgroup.option('--mel_bands', type=int, default=240, show_default=True,
+                 help="Number of mel bands")
+@optgroup.option('--pre_emphasis', type=float, default=0.95, show_default=True,
+                 help="Pre-emphasis applied before processing")
+@optgroup.option('--channels', type=Choice(['left', 'right', 'mean', 'diff']),
+                 default='mean', show_default=True)
+@optgroup.option('--fmin', type=float, default=0, show_default=True,
+                 help="Min mel frequency")
+@optgroup.option('--fmax', type=float, default=8000, show_default=True,
+                 help="Max mel frequency")
+@click.option('--debug', is_flag=True, help="Debug mode (no multiprocessing)")
+def main(corpus: str, input: Path, netcdf: Path, audeep: Path, preview: int,
+         length: float, skip: float, clip: float, window_size: float,
+         window_shift: float, mel_bands: int, pre_emphasis: float,
+         channels: str, fmin: float, fmax: float, debug: bool):
+    """Extracts spectrograms from audio files listed in INPUT file and
+    creates a netCFD4 dataset or auDeep dataset holding the data. CORPUS
+    specifies the corpus.
+    """
 
-    parser.add_argument('--corpus', type=str, help="Corpus name.")
-    parser.add_argument('--labels', type=Path,
-                        help="Path to label annotations.")
+    paths = get_audio_paths(input)
 
-    parser.add_argument('--netcdf', type=Path,
-                        help="Output to NetCDF4 format.")
-    parser.add_argument('--audeep', type=Path,
-                        help="Output to NetCDF4 in audeep format.")
-    parser.add_argument(
-        '--preview', type=int, help="Display nth spectrogram without writing "
-        "to a file. A random spectrogram is displayed if p = -1."
-    )
-
-    parser.add_argument('--length', type=float,
-                        help="Seconds of audio clip to take or pad.")
-    parser.add_argument('--skip', type=float, default=0,
-                        help="Seconds of initial audio to skip.")
-    parser.add_argument('--clip', type=float,
-                        help="Clip below this (negative) dB level.")
-    parser.add_argument('--window_size', type=float, default=0.025,
-                        help="Window size in seconds.")
-    parser.add_argument('--window_shift', type=float, default=0.01,
-                        help="Window shift in seconds.")
-    parser.add_argument('--mel_bands', type=int, default=240,
-                        help="Number of mel bands.")
-    parser.add_argument('--pre_emphasis', type=float, default=0.95,
-                        help="Pre-emphasis factor.")
-    parser.add_argument(
-        '--channels', type=str, default='mean', help="Method for combining "
-        "stereo channels. One of {mean, left, right, diff}. Default is mean."
-    )
-    parser.add_argument('--fmin', type=float, default=0,
-                        help="Minimum mel-frequency.")
-    parser.add_argument('--fmax', type=float, default=8000,
-                        help="Minimum mel-frequency.")
-    args = parser.parse_args()
-
-    paths = get_audio_paths(args.input)
-
-    if args.preview is not None:
-        idx = args.preview if args.preview > -1 \
-            else np.random.randint(len(paths))
+    if preview is not None:
+        idx = preview if preview > -1 \
+            else np.random.default_rng().integers(len(paths))
 
         spectrogram = calculate_spectrogram(
-            paths[idx], channels=args.channels,
-            skip=args.skip, length=args.length, window_size=args.window_size,
-            pre_emphasis=args.pre_emphasis, window_shift=args.window_shift,
-            n_mels=args.mel_bands, clip=args.clip, fmin=args.fmin,
-            fmax=args.fmax
+            paths[idx], channels=channels, skip=skip, length=length,
+            window_size=window_size, pre_emphasis=pre_emphasis,
+            window_shift=window_shift, n_mels=mel_bands, clip=clip, fmin=fmin,
+            fmax=fmax
         )
-        print("Spectrogram for {}.".format(paths[idx]))
+        print(f"Spectrogram for {paths[idx]}.")
 
         plt.figure()
         plt.imshow(spectrogram)
         plt.show()
         return
 
-    if not args.audeep and not args.netcdf:
+    if not audeep and not netcdf:
         raise ValueError(
             "Must specify either --preview, --netcdf or --audeep options.")
 
     print("Processing spectrograms:")
     start_time = time.perf_counter()
-    specs = joblib.Parallel(n_jobs=-1, verbose=1)(
+    specs = joblib.Parallel(n_jobs=1 if debug else -1, verbose=1)(
         joblib.delayed(calculate_spectrogram)(
-            path, channels=args.channels, skip=args.skip, length=args.length,
-            window_size=args.window_size, pre_emphasis=args.pre_emphasis,
-            window_shift=args.window_shift, n_mels=args.mel_bands,
-            clip=args.clip, fmin=args.fmin, fmax=args.fmax
+            path, channels=channels, skip=skip, length=length,
+            window_size=window_size, pre_emphasis=pre_emphasis,
+            window_shift=window_shift, n_mels=mel_bands, clip=clip, fmin=fmin,
+            fmax=fmax
         ) for path in paths
     )
-    print("Processed {} spectrograms in {:.4f}s".format(
-        len(specs), time.perf_counter() - start_time))
-
-    if args.labels and not args.corpus:
-        raise ValueError("--corpus must be provided if labels are provided.")
+    total_time = time.perf_counter() - start_time
+    print(f"Processed {len(specs)} spectrograms in {total_time:.4f}s")
 
     filenames = [x.stem for x in paths]
-    if args.audeep is not None:
+    if audeep is not None:
         stacked = np.stack(specs)
         amin = np.min(stacked, axis=(1, 2), keepdims=True)
         amax = np.max(stacked, axis=(1, 2), keepdims=True)
         stacked = 2 * (stacked - amin) / (amax - amin) - 1
-        write_audeep_dataset(args.audeep, stacked, filenames,
-                             args.mel_bands, args.labels, args.corpus)
+        write_audeep_dataset(audeep, stacked, filenames, mel_bands,
+                             corpus)
+        print(f"Wrote auDeep dataset to {audeep}")
 
-        print("Wrote auDeep-specific dataset to {}".format(args.audeep))
-
-    if args.netcdf is not None:
+    if netcdf is not None:
         slices = [len(x) for x in specs]
         specs = np.concatenate(specs)
+        feature_names = [f'meldB{i + 1}' for i in range(mel_bands)]
         write_netcdf_dataset(
-            args.netcdf, corpus=args.corpus, names=filenames, slices=slices,
-            features=specs, annotation_path=args.labels)
-
-        print("Wrote netCDF dataset to {}".format(args.netcdf))
+            netcdf, corpus=corpus, names=filenames, slices=slices,
+            features=specs, feature_names=feature_names
+        )
+        print(f"Wrote netCDF dataset to {netcdf}")
 
 
 if __name__ == "__main__":

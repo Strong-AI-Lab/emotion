@@ -3,12 +3,16 @@
 # Starts the auDeep docker container. Must be run from the root of the
 # repository in order to access the datsets properly.
 
-docker run                                 \
-    --gpus device=1                        \
-    --rm                                   \
-    --interactive                          \
-    --tty                                  \
-    --user $(id -u):$(id -g)               \
-    --mount type=bind,src=$(pwd),dst=/work \
-    --workdir /work                        \
+realuser=${SUDO_USER:-$(whoami)}
+uid=`id -u $realuser`
+gid=`id -g $realuser`
+
+docker run                                  \
+    --gpus device=0                         \
+    --rm                                    \
+    --interactive                           \
+    --tty                                   \
+    --user $uid:$gid                        \
+    --mount type=bind,src="$PWD",dst=/work \
+    --workdir /work                         \
     audeep

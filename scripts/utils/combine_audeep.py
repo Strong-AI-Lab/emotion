@@ -19,7 +19,7 @@ def main():
     all_names = []
     shape = None
     for filename in args.input_files:
-        print("Opened netCDF4 dataset {}".format(str(filename)))
+        print(f"Opened netCDF4 dataset {filename}")
         data = netCDF4.Dataset(str(filename))
         if not shape:
             shape = data.variables['features'].shape[1:]
@@ -63,7 +63,7 @@ def main():
 
     dataset.close()
 
-    print("Wrote netCDF4 dataset to {}".format(args.output_file))
+    print(f"Wrote netCDF4 dataset to {args.output_file}")
 
 
 if __name__ == "__main__":

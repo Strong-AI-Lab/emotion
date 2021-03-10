@@ -16,7 +16,7 @@ from pathlib import Path
 
 import click
 import pandas as pd
-from emorec.dataset import resample_audio, write_filelist, write_labels
+from emorec.dataset import resample_audio, write_filelist, write_annotations
 from emorec.utils import PathlibPath
 
 MED_INT_REGEX = re.compile(r'^(\d\d?)([A-Za-z]+)$')
@@ -82,10 +82,10 @@ def main(input_dir: Path):
 
     # Acted labels
     labels = clip_info['Original'].map(lambda x: Path(x).stem).map(get_emotion)
-    write_labels(labels.to_dict())
+    write_annotations(labels.to_dict())
 
     def get_ratings(country: str = 'USA') -> pd.DataFrame:
-        csvfile = input_dir / 'CategoryRatings{}.csv'.format(country)
+        csvfile = input_dir / f'CategoryRatings{country}.csv'
         ratings = pd.read_csv(csvfile, index_col=0, header=0)
         ratings.index = ratings.index.map(lambda x: x[:-4])
 
@@ -96,7 +96,7 @@ def main(input_dir: Path):
         ratings['Num_Majority'] = mode_count == 1
 
         agreement = ratings['Freq'].mean()
-        print("Mean label agreement: {:.3f}".format(agreement))
+        print(f"Mean label agreement: {agreement:.3f}")
 
         ratings = ratings.join(clip_info)
         ratings['Country'] = ratings['Country'].map(str.upper)
@@ -131,6 +131,7 @@ def main(input_dir: Path):
 
     write_filelist([p for p in resample_dir.glob('*.wav')
                     if p.stem in ratings.index])
+    write_annotations(ratings['Speaker_ID'].to_dict(), 'speaker')
 
 
 if __name__ == "__main__":

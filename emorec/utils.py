@@ -1,11 +1,20 @@
 """Various utility functions for modifying arrays and other things."""
 
+from os import PathLike
 from pathlib import Path
 from typing import (Callable, List, Optional, Sequence, Tuple, TypeVar, Union,
                     overload)
 
 import click
 import numpy as np
+
+__all__ = [
+    'PathOrStr', 'PathlibPath', 'itmap', 'ordered_intersect', 'frame_arrays',
+    'pad_arrays', 'clip_arrays', 'transpose_time', 'shuffle_multiple',
+    'batch_arrays'
+]
+
+PathOrStr = Union[PathLike, str]
 
 
 class PathlibPath(click.Path):
@@ -66,7 +75,7 @@ def frame_arrays(arrays: Union[List[np.ndarray], np.ndarray],
         max_len = max(len(x) for x in arrays)
         num_frames = (max_len - frame_size) // frame_shift + 1
 
-    arrs = []
+    _arrs = []
     for seq in arrays:
         seq = np.squeeze(seq)
         arr = np.zeros((num_frames, frame_size), dtype=np.float32)
@@ -76,8 +85,8 @@ def frame_arrays(arrays: Union[List[np.ndarray], np.ndarray],
                 break
             maxl = min(len(seq) - i, frame_size)
             arr[idx, :maxl] = seq[i:i + frame_size]
-        arrs.append(arr)
-    arrs = np.array(arrs)
+        _arrs.append(arr)
+    arrs = np.array(_arrs)
     assert tuple(arrs.shape) == (len(arrays), num_frames, frame_size)
     return arrs
 
@@ -128,7 +137,7 @@ def transpose_time(arrays: Union[List[np.ndarray], np.ndarray]):
     return arrays
 
 
-def shuffle_multiple(*arrays, numpy_indexing: bool = True):
+def shuffle_multiple(*arrays: np.ndarray, numpy_indexing: bool = True):
     """Shuffles multiple arrays or lists in sync. Useful for shuffling the data
     and labels in a dataset separately while keeping them synchronised.
 
@@ -147,13 +156,13 @@ def shuffle_multiple(*arrays, numpy_indexing: bool = True):
     if any(len(arrays[0]) != len(x) for x in arrays):
         raise ValueError("Not all arrays have equal first dimension.")
 
-    perm = np.random.permutation(len(arrays[0]))
+    perm = np.random.default_rng().permutation(len(arrays[0]))
     new_arrays = [array[perm] if numpy_indexing else [array[i] for i in perm]
                   for array in arrays]
     return new_arrays
 
 
-def batch_arrays(arrays_x: List[np.ndarray], y: np.ndarray,
+def batch_arrays(arrays_x: Union[np.ndarray, List[np.ndarray]], y: np.ndarray,
                  batch_size: int = 32, shuffle: bool = True,
                  uniform_batch_size: bool = False) \
         -> Tuple[np.ndarray, np.ndarray]:
@@ -193,6 +202,8 @@ def batch_arrays(arrays_x: List[np.ndarray], y: np.ndarray,
         The batched labels corresponding to sequences in x_list.
         y_list[i] has the same length as x_list[i].
     """
+    if isinstance(arrays_x, list):
+        arrays_x = np.array(arrays_x, dtype=object)
     if shuffle:
         arrays_x, y = shuffle_multiple(arrays_x, y, numpy_indexing=False)
 
@@ -202,8 +213,8 @@ def batch_arrays(arrays_x: List[np.ndarray], y: np.ndarray,
     x_dtype = arrays_x[0].dtype
     y_dtype = y.dtype
 
-    x_list = []
-    y_list = []
+    xlist = []
+    ylist = []
     for length in unique_len:
         idx = np.nonzero(lengths == length)[0]
         for b in range(0, len(idx), batch_size):
@@ -214,8 +225,8 @@ def batch_arrays(arrays_x: List[np.ndarray], y: np.ndarray,
             _y[:size] = y[batch_idx]
             for i, j in enumerate(batch_idx):
                 _x[i, ...] = arrays_x[j]
-            x_list.append(_x)
-            y_list.append(_y)
-    x_list = np.array(x_list, dtype=object)
-    y_list = np.array(y_list, dtype=y_dtype if uniform_batch_size else object)
-    return x_list, y_list
+            xlist.append(_x)
+            ylist.append(_y)
+    x_batch = np.array(xlist, dtype=object)
+    y_batch = np.array(ylist, dtype=y_dtype if uniform_batch_size else object)
+    return x_batch, y_batch

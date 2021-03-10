@@ -28,7 +28,7 @@ def main(input_dir: Path, csv_file: Path):
 
     df = pd.DataFrame({'Name': utt.keys(), 'Transcript': utt.values()})
     df.sort_values('Name').to_csv(csv_file, index=False, header=True)
-    print("Wrote CSV to {}".format(csv_file))
+    print(f"Wrote CSV to {csv_file}")
 
 
 if __name__ == "__main__":

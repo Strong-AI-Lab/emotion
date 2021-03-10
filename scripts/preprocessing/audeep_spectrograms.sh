@@ -5,7 +5,7 @@
 
 corpus=$1
 
-output=output/${corpus}/spectrograms_audeep-0.05-0.025-240-60.nc
+output=output/${corpus}/spectrograms_audeep-5-0.05-0.025-240-60.nc
 
 audeep preprocess \
     --basedir datasets/$corpus/wav_corpus \

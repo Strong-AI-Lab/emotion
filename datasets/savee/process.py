@@ -12,7 +12,7 @@ import shutil
 from pathlib import Path
 
 import click
-from emorec.dataset import resample_audio, write_filelist, write_labels
+from emorec.dataset import resample_audio, write_filelist, write_annotations
 from emorec.utils import PathlibPath
 
 REGEX = re.compile(r'^(DC|JE|JK|KL)([a-z][a-z]?)[0-9][0-9]$')
@@ -44,9 +44,11 @@ def main(input_dir: Path):
             shutil.move(f, resample_dir / (sp + f.name))
         (resample_dir / sp).rmdir()
 
-    write_filelist(resample_dir.glob('*.wav'))
-    write_labels({p.stem: emotion_map[REGEX.match(p.stem).group(2)]
-                  for p in resample_dir.glob('*.wav')})
+    paths = list(resample_dir.glob('*.wav'))
+    write_filelist(paths)
+    write_annotations({p.stem: emotion_map[REGEX.match(p.stem).group(2)]
+                      for p in paths})
+    write_annotations({p.stem: p.stem[:2] for p in paths}, 'speaker')
 
 
 if __name__ == "__main__":

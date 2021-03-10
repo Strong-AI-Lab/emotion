@@ -1,19 +1,21 @@
-import argparse
 import importlib
 import json
 import os
-from functools import partial
+from functools import partial, wraps
 from pathlib import Path
-from typing import Dict, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence, Type, Union
 
+import click
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from emorec.classification import PrecomputedSVC
+from click_option_group import optgroup
 from emorec.dataset import LabelledDataset
+from emorec.sklearn.models import PrecomputedSVC
 from emorec.tensorflow.classification import tf_cross_validate
 from emorec.tensorflow.models.zhang2019 import create_windowed_dataset
 from emorec.tensorflow.utils import create_tf_dataset_ragged
+from emorec.utils import PathlibPath
 from scikeras.wrappers import KerasClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (get_scorer, make_scorer, precision_score,
@@ -23,11 +25,13 @@ from sklearn.model_selection import (GridSearchCV, GroupKFold,
 from sklearn.preprocessing import StandardScaler
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Dense, Dropout, Input
-from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.losses import Loss
+from tensorflow.keras.metrics import Metric
+from tensorflow.keras.optimizers import Adam, Optimizer
 
 
 # SVM classifiers
-def get_svm_params(kind='linear') -> Dict[str, Sequence]:
+def get_svm_params(kind='linear') -> Dict[str, Sequence[object]]:
     param_grid = {'C': 2.0**np.arange(-6, 7, 2)}
     if kind == 'linear':
         param_grid.update({'kernel': ['poly'], 'degree': [1], 'coef0': [0]})
@@ -47,15 +51,29 @@ def get_svm_params(kind='linear') -> Dict[str, Sequence]:
 
 
 # Random forest classifiers
-def get_rf_params() -> Dict[str, Sequence]:
-    param_grid = {'n_estimators': [100, 250, 500],
-                  'max_depth': [None, 10, 20, 50]}
-    return param_grid
+def get_rf_params() -> Dict[str, Sequence[object]]:
+    return {'n_estimators': [100, 250, 500], 'max_depth': [None, 10, 20, 50]}
+
+
+def compile(model_fn: Callable[..., Model],
+            opt_cls: Type[Optimizer] = Adam,
+            opt_params: Dict[str, object] = dict(learning_rate=0.0001),
+            metrics: List[Union[str, Metric]] = [
+                'sparse_categorical_accuracy'],
+            loss: Union[str, Loss] = 'sparse_categorical_crossentropy',
+            **compile_args):
+    @wraps(model_fn)
+    def f(*args, **kwargs):
+        model = model_fn(*args, **kwargs)
+        model.compile(optimizer=opt_cls(**opt_params), metrics=metrics,
+                      loss=loss, **compile_args)
+        return model
+    return f
 
 
 # Fully connected feedforward networks.
-def dense_keras_model(n_features: int, n_classes: int, layers: int = 1,
-                      lr: float = 0.0001) -> Model:
+def dense_keras_model(n_features: int, n_classes: int, layers: int = 1) \
+        -> Model:
     """Creates a Keras model with hidden layers and ReLU activation,
     with 50% dropout.
     """
@@ -65,29 +83,17 @@ def dense_keras_model(n_features: int, n_classes: int, layers: int = 1,
         x = Dense(512, activation='relu')(x)
         x = Dropout(0.5)(x)
     x = Dense(n_classes, activation='softmax')(x)
-    model = Model(inputs=inputs, outputs=x)
-    model.compile(
-        optimizer=Adam(learning_rate=lr),
-        metrics=['sparse_categorical_accuracy'],
-        loss='sparse_categorical_crossentropy'
-    )
-    return model
+    return Model(inputs=inputs, outputs=x)
 
 
 # Arbitrary TF models
-def get_tf_model(name, n_features, n_classes, lr: float = 0.0001) -> Model:
-    module = importlib.import_module(
-        'emorec.tensorflow.models.{}'.format(name))
+def get_tf_model(name: str, n_features: int, n_classes: int) -> Model:
+    module = importlib.import_module(f'emorec.tensorflow.models.{name}')
     model_fn = getattr(module, 'model')
     if n_features > 1:
         model = model_fn(n_features, n_classes)
     else:
         model = model_fn(n_classes)
-    model.compile(
-        optimizer=Adam(learning_rate=lr),
-        metrics=['sparse_categorical_accuracy'],
-        loss='sparse_categorical_crossentropy'
-    )
     return model
 
 
@@ -106,7 +112,6 @@ def test_classifier(kind: str,
 
     class_weight = (dataset.n_instances
                     / (dataset.n_classes * dataset.class_counts))
-    # Necessary until scikeras supports passing in class_weights directly
     sample_weight = class_weight[dataset.y]
 
     metrics = (['uar', 'war'] + [x + '_rec' for x in dataset.classes]
@@ -122,33 +127,32 @@ def test_classifier(kind: str,
             c + '_prec': make_scorer(precision_score, average=None, labels=[i])
         })
 
-    type_ = ''
-    _slash = kind.find('/')
-    if kind.find('/') >= 0:
-        type_ = kind[:_slash]
-        kind = kind[_slash + 1:]
-
     for rep in range(1, reps + 1):
-        print("Rep {}/{}".format(rep, reps))
-        if type_ in ['svm', 'mlp'] or kind == 'rf':
-            if type_ == 'mlp':
+        print(f"Rep {rep}/{reps}")
+        params = {}
+        if kind.startswith(('svm/', 'mlp/')) or kind == 'rf':
+            if kind.startswith('mlp'):
                 # Force CPU only to do in parallel, supress TF errors
                 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
                 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-                params = dict(lr=lr, batch_size=bs, epochs=epochs)
+                params.update(dict(learning_rate=lr, batch_size=bs,
+                                   epochs=epochs))
                 layers = 1
-                if kind == '2layer':
+                _layers = kind.split('/')[-1]
+                if _layers == '2layer':
                     layers = 2
-                elif kind == '3layer':
+                elif _layers == '3layer':
                     layers = 3
+                model_fn = compile(dense_keras_model,
+                                   opt_params=dict(learning_rate=lr))
                 clf = KerasClassifier(
-                    dense_keras_model, n_features=dataset.n_features,
-                    n_classes=dataset.n_classes, layers=layers, **params,
-                    verbose=False
+                    model_fn, n_features=dataset.n_features,
+                    n_classes=dataset.n_classes, layers=layers, batch_size=bs,
+                    epochs=epochs, verbose=False
                 )
             else:
-                if type_ == 'svm':
-                    param_grid = get_svm_params(kind)
+                if kind.startswith('svm'):
+                    param_grid = get_svm_params(kind.split('/')[-1])
                     _clf = PrecomputedSVC()
                 else:
                     param_grid = get_rf_params()
@@ -160,7 +164,7 @@ def test_classifier(kind: str,
                     dataset.x, dataset.y, groups=dataset.speaker_group_indices,
                     sample_weight=sample_weight
                 )
-                params = clf.best_params_
+                params.update(clf.best_params_)
                 clf = clf.best_estimator_
             fit_params = dict(sample_weight=sample_weight)
             scores = cross_validate(
@@ -174,19 +178,19 @@ def test_classifier(kind: str,
             if kind == 'zhang2019':
                 data_fn = create_windowed_dataset
             data_fn = partial(data_fn, batch_size=bs)
-            params = dict(lr=lr, batch_size=bs, epochs=epochs)
+            params.update(dict(learning_rate=lr, batch_size=bs, epochs=epochs))
 
+            model_fn = partial(
+                compile(get_tf_model, opt_params={'learning_rate': lr}),
+                kind, n_features=dataset.n_features,
+                n_classes=dataset.n_classes, lr=lr
+            )
             # To print model params
-            _model = get_tf_model(kind, n_features=dataset.n_features,
-                                  n_classes=dataset.n_classes, lr=lr)
+            _model = model_fn()
             _model.summary()
             del _model
             tf.keras.backend.clear_session()
 
-            model_fn = partial(
-                get_tf_model, kind, n_features=dataset.n_features,
-                n_classes=dataset.n_classes, lr=lr
-            )
             scores = tf_cross_validate(
                 model_fn, dataset.x, dataset.y, cv=splitter, scoring=scoring,
                 groups=dataset.speaker_group_indices, data_fn=data_fn,
@@ -204,7 +208,7 @@ def test_classifier(kind: str,
                 })
                 log_df.to_csv(log_dir / 'history.csv', header=True, index=True)
         # Make string to add to final dataframe
-        params = json.dumps(params)
+        params_s = json.dumps(params)
 
         mean_scores = {k[5:]: np.mean(v) for k, v in scores.items()
                        if k.startswith('test_')}
@@ -213,7 +217,7 @@ def test_classifier(kind: str,
         recall = tuple(mean_scores[c + '_rec'] for c in dataset.classes)
         precision = tuple(mean_scores[c + '_prec'] for c in dataset.classes)
 
-        df.loc[rep, 'params'] = params
+        df.loc[rep, 'params'] = params_s
         df.loc[rep, 'war'] = war
         df.loc[rep, 'uar'] = uar
         for i, c in enumerate(dataset.classes):
@@ -223,61 +227,59 @@ def test_classifier(kind: str,
     if results:
         results.parent.mkdir(parents=True, exist_ok=True)
         df.to_csv(results)
-        print("Wrote CSV to {}.".format(results))
+        print(f"Wrote CSV to {results}")
     else:
         print(df.to_string())
 
 
-def main():
-    parser = argparse.ArgumentParser()
-
-    # Required options
-    parser.add_argument('--kind', type=str, required=True,
-                        help="The kind of classifier.")
-    parser.add_argument('--data', type=Path, required=True,
-                        help="The data to use.")
-
-    # Dataset options
-    parser.add_argument('--pad', type=int,
-                        help="Pad input sequences to this length.")
-    parser.add_argument(
-        '--clip', type=int,
-        help="Clips input sequences to this maximum length, after any padding."
-    )
-
-    # Results options
-    parser.add_argument('--results', type=Path, help="Results directory.")
-
-    # Cross-validation options
-    parser.add_argument('--reps', type=int, default=1,
-                        help="The number of repetitions to do per test.")
-
-    # Misc. options
-    parser.add_argument('--verbose', action='store_true')
-    parser.add_argument('--logs', type=Path,
-                        help="Folder to write training logs per fold.")
-
-    # Model-specific options
-    parser.add_argument('--learning_rate', type=float, default=1e-4)
-    parser.add_argument('--batch_size', type=int, default=64)
-    parser.add_argument('--epochs', type=int, default=50)
-    args = parser.parse_args()
+@click.command()
+@click.argument('kind')
+@click.argument('input', type=PathlibPath(exists=True, dir_okay=False))
+@click.argument('labels', type=PathlibPath(exists=True, dir_okay=False))
+@optgroup.group('Dataset options')
+@optgroup.option('--pad', type=int,
+                 help="Optionally pad input sequences to this length.")
+@optgroup.option(
+    '--clip', type=int,
+    help="Optionally clip input sequences to this length, after any padding."
+)
+@optgroup.group('Results options')
+@optgroup.option('--results', type=Path, help="Results directory.")
+@optgroup.group('Cross-validation options')
+@optgroup.option('--reps', type=int, default=1, show_default=True,
+                 help="The number of repetitions to do per test.")
+@optgroup.group('Misc. options')
+@optgroup.option('--verbose', is_flag=True, help="Verbose training.")
+@optgroup.option('--logs', type=Path,
+                 help="Folder to write training logs per fold.")
+@optgroup.group('Model-specific options')
+@optgroup.option('--learning_rate', type=float, default=1e-4,
+                 show_default=True)
+@optgroup.option('--batch_size', type=int, default=64, show_default=True)
+@optgroup.option('--epochs', type=int, default=50, show_default=True)
+def main(kind: str, input: Path, labels: Path, pad: int, clip: int,
+         results: Path, reps: int, verbose: bool, logs: Path,
+         learning_rate: float, batch_size: int, epochs: int):
+    """Runs a training routine using the given classifier KIND and INPUT
+    data. Metrics are optionally written to a results file.
+    """
 
     tf.get_logger().setLevel(40)  # ERROR level
     for gpu in tf.config.list_physical_devices('GPU'):
         tf.config.experimental.set_memory_growth(gpu, True)
 
-    dataset = LabelledDataset(args.data)
+    speaker_path = labels.parent / 'speaker.csv'
+    dataset = LabelledDataset(input, labels, speaker_path=speaker_path)
+    print(dataset)
     dataset.normalise(normaliser=StandardScaler(), scheme='speaker')
-    if args.pad:
-        dataset.pad_arrays(args.pad)
-    if args.clip:
-        dataset.clip_arrays(args.clip)
+    if pad:
+        dataset.pad_arrays(pad)
+    if clip:
+        dataset.clip_arrays(clip)
 
     test_classifier(
-        args.kind, dataset, reps=args.reps, results=args.results,
-        logs=args.logs, verbose=args.verbose, lr=args.learning_rate,
-        epochs=args.epochs, bs=args.batch_size
+        kind, dataset, reps=reps, results=results, logs=logs, verbose=verbose,
+        lr=learning_rate, epochs=epochs, bs=batch_size
     )
 
 

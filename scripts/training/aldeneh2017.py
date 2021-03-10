@@ -11,12 +11,12 @@ from pathlib import Path
 
 import numpy as np
 import tensorflow as tf
-from emorec.classification import (PrecomputedSVC, SKLearnClassifier,
-                                   TFClassifier, print_results,
-                                   within_corpus_cross_validation)
-from emorec.dataset import NetCDFDataset
-from emorec.tensorflow.classification import BatchedSequence
-from emorec.tensorflow.models.aldeneh2017 import full_model
+from emorec.classification import print_results, within_corpus_cross_validation
+from emorec.dataset import LabelledDataset
+from emorec.sklearn.classification import SKLearnClassifier
+from emorec.sklearn.models import PrecomputedSVC
+from emorec.tensorflow.classification import BatchedSequence, TFClassifier
+from emorec.tensorflow.models.aldeneh2017 import model as full_model
 from sklearn.metrics import recall_score
 from sklearn.model_selection import LeaveOneGroupOut, ParameterGrid
 from sklearn.preprocessing import StandardScaler
@@ -116,7 +116,7 @@ def get_tf_dataset(x: np.ndarray, y: np.ndarray, shuffle=True, batch_size=50):
     return data.map(ragged_to_dense)
 
 
-def test_svm_models(dataset: NetCDFDataset, config: str):
+def test_svm_models(dataset: LabelledDataset, config: str):
     param_grid = ParameterGrid({
         'C': 2.0**np.arange(0, 13, 2),
         'gamma': 2.0**np.arange(-15, -2, 2)
@@ -138,7 +138,7 @@ def test_svm_models(dataset: NetCDFDataset, config: str):
     df.to_csv(output_dir / '{}.csv'.format(config))
 
 
-def test_dense_model(dataset: NetCDFDataset, config: str = 'logmel_func'):
+def test_dense_model(dataset: LabelledDataset, config: str = 'logmel_func'):
     model = get_dense_model(480, 4)
     model.summary()
     del model
@@ -168,7 +168,7 @@ def test_dense_model(dataset: NetCDFDataset, config: str = 'logmel_func'):
     df.to_csv(output_dir / '{}.csv'.format(config))
 
 
-def test_conv_models(dataset: NetCDFDataset, config: str = 'logmel'):
+def test_conv_models(dataset: LabelledDataset, config: str = 'logmel'):
     model = get_conv_model(40, dataset.n_classes)
     model.summary()
     del model
@@ -204,7 +204,7 @@ def test_conv_models(dataset: NetCDFDataset, config: str = 'logmel'):
         df.to_csv(output_dir / '{}_{}.csv'.format(config, kernel_size))
 
 
-def test_full_model(dataset: NetCDFDataset, config: str = 'logmel'):
+def test_full_model(dataset: LabelledDataset, config: str = 'logmel'):
     model = full_model(40, dataset.n_classes)
     model.summary()
     del model
@@ -243,21 +243,21 @@ def main():
     for corpus in CORPORA:
         for config in ['IS09', 'IS13_IS09_func', 'GeMAPS', 'eGeMAPS']:
             print(corpus, config)
-            dataset = NetCDFDataset('output/{}/{}.nc'.format(corpus, config))
+            dataset = LabelledDataset(f'output/{corpus}/{config}.nc')
             dataset.normalise(StandardScaler(), scheme='speaker')
             print()
             test_svm_models(dataset, config)
 
     for corpus in CORPORA:
         print(corpus, "logmel_IS09_func")
-        dataset = NetCDFDataset('output/{}/logmel_IS09_func.nc'.format(corpus))
+        dataset = LabelledDataset(f'output/{corpus}/logmel_IS09_func.nc')
         dataset.normalise(StandardScaler(), scheme='speaker')
         print()
         test_dense_model(dataset, 'logmel_IS09_func')
 
     for corpus in CORPORA:
         print(corpus, "logmel")
-        dataset = NetCDFDataset('output/{}/logmel.nc'.format(corpus))
+        dataset = LabelledDataset(f'output/{corpus}/logmel.nc')
         dataset.normalise(StandardScaler(), scheme='speaker')
         dataset.pad_arrays(32)
         print()

@@ -1,5 +1,4 @@
 import time
-from os import PathLike
 from pathlib import Path
 from typing import Any, Dict, Union
 
@@ -9,7 +8,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from emorec.dataset import write_netcdf_dataset
-from emorec.utils import PathlibPath
+from emorec.utils import PathlibPath, PathOrStr
 from torch import nn
 from torch.optim import Adam
 from torch.utils.data import TensorDataset, DataLoader
@@ -106,7 +105,7 @@ def get_latest_save(directory: Union[str, Path]) -> Path:
     saves = list(directory.glob('model-*.pt'))
     if len(saves) == 0:
         raise FileNotFoundError(
-            "No save files found in directory {}".format(directory))
+            f"No save files found in directory {directory}")
     return max(saves, key=lambda p: int(p.stem.split('-')[1]))
 
 
@@ -114,7 +113,7 @@ def save_model(directory: Union[Path, str], epoch: int,
                model: TimeRecurrentAutoencoder, model_args: Dict[str, Any],
                optimiser: Adam, optimiser_args: Dict[str, Any]):
     """Saves the given model and associated training parameters."""
-    save_path = Path(directory) / 'model-{:04d}.pt'.format(epoch)
+    save_path = Path(directory) / f'model-{epoch:04d}.pt'
     torch.save(
         {
             'epoch': epoch,
@@ -125,19 +124,15 @@ def save_model(directory: Union[Path, str], epoch: int,
         },
         save_path
     )
-    print("Saved model to {}".format(save_path))
+    print(f"Saved model to {save_path}.")
 
 
-def get_data(path: Union[PathLike, str], shuffle: bool = False):
+def get_data(path: PathOrStr, shuffle: bool = False):
     """Get data and metadata from netCDF dataset. Optionally shuffle x."""
     dataset = netCDF4.Dataset(path)
     x = np.array(dataset.variables['features'])
     num_inst = dataset.dimensions['instance'].size
-    names = np.array(dataset.variables['name'])
-    try:
-        labels = np.array(dataset.variables['label_nominal'])
-    except KeyError:
-        labels = []
+    filenames = np.array(dataset.variables['name'])
     corpus = dataset.corpus
     dataset.close()
 
@@ -150,13 +145,11 @@ def get_data(path: Union[PathLike, str], shuffle: bool = False):
         perm = np.random.default_rng().permutation(len(x))
         x = x[perm]
         names = names[perm]
-        if len(labels) > 0:
-            labels = labels[perm]
 
     xmin = np.min(x, axis=(1, 2), keepdims=True)
     xmax = np.max(x, axis=(1, 2), keepdims=True)
     x = 2 * (x - xmin) / (xmax - xmin) - 1
-    return x, names, labels, corpus
+    return x, names, corpus
 
 
 @click.command()
@@ -210,8 +203,8 @@ def train(input: Path, logs: Path, layers: int, units: int, dropout: float,
     model = model.cuda(DEVICE)
     optimiser = Adam(model.parameters(), **optimiser_args)
 
-    if cont:
-        print("Restoring model from {}".format(save_path))
+    if args.cont:
+        print(f"Restoring model from {save_path}")
         model.load_state_dict(load_dict['model_state_dict'])
         optimiser.load_state_dict(load_dict['optimiser_state_dict'])
 
@@ -227,8 +220,8 @@ def train(input: Path, logs: Path, layers: int, units: int, dropout: float,
         start_time = time.perf_counter()
         model.train()
         train_losses = []
-        for x, in tqdm(train_dl, desc='Epoch {:03d}'.format(epoch),
-                       unit='batch', leave=False):
+        for x, in tqdm(train_dl, desc=f'Epoch {epoch:03d}', unit='batch',
+                       leave=False):
             x = x.to(DEVICE)
             optimiser.zero_grad()
             reconstruction, representation = model(x)
@@ -274,13 +267,11 @@ def train(input: Path, logs: Path, layers: int, units: int, dropout: float,
             valid_writer.add_scalar('loss', valid_loss, global_step=epoch)
 
             end_time = time.perf_counter() - start_time
-
+            mean_time = train_time / len(train_dl)
             print(
-                "Epoch {:03d} in {:.2f}s ({:.2f}s per batch), train loss: "
-                "{:.4f}, valid loss: {:.4f}".format(
-                    epoch, end_time, train_time / len(train_dl), train_loss,
-                    valid_loss
-                )
+                f"Epoch {epoch:03d}: {end_time:.2f}s ({mean_time:.2f}s per "
+                f"batch), train loss: {train_loss:.4f}, valid loss: "
+                f"{valid_loss:.4f}"
             )
 
         if epoch % save_every == 0:
@@ -305,14 +296,14 @@ def generate(input: Path, output: Path, model: Path, batch_size: int):
     if model.is_dir():
         save_path = get_latest_save(model)
     else:
-        save_path = model
-    print("Restoring model from {}".format(save_path))
+        save_path = args.model
+    print(f"Restoring model from {save_path}")
     load_dict = torch.load(save_path)
     model = TimeRecurrentAutoencoder(**load_dict['model_args'])
     model.cuda()
     model.load_state_dict(load_dict['model_state_dict'])
 
-    x, filenames, labels, corpus = get_data(input)
+    x, filenames, corpus = get_data(input)
 
     representations = []
     with torch.no_grad():
@@ -323,19 +314,11 @@ def generate(input: Path, output: Path, model: Path, batch_size: int):
             representations.append(representation.cpu().numpy())
     representations = np.concatenate(representations)
 
-    valid_writer = SummaryWriter(save_path.parent / 'embedding')
-    valid_writer.add_embedding(
-        representations, list(zip(filenames, labels)), tag=corpus,
-        global_step=load_dict['epoch'], metadata_header=['filenames', 'labels']
-    )
-
-    annotation_path = Path('datasets') / corpus / 'labels.csv'
     write_netcdf_dataset(
         output, corpus=corpus, names=filenames,
-        features=representations, slices=np.arange(len(filenames)),
-        annotations={'label': annotation_path}
+        features=representations, slices=np.arange(len(filenames))
     )
-    print("Wrote netCDF4 file to {}".format(output))
+    print(f"Wrote netCDF4 file to {args.output}")
 
 
 @click.group(no_args_is_help=True)

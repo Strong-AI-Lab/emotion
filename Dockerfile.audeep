@@ -3,17 +3,28 @@ FROM tensorflow/tensorflow:1.15.5-gpu
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-        --no-install-recommends libsndfile1 less vim-nox \
+        --no-install-recommends libsndfile1 \
     && apt-get autoremove
 
+# Install dependencies manually
+RUN pip3 install \
+    "cliff>=3.3" \
+    "liac-arff>=2.4" \
+    "matplotlib>=3.2" \
+    "netCDF4==1.4.2" \
+    "pandas>=1.0" \
+    "pysoundfile>=0.9" \
+    "scipy>=1.4" \
+    "scikit-learn>=0.23" \
+    "xarray==0.10.0" \
+    "tensorflow-gpu>=1.15.2,<2"
 WORKDIR /home/audeep
 COPY setup.py DESCRIPTION.md /home/audeep/
 COPY audeep /home/audeep/audeep
 RUN python3 setup.py install \
     && rm -rf /home/audeep
 # To keep matplotlib happy
-RUN mkdir -p /.{cache,config}/matplotlib \
-    && chmod 777 /.{cache,config}/matplotlib
+RUN mkdir -p -m 777 /.{cache,config}/matplotlib
 
 WORKDIR /work
 CMD [ "/bin/bash" ]

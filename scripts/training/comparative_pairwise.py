@@ -9,8 +9,8 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from emorec.classification import PrecomputedSVC
 from emorec.dataset import LabelledDataset
+from emorec.sklearn.models import PrecomputedSVC
 from emorec.tensorflow.classification import DummyEstimator, tf_cross_validate
 from emorec.tensorflow.models import (aldeneh2017_model, latif2019_model,
                                       zhang2019_model, zhao2019_model)
@@ -144,7 +144,7 @@ def test_classifier(kind: str,
         type_ = kind[:_slash]
         kind = kind[_slash + 1:]
     for rep in range(1, reps + 1):
-        print("Rep {}/{}".format(rep, reps))
+        print(f"Rep {rep}/{reps}")
         if type_ in ['svm', 'mlp'] or kind == 'rf':
             if type_ == 'mlp':
                 # Force CPU only to do in parallel, supress TF errors
@@ -240,7 +240,7 @@ def test_classifier(kind: str,
     if results:
         results.parent.mkdir(parents=True, exist_ok=True)
         df.to_csv(results)
-        print("Wrote CSV to {}.".format(results))
+        print(f"Wrote CSV to {results}")
     else:
         print(df.to_string())
 

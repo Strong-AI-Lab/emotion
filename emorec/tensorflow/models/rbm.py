@@ -231,7 +231,7 @@ class RBM:
                           - tf.math.log(final_momentum))
 
         for epoch in range(1, n_epochs + 1):
-            tf.print("Epoch: {}".format(epoch))
+            tf.print(f"Epoch: {epoch}")
             time_frac = float(epoch) / float(n_epochs)
 
             if (learning_rate_decay == DecayType.STEP
@@ -269,7 +269,7 @@ class RBM:
 
             with self.train_summary_writer.as_default():
                 tf.summary.scalar('mse', mse_train, step=epoch)
-                tf.print('mse: {:.3f}, '.format(mse_train), end='')
+                tf.print(f'mse: {mse_train:.3f}, ', end='')
 
                 tf.summary.scalar('learining_rate', self.learning_rate,
                                   step=epoch)
@@ -333,7 +333,7 @@ class RBM:
 
                 with self.valid_summary_writer.as_default():
                     tf.summary.scalar('mse', mse_valid, step=epoch)
-                    tf.print('val_mse: {:.3f}'.format(mse_valid))
+                    tf.print(f'val_mse: {mse_valid:.3f}')
 
                     batch = next(iter(valid_data))
 
@@ -465,10 +465,8 @@ class DBN:
         self.layers = [BBRBM(layer_nodes[0], self.input_shape,
                              logdir=logdir / 'rbm0', **kwargs)]
         for i in range(1, n_layers):
-            self.layers.append(BBRBM(
-                layer_nodes[i], logdir=logdir / 'rbm{}'.format(i),
-                input_shape=(layer_nodes[i - 1],)
-            ))
+            self.layers.append(BBRBM(layer_nodes[i], logdir=logdir / f'rbm{i}',
+                                     input_shape=(layer_nodes[i - 1],)))
 
         self.train_summary_writer = tf.summary.create_file_writer(
             str(logdir / 'dbn' / 'train'))
@@ -503,9 +501,9 @@ class DBN:
         new_train_data = train_data
         new_valid_data = valid_data
         for i in range(1, len(self.layers)):
-            print("Training layer {}".format(i))
+            print(f"Training layer {i}")
             new_train_data = new_train_data.map(self.layers[i - 1].forward)
-            if valid_data:
+            if new_valid_data:
                 new_valid_data = new_valid_data.map(self.layers[i - 1].forward)
             self.layers[i].train(
                 new_train_data, valid_data=new_valid_data,

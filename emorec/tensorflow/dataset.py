@@ -1,15 +1,13 @@
-from os import PathLike
-from typing import Union
-
 import numpy as np
 import tensorflow as tf
 
 from ..dataset import LabelledDataset
+from ..utils import PathOrStr
 
 
 class TFRecordDataset(LabelledDataset):
     """A dataset contained in TFRecord files."""
-    def __init__(self, file: Union[PathLike, str]):
+    def __init__(self, file: PathOrStr):
         self.tf_dataset = tf.data.TFRecordDataset([str(file)])
         example = tf.train.Example()
         example.ParseFromString(next(iter(self.tf_dataset)).numpy())

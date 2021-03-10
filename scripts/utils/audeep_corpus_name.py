@@ -16,7 +16,7 @@ def main():
         slices = dataset.createVariable('slices', int, ('instance',))
         slices[:] = [1] * dataset.dimensions['instance'].size
     dataset.close()
-    print("Changed corpus to {} in {}".format(sys.argv[2], sys.argv[1]))
+    print(f"Changed corpus to {sys.argv[2]} in {sys.argv[1]}")
 
 
 if __name__ == "__main__":

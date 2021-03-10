@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 
 import click
-from emorec.dataset import resample_audio, write_filelist, write_labels
+from emorec.dataset import resample_audio, write_filelist, write_annotations
 from emorec.utils import PathlibPath
 
 REGEX = re.compile(r'^(?:fe)?male[12]_([a-z]+)_\d+[ab]_[12]$')
@@ -49,8 +49,10 @@ def main(input_dir: Path):
 
     write_filelist([p for p in resample_dir.glob('*.wav')
                     if REGEX.match(p.stem).group(1) not in unused_emotions])
-    write_labels({p.stem: emotion_map.get(REGEX.match(p.stem).group(1))
-                  for p in paths})
+    write_annotations({p.stem: emotion_map.get(REGEX.match(p.stem).group(1))
+                      for p in paths})
+    write_annotations({p.stem: p.stem[:p.stem.find('_')] for p in paths},
+                      'speaker')
 
 
 if __name__ == "__main__":

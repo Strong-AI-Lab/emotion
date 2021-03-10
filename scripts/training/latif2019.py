@@ -14,7 +14,7 @@ import tensorflow as tf
 from emorec.dataset import LabelledDataset
 from emorec.tensorflow.classification import (
     BalancedSparseCategoricalAccuracy, tf_train_val_test)
-from emorec.tensorflow.models import latif2019_model
+from emorec.tensorflow.models.latif2019 import model as _model
 from emorec.tensorflow.utils import create_tf_dataset_ragged
 from sklearn.metrics import (get_scorer, make_scorer, precision_score,
                              recall_score)
@@ -28,12 +28,12 @@ def test_corpus(corpus: str):
     cv = LeaveOneGroupOut()
     reps = 1
 
-    dataset = LabelledDataset('datasets/{}/files.txt'.format(corpus))
+    dataset = LabelledDataset(f'datasets/{corpus}/files.txt')
     dataset.pad_arrays()
     dataset.clip_arrays
 
     def model_fn():
-        model = latif2019_model(dataset.n_classes)
+        model = _model(dataset.n_classes)
         model.compile(
             optimizer=RMSprop(learning_rate=0.0001),
             loss='sparse_categorical_crossentropy',
@@ -56,7 +56,7 @@ def test_corpus(corpus: str):
         })
 
     for rep in range(1, reps + 1):
-        print("Rep {}/{}".format(rep, reps))
+        print(f"Rep {rep}/{reps}")
         fold = 1
         scores = defaultdict(list)
         for train, _test in cv.split(dataset.x, dataset.y,
@@ -68,7 +68,7 @@ def test_corpus(corpus: str):
             _test_y = dataset.y[_test]
             for valid, test in cv.split(_test_x, _test_y,
                                         dataset.speaker_indices[_test]):
-                print("Fold {}/{}".format(fold, len(dataset.speakers)))
+                print(f"Fold {fold}/{len(dataset.speakers)}")
                 callbacks = [
                     EarlyStopping(monitor='val_uar', patience=20,
                                   restore_best_weights=True, mode='max'),
@@ -87,8 +87,8 @@ def test_corpus(corpus: str):
                 )
                 for k in _scores:
                     scores[k].append(_scores[k])
-                print("Fold {} finished after {} epochs.".format(
-                    fold, len(_scores['history']['loss'])))
+                n_epochs = len(_scores['history']['loss'])
+                print(f"Fold {fold} finished after {n_epochs} epochs.")
                 fold += 1
 
         mean_scores = {k[5:]: np.mean(v) for k, v in scores.items()
@@ -106,7 +106,7 @@ def test_corpus(corpus: str):
     output_dir = Path('results') / 'latif2019' / corpus / 'model'
     output_dir.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_dir / 'raw_audio.csv')
-    print("Wrote CSV to {}.".format(output_dir / 'raw_audio.csv'))
+    print(f"Wrote CSV to {output_dir / 'raw_audio.csv'}")
 
 
 def main():
@@ -115,7 +115,7 @@ def main():
         tf.config.experimental.set_memory_growth(gpu, True)
 
     # Print model structure summary
-    model = latif2019_model(4)
+    model = _model(4)
     model.summary()
     del model
     tf.keras.backend.clear_session()

@@ -1,33 +1,36 @@
 """Batch process a list of files in a dataset using the openSMILE Toolkit."""
 
-import argparse
 import subprocess
+import shutil
 import sys
 import tempfile
 from pathlib import Path
-from typing import List, Union
+from typing import Sequence, Tuple, Union
 
+import click
 import numpy as np
 import pandas as pd
 from emorec.dataset import get_audio_paths, write_netcdf_dataset
+from emorec.utils import PathlibPath
 from joblib import Parallel, delayed
 
+OPENSMILE_DIR = Path('third_party', 'opensmile')
+DEFAULT_CONF = OPENSMILE_DIR / 'conf' / 'IS09.conf'
+OPENSMILE_BIN = OPENSMILE_DIR / 'SMILExtract'
 if sys.platform == 'win32':
-    OPENSMILE_BIN = 'third_party\\opensmile\\SMILExtract.exe'
-else:
-    OPENSMILE_BIN = 'third_party/opensmile/SMILExtract'
+    OPENSMILE_BIN = OPENSMILE_BIN.with_suffix('.exe')
 
 
 def opensmile(path: Union[str, Path], config: Union[str, Path],
               tmp: Union[str, Path] = 'tmp', debug: bool = False,
-              restargs: List[str] = []):
+              restargs: Sequence[str] = []):
     name = Path(path).stem
-    output_file = Path(tmp) / '{}.csv'.format(name)
+    output_file = Path(tmp) / f'{name}.csv'
     if output_file.exists():
         output_file.unlink()
 
     smile_args = [
-        OPENSMILE_BIN,
+        str(OPENSMILE_BIN),
         '-C', str(config),
         '-I', str(path),
         '-csvoutput', str(output_file),
@@ -37,10 +40,8 @@ def opensmile(path: Union[str, Path], config: Union[str, Path],
         *restargs
     ]
 
-    stdout = subprocess.DEVNULL
-    if debug:
-        stdout = None
-    subprocess.run(smile_args, stdout=stdout, stderr=subprocess.STDOUT)
+    subprocess.run(smile_args, stdout=None if debug else subprocess.DEVNULL,
+                   stderr=subprocess.STDOUT, shell=False)
 
 
 def process_csv(path: Union[str, Path]):
@@ -48,72 +49,53 @@ def process_csv(path: Union[str, Path]):
     return df.iloc[:, 1:]
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Processes audio data using openSMILE.")
-    # Required args
-    required_args = parser.add_argument_group('Required args')
-    required_args.add_argument('--corpus', type=str, required=True,
-                               help="Corpus to process")
-    required_args.add_argument('--config', type=Path, required=True,
-                               help="Config file to use")
-    required_args.add_argument('input', type=Path,
-                               help="File containing list of files")
-    required_args.add_argument('output', type=Path, help="Output file.")
+@click.command()
+@click.argument('corpus', type=str)
+@click.argument('input', type=PathlibPath(exists=True, dir_okay=False))
+@click.argument('output', type=Path)
+@click.option('--config', type=Path, default=DEFAULT_CONF)
+@click.option('--debug', is_flag=True)
+@click.argument('smileargs', nargs=-1)
+def main(corpus: str, input: Path, output: Path, config: Path, debug: bool,
+         smileargs: Tuple[str]):
 
-    # Flags
-    parser.add_argument('--debug', action='store_true',
-                        help="For debugging")
-
-    # Optional args
-    parser.add_argument('--type', default='classification',
-                        help="Type of annotations")
-    parser.add_argument('--annotations', type=Path, help="Annotations file")
-
-    args, restargs = parser.parse_known_args()
-
-    if not args.config.exists():
+    if not config.exists():
         raise FileNotFoundError("Config file doesn't exist")
 
-    input_list = get_audio_paths(args.input)
+    input_list = get_audio_paths(input)
     names = sorted(f.stem for f in input_list)
 
-    allowed_types = ['regression', 'classification']
-    if args.type not in allowed_types:
-        raise ValueError("--type must be one of", allowed_types)
+    tmp = tempfile.mkdtemp(prefix='opensmile_', suffix=f'_{corpus}')
+    print(f"Using temp directory {tmp}")
+    parallel_args = dict(n_jobs=1 if debug else -1, verbose=1)
+    Parallel(prefer='threads', **parallel_args)(
+        delayed(opensmile)(path, config, tmp, debug, smileargs)
+        for path in input_list
+    )
 
-    with tempfile.TemporaryDirectory(prefix='opensmile',
-                                     suffix=args.corpus) as tmp:
-        parallel_args = dict(n_jobs=1 if args.debug else -1, verbose=1)
-        Parallel(prefer='threads', **parallel_args)(
-            delayed(opensmile)(path, args.config, tmp, args.debug, restargs)
-            for path in input_list
+    tmp_files = [Path(tmp) / f'{name}.csv' for name in names]
+    missing = [f for f in tmp_files if not f.exists()]
+    if len(missing) > 0:
+        raise RuntimeError(
+            "Not all audio files were processed properly. These files are "
+            "missing:\n" + '\n'.join(map(str, missing))
         )
-
-        tmp_files = [Path(tmp) / '{}.csv'.format(name) for name in names]
-        missing = [f for f in tmp_files if not f.exists()]
-        if len(missing) > 0:
-            msg = "Not all audio files were processed properly. These files " \
-                  "are missing:\n" + '\n'.join(map(str, missing))
-            raise RuntimeError(msg)
-        # Use CPUs for this because I don't think it releases the GIL
-        # for the whole processing.
-        arr_list = Parallel(**parallel_args)(
-            delayed(process_csv)(path) for path in tmp_files
-        )
+    # Use CPUs for this because I don't think it releases the GIL
+    # for the whole processing.
+    arr_list = Parallel(**parallel_args)(delayed(process_csv)(path)
+                                         for path in tmp_files)
+    shutil.rmtree(tmp)
 
     # This should be a 2D array
     full_array = np.concatenate(arr_list, axis=0)
     assert len(full_array.shape) == 2
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
+    output.parent.mkdir(parents=True, exist_ok=True)
     write_netcdf_dataset(
-        args.output, corpus=args.corpus, names=names, features=full_array,
-        slices=[x.shape[0] for x in arr_list],
-        annotation_path=args.annotations, annotation_type=args.type
+        output, corpus=corpus, names=names, features=full_array,
+        slices=[x.shape[0] for x in arr_list]
     )
-
-    print("Wrote netCDF dataset to {}".format(args.output))
+    print(f"Wrote netCDF dataset to {output}")
 
 
 if __name__ == "__main__":

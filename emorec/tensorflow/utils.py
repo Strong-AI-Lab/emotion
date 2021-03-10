@@ -5,8 +5,8 @@ import tensorflow as tf
 from tensorflow.keras.layers import Layer, Wrapper
 from tensorflow.keras.models import Model
 
-TFModelFunction = Callable[[], Model]
-DataFunction = Callable[[np.ndarray, np.ndarray], tf.data.Dataset]
+TFModelFunction = Callable[..., Model]
+DataFunction = Callable[..., tf.data.Dataset]
 
 
 def test_fit(model_fn: TFModelFunction, input_size: Tuple[int], *args,
@@ -40,8 +40,9 @@ def test_fit(model_fn: TFModelFunction, input_size: Tuple[int], *args,
     model.summary()
 
     valid = num_instances // 10
-    x = np.random.default_rng().normal(size=(num_instances,) + input_size)
-    y = np.random.default_rng().integers(7, size=num_instances)
+    rng = np.random.default_rng()
+    x = rng.normal(size=(num_instances,) + input_size)
+    y = rng.integers(7, size=num_instances)
     train_data = tf.data.Dataset.from_tensor_slices((x[valid:], y[valid:]))
     train_data = train_data.batch(batch_size)
     valid_data = tf.data.Dataset.from_tensor_slices((x[:valid], y[:valid]))
