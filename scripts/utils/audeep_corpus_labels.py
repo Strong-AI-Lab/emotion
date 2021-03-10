@@ -7,24 +7,30 @@ from pathlib import Path
 
 import netCDF4
 import numpy as np
-from emorec.dataset import parse_classification_annotations
+from emorec.dataset import parse_annotations
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('input')
-    parser.add_argument('--labels', required=True)
+    parser.add_argument('corpus')
+    parser.add_argument('labels')
     args = parser.parse_args()
 
-    labels = parse_classification_annotations(args.labels)
+    labels = parse_annotations(args.labels)
 
     dataset = netCDF4.Dataset(args.input, 'a')
+    dataset.setncattr_string('corpus', args.corpus)
     names = [Path(x).stem for x in dataset.variables['filename']]
-    label_arr = [labels[x] for x in names]
-    dataset.variables['label_nominal'] = np.array(label_arr)
-    dataset.variables['filename'] = np.array(names)
+    label_arr = list(map(labels.get, names))
+    dataset.variables['label_nominal'][:] = np.array(label_arr)
+    dataset.variables['filename'][:] = np.array(names)
+    var = dataset.createVariable('label', str, ('instance',))
+    var[:] = np.array(label_arr)
+    var = dataset.createVariable('name', str, ('instance',))
+    var[:] = np.array(names)
     dataset.close()
-    print("Changed corpus to {} in {}".format(args.corpus, args.input))
+    print(f"Changed corpus to {args.corpus} in {args.input}")
 
 
 if __name__ == "__main__":

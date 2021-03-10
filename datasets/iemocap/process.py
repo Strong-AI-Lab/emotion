@@ -19,7 +19,7 @@ from pathlib import Path
 import click
 import numpy as np
 import pandas as pd
-from emorec.dataset import resample_audio, write_filelist, write_labels
+from emorec.dataset import resample_audio, write_filelist, write_annotations
 from emorec.stats import alpha
 from emorec.utils import PathlibPath
 
@@ -57,7 +57,7 @@ def main(input_dir: Path):
 
     dimensions = {}
     labels = {}
-    ratings = []
+    _ratings = []
     for filename in input_dir.glob('Session?/dialog/EmoEvaluation/*.txt'):
         with open(filename) as fid:
             name = ''
@@ -70,17 +70,18 @@ def main(input_dir: Path):
                     dimensions[name] = list(map(float, match.group(5, 6, 7)))
                 elif line.startswith('C'):
                     # C is classification
-                    rater, annotations = line.strip().split(':')
+                    rater, _annotations = line.strip().split(':')
                     rater = rater.strip().split('-')[1]
                     if rater[0] in 'MF':
                         # M or F refer to self-evalulation
                         continue
-                    *annotations, comments = annotations.strip().split(';')
+                    *annotations, comments = _annotations.strip().split(';')
                     label = annotations[0].strip()
-                    ratings.append((name, rater, label))
+                    _ratings.append((name, rater, label))
     write_filelist([p for p in resample_dir.glob('*.wav')
                     if labels[p.stem] not in unused_emotions])
-    write_labels({n: emotion_map[labels[n]] for n in labels})
+    write_annotations({n: emotion_map[labels[n]] for n in labels})
+    write_annotations({p.stem: p.stem[3:6] for p in paths}, 'speaker')
 
     # Aggregated dimensional annotations per utterance
     df = pd.DataFrame.from_dict(dimensions, orient='index',
@@ -88,23 +89,24 @@ def main(input_dir: Path):
     df.index.name = 'Name'
     for dim in ['Valence', 'Activation', 'Dominance']:
         df[dim].to_csv(dim.lower() + '.csv', index=True, header=True)
-        print("Wrote CSV to {}".format(dim.lower() + '.csv'))
+        print(f"Wrote CSV to {dim.lower()}.csv")
 
     # Ratings analysis
-    ratings = pd.DataFrame(sorted(ratings), columns=['name', 'rater', 'label'])
+    ratings = pd.DataFrame(sorted(_ratings), columns=['name', 'rater',
+                                                      'label'])
 
     # There are 3 (non-self) raters per utterance. Agreement is the
     # proportion of labels which are the same. This formula only works
     # for 3 raters.
     agreement = np.mean((4 - ratings.groupby('name')['label'].nunique()) / 3)
-    print("Mean label agreement: {:.3f}".format(agreement))
+    print(f"Mean label agreement: {agreement:.3f}")
 
     # Simple way to get int matrix of labels for raters x clips
     data = (ratings.set_index(['rater', 'name'])['label'].astype('category')
             .cat.codes.unstack() + 1)
     data[data.isna()] = 0
     data = data.astype(int).to_numpy()
-    print("Krippendorf's alpha: {:.3f}".format(alpha(data)))
+    print(f"Krippendorf's alpha: {alpha(data):.3f}")
 
 
 if __name__ == "__main__":

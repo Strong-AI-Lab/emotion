@@ -8,7 +8,7 @@ import numpy as np
 import soundfile
 import tensorflow as tf
 
-from emorec.dataset import parse_classification_annotations
+from emorec.dataset import parse_annotations
 
 parser = argparse.ArgumentParser()
 parser.add_argument('input', type=Path,
@@ -58,7 +58,7 @@ def main():
             filenames = [x.strip() for x in fid.readlines()]
         if not args.labels:
             raise ValueError("Labels must be provided for raw audio dataset")
-        label_dict = parse_classification_annotations(args.labels)
+        label_dict = parse_annotations(args.labels)
         for filename in filenames:
             Path(filename).stem
             audio, sr = soundfile.read(filename, dtype=np.float32)

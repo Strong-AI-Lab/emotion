@@ -1,6 +1,5 @@
 import argparse
 import time
-from os import PathLike
 from pathlib import Path
 from typing import Any, Dict, Union
 
@@ -15,6 +14,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from emorec.dataset import write_netcdf_dataset
+from emorec.utils import PathOrStr
 
 # Workaround for having both PyTorch and TensorFlow installed.
 import tensorflow as tf
@@ -111,7 +111,7 @@ def get_latest_save(directory: Union[str, Path]) -> Path:
     saves = list(directory.glob('model-*.pt'))
     if len(saves) == 0:
         raise FileNotFoundError(
-            "No save files found in directory {}".format(directory))
+            f"No save files found in directory {directory}")
     return max(saves, key=lambda p: int(p.stem.split('-')[1]))
 
 
@@ -119,7 +119,7 @@ def save_model(directory: Union[Path, str], epoch: int,
                model: TimeRecurrentAutoencoder, model_args: Dict[str, Any],
                optimiser: Adam, optimiser_args: Dict[str, Any]):
     """Saves the given model and associated training parameters."""
-    save_path = Path(directory) / 'model-{:04d}.pt'.format(epoch)
+    save_path = Path(directory) / f'model-{epoch:04d}.pt'
     torch.save(
         {
             'epoch': epoch,
@@ -130,20 +130,15 @@ def save_model(directory: Union[Path, str], epoch: int,
         },
         save_path
     )
-    print("Saved model to {}.".format(save_path))
+    print(f"Saved model to {save_path}.")
 
 
-def get_data(path: Union[PathLike, str], shuffle: bool = False):
-    """Get data and metadata from netCDF dataset. Optionally shuffle x.
-    """
+def get_data(path: PathOrStr, shuffle: bool = False):
+    """Get data and metadata from netCDF dataset. Optionally shuffle x."""
     dataset = netCDF4.Dataset(path)
     x = np.array(dataset.variables['features'])
     num_inst = dataset.dimensions['instance'].size
-    filenames = np.array(dataset.variables['filename'])
-    try:
-        labels = np.array(dataset.variables['label_nominal'])
-    except KeyError:
-        labels = []
+    filenames = np.array(dataset.variables['name'])
     corpus = dataset.corpus
     dataset.close()
 
@@ -156,15 +151,13 @@ def get_data(path: Union[PathLike, str], shuffle: bool = False):
         perm = np.random.default_rng().permutation(len(x))
         x = x[perm]
         filenames = filenames[perm]
-        if len(labels) > 0:
-            labels = labels[perm]
 
-    return x, filenames, labels, corpus
+    return x, filenames, corpus
 
 
 def train(args):
-    print("Reading input from {}.".format(args.input))
-    x = get_data(args.input, shuffle=True)[0]
+    print(f"Reading input from {args.input}")
+    x, *_ = get_data(args.input, shuffle=True)[0]
     x = torch.tensor(x)
 
     n_valid = int(args.valid_fraction * x.size(0))
@@ -197,7 +190,7 @@ def train(args):
     optimiser = Adam(model.parameters(), **optimiser_args)
 
     if args.cont:
-        print("Restoring model from {}".format(save_path))
+        print(f"Restoring model from {save_path}")
         model.load_state_dict(load_dict['model_state_dict'])
         optimiser.load_state_dict(load_dict['optimiser_state_dict'])
 
@@ -213,8 +206,8 @@ def train(args):
         start_time = time.perf_counter()
         model.train()
         train_losses = []
-        for x, in tqdm(train_dl, desc='Epoch {:03d}'.format(epoch),
-                       unit='batch', leave=False):
+        for x, in tqdm(train_dl, desc=f'Epoch {epoch:03d}', unit='batch',
+                       leave=False):
             x = x.to(DEVICE)
             optimiser.zero_grad()
             reconstruction, representation = model(x)
@@ -260,13 +253,11 @@ def train(args):
             valid_writer.add_scalar('loss', valid_loss, global_step=epoch)
 
             end_time = time.perf_counter() - start_time
-
+            mean_time = train_time / len(train_dl)
             print(
-                "Epoch {:03d} in {:.2f}s ({:.2f}s per batch), train loss: "
-                "{:.4f}, valid loss: {:.4f}".format(
-                    epoch, end_time, train_time / len(train_dl), train_loss,
-                    valid_loss
-                )
+                f"Epoch {epoch:03d}: {end_time:.2f}s ({mean_time:.2f}s per "
+                f"batch), train loss: {train_loss:.4f}, valid loss: "
+                f"{valid_loss:.4f}"
             )
 
         if epoch % args.save_every == 0:
@@ -286,13 +277,13 @@ def generate(args):
         save_path = get_latest_save(args.model)
     else:
         save_path = args.model
-    print("Restoring model from {}.".format(save_path))
+    print(f"Restoring model from {save_path}")
     load_dict = torch.load(save_path)
     model = TimeRecurrentAutoencoder(**load_dict['model_args'])
     model.cuda()
     model.load_state_dict(load_dict['model_state_dict'])
 
-    x, filenames, labels, corpus = get_data(args.input)
+    x, filenames, corpus = get_data(args.input)
 
     representations = []
     with torch.no_grad():
@@ -303,19 +294,11 @@ def generate(args):
             representations.append(representation.cpu().numpy())
     representations = np.concatenate(representations)
 
-    valid_writer = SummaryWriter(save_path.parent / 'embedding')
-    valid_writer.add_embedding(
-        representations, list(zip(filenames, labels)), tag=corpus,
-        global_step=load_dict['epoch'], metadata_header=['filenames', 'labels']
-    )
-
-    annotation_path = Path('datasets') / corpus / 'labels.csv'
     write_netcdf_dataset(
         args.output, corpus=corpus, names=filenames,
-        features=representations, slices=np.arange(len(filenames)),
-        annotation_path=annotation_path, annotation_type='classification'
+        features=representations, slices=np.arange(len(filenames))
     )
-    print("Wrote netCDF4 file to {}.".format(args.output))
+    print(f"Wrote netCDF4 file to {args.output}")
 
 
 def main():

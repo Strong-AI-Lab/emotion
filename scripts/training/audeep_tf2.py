@@ -134,8 +134,8 @@ def train(args):
     )
     if args.cont:
         checkpoint.restore(checkpoint_manager.latest_checkpoint)
-        print("Restoring from checkpoint {}.".format(
-            checkpoint_manager.latest_checkpoint))
+        print(f"Restoring from checkpoint "
+              f"{checkpoint_manager.latest_checkpoint}")
 
     train_step, test_step = _make_functions(model, optimizer, strategy)
 
@@ -149,7 +149,7 @@ def train(args):
         for batch in tqdm(
                 train_data,
                 total=n_train_batches,
-                desc="Epoch {:03d}".format(epoch),
+                desc=f"Epoch {epoch:03d}",
                 unit='batch'):
             if epoch == 2 and n_batch == 0 and args.profile:
                 tf.profiler.experimental.start(args.logdir)
@@ -170,9 +170,9 @@ def train(args):
 
         epoch_time = time.perf_counter() - epoch_time
         print(
-            "Epoch {:03d}: train loss: {:.4f}, valid loss: {:.4f} in {:.2f}s "
-            "({:.2f}s per batch).".format(epoch, train_loss, valid_loss,
-                                          epoch_time, batch_time)
+            f"Epoch {epoch:03d}: train loss: {train_loss:.4f}, valid loss: "
+            f"{valid_loss:.4f} in {epoch_time:.2f}s ({batch_time:.2f}s per "
+            "batch)."
         )
 
         with valid_writer.as_default():
@@ -192,20 +192,20 @@ def train(args):
 
         if epoch % args.save_interval == 0:
             checkpoint_manager.save(checkpoint_number=epoch)
-            print("Saved checkpoint to {}.".format(
-                checkpoint_manager.latest_checkpoint))
+            print(f"Saved checkpoint to "
+                  f"{checkpoint_manager.latest_checkpoint}")
 
     save_path = str(args.logs / 'model')
     model.save(save_path, include_optimizer=False)
-    print("Saved model to {}.".format(save_path))
+    print(f"Saved model to {save_path}")
 
 
 def generate(args):
     dataset = netCDF4.Dataset(args.dataset)
     data = tf.data.Dataset.from_tensor_slices(
         dataset.variables['features']).batch(args.batch_size)
-    filenames = np.array(dataset.variables['filename'])
-    labels = np.array(dataset.variables['label_nominal'])
+    filenames = np.array(dataset.variables['name'])
+    labels = np.array(dataset.variables['label'])
     corpus = dataset.corpus
     dataset.close()
 
@@ -213,7 +213,7 @@ def generate(args):
     # Optimise model call function
     model.call = tf.function(model.call)
 
-    print("Read dataset from {}.".format(args.dataset))
+    print(f"Read dataset from {args.dataset}")
 
     representations = []
     for batch in tqdm(data):
@@ -225,10 +225,10 @@ def generate(args):
     dataset.createDimension('instance', len(filenames))
     dataset.createDimension('generated', representations.shape[-1])
 
-    filename = dataset.createVariable('filename', str, ('instance',))
+    filename = dataset.createVariable('name', str, ('instance',))
     filename[:] = filenames
 
-    label_nominal = dataset.createVariable('label_nominal', str, ('instance',))
+    label_nominal = dataset.createVariable('label', str, ('instance',))
     label_nominal[:] = labels
 
     features = dataset.createVariable('features', np.float32,
@@ -239,7 +239,7 @@ def generate(args):
     dataset.setncattr_string('corpus', corpus)
     dataset.close()
 
-    print("Wrote netCDF4 file to {}.".format(args.output))
+    print(f"Wrote netCDF4 file to {args.output}")
 
 
 def main():

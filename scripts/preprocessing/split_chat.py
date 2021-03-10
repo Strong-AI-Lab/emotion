@@ -1,10 +1,12 @@
 """Splits a CHAT file into respective turns designated by timecodes."""
 
-import argparse
 import re
 from pathlib import Path
+from typing import Tuple
 
+import click
 import soundfile
+from emorec.utils import PathlibPath
 from joblib import Parallel, delayed
 
 REGEX = re.compile(
@@ -29,31 +31,24 @@ def process(path: Path, out_dir: Path, prefix: str = ''):
             s_sam = int(s_ms * sr / 1000)
             e_sam = int(e_ms * sr / 1000)
             if s_sam > len(audio):
-                print("WARNING: audio {} shorter than expected.".format(path))
+                print(f"WARNING: audio {path} shorter than expected.")
                 break
-            out_name = '{}{}_{:03d}_{}'.format(prefix, path.stem, i + 1,
-                                               match[1])
+            out_name = f'{prefix}{path.stem}_{i + 1:03d}_{match[1]}'
             split = audio[s_sam:e_sam]
             out_file = out_dir / (out_name + '.wav')
             soundfile.write(out_file, split, sr)
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('input', type=Path, nargs='+',
-                        help="Input director(y|ies).")
-    parser.add_argument('--output', type=Path, required=True,
-                        help="Output directory.")
-    parser.add_argument('--prefix', type=str, default='', help="Name prefix.")
-    args = parser.parse_args()
-
-    args.output.mkdir(parents=True, exist_ok=True)
-    for path in args.input:
-        print("Processing directory {}".format(path))
+@click.command()
+@click.argument('input', type=PathlibPath(exists=True), nargs=-1)
+@click.argument('output', type=Path)
+@click.option('--prefix', type=str, default='')
+def main(input: Tuple[Path], output: Path, prefix: str):
+    output.mkdir(parents=True, exist_ok=True)
+    for path in input:
+        print(f"Processing directory {path}")
         Parallel(n_jobs=-1, prefer='threads', verbose=1)(
-            delayed(process)(p, args.output, args.prefix)
-            for p in path.glob('**/*.wav')
-        )
+            delayed(process)(p, output, prefix) for p in path.glob('**/*.wav'))
 
 
 if __name__ == "__main__":

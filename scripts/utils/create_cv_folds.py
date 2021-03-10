@@ -1,38 +1,36 @@
-"""Create directory structure with cross-validation folds."""
-
-import argparse
 import shutil
+from collections import defaultdict
 from pathlib import Path
+from typing import Dict, List
 
-from emorec.dataset import corpora, parse_classification_annotations
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--corpus', required=True, type=str)
-parser.add_argument('--output', help="Directory in which to place folds.",
-                    required=True, type=Path)
-parser.add_argument('--input_list', required=True, type=Path,
-                    help="File containing list of filenames")
-parser.add_argument('--annotations', help="Annotations file", type=Path)
+import click
+from emorec.dataset import get_audio_paths, parse_annotations
+from emorec.utils import PathlibPath
 
 
-def main():
-    args = parser.parse_args()
+@click.command()
+@click.argument('input', type=PathlibPath(exists=True, dir_okay=False))
+@click.argument('labels', type=PathlibPath(exists=True, dir_okay=False))
+@click.argument('speakers', type=PathlibPath(exists=True, dir_okay=False))
+@click.argument('output', type=Path)
+def main(input: Path, labels: Path, speakers: Path, output: Path):
+    """Create directory structure with speaker-independent
+    cross-validation folds. Each speaker has a directory which is
+    patitioned by label.
+    """
 
-    annotations = parse_classification_annotations(args.annotations)
+    spk_dict = parse_annotations(speakers, dtype=str)
+    paths = get_audio_paths(input)
+    speaker_paths: Dict[str, List[Path]] = defaultdict(list)
+    for path in paths:
+        speaker_paths[spk_dict[path.stem]].append(path)
 
-    get_speaker = corpora[args.corpus].get_speaker
-    speakers = {s: [] for s in corpora[args.corpus].speakers}
-    with open(args.input_list) as fid:
-        for line in fid:
-            filepath = Path(line.strip())
-            speaker = get_speaker(filepath.stem)
-            speakers[speaker].append(filepath)
-
-    for i, speaker in enumerate(speakers.keys()):
-        for path in speakers[speaker]:
-            emotion = annotations[path.stem]
-            fold = 'fold_{:d}'.format(i + 1)
-            newpath = args.output / fold / emotion / path.name
+    lbl_dict = parse_annotations(labels)
+    for i, speaker in enumerate(speaker_paths.keys()):
+        for path in speaker_paths[speaker]:
+            emotion = lbl_dict[path.stem]
+            fold = f'fold_{i + 1:d}'
+            newpath = output / fold / emotion / path.name
             newpath.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(str(path), str(newpath))
             print(newpath)

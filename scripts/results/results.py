@@ -65,7 +65,7 @@ def subs(x: str) -> str:
 
 
 def latex_subs(x: str) -> str:
-    return x.replace('_', '\\_')
+    return subs(x).replace('_', '\\_')
 
 
 def substitute_labels(df: pd.DataFrame):
@@ -75,17 +75,16 @@ def substitute_labels(df: pd.DataFrame):
 
 def fmt(f: float) -> str:
     if not math.isnan(f):
-        return '{:#.3g}'.format(100 * f)
+        return f'{100 * f:#.3g}'
     return ''
 
 
 def to_latex(df: pd.DataFrame, output: str, label: str, caption: str):
     df = df.copy()  # So that we don't modify the original frame
-    df.columns = df.columns.map(
-        itmap(lambda x: '\\rotatebox{{90}}{{{}}}'.format(x)))
-    df.columns = df.columns.map(itmap(latex_subs)).map(itmap(subs))
+    df.columns = df.columns.map(itmap(lambda x: f'\\rotatebox{{90}}{{{x}}}'))
+    df.columns = df.columns.map(itmap(latex_subs))
     df.columns.name = None
-    df.index = df.index.map(itmap(latex_subs)).map(itmap(subs))
+    df.index = df.index.map(itmap(latex_subs))
     df.to_latex(output, float_format=fmt, longtable=False, na_rep='',
                 escape=False, caption=caption, label=label)
 
@@ -145,19 +144,19 @@ def main():
     args = parser.parse_args()
 
     if args.results.is_file():
-        logger.info("Found results cache at {}.".format(str(args.results)))
+        logger.info(f"Found results cache at {args.results}")
         df = pd.read_csv(args.results, index_col=[0, 1, 2])
     else:
         dirs = sorted([d for d in args.results.glob('*') if d.is_dir()])
 
         uar_list = {}
         for d in dirs:
-            logger.info("Reading directory {}".format(d))
+            logger.info(f"Reading directory {d}")
             table = {}
             df_list = {}
             for filename in [x for x in sorted(d.glob('**/*.csv'))
                              if re.search(args.regex, str(x))]:
-                logger.debug("Found file {}".format(filename))
+                logger.debug(f"Found file {filename}")
                 name = filename.relative_to(d).with_suffix('')
                 df_list[name] = pd.read_csv(filename, header=0, index_col=0)
             if not df_list:

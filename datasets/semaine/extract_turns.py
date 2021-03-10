@@ -50,8 +50,7 @@ def main(combined: Path):
                 start = words[0][0]
                 end = words[-1][1]
 
-                name = "{:02d}_{}_{:03d}".format(int(recording_dir.stem), p,
-                                                 turn)
+                name = f"{int(recording_dir.stem):02d}_{p}_{turn:03d}"
                 filename = name + '.wav'
                 soundfile.write(out_dir / filename, audio[start:end],
                                 samplerate=16000)
@@ -67,7 +66,7 @@ def main(combined: Path):
 
     df.index.name = 'Name'
     for c in df.columns:
-        df[c].to_csv('{}.csv'.format(c.lower()))
+        df[c].to_csv(f'{c.lower()}.csv')
 
 
 if __name__ == "__main__":

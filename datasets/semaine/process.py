@@ -1,5 +1,7 @@
 import re
+from collections import defaultdict
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 from xml.etree import ElementTree as ET
 
 import click
@@ -18,7 +20,10 @@ def main(sess_dir: Path, output: Path):
 
     By default SESS_DIR is assumed to be `Sessions/`.
     """
-    recordings = {}
+    recordings: Dict[int, List[Tuple[
+        int, str, Optional[Path], Optional[Path], Optional[Path],
+        Optional[Path], Optional[Path], Dict[str, Dict[int, Path]]
+    ]]] = defaultdict(list)
     session_dirs = sess_dir.glob('*')
     for session_dir in session_dirs:
         session_id = int(session_dir.stem)
@@ -37,7 +42,7 @@ def main(sess_dir: Path, output: Path):
             r'^alignedTranscript_[0-9]+.*\.txt', f.name)), None)
         feeltraces = [f for f in files if re.search(
             r'[AR][0-9].*\.txt', f.name)]
-        annotations = {}
+        annotations: Dict[str, Dict[int, Path]] = {}
         for trace in feeltraces:
             match = re.search(
                 r'[AR]([0-9]+)[RS]([0-9]+)TUC(Ob|Po|Pr|Sp)2?D([AEPV])\.txt',
@@ -54,8 +59,6 @@ def main(sess_dir: Path, output: Path):
             r'Operator HeadMounted.*\.wav', f.name)), None)
         user_audio_path = next((f for f in files if re.search(
             r'User HeadMounted.*\.wav', f.name)), None)
-        if recording not in recordings:
-            recordings[recording] = []
         session_info = (session_id,
                         character,
                         operator_audio_path,
@@ -75,7 +78,7 @@ def main(sess_dir: Path, output: Path):
         concat_transcript = ''
         emotion_data = {}
         sessions = sorted(sessions, key=lambda x: x[0])
-        print("Recording {}:".format(recording))
+        print(f"Recording {recording}:")
         for (session_id,
              character,
              operator_audio_path,
@@ -86,12 +89,12 @@ def main(sess_dir: Path, output: Path):
              annotations) in sessions:
             if (character.lower() in ['beginning', 'end', 'forbidden']
                     or not words_user_path):
-                print("\tSession {} skipped due to having no transcript."
-                      .format(session_id))
+                print(f"\tSession {session_id} skipped due to having no "
+                      "transcript.")
                 print()
                 continue
 
-            print("\tSession {}:".format(session_id))
+            print(f"\tSession {session_id}:")
 
             for emotion in annotations:
                 rater_data = []
@@ -134,8 +137,8 @@ def main(sess_dir: Path, output: Path):
 
             min_size = num_indices
             if max_size - min_size > 2:
-                print("\t WARNING: Annotation length difference: {}".format(
-                    max_size - min_size))
+                print("\t WARNING: Annotation length difference: "
+                      f"{max_size - min_size}")
 
             if transcript_path:
                 print('\t', transcript_path.name)
@@ -151,7 +154,8 @@ def main(sess_dir: Path, output: Path):
                         line = '{} {} {}\n'.format(
                             int(m.group(1)) + duration,
                             int(m.group(2)) + duration,
-                            m.group(3))
+                            m.group(3)
+                        )
                     concat_words_user += line
 
             if words_operator_path:
@@ -164,7 +168,8 @@ def main(sess_dir: Path, output: Path):
                             line = '{} {} {}\n'.format(
                                 int(m.group(1)) + duration,
                                 int(m.group(2)) + duration,
-                                m.group(3))
+                                m.group(3)
+                            )
                         concat_words_operator += line
 
             audio, _ = soundfile.read(user_audio_path)

@@ -1,12 +1,14 @@
-import argparse
 import os
-import queue
 import subprocess
 import sys
-import threading
 from pathlib import Path
+from queue import Queue
+from threading import Thread
 
-q = queue.Queue()
+import click
+from emorec.utils import PathlibPath
+
+q: Queue[str] = Queue()
 
 
 def worker(gpu: int):
@@ -14,39 +16,42 @@ def worker(gpu: int):
     env.update({'CUDA_VISIBLE_DEVICES': str(gpu), 'PYTHONUNBUFFERED': '1'})
     while not q.empty():
         cmd = q.get()
-        print("Executing command on GPU_{}: {}".format(gpu, cmd))
+        print(f"Executing command on GPU_{gpu}: {cmd}")
         proc = subprocess.Popen(
             cmd, env=env, shell=True, text=True, bufsize=1,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT
         )
-        with proc.stdout:
-            for line in iter(proc.stdout.readline, ''):
-                sys.stdout.write("GPU_{}: {}".format(gpu, line))
-                sys.stdout.flush()
+        if proc.stdout is not None:
+            with proc.stdout:
+                for line in iter(proc.stdout.readline, ''):
+                    sys.stdout.write(f"GPU_{gpu}: {line}")
+                    sys.stdout.flush()
         proc.wait()
         q.task_done()
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        'input', type=Path,
-        help="File containing train commands that can each run on a single "
-             "GPU."
-    )
-    parser.add_argument('--gpus', type=int, default=2, help="Number of GPUs.")
-    args = parser.parse_args()
+@click.command()
+@click.argument('input', type=PathlibPath(exists=True, dir_okay=False))
+@click.option('--gpus', type=int, default=2, help="Number of GPUs")
+def main(input: Path, gpus: int):
+    """Runs all commands specified in the INPUT file, splitting the work
+    across multiple GPUs such that each command runs solely on whichever
+    GPU is next available.
 
-    with open(args.input) as fid:
+    Each GPU is given its own thread that reads from a synchronous queue
+    and runs the command in a shell with the corresponding
+    CUDA_VISIBLE_DEVICES environment variable set appropriately.
+    """
+
+    with open(input) as fid:
         for line in fid:
             line = line.strip()
             if len(line) == 0:
                 continue
             q.put(line)
-            print("Command {}".format(line))
+            print(f"Command {line}")
 
-    threads = [threading.Thread(target=worker, args=(i,))
-               for i in range(args.gpus)]
+    threads = [Thread(target=worker, args=(i,)) for i in range(gpus)]
     for t in threads:
         t.start()
     for t in threads:

@@ -3,14 +3,13 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from typing import (Any, Callable, Dict, Iterable, List, Optional, Sequence,
-                    Tuple)
+                    Tuple, Union)
 
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
 from sklearn.metrics import precision_score, recall_score
-from sklearn.model_selection import (BaseCrossValidator, KFold,
-                                     LeaveOneGroupOut)
+from sklearn.model_selection import BaseCrossValidator, KFold, LeaveOneGroupOut
 
 from .dataset import CombinedDataset, LabelledDataset
 
@@ -25,7 +24,7 @@ class Classifier(abc.ABC):
     @abc.abstractmethod
     def fit(self, x_train: np.ndarray, y_train: np.ndarray,
             x_valid: np.ndarray, y_valid: np.ndarray,
-            fold: Optional[int] = None):
+            fold: Optional[Union[int, str]] = None):
         """Fits this classifier to the training data.
 
         Parameters:
@@ -37,13 +36,13 @@ class Classifier(abc.ABC):
         fold: int, optional, default = 0
             The current fold, for logging purposes.
         """
-        return NotImplementedError()
+        raise NotImplementedError()
 
     @abc.abstractmethod
     def predict(self, x_test: np.ndarray,
                 y_test: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Generates predictions for the given input."""
-        return NotImplementedError()
+        raise NotImplementedError()
 
 
 def within_corpus_cross_validation(model: Classifier,
@@ -105,7 +104,7 @@ def within_corpus_cross_validation(model: Classifier,
         n_splits = splitter.get_n_splits(x_test, y_test, speakers[test])
         if n_splits > 1 and isinstance(splitter, LeaveOneGroupOut):
             for valid, test in splitter.split(x_test, y_test, speakers[test]):
-                print("Fold {}/{}".format(fold, folds))
+                print(f"Fold {fold}/{folds}")
 
                 x_valid = x_test[valid]
                 y_valid = y_test[valid]
@@ -129,7 +128,7 @@ def within_corpus_cross_validation(model: Classifier,
                     x_train, y_train, speakers[train])
 
                 # Select random inner fold to use as validation set
-                r = np.random.randint(n_splits) + 1
+                r = np.random.default_rng().integers(n_splits) + 1
                 splits = splitter.split(x_train, y_train, speakers[train])
                 for _ in range(r):
                     train2, valid = next(splits)
@@ -145,7 +144,7 @@ def within_corpus_cross_validation(model: Classifier,
                 x_valid = x_train
                 y_valid = y_train
 
-            print("Fold {}/{}".format(fold, folds))
+            print(f"Fold {fold}/{folds}")
             model.fit(x_train, y_train, x_valid, y_valid, fold=fold)
             y_pred, y_true = model.predict(x_test, y_test)
             _record_metrics(df, fold, y_true, y_pred, len(classes))
@@ -178,14 +177,14 @@ def cross_corpus_cross_validation(clf: Classifier,
     )
     n_classes = len(combined_dataset.classes)
     for corpus in combined_dataset.corpora:
-        print("Fold {}".format(corpus))
+        print(f"Fold {corpus}")
         test_idx, train_idx = combined_dataset.get_corpus_split(corpus)
         x_train = combined_dataset.x[train_idx]
         y_train = combined_dataset.y[train_idx]
         x_test = combined_dataset.x[test_idx]
         y_test = combined_dataset.y[test_idx]
         for rep in range(reps):
-            print("Rep {}".format(rep))
+            print(f"Rep {rep}")
             clf.fit(x_train, y_train, x_valid=x_train, y_valid=y_train,
                     fold=corpus)
             y_pred, y_true = clf.predict(x_test, y_test)
@@ -214,7 +213,7 @@ def test_one_vs_rest(model_fn,
 
     rec = pd.DataFrame(
         index=pd.RangeIndex(splitter.get_n_splits(
-            dataset.x, dataset.labels[0], dataset.speaker_indices)),
+            dataset.x, dataset.y, dataset.speaker_indices)),
         columns=pd.MultiIndex.from_product(
             [['prec', 'rec'], labels, list(range(reps))],
             names=['metric', 'class', 'rep']))
@@ -313,19 +312,17 @@ def print_results(df: pd.DataFrame):
     print()
     print("Metrics: mean +- std. dev. over folds")
     print("Across reps:")
-    print('           ' + ' '.join(['{:<12}'.format(c) for c in labels]))
+    print('           ' + ' '.join([f'{c:<12}' for c in labels]))
     for metric in metrics:
-        print('{:<4s} {}'.format(metric, ' '.join([
-            '{:<4.2f} +- {:<4.2f}'.format(df[(metric, c)].mean().mean(),
-                                          df[(metric, c)].std().mean())
-            for c in labels
-        ])))
+        class_scores = [
+            f'{df[(metric, c)].mean().mean():<4.2f} +- '
+            f'{df[(metric, c)].mean().std():<4.2f}' for c in labels
+        ]
+        print(f'{metric:<4s} {" ".join(class_scores)}')
     print()
     print("Across classes and reps:")
     for metric in metrics:
-        print('{:<4s}: {:.3f} +- {:.2f} ({:.2f})'.format(
-            metric.upper(), df[metric].mean().mean(), df[metric].std().mean(),
-            df[metric].max().max()
-        ))
+        print(f'{metric.upper():<4s}: {df[metric].mean().mean():.3f} +- '
+              f'{df[metric].mean().std():.2f} ({df[metric].max().max():.2f})')
     print("")
     print()

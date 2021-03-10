@@ -5,7 +5,6 @@ for corpus in cafe crema-d demos emodb emofilm enterface iemocap jl msp-improv p
     python scripts/preprocessing/spectrograms.py \
         datasets/$corpus/files.txt \
         --corpus $corpus \
-        --labels datasets/$corpus/labels.csv \
         --netcdf output/$corpus/spectrograms-5-0.025-0.010-240-60.nc \
         --audeep output/$corpus/spectrograms_audeep-5-0.025-0.010-240-60.nc \
         --length 5 \
@@ -20,7 +19,6 @@ for corpus in cafe crema-d demos emodb emofilm enterface iemocap jl msp-improv p
     python scripts/preprocessing/spectrograms.py \
         datasets/$corpus/files.txt \
         --corpus $corpus \
-        --labels datasets/$corpus/labels.csv \
         --netcdf output/$corpus/spectrograms-5-0.025-0.010-40-60.nc \
         --length 5 \
         --skip 0 \

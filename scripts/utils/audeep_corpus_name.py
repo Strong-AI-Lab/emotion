@@ -18,7 +18,7 @@ def main():
     dataset = netCDF4.Dataset(args.filename, 'a')
     dataset.setncattr_string('corpus', args.corpus)
     dataset.close()
-    print("Changed corpus to {} in {}".format(args.corpus, args.filename))
+    print(f"Changed corpus to {args.corpus} in {args.filename}")
 
 
 if __name__ == "__main__":

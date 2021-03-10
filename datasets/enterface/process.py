@@ -15,7 +15,7 @@ import shutil
 from pathlib import Path
 
 import click
-from emorec.dataset import resample_audio, write_filelist, write_labels
+from emorec.dataset import resample_audio, write_filelist, write_annotations
 from emorec.utils import PathlibPath
 
 emotion_map = {
@@ -50,12 +50,13 @@ def main(input_dir: Path):
     shutil.move('resampled/s16_su_3avi.wav', 'resampled/s16_su_3.wav')
     for f in resample_dir.glob('s_3_*'):
         shutil.move(f, f.with_name(f.name.replace('s_3', 's3')))
-    for f in resample_dir.glob('s6_*'):
-        f.unlink(missing_ok=True)
 
-    newpaths = list(resample_dir.glob('*.wav'))
+    newpaths = list(filter(lambda p: not p.stem.startswith('s6_'),
+                           resample_dir.glob('*.wav')))
     write_filelist(newpaths)
-    write_labels({p.stem: emotion_map[p.stem[-4:-2]] for p in newpaths})
+    write_annotations({p.stem: emotion_map[p.stem[-4:-2]] for p in newpaths})
+    write_annotations({p.stem: p.stem[:p.stem.find('_')] for p in newpaths},
+                      'speaker')
 
 
 if __name__ == "__main__":

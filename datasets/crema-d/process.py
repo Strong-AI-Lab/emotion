@@ -15,7 +15,7 @@ from typing import Dict
 import click
 import pandas as pd
 
-from emorec.dataset import write_filelist, write_labels
+from emorec.dataset import write_filelist, write_annotations
 from emorec.stats import alpha
 from emorec.utils import PathlibPath
 
@@ -31,7 +31,7 @@ emotion_map = {
 
 def write_labelset(name: str, labels: Dict[str, str]):
     df = pd.DataFrame({'Name': labels.keys(), 'Emotion': labels.values()})
-    df.to_csv('labels_{}.csv'.format(name), header=True, index=False)
+    df.to_csv(f'labels_{name}.csv', header=True, index=False)
 
 
 @click.command()
@@ -42,7 +42,8 @@ def main(input_dir: Path):
     paths = list(input_dir.glob('AudioWAV/*.wav'))
     # 1076_MTI_SAD_XX has no audio signal
     write_filelist([p for p in paths if p.stem != '1076_MTI_SAD_XX'])
-    write_labels({p.stem: emotion_map[p.stem[9]] for p in paths})
+    write_annotations({p.stem: emotion_map[p.stem[9]] for p in paths})
+    write_annotations({p.stem: p.stem[:4] for p in paths}, 'speaker')
 
     summaryTable = pd.read_csv('processedResults/summaryTable.csv',
                                low_memory=False, index_col=0)
@@ -52,7 +53,7 @@ def main(input_dir: Path):
         # Proportion of majority vote equivalent to acted emotion
         accuracy = ((summaryTable[mode] == summaryTable['ActedEmo']).sum()
                     / len(summaryTable))
-        print("Acted accuracy using {}: {:.3f}".format(mode, accuracy))
+        print(f"Acted accuracy using {mode}: {accuracy:.3f}")
     print()
 
     # Majority vote annotations from other modalities
@@ -103,16 +104,16 @@ def main(input_dir: Path):
     multiModalResp = goodResponses.query('queryType == 3')
 
     resp_d = {'voice': voiceResp, 'face': faceResp, 'both': multiModalResp}
-    for s, mode in resp_d.items():
+    for s, df in resp_d.items():
         # Proportion of human responses equal to acted emotion
-        accuracy = (mode['respEmo'] == mode['dispEmo']).sum() / len(mode)
-        print("Human accuracy using {}: {:.3f}".format(s, accuracy))
+        accuracy = (df['respEmo'] == df['dispEmo']).sum() / len(df)
+        print(f"Human accuracy using {s}: {accuracy:.3f}")
 
-        dataTable = (mode.set_index(['sessionNums', 'clipNum'])['respEmo']
+        dataTable = (df.set_index(['sessionNums', 'clipNum'])['respEmo']
                      .astype('category').cat.codes.unstack() + 1)
         dataTable[dataTable.isna()] = 0
         data = dataTable.astype(int).to_numpy()
-        print("Krippendorf's alpha using {}: {:.3f}".format(s, alpha(data)))
+        print(f"Krippendorf's alpha using {s}: {alpha(data):.3f}")
         print()
 
     tabulatedVotes = pd.read_csv('processedResults/tabulatedVotes.csv',

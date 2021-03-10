@@ -1,5 +1,3 @@
-"""Filters predictions in a stratified manner."""
-
 from collections import defaultdict
 from pathlib import Path
 
@@ -7,20 +5,26 @@ import click
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from emorec.dataset import corpora
+from emorec.dataset import parse_annotations
 from emorec.utils import PathlibPath
 
 
 @click.command()
 @click.argument('input', type=PathlibPath(exists=True, dir_okay=False))
+@click.argument('speakers', type=PathlibPath(exists=True, dir_okay=False))
 @click.argument('output', type=PathlibPath(dir_okay=False))
-@click.option('--corpus', required=True)
-def main(input: Path, output: Path, corpus: str):
+def main(input: Path, speakers: Path, output: Path):
+    """Filters predictions from INPUT in a stratified manner according
+    to the speakers in SPEAKERS. For each speaker the same number of
+    top/bottom clips are selected. A new CSV file is written to OUTPUT.
+    """
+
     df = pd.read_csv(input, header=0)
     df = df.sort_values('Score', ascending=False)
-    df['Speaker'] = df['Clip'].map(corpora[corpus.lower()].get_speaker)
+    spk_dict = parse_annotations(speakers)
+    df['Speaker'] = df['Clip'].map(spk_dict.get)
 
-    print("Scores for {} clips.".format(len(df)))
+    print(f"Scores for {len(df)} clips.")
     print(df['Score'].describe())
     print()
 
@@ -39,7 +43,7 @@ def main(input: Path, output: Path, corpus: str):
     print(sp_cls)
     print()
 
-    counts = defaultdict(int)
+    counts: defaultdict[str, int] = defaultdict(int)
     for _, row in df.iterrows():
         counts[row['Speaker']] += 1
         if len([x for x in counts if counts[x] >= 20]) >= 5:
@@ -56,7 +60,7 @@ def main(input: Path, output: Path, corpus: str):
 
     output.parent.mkdir(parents=True, exist_ok=True)
     top_speakers[['Clip', 'Score']].to_csv(output, header=True, index=False)
-    print("Wrote CSV to {}".format(output))
+    print(f"Wrote CSV to {output}")
 
 
 if __name__ == '__main__':

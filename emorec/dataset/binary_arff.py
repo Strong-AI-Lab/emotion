@@ -18,16 +18,16 @@ _int_tp = {
 }
 
 MAX_RELATION_LEN = 256
-RELATION_FMT = '<{}s'.format(MAX_RELATION_LEN)
+RELATION_FMT = f'<{MAX_RELATION_LEN}s'
 MAX_ATTR_LEN = 256
-ATTR_FMT = '<{}sB'.format(MAX_ATTR_LEN)
+ATTR_FMT = f'<{MAX_ATTR_LEN}sB'
 MAX_NOM_LEN = 64
-NOM_FMT = '{}s'.format(MAX_NOM_LEN)
+NOM_FMT = f'{MAX_NOM_LEN}s'
 
 
 def _remove_null(b: bytes) -> str:
-    b = b.decode()
-    return b[:b.find('\x00')]
+    s = b.decode()
+    return s[:s.find('\x00')]
 
 
 def encode(fid: RawIOBase, data: dict):

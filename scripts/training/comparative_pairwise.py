@@ -144,7 +144,7 @@ def test_classifier(kind: str,
         type_ = kind[:_slash]
         kind = kind[_slash + 1:]
     for rep in range(1, reps + 1):
-        print("Rep {}/{}".format(rep, reps))
+        print(f"Rep {rep}/{reps}")
         if type_ in ['svm', 'mlp'] or kind == 'rf':
             if type_ == 'mlp':
                 # Force CPU only to do in parallel, supress TF errors
@@ -240,7 +240,7 @@ def test_classifier(kind: str,
     if results:
         results.parent.mkdir(parents=True, exist_ok=True)
         df.to_csv(results)
-        print("Wrote CSV to {}.".format(results))
+        print(f"Wrote CSV to {results}")
     else:
         print(df.to_string())
 

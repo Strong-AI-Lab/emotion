@@ -18,7 +18,7 @@ import click
 import numpy as np
 import pandas as pd
 import soundfile
-from emorec.dataset import write_filelist, write_labels
+from emorec.dataset import write_filelist, write_annotations
 from emorec.utils import PathlibPath
 from joblib import Parallel, delayed
 from nltk.corpus import stopwords
@@ -66,7 +66,7 @@ def process_sess(sess_dir: Path):
                 idx = int(idx)
                 words[idx] = word
     if len(ush_list) == 0 or len(trn_list) == 0:
-        print("Missing USH or TRN for {}".format(sess_dir.name))
+        print(f"Missing USH or TRN for {sess_dir.name}")
         return {}, {}
 
     trn_text = []
@@ -111,7 +111,7 @@ def process_sess(sess_dir: Path):
         trn_map.append(emotion)
 
     for i, (start, end) in enumerate(zip(trn_starts, trn_ends)):
-        name = '{}_{:03d}'.format(annot_file.stem, i)
+        name = f'{annot_file.stem}_{i:03d}'
         soundfile.write(audio_dir / (name + '.wav'), audio[start:end], sr)
         emotions[name] = emotion_map[trn_map[i]]
         transcripts[name] = trn_text[i]
@@ -135,8 +135,10 @@ def main(input_dir: Path):
     for emo, trn in r:
         emotions.update(emo)
         transcripts.update(trn)
-    write_filelist(audio_dir.glob('*.wav'))
-    write_labels(emotions)
+    paths = list(audio_dir.glob('*.wav'))
+    write_filelist(paths)
+    write_annotations(emotions)
+    write_annotations({p.stem: p.stem[8:11] for p in paths}, 'speaker')
     df = pd.DataFrame.from_dict(transcripts, orient='index',
                                 columns=['Transcripts'])
     df.index.name = 'Name'

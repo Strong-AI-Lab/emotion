@@ -131,7 +131,7 @@ def main(file: Path, output: Path, energy_thresh: float, freq_thresh: float,
 
         output_path = output / path.name
         soundfile.write(output_path, trimmed, 16000)
-        print("Wrote trimmed audio to {}".format(output_path))
+        print(f"Wrote trimmed audio to {output_path}")
 
 
 if __name__ == "__main__":

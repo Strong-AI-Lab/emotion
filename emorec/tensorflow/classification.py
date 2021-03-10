@@ -2,24 +2,25 @@ from collections import defaultdict
 from functools import partial
 from itertools import chain
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-import tensorflow as tf
 from sklearn.metrics import get_scorer
 from sklearn.model_selection import BaseCrossValidator, LeaveOneGroupOut
 from sklearn.model_selection._validation import _score
+from tqdm import tqdm
+
+import tensorflow as tf
 from tensorflow.keras.callbacks import Callback, History, TensorBoard
 from tensorflow.keras.losses import Loss, SparseCategoricalCrossentropy
 from tensorflow.keras.metrics import SparseCategoricalAccuracy
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam, Optimizer
 from tensorflow.keras.utils import Sequence
-from tqdm import tqdm
 
 from ..classification import Classifier, ScoreFunction
 from ..utils import batch_arrays, shuffle_multiple
-from .utils import create_tf_dataset_ragged, DataFunction, TFModelFunction
+from .utils import DataFunction, TFModelFunction, create_tf_dataset_ragged
 
 
 class DummyEstimator:
@@ -122,7 +123,8 @@ def tf_train_val_test(model_fn: TFModelFunction,
                       valid_data: tf.data.Dataset,
                       test_data: tf.data.Dataset,
                       scoring: Union[str, List[str],
-                                     Dict[str, ScoreFunction]] = 'accuracy',
+                                     Dict[str, ScoreFunction],
+                                     Callable[..., float]] = 'accuracy',
                       **fit_params) -> Dict[str, Union[float, History]]:
     """Trains on given data, using given validation data, and tests on
     given test data.
@@ -202,7 +204,7 @@ def tf_cross_validate(model_fn: TFModelFunction,
     scores = defaultdict(list)
     n_folds = cv.get_n_splits(x, y, groups)
     for fold, (train, test) in enumerate(cv.split(x, y, groups)):
-        print("\tFold {}/{}".format(fold + 1, n_folds))
+        print(f"\tFold {fold + 1}/{n_folds}")
 
         x_train = x[train]
         y_train = y[train]
@@ -236,8 +238,7 @@ def tf_cross_validate(model_fn: TFModelFunction,
 
         for k in _scores:
             scores[k].append(_scores[k])
-    scores = {k: np.array(scores[k]) for k in scores}
-    return scores
+    return {k: np.array(scores[k]) for k in scores}
 
 
 class TFClassifier(Classifier):
@@ -280,7 +281,7 @@ class TFClassifier(Classifier):
         self.n_epochs = n_epochs
         self.class_weight = class_weight
         if data_fn is not None:
-            self.data_fn = data_fn
+            self._data_fn = data_fn
         self.callbacks = callbacks
         self.loss = loss
         self.optimizer = optimizer
@@ -288,13 +289,15 @@ class TFClassifier(Classifier):
 
     def data_fn(self, x: np.ndarray, y: np.ndarray,
                 shuffle: bool = True) -> tf.data.Dataset:
+        if hasattr(self, '_data_fn') and self._data_fn is not None:
+            return self._data_fn(x, y, shuffle)
         dataset = tf.data.Dataset.from_tensor_slices((x, y))
         if shuffle:
             dataset = dataset.shuffle(len(x))
         return dataset
 
     def fit(self, x_train: np.ndarray, y_train: np.ndarray,
-            x_valid: np.ndarray, y_valid: np.ndarray, fold: int = 0):
+            x_valid: np.ndarray, y_valid: np.ndarray, fold=0):
         # Clear graph
         tf.keras.backend.clear_session()
         # Reset optimiser and loss
@@ -323,7 +326,9 @@ class TFClassifier(Classifier):
                 y_test: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         test_data = self.data_fn(x_test, y_test, shuffle=False)
         y_true = np.concatenate([x[1] for x in test_data])
-        return np.argmax(self.model.predict(test_data), axis=1), y_true
+        y_pred = np.empty_like(y_true)
+        np.argmax(self.model.predict(test_data), axis=1, out=y_pred)
+        return y_pred, y_true
 
 
 class BalancedSparseCategoricalAccuracy(SparseCategoricalAccuracy):

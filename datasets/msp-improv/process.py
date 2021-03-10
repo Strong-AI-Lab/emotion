@@ -20,7 +20,7 @@ from pathlib import Path
 import click
 import numpy as np
 import pandas as pd
-from emorec.dataset import resample_audio, write_filelist, write_labels
+from emorec.dataset import resample_audio, write_filelist, write_annotations
 from emorec.stats import alpha
 from emorec.utils import PathlibPath
 
@@ -51,7 +51,7 @@ def main(input_dir: Path):
 
     dimensions = {}
     labels = {}
-    ratings = []
+    _ratings = []
     with open(input_dir / 'Evaluation.txt') as fid:
         name = ''
         for line in fid:
@@ -64,10 +64,11 @@ def main(input_dir: Path):
             elif line != '':
                 rater, label, *_ = line.split(';')
                 label = label.strip()[0]
-                ratings.append((name, rater, label))
+                _ratings.append((name, rater, label))
     write_filelist([p for p in resample_dir.glob('*.wav')
                     if labels[p.stem] not in unused_emotions])
-    write_labels({n: emotion_map[labels[n]] for n in labels})
+    write_annotations({n: emotion_map[labels[n]] for n in labels})
+    write_annotations({p.stem: p.stem[16:19] for p in paths}, 'speaker')
 
     # Aggregated dimensional annotations per utterance
     df = pd.DataFrame.from_dict(
@@ -77,10 +78,10 @@ def main(input_dir: Path):
     df.index.name = 'Name'
     for dim in ['Activation', 'Valence', 'Dominance', 'Naturalness']:
         df[dim].to_csv(dim.lower() + '.csv', index=True, header=True)
-        print("Wrote CSV to {}".format(dim.lower() + '.csv'))
+        print(f"Wrote CSV to {dim.lower()}.csv")
 
     # Ratings analysis
-    ratings = pd.DataFrame(sorted(ratings), columns=['name', 'rater', 'label'])
+    ratings = pd.DataFrame(sorted(_ratings), columns=['name', 'rater', 'label'])
     ratings = ratings.drop_duplicates(['name', 'rater'])
 
     num_ratings = ratings.groupby('name').size().to_frame('total')
@@ -102,24 +103,24 @@ def main(input_dir: Path):
 
     # Agreement is mean proportion of labels which are plurality label
     agreement = np.mean(mode_count['freq'] / mode_count['total'])
-    print("Mean label agreement: {:.3f}".format(agreement))
+    print(f"Mean label agreement: {agreement:.3f}")
 
     # Agreement with acted label
     agreement = ((mode_count['label'] == mode_count['acted']).sum()
                  / len(mode_count))
-    print("Acted agreement: {:.3f}".format(agreement))
+    print(f"Acted agreement: {agreement:.3f}")
 
     clips = ratings.join(mode_count['label'], 'name', rsuffix='_vote',
                          how='inner')
     accuracy = (clips['label'] == clips['label_vote']).sum() / len(clips)
-    print("Human accuracy: {:.3f}".format(accuracy))
+    print(f"Human accuracy: {accuracy:.3f}")
 
     # Simple way to get int matrix of labels for raters x clips
     data = (ratings.set_index(['rater', 'name'])['label'].astype('category')
             .cat.codes.unstack() + 1)
     data[data.isna()] = 0
     data = data.astype(int).to_numpy()
-    print("Krippendorf's alpha: {:.3f}".format(alpha(data)))
+    print(f"Krippendorf's alpha: {alpha(data):.3f}")
 
 
 if __name__ == "__main__":
