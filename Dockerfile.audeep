@@ -23,6 +23,8 @@ COPY setup.py DESCRIPTION.md /home/audeep/
 COPY audeep /home/audeep/audeep
 RUN python3 setup.py install \
     && rm -rf /home/audeep
-RUN mkdir -p -m 777 /.config/matplotlib /.cache/matplotlib
+# To keep matplotlib happy
+RUN mkdir -p -m 777 /.{cache,config}/matplotlib
 
 WORKDIR /work
+CMD [ "/bin/bash" ]
