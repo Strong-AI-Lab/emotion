@@ -94,12 +94,13 @@ class Dataset(abc.ABC):
             self._female_indices = np.isin(np.array(self.speakers)[
                 self.speaker_indices], self.female_speakers).nonzero()
 
-        speaker_indices_to_group = np.array([
-            i for sp in self.speakers for i in range(len(self._speaker_groups))
-            if sp in self._speaker_groups[i]
-        ])
-        self._speaker_group_indices = speaker_indices_to_group[
-            self.speaker_indices]
+        if not self.speaker_groups:
+            self._speaker_groups = [{s} for s in self.speakers]
+        speaker_to_group = np.empty(len(self.speakers), dtype=int)
+        for i, group in enumerate(self.speaker_groups):
+            for sp in group:
+                speaker_to_group[self.speakers.index(sp)] = i
+        self._speaker_group_indices = speaker_to_group[self.speaker_indices]
 
     def normalise(self, normaliser: TransformerMixin = StandardScaler(),
                   scheme: str = 'speaker'):
@@ -244,7 +245,7 @@ class Dataset(abc.ABC):
         return self.x[idx],
 
     def __str__(self):
-        s = f'Corpus: {self.corpus}\n'
+        s = f'\nCorpus: {self.corpus}\n'
         s += f'{self.n_instances} instances\n'
         s += f'{len(self.features)} features\n'
         s += f'{len(self.speakers)} speakers:\n'

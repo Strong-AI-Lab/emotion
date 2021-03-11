@@ -13,6 +13,15 @@ smile.log
 .ipynb_checkpoints
 *.egg-info
 __pycache__
+.mypy_cache
+
+# NumPy
+*.npy
+*.npz
+
+# TensorFlow
+*.ckpt
+*.h5
 
 # Misc general
 .vscode

@@ -2,8 +2,8 @@
 
 from os import PathLike
 from pathlib import Path
-from typing import (Callable, List, Optional, Sequence, Tuple, TypeVar, Union,
-                    overload)
+from typing import (Callable, Container, Iterable, List, Optional, Tuple,
+                    TypeVar, Union, overload)
 
 import click
 import numpy as np
@@ -55,7 +55,7 @@ def itmap(s: Callable[[T1], T2]):
     return _map
 
 
-def ordered_intersect(a: Sequence, b: Sequence) -> List:
+def ordered_intersect(a: Iterable, b: Container) -> List:
     """Returns a list of the intersection of `a` and `b`, in the order
     elements appear in `a`.
     """

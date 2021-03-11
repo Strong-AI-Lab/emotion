@@ -1,13 +1,14 @@
-import argparse
 import itertools
 import logging
 import math
 import re
 from pathlib import Path
+from typing import Tuple
 
+import click
 import matplotlib.pyplot as plt
 import pandas as pd
-from emorec.utils import itmap, ordered_intersect
+from emorec.utils import PathlibPath, itmap, ordered_intersect
 from matplotlib.backends.backend_pdf import PdfPages
 from statsmodels.stats.anova import AnovaRM
 
@@ -79,7 +80,7 @@ def fmt(f: float) -> str:
     return ''
 
 
-def to_latex(df: pd.DataFrame, output: str, label: str, caption: str):
+def to_latex(df: pd.DataFrame, output: Path, label: str, caption: str):
     df = df.copy()  # So that we don't modify the original frame
     df.columns = df.columns.map(itmap(lambda x: f'\\rotatebox{{90}}{{{x}}}'))
     df.columns = df.columns.map(itmap(latex_subs))
@@ -117,37 +118,33 @@ def plot_matrix(df: pd.DataFrame, size: tuple = (4, 4),
     return fig
 
 
-def main():
+@click.command()
+@click.argument('results', type=PathlibPath(exists=True))
+@click.option('--metrics', type=str, multiple=True, default=('mean',),
+              help="Metrics to output.")
+@click.option('--plot', is_flag=True, help="Show matplotlib figures.")
+@click.option('--latex', type=Path, help="Directory to output latex tables.")
+@click.option('--regex', type=str, default='.*',
+              help="Regex to limit results.")
+@click.option('--images', type=Path, help="Directory to output images.")
+@click.option('--excel', type=Path, help="Directory to output Excel files.")
+@click.option('--raw', is_flag=True, help="Don't rename and reorder columns.")
+@click.option(
+    '--anova', is_flag=True,
+    help="Perform repeated measures ANOVA on classifiers x features for all "
+         "datasets."
+)
+def main(results: Path, metrics: Tuple[str], plot: bool, latex: Path,
+         regex: str, images: Path, excel: Path, raw: bool, anova: bool):
     logging.basicConfig()
     logger = logging.getLogger('view_results')
     logger.setLevel(logging.INFO)
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('results', type=Path)
-    parser.add_argument('--metrics', nargs='*', type=str,
-                        help="Metrics to output.")
-    parser.add_argument('--plot', action='store_true',
-                        help="Show matplotlib figures.")
-    parser.add_argument('--latex', type=Path,
-                        help="Directory to output latex tables.")
-    parser.add_argument('--regex', type=str, default='.*')
-    parser.add_argument('--images', type=Path,
-                        help="Directory to output images.")
-    parser.add_argument('--excel', type=Path,
-                        help="Directory to output Excel files.")
-    parser.add_argument('--raw', action='store_true',
-                        help="Don't rename and reorder columns.")
-    parser.add_argument(
-        '--anova', action='store_true', help="Perform repeated measures ANOVA "
-        "on classifiers x features for all datasets."
-    )
-    args = parser.parse_args()
-
-    if args.results.is_file():
-        logger.info(f"Found results cache at {args.results}")
-        df = pd.read_csv(args.results, index_col=[0, 1, 2])
+    if results.is_file():
+        logger.info(f"Found results cache at {results}")
+        df: pd.DataFrame = pd.read_csv(results, index_col=[0, 1, 2])
     else:
-        dirs = sorted([d for d in args.results.glob('*') if d.is_dir()])
+        dirs = sorted([d for d in results.glob('*') if d.is_dir()])
 
         uar_list = {}
         for d in dirs:
@@ -155,7 +152,7 @@ def main():
             table = {}
             df_list = {}
             for filename in [x for x in sorted(d.glob('**/*.csv'))
-                             if re.search(args.regex, str(x))]:
+                             if re.search(regex, str(x))]:
                 logger.debug(f"Found file {filename}")
                 name = filename.relative_to(d).with_suffix('')
                 df_list[name] = pd.read_csv(filename, header=0, index_col=0)
@@ -185,17 +182,13 @@ def main():
     df = df.unstack(0).swaplevel(axis=1)
     df.columns.names = ['Corpus', 'Metric']
 
-    metrics = {'mean'}
-    if args.metrics:
-        metrics = metrics.union(args.metrics)
-    metrics = tuple(metrics)
-    if len(metrics) == 1:
-        metrics = metrics[0]
+    if len(metrics) == 0:
+        metrics = ('mean',)
 
     df = df.loc[:, (slice(None), metrics)]
     df = df.sort_index(axis=1, level=0)
 
-    if not args.raw:
+    if not raw:
         df.columns = df.columns.map(itmap(subs))
         df.index = df.index.map(itmap(subs))
 
@@ -219,7 +212,7 @@ def main():
     max_clf = df.max(level=0).T
     max_feat = df.max(level=1).T
 
-    if not args.raw:
+    if not raw:
         # Order the columns how we want
         clf_feat = clf_feat.loc[
             ordered_intersect(SUBSTITUTIONS, clf_feat.index),
@@ -243,7 +236,7 @@ def main():
     print(full.swaplevel().sort_index().to_string(float_format=fmt))
     print()
 
-    if args.anova:
+    if anova:
         flat = df.stack().reset_index().rename(columns={0: 'UAR'})
         flat = flat[~flat['Classifier'].isin(['aldeneh2017', 'latif2019',
                                               'zhang2019', 'zhao2019'])]
@@ -273,7 +266,7 @@ def main():
     print("Best average UAR achieved for each feature set:")
     print(max_feat.to_string(float_format=fmt))
 
-    if args.images or args.plot:
+    if images or plot:
         mean_clf_fig = plot_matrix(mean_clf, size=(4, 3.5))
         max_clf_fig = plot_matrix(max_clf, size=(4, 3.5))
         mean_feat_fig = plot_matrix(mean_feat, size=(5, 3.75),
@@ -281,59 +274,59 @@ def main():
         max_feat_fig = plot_matrix(max_feat, size=(4, 3.5),
                                    rect=[0.25, 0.3, 0.75, 0.7])
 
-        if args.images:
-            with PdfPages(args.images / 'mean_clf_matrix.pdf') as pdf:
+        if images:
+            with PdfPages(images / 'mean_clf_matrix.pdf') as pdf:
                 pdf.savefig(mean_clf_fig)
 
-            with PdfPages(args.images / 'max_clf_matrix.pdf') as pdf:
+            with PdfPages(images / 'max_clf_matrix.pdf') as pdf:
                 pdf.savefig(max_clf_fig)
 
-            with PdfPages(args.images / 'mean_feat_matrix.pdf') as pdf:
+            with PdfPages(images / 'mean_feat_matrix.pdf') as pdf:
                 pdf.savefig(mean_feat_fig)
 
-            with PdfPages(args.images / 'max_feat_matrix.pdf') as pdf:
+            with PdfPages(images / 'max_feat_matrix.pdf') as pdf:
                 pdf.savefig(max_feat_fig)
 
-        if args.plot:
+        if plot:
             plt.show()
 
-    if args.latex:
-        to_latex(df, args.latex / 'combined.tex',
+    if latex:
+        to_latex(df, latex / 'combined.tex',
                  label='tab:CombinedResults', caption="Combined results table")
         to_latex(
-            mean_clf, args.latex / 'mean_clf.tex',
+            mean_clf, latex / 'mean_clf.tex',
             label='tab:MeanClassifier',
             caption="Mean average UAR for each classifier.",
         )
         to_latex(
-            mean_feat, args.latex / 'mean_feat.tex',
+            mean_feat, latex / 'mean_feat.tex',
             label='tab:MeanFeature',
             caption="Mean average UAR for each feature set."
         )
         to_latex(
-            max_clf, args.latex / 'max_clf.tex',
+            max_clf, latex / 'max_clf.tex',
             label='tab:MaxClassifier',
             caption="Maximum average UAR for each classifier."
         )
         to_latex(
-            max_feat, args.latex / 'max_feat.tex',
+            max_feat, latex / 'max_feat.tex',
             label='tab:MaxFeature',
             caption="Maximum average UAR for each feature set."
         )
         to_latex(
-            clf_feat, args.latex / 'clf_feat.tex',
+            clf_feat, latex / 'clf_feat.tex',
             label='tab:FeatClassifier',
             caption="Average performance of (classifier, feature) pairs "
                     "across datasets"
         )
 
-    if args.excel:
-        for tab, name in zip(
+    if excel:
+        for tab, tabname in zip(
             [full.stack(), clf_feat, mean_clf, mean_feat, max_clf, max_feat],
             ['combined', 'clf_feat', 'mean_clf', 'mean_feat', 'max_clf',
              'max_feat']
         ):
-            tab.to_excel(args.excel / (name + '.xlsx'), merge_cells=False)
+            tab.to_excel(excel / (tabname + '.xlsx'), merge_cells=False)
 
 
 if __name__ == "__main__":

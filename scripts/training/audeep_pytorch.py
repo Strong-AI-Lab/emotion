@@ -1,6 +1,6 @@
 import time
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Dict, Tuple, Union
 
 import click
 import netCDF4
@@ -34,6 +34,7 @@ class TimeRecurrentAutoencoder(nn.Module):
         if bidirectional_decoder:
             decoder_state_size *= 2
         decoder_output_size = n_units * n_layers  # concat(fwd, back)
+        self.embedding_size = decoder_state_size
 
         self.n_features = n_features
         self.n_units = n_units
@@ -57,7 +58,7 @@ class TimeRecurrentAutoencoder(nn.Module):
         self.reconstruction = nn.Sequential(
             nn.Linear(decoder_output_size, n_features), nn.Tanh())
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         targets = x.flip(1)
 
         num_directions = 2 if self.bidirectional_encoder else 1
@@ -132,7 +133,7 @@ def get_data(path: PathOrStr, shuffle: bool = False):
     dataset = netCDF4.Dataset(path)
     x = np.array(dataset.variables['features'])
     num_inst = dataset.dimensions['instance'].size
-    filenames = np.array(dataset.variables['name'])
+    names = np.array(dataset.variables['name'])
     corpus = dataset.corpus
     dataset.close()
 
@@ -203,7 +204,7 @@ def train(input: Path, logs: Path, layers: int, units: int, dropout: float,
     model = model.cuda(DEVICE)
     optimiser = Adam(model.parameters(), **optimiser_args)
 
-    if args.cont:
+    if cont:
         print(f"Restoring model from {save_path}")
         model.load_state_dict(load_dict['model_state_dict'])
         optimiser.load_state_dict(load_dict['optimiser_state_dict'])
@@ -247,13 +248,14 @@ def train(input: Path, logs: Path, layers: int, units: int, dropout: float,
             loss = loss_fn(x, reconstruction)
             valid_losses.append(loss.item())
 
-            images = torch.cat([x, reconstruction], 2).unsqueeze(-1)
-            images = (images + 1) / 2
-            images = images[:20]
-            valid_writer.add_images('reconstruction', images,
-                                    global_step=epoch, dataformats='NHWC')
-            valid_writer.add_histogram('representation', representation,
-                                       global_step=epoch)
+            if epoch % 10 == 0:
+                images = torch.cat([x, reconstruction], 2).unsqueeze(-1)
+                images = (images + 1) / 2
+                images = images[:20]
+                valid_writer.add_images('reconstruction', images,
+                                        global_step=epoch, dataformats='NHWC')
+                valid_writer.add_histogram('representation', representation,
+                                           global_step=epoch)
 
             # Just get the loss for the rest, no summaries
             for x, in it:
@@ -289,14 +291,14 @@ def train(input: Path, logs: Path, layers: int, units: int, dropout: float,
 @click.command()
 @click.argument('input', type=PathlibPath(exists=True, dir_okay=False))
 @click.argument('output', type=Path)
-@click.option('--model', type=PathlibPath(exists=True, dir_okay=False),
-              required=True)
+@click.option('--model', 'model_path', required=True,
+              type=PathlibPath(exists=True, dir_okay=False))
 @click.option('--batch_size', type=int, default=128)
-def generate(input: Path, output: Path, model: Path, batch_size: int):
-    if model.is_dir():
-        save_path = get_latest_save(model)
+def generate(input: Path, output: Path, model_path: Path, batch_size: int):
+    if model_path.is_dir():
+        save_path = get_latest_save(model_path)
     else:
-        save_path = args.model
+        save_path = model_path
     print(f"Restoring model from {save_path}")
     load_dict = torch.load(save_path)
     model = TimeRecurrentAutoencoder(**load_dict['model_args'])
@@ -305,20 +307,17 @@ def generate(input: Path, output: Path, model: Path, batch_size: int):
 
     x, filenames, corpus = get_data(input)
 
-    representations = []
+    representations = np.empty((len(x), model.embedding_size))
     with torch.no_grad():
         model.eval()
         for i in range(0, len(x), batch_size):
             batch = torch.tensor(x[i:i + batch_size], device=DEVICE)
             _, representation = model(batch)
-            representations.append(representation.cpu().numpy())
-    representations = np.concatenate(representations)
+            representations[i:i + batch_size, :] = representation.cpu()
 
-    write_netcdf_dataset(
-        output, corpus=corpus, names=filenames,
-        features=representations, slices=np.arange(len(filenames))
-    )
-    print(f"Wrote netCDF4 file to {args.output}")
+    write_netcdf_dataset(output, corpus=corpus, names=filenames,
+                         features=representations)
+    print(f"Wrote netCDF4 file to {output}")
 
 
 @click.group(no_args_is_help=True)
