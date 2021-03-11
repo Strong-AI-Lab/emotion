@@ -40,13 +40,8 @@ to install all the Python dependencies.
 
 ### Third-party tools
 Some third-party tools are included in this repository, under the
-`third_party` directory. Currently
-[auDeep](https://github.com/auDeep/auDeep),
-[OpenSMILE](https://www.audeering.com/opensmile/), and
-[openXBOW](https://github.com/openXBOW/openXBOW) are included as
-dependencies. The binaries of OpenSMILE are distributed along with stock
-and custom config files. The openXBOW JAR file is also distributed. The
-relevant LICENCE files are in each directory.
+`third_party` directory. See the [README](third_party/README.md) for
+more details.
 
 ## Scripts
 All scripts are contained in the [`scripts/`](scripts/) directory. The
@@ -66,3 +61,6 @@ corresponds to a publicaiton and has a README with a description of the
 paper and how to run the experiments. Each publication will also be
 associated with a git tag and a GitHub release on the
 [releases](https://github.com/Broad-AI-Lab/emotion/releases) page.
+
+NOTE: Scripts in the `papers/` directory will not be updated. Please
+checkout the appropriate git tag to use these scripts.

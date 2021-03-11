@@ -13,6 +13,6 @@ docker run                                  \
     --interactive                           \
     --tty                                   \
     --user $uid:$gid                        \
-    --mount type=bind,src="$PWD",dst=/work \
+    --mount type=bind,src="$PWD",dst=/work  \
     --workdir /work                         \
     audeep
