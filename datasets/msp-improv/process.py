@@ -73,12 +73,12 @@ def main(input_dir: Path):
     # Aggregated dimensional annotations per utterance
     df = pd.DataFrame.from_dict(
         dimensions, orient='index',
-        columns=['Activation', 'Valence', 'Dominance', 'Naturalness']
+        columns=['activation', 'valence', 'dominance', 'naturalness']
     )
-    df.index.name = 'Name'
-    for dim in ['Activation', 'Valence', 'Dominance', 'Naturalness']:
-        df[dim].to_csv(dim.lower() + '.csv', index=True, header=True)
-        print(f"Wrote CSV to {dim.lower()}.csv")
+    df.index.name = 'name'
+    for dim in ['activation', 'valence', 'dominance', 'naturalness']:
+        df[dim].to_csv(dim + '.csv', index=True, header=True)
+        print(f"Wrote CSV to {dim}.csv")
 
     # Ratings analysis
     ratings = pd.DataFrame(sorted(_ratings), columns=['name', 'rater', 'label'])

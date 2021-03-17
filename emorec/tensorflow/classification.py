@@ -204,7 +204,8 @@ def tf_cross_validate(model_fn: TFModelFunction,
     scores = defaultdict(list)
     n_folds = cv.get_n_splits(x, y, groups)
     for fold, (train, test) in enumerate(cv.split(x, y, groups)):
-        print(f"\tFold {fold + 1}/{n_folds}")
+        if fit_params.get("verbose", False):
+            print(f"\tFold {fold + 1}/{n_folds}")
 
         x_train = x[train]
         y_train = y[train]

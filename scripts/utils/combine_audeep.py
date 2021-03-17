@@ -1,4 +1,5 @@
-"""Combines two or more datasets of spectrograms into a larger dataset.
+"""Combines two or more datasets of auDeep spectrograms into a larger
+dataset.
 """
 
 import argparse

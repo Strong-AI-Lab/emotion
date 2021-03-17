@@ -92,7 +92,10 @@ def write_netcdf_dataset(path: PathOrStr,
                                        ('concat', 'features'))
     _features[:, :] = features
 
-    if len(feature_names) < features.shape[1]:
+    if 0 < len(feature_names) < features.shape[1]:
+        raise ValueError(
+            f"feature_names has only {len(feature_names)} entries")
+    elif len(feature_names) == 0:
         feature_names = [f'feature{i}' for i in range(features.shape[1])]
     _feature_names = dataset.createVariable('feature_names', str,
                                             ('features',))

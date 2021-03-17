@@ -8,7 +8,7 @@ from threading import Thread
 import click
 from emorec.utils import PathlibPath
 
-q: Queue[str] = Queue()
+q: 'Queue[str]' = Queue()
 
 
 def worker(gpu: int):

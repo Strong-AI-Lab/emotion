@@ -182,13 +182,13 @@ def test_classifier(kind: str,
 
             model_fn = partial(
                 compile(get_tf_model, opt_params={'learning_rate': lr}),
-                kind, n_features=dataset.n_features,
-                n_classes=dataset.n_classes, lr=lr
+                kind, dataset.n_features, dataset.n_classes
             )
-            # To print model params
-            _model = model_fn()
-            _model.summary()
-            del _model
+            if rep == 1:
+                # To print model params
+                _model = model_fn()
+                _model.summary()
+                del _model
             tf.keras.backend.clear_session()
 
             scores = tf_cross_validate(
