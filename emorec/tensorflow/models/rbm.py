@@ -1,9 +1,11 @@
-from enum import Enum, auto
+from enum import Enum
 from math import pi
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Sequence, Tuple
 
 import tensorflow as tf
+
+from ...utils import PathOrStr
 
 __all__ = ['BBRBM', 'GBRBM']
 
@@ -17,9 +19,9 @@ def _sample_std_normal(p):
 
 
 class DecayType(Enum):
-    STEP = auto()
-    COSINE = auto()
-    EXP = auto()
+    STEP = 'STEP'
+    COSINE = 'COSINE'
+    EXP = 'EXP'
 
     def __str__(self):
         return self.name
@@ -28,7 +30,8 @@ class DecayType(Enum):
 class RBM:
     """Restricted Boltzmann Machine
 
-    This implementation is designed around the work of Hinton et. al. [1], [2].
+    This implementation is designed around the work of Hinton et. al.
+    [1], [2].
 
     References:
     -----------
@@ -36,14 +39,14 @@ class RBM:
     Dimensionality of Data with Neural Networks', Science, vol. 313, no.
     5786, pp. 504–507, Jul. 2006, doi: 10.1126/science.1127647.
 
-    [2] G. E. Hinton, 'A Practical Guide to Training Restricted Boltzmann
-    Machines', in Neural Networks: Tricks of the Trade: Second Edition,
-    G. Montavon, G. B. Orr, and K.-R. Müller, Eds. Berlin, Heidelberg:
-    Springer Berlin Heidelberg, 2012, pp. 599–619.
+    [2] G. E. Hinton, 'A Practical Guide to Training Restricted
+    Boltzmann Machines', in Neural Networks: Tricks of the Trade: Second
+    Edition, G. Montavon, G. B. Orr, and K.-R. Müller, Eds. Berlin,
+    Heidelberg: Springer Berlin Heidelberg, 2012, pp. 599–619.
     """
 
     def __init__(self, n_hidden: int, input_shape: Tuple[int, ...],
-                 logdir: str = 'logs/rbm', output_histograms: bool = False):
+                 logdir: PathOrStr = 'logs/rbm', output_histograms: bool = False):
         """
         Args:
         -----
@@ -91,25 +94,25 @@ class RBM:
             self.valid_summary_writer = tf.summary.create_file_writer(
                 str(logdir / 'valid'))
 
-    def free_energy(self, batch):
+    def free_energy(self, batch: tf.Tensor):
         raise NotImplementedError("free_energy() not implemented.")
 
-    def hidden_prob(self, batch):
+    def hidden_prob(self, batch: tf.Tensor):
         raise NotImplementedError("hidden_prob() not implemented.")
 
-    def visible_prob(self, h):
+    def visible_prob(self, h: tf.Tensor):
         raise NotImplementedError("visible_prob() not implemented.")
 
-    def sample_h(self, p):
+    def sample_h(self, p: tf.Tensor):
         raise NotImplementedError("sample_h() not implemented.")
 
-    def sample_v(self, p):
+    def sample_v(self, p: tf.Tensor):
         raise NotImplementedError("sample_v() not implemented.")
 
-    def calculate_deltas(self, batch):
+    def calculate_deltas(self, batch: tf.Tensor):
         raise NotImplementedError("calculate_deltas() not implemented.")
 
-    def forward(self, batch):
+    def forward(self, batch: tf.Tensor):
         """Samples hidden units from input batch.
 
         Args:
@@ -125,12 +128,12 @@ class RBM:
         h = self.sample_h(p_h)
         return h
 
-    def backward(self, h):
+    def backward(self, h: tf.Tensor):
         p_v = self.visible_prob(h)
         return p_v
 
     @tf.function
-    def train_batch(self, batch):
+    def train_batch(self, batch: tf.Tensor):
         """Runs one step of Gibbs sampling and gradient ascent with the given
         batch.
 
@@ -275,8 +278,7 @@ class RBM:
                                   step=epoch)
                 tf.summary.scalar('momentum', self.momentum, step=epoch)
                 weights_l2 = tf.reduce_sum(self.W**2)
-                tf.summary.scalar('weights_l2', weights_l2,
-                                  step=epoch)
+                tf.summary.scalar('weights_l2', weights_l2, step=epoch)
 
                 if self.output_histograms:
                     tf.summary.histogram('h_bias', self.h_bias, step=epoch)
@@ -392,52 +394,56 @@ class RBM:
         """
         return data.map(self.reconstruct_batch)
 
+    def representations(self, data: tf.data.Dataset):
+        return data.map(self.hidden_prob)
+
 
 class BBRBM(RBM):
     """RBM with Bernoulli visible and hidden units."""
 
-    def free_energy(self, batch):
+    def free_energy(self, batch: tf.Tensor):
         x = self.h_bias + tf.matmul(batch, self.W)
         f_energy = (- tf.reduce_sum(batch * self.v_bias, -1)
                     - tf.reduce_sum(tf.nn.softplus(x), -1))
         f_energy = tf.reduce_mean(f_energy)
         return f_energy
 
-    def hidden_prob(self, batch):
+    def hidden_prob(self, batch: tf.Tensor):
         return tf.sigmoid(self.h_bias + tf.matmul(batch, self.W))
 
-    def visible_prob(self, h):
+    def visible_prob(self, h: tf.Tensor):
         return tf.sigmoid(self.v_bias + tf.matmul(h, self.W, transpose_b=True))
 
-    def sample_h(self, p):
+    def sample_h(self, p: tf.Tensor):
         return _sample_bernoulli(p)
 
 
 class GBRBM(RBM):
     """RBM with Gaussian visible and Bernoulli hidden units."""
 
-    def free_energy(self, batch):
+    def free_energy(self, batch: tf.Tensor):
         x = self.h_bias + tf.matmul(batch, self.W)
         f_energy = (0.5 * tf.reduce_sum((batch - self.v_bias)**2, -1)
                     - tf.reduce_sum(tf.nn.softplus(x), -1))
         f_energy = tf.reduce_mean(f_energy)
         return f_energy
 
-    def hidden_prob(self, batch):
+    def hidden_prob(self, batch: tf.Tensor):
         return tf.sigmoid(self.h_bias + tf.matmul(batch, self.W))
 
-    def visible_prob(self, h):
+    def visible_prob(self, h: tf.Tensor):
         return self.v_bias + tf.matmul(h, self.W, transpose_b=True)
 
-    def sample_h(self, p):
+    def sample_h(self, p: tf.Tensor):
         return _sample_bernoulli(p)
 
 
 class DBN:
-    """Deep Belief Network, also known as Deep Boltzmann Machine."""
+    """Deep Belief Network, also known as a Deep Boltzmann Machine."""
 
-    def __init__(self, input_shape, n_layers=3, layer_nodes=[512, 256, 128],
-                 logdir='logs/dbn', **kwargs):
+    def __init__(self, input_shape: Tuple[int], n_layers: int = 3,
+                 layer_nodes: Sequence[int] = [512, 256, 128],
+                 logdir: PathOrStr = 'logs/dbn', **kwargs):
         """Initialise this DBN.
 
         Args:
@@ -529,7 +535,7 @@ class DBN:
                                  max_outputs=10)
 
     @tf.function
-    def reconstruct_batch(self, batch):
+    def reconstruct_batch(self, batch: tf.Tensor):
         """Reconstruct a single batch of input.
 
         Args:

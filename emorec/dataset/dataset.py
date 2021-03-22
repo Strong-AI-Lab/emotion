@@ -56,9 +56,8 @@ class Dataset(abc.ABC):
                  speaker_path: Optional[PathOrStr] = None):
         path = Path(path)
         try:
-            cls = next(x for x in map(_BACKENDS.get, path.suffixes) if x)
-            self.backend = cls(path)
-        except StopIteration:
+            self.backend = _BACKENDS[path.suffix](path)
+        except KeyError:
             raise NotImplementedError(f"Unknown filetype '{path.suffix}'.")
 
         self._corpus = self.backend.corpus

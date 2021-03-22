@@ -25,14 +25,15 @@ def main(input: Path, output: Path):
     for gpu in tf.config.list_physical_devices('GPU'):
         tf.config.experimental.set_memory_growth(gpu, True)
 
-    print("Loading yamnet model")
+    model_path = Path(sys.argv[0]).parent / 'yamnet.h5'
+    print(f"Loading yamnet model {model_path}")
     features = Input((96, 64))
     predictions, embeddings = yamnet(features, Params())
     model = Model(inputs=features, outputs=[predictions, embeddings])
-    model.load_weights(Path(sys.argv[0]).parent / 'yamnet.h5')
+    model.load_weights(model_path)
     model(tf.zeros((1, 96, 64)))
 
-    print("Loading dataset")
+    print(f"Loading dataset {input}")
     dataset = Dataset(input)
     frames_list = [tf.signal.frame(x, 96, 48, pad_end=True, axis=0)
                    for x in dataset.x]
@@ -40,7 +41,7 @@ def main(input: Path, output: Path):
     frames = tf.concat(frames_list, 0)
     frames *= tf.math.log(10.0) / 20  # Rescale dB power to ln(abs(X))
 
-    print("Processing frames")
+    print(f"Processing {len(frames)} frames")
     batch_size = 256
     outputs = []
     for i in range(0, len(frames), batch_size):

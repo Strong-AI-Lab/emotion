@@ -6,10 +6,10 @@ from typing import List
 import arff
 import netCDF4
 import numpy as np
+import pandas as pd
 import soundfile
 
 from ..utils import PathOrStr
-from .binary_arff import decode as decode_arff
 from .utils import get_audio_paths
 
 
@@ -110,15 +110,11 @@ class RawAudioBackend(DatasetBackend):
 
 
 class ARFFBackend(DatasetBackend):
-    """Backend that loads data from an ARFF (text or binary) file."""
+    """Backend that loads data from an ARFF file."""
     def __init__(self, path: PathOrStr) -> None:
         path = Path(path)
-        if path.suffix == '.bin':
-            with open(path, 'rb') as fid:
-                data = decode_arff(fid)
-        else:
-            with open(path) as fid:
-                data = arff.load(fid)
+        with open(path) as fid:
+            data = arff.load(fid)
 
         self._corpus = data['relation']
         attr_names = [x[0] for x in data['attributes']]
@@ -128,5 +124,22 @@ class ARFFBackend(DatasetBackend):
         self._names = list(counts.keys())
 
         x = np.array([x[1:-1] for x in data['data']])
+        slices = np.array(counts.values())
+        self._features = _reshape_data_array(x, slices)
+
+
+class CSVBackend(DatasetBackend):
+    """Backend that loads data from a CSV file."""
+    def __init__(self, path: PathOrStr):
+        path = Path(path)
+        df = pd.read_csv(path, converters={0: str})
+
+        self._corpus = ''
+        self._feature_names = df.columns[1:-1]
+
+        counts = Counter(df.iloc[:, 0])
+        self._names = list(counts.keys())
+
+        x = np.array(df.iloc[:, 1:-1])
         slices = np.array(counts.values())
         self._features = _reshape_data_array(x, slices)
