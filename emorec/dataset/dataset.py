@@ -46,7 +46,7 @@ class Dataset(abc.ABC):
     _speakers = ['unknown']
     _male_speakers: List[str] = []
     _female_speakers: List[str] = []
-    _speaker_groups = [{'unknown'}]
+    _speaker_groups = []
     _corpus = ''
     _names: List[str] = []
     _features: List[str] = []
@@ -87,19 +87,57 @@ class Dataset(abc.ABC):
         if any(x == 0 for x in self.speaker_counts):
             warnings.warn("Some speakers have no corresponding instances.")
 
+        self._reset_male_female_indices()
+
+        if not self.speaker_groups:
+            self._speaker_groups = [{s} for s in self.speakers]
+        self._reset_speaker_group_indices()
+
+    def _reset_male_female_indices(self):
         if self.male_speakers and self.female_speakers:
             self._male_indices = np.isin(np.array(self.speakers)[
                 self.speaker_indices], self.male_speakers).nonzero()
             self._female_indices = np.isin(np.array(self.speakers)[
                 self.speaker_indices], self.female_speakers).nonzero()
 
-        if not self.speaker_groups:
-            self._speaker_groups = [{s} for s in self.speakers]
+    def _reset_speaker_group_indices(self):
         speaker_to_group = np.empty(len(self.speakers), dtype=int)
         for i, group in enumerate(self.speaker_groups):
             for sp in group:
                 speaker_to_group[self.speakers.index(sp)] = i
         self._speaker_group_indices = speaker_to_group[self.speaker_indices]
+
+    def remove_instances(self, keep: Collection[str]):
+        """Remove instances not in keep. Recalculate speakers, groups,
+        etc.
+        """
+        idx = [i for i, x in enumerate(self.names) if x in keep]
+        self._names = [self.names[i] for i in idx]
+        self._x = self.x[idx]
+        new_sp = np.unique(self.speaker_indices[idx])
+        if len(new_sp) < len(self.speakers):
+            new_speakers = [self.speakers[x] for x in new_sp]
+            self._speaker_indices = np.array([
+                new_speakers.index(self.speakers[self.speaker_indices[i]])
+                for i in idx
+            ])
+            self._speakers = new_speakers
+
+            new_sp_grp = np.unique(self.speaker_group_indices[idx])
+            self._speaker_groups = [self.speaker_groups[x] for x in new_sp_grp]
+            self._reset_speaker_group_indices()
+
+            if self.male_speakers and self.female_speakers:
+                self._male_speakers = [s for s in self.male_speakers
+                                       if s in self.speakers]
+                self._female_speakers = [s for s in self.female_speakers
+                                         if s in self.speakers]
+                self._reset_male_female_indices()
+        else:
+            self._speaker_indices = self.speaker_indices[idx]
+            self._speaker_group_indices = self.speaker_group_indices[idx]
+            self._male_indices = self.male_indices[idx]
+            self._female_indices = self.female_indices[idx]
 
     def normalise(self, normaliser: TransformerMixin = StandardScaler(),
                   scheme: str = 'speaker'):
@@ -116,8 +154,8 @@ class Dataset(abc.ABC):
                 # Non-contiguous or 3-D array
                 flat, slices = _make_flat(self.x)
                 flat = normaliser.fit_transform(flat)
-                # FIXME: _make_ragged returns a tuple, not array
-                self._x = _make_ragged(flat, slices)
+                for i, arr in enumerate(_make_ragged(flat, slices)):
+                    self._x[i] = arr
             else:
                 self._x = normaliser.fit_transform(self.x)
         elif scheme == 'speaker':
@@ -276,6 +314,19 @@ class LabelledDataset(Dataset):
         self._y = np.array([self.class_to_int(x) for x in labels])
         self._class_counts = np.bincount(self.y)
         self._labels = {'all': self.y}
+
+    def remove_instances(self, keep: Collection[str]):
+        idx = [i for i, x in enumerate(self.names) if x in keep]
+        new_cl = np.unique(self.y[idx])
+        if len(new_cl) < len(self.classes):
+            new_classes = [self.classes[x] for x in new_cl]
+            self._y = np.array([new_classes.index(self.classes[self.y[i]])
+                                for i in idx])
+            self._classes = new_classes
+        else:
+            self._y = self.y[idx]
+        self._class_counts = np.bincount(self.y)
+        super().remove_instances(keep)
 
     def binarise(self, pos_val: List[str] = [], pos_aro: List[str] = []):
         """Creates a N x C array of binary values B, where B[i, j] is 1
