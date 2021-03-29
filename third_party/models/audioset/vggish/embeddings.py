@@ -15,7 +15,8 @@ from vggish_slim import define_vggish_slim, load_vggish_slim_checkpoint
 @click.command()
 @click.argument('input', type=Path)
 @click.argument('output', type=Path)
-def main(input: Path, output: Path):
+@click.option('--batch_size', type=int, default=256)
+def main(input: Path, output: Path, batch_size: int):
     """Extracts the VGGish embeddings from a set of spectrograms in
     INPUT and writes a new dataset to OUTPUT.
     """
@@ -42,7 +43,6 @@ def main(input: Path, output: Path):
         embedding_tensor = sess.graph.get_tensor_by_name('vggish/embedding:0')
 
         print("Processing frames")
-        batch_size = 256
         outputs = []
         for i in range(0, len(frames), batch_size):
             batch = frames[i:i + batch_size]

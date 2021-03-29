@@ -72,10 +72,10 @@ class PrecomputedSVC(SVC):
         predict(). This is calculated at runtime in order to more easily
         handle changes in parameters such as kernel, gamma, etc.
         """
-        f = self.KERNELS[self.kernel]
+        f = self.KERNELS[self.kernel_name]
         params = {}
-        if self.kernel == 'poly':
+        if self.kernel_name == 'poly':
             params = {'d': self.degree, 'r': self.coef0, 'gamma': self.gamma}
-        elif self.kernel == 'rbf':
+        elif self.kernel_name == 'rbf':
             params = {'gamma': self.gamma}
         return partial(f, **params)

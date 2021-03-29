@@ -1,41 +1,38 @@
-"""Visualise 2D features for a single instance, or a collection of
-feature vectors for multiple instances.
-"""
-
-import argparse
 import matplotlib.pyplot as plt
 from pathlib import Path
+from typing import Union
 
+import click
 import numpy as np
 from emorec.dataset import Dataset
+from emorec.utils import PathlibPath
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('input', type=Path)
-    parser.add_argument('--instance', type=str, default='2')
-    args = parser.parse_args()
+@click.command()
+@click.argument('input', type=PathlibPath(exists=True, dir_okay=False))
+@click.argument('instance', type=str, default="2")
+def main(input: Path, instance: str):
+    """Displays plot of INSTANCE in INPUT. INSTANCE can either be a
+    numeric index, a range of indices using numpy slice notation or a
+    named instance.
+    """
 
-    dataset = Dataset(args.input)
-    if args.instance.isdigit():
-        instance = int(args.instance)
+    dataset = Dataset(input)
+    if instance.isdigit():
+        idx: Union[int, slice] = int(instance)
     else:
-        idx = args.instance.find(':')
-        if idx != -1:
-            start = args.instance[:idx]
-            end = args.instance[idx + 1:]
-            if start.isdigit():
-                start = int(start)
-            if end.isdigit():
-                end = int(end)
-            instance = slice(start, end)
+        _i = instance.find(':')
+        if _i != -1:
+            start = int(instance[:_i])
+            end = int(instance[_i + 1:])
+            idx = slice(start, end)
         else:
-            instance = dataset.names.index(args.instance)
-    arr = dataset.x[instance]
+            idx = dataset.names.index(instance)
+    arr = dataset.x[idx]
     if len(arr.shape) == 1:
         arr = np.expand_dims(arr, 0)
 
-    names = dataset.names[instance]
+    names = dataset.names[idx]
     print(names)
 
     plt.figure()

@@ -1,5 +1,3 @@
-"""Batch process a list of files in a dataset using the openSMILE Toolkit."""
-
 import subprocess
 import shutil
 import sys
@@ -16,9 +14,16 @@ from joblib import Parallel, delayed
 
 OPENSMILE_DIR = Path('third_party', 'opensmile')
 DEFAULT_CONF = OPENSMILE_DIR / 'conf' / 'IS09.conf'
-OPENSMILE_BIN = OPENSMILE_DIR / 'SMILExtract'
-if sys.platform == 'win32':
-    OPENSMILE_BIN = OPENSMILE_BIN.with_suffix('.exe')
+OPENSMILE_BIN = 'SMILExtract'
+try:
+    subprocess.check_call([OPENSMILE_BIN, '-h'], stdout=subprocess.DEVNULL,
+                          stderr=subprocess.STDOUT)
+except FileNotFoundError:
+    OPENSMILE_BIN = str(OPENSMILE_DIR / 'SMILExtract')
+    if sys.platform == 'win32':
+        OPENSMILE_BIN = str(OPENSMILE_DIR / 'SMILExtract.exe')
+    subprocess.check_call([OPENSMILE_BIN, '-h'], stdout=subprocess.DEVNULL,
+                          stderr=subprocess.STDOUT)
 
 
 def opensmile(path: Union[str, Path], config: Union[str, Path],
@@ -30,7 +35,7 @@ def opensmile(path: Union[str, Path], config: Union[str, Path],
         output_file.unlink()
 
     smile_args = [
-        str(OPENSMILE_BIN),
+        OPENSMILE_BIN,
         '-C', str(config),
         '-I', str(path),
         '-csvoutput', str(output_file),
@@ -53,11 +58,17 @@ def process_csv(path: Union[str, Path]):
 @click.argument('corpus', type=str)
 @click.argument('input', type=PathlibPath(exists=True, dir_okay=False))
 @click.argument('output', type=Path)
-@click.option('--config', type=Path, default=DEFAULT_CONF)
-@click.option('--debug', is_flag=True)
+@click.option('--config', type=Path, default=DEFAULT_CONF,
+              help="Path to openSMILE config file.")
+@click.option('--debug', is_flag=True,
+              help="Disable multiprocessing to highlight errors.")
 @click.argument('smileargs', nargs=-1)
 def main(corpus: str, input: Path, output: Path, config: Path, debug: bool,
          smileargs: Tuple[str]):
+    """Batch process a list of files in INPUT using the openSMILE
+    Toolkit. The corpus name is set to CORPUS and a netCDF dataset is
+    written to OUTPUT.
+    """
 
     if not config.exists():
         raise FileNotFoundError("Config file doesn't exist")

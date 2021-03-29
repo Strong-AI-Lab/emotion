@@ -117,11 +117,11 @@ def resample_audio(paths: Iterable[Path], dir: PathOrStr):
     dir.mkdir(exist_ok=True, parents=True)
     print(f"Resampling {len(paths)} audio files to {dir}")
 
-    print("Using FFmpeg options: -nostdin -ar 16000 -sample_fmt s16")
+    opts = ['-nostdin', '-ar', '16000', '-sample_fmt', 's16', '-ac', '1', '-y']
+    print(f"Using FFmpeg options: {' '.join(opts)}")
     Parallel(n_jobs=-1, verbose=1)(
         delayed(subprocess.run)(
-            ['ffmpeg', '-nostdin', '-i', str(path), '-ar', '16000',
-             '-sample_fmt', 's16', '-y', str(dir / (path.stem + '.wav'))],
+            ['ffmpeg', '-i', str(path), *opts, str(dir / (path.stem + '.wav'))],
             stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
         ) for path in paths
     )

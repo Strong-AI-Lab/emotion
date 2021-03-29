@@ -17,7 +17,8 @@ from yamnet import yamnet
 @click.command()
 @click.argument('input', type=Path)
 @click.argument('output', type=Path)
-def main(input: Path, output: Path):
+@click.option('--batch_size', type=int, default=256)
+def main(input: Path, output: Path, batch_size: int):
     """Extracts the YAMNet embeddings from a set of spectrograms in
     INPUT and writes a new dataset to OUTPUT.
     """
@@ -42,7 +43,6 @@ def main(input: Path, output: Path):
     frames *= tf.math.log(10.0) / 20  # Rescale dB power to ln(abs(X))
 
     print(f"Processing {len(frames)} frames")
-    batch_size = 256
     outputs = []
     for i in range(0, len(frames), batch_size):
         _, embeddings = model(frames[i:i + batch_size])
