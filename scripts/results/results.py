@@ -3,45 +3,45 @@ import logging
 import math
 import re
 from pathlib import Path
-from typing import Tuple
+from typing import Dict, Tuple
 
 import click
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from emorec.utils import PathlibPath, itmap, ordered_intersect
 from matplotlib.backends.backend_pdf import PdfPages
+from scipy.stats import friedmanchisquare, rankdata
 from statsmodels.stats.anova import AnovaRM
 
-SUBSTITUTIONS = {
-    # Classifiers
-    'aldeneh2017': 'Aldeneh (2017)',
-    'latif2019': 'Latif (2019)',
-    'zhang2019': 'Zhang (2019)',
-    'zhao2019': 'Zhao (2019)',
-    'mlp/1layer': 'FCN (1 layer)',
-    'mlp/2layer': 'FCN (2 layers)',
-    'mlp/3layer': 'FCN (3 layers)',
-    'svm/linear': 'SVM (Linear)',
-    'svm/poly2': 'SVM (Quadratic)',
-    'svm/poly3': 'SVM (Cubic)',
-    'svm/rbf': 'SVM (RBF)',
 
-    # Feature sets
-    'logmel_40': '40 vlen log-mspec',
-    'logmel_240': '240 vlen log-mspec',
-    'spectrograms_40': '5s x 40 clip log-mspec.',
-    'spectrograms_240': '5s x 240 clip log-mspec.',
-    'raw_audio': 'Raw audio',
-    'eGeMAPS': 'eGeMAPS',
-    'GeMAPS': 'GeMAPS',
-    'IS09': 'IS09',
-    'IS13': 'IS13',
-    'audeep-0.05-0.025-240-60_b64_l0.001': 'auDeep',
-    'boaw_20_500': 'BoAW (20, 500)',
-    'boaw_50_1000': 'BoAW (50, 1000)',
-    'boaw_100_5000': 'BoAW (100, 5000)',
-    'bow': 'Bag of words',
+CLF_TIME = {
+    # Sequence classifiers
+    'aldeneh2017': 'ALD',
+    'latif2019': 'LAT',
+    'zhang2019': 'ZHN',
+    'zhao2019': 'ZHO'
+}
 
+CLF_GENERIC = {
+    'mlp/1layer': 'MLP-1',
+    'mlp/2layer': 'MLP-2',
+    'mlp/3layer': 'MLP-3',
+    'svm/linear': 'SVM-L',
+    'svm/poly2': 'SVM-Q',
+    'svm/poly3': 'SVM-C',
+    'svm/rbf': 'SVM-R',
+    'rf': 'RF'
+}
+
+CLF_1D = {
+    # 1-D classifiers
+    'depinto2020': 'DEP',
+    'iskhakova2020': 'ISK'
+}
+
+
+DATASETS = {
     # Dataset initials
     'cafe': 'CA',
     'crema-d': 'CR',
@@ -57,8 +57,13 @@ SUBSTITUTIONS = {
     'savee': 'SA',
     'shemo': 'SH',
     'smartkom': 'SM',
-    'tess': 'TE'
+    'tess': 'TE',
+    'urdu': 'UR',
+    'venec': 'VE'
 }
+
+CLASSIFIERS = dict(**CLF_TIME, **CLF_GENERIC, **CLF_1D)
+SUBSTITUTIONS = dict(**CLASSIFIERS, **DATASETS)
 
 
 def subs(x: str) -> str:
@@ -90,12 +95,12 @@ def to_latex(df: pd.DataFrame, output: Path, label: str, caption: str):
                 escape=False, caption=caption, label=label)
 
 
-def plot_matrix(df: pd.DataFrame, size: tuple = (4, 4),
-                rect: list = [0.25, 0.25, 0.75, 0.75]) -> plt.Figure:
-    fig = plt.figure(figsize=size)
-    ax = fig.add_axes(rect)
+def plot_matrix(df: pd.DataFrame, width: float = 7, cmap: str = 'gray') -> plt.Figure:
     arr = df.to_numpy()
-    im = ax.imshow(arr, interpolation='nearest', aspect=0.5)
+    height = int(arr.shape[0] / arr.shape[1] * width)
+
+    fig, ax = plt.subplots(1, 1, figsize=(width, height))
+    im = ax.imshow(arr, interpolation='nearest', aspect=0.5, cmap=cmap)
     im.set_clim(0, 1)
 
     xlabels = list(df.columns)
@@ -115,27 +120,86 @@ def plot_matrix(df: pd.DataFrame, size: tuple = (4, 4),
     ax.set_yticks(range(len(ylabels)))
     ax.set_yticklabels(ylabels, fontsize='small')
 
+    fig.tight_layout()
+
     return fig
+
+
+def run_anova(flat: pd.DataFrame):
+    grps = set(flat.groupby(['Classifier', 'Features',
+                             'Corpus']).groups.keys())
+    clf = flat['Classifier'].unique()
+    feat = flat['Features'].unique()
+    corpora = flat['Corpus'].unique()
+    all_grps = set(itertools.product(clf, feat, corpora))
+    missing = all_grps - grps
+    if len(missing) > 0:
+        raise ValueError(f"Missing combinations for ANOVA: {missing}")
+
+    model = AnovaRM(flat, 'UAR', 'Corpus', within=['Classifier',
+                                                   'Features'])
+    res = model.fit()
+    print("Repeated-measures ANOVA over features x classifiers:")
+    print(res.anova_table)
+    print()
+
+
+def run_friedman(table: pd.DataFrame):
+    from Orange.evaluation import graph_ranks
+    from statsmodels.stats.libqsturng import qsturng
+
+    _, pvalue = friedmanchisquare(*table.transpose().to_numpy())
+    ranktable = rankdata(-table.to_numpy(), axis=1)
+    avgrank = ranktable.mean(0)
+    k = len(avgrank)
+    n = len(ranktable)
+    cd = qsturng(0.95, k, np.inf) * np.sqrt((k * (k + 1)) / (12 * n))
+    names = list(table.columns)
+    df = pd.DataFrame(
+        {
+            "Mean rank": avgrank,
+            "Mean": table.mean(),
+            "Std. dev.": table.std(),
+            "Median": table.median(),
+            "MAD": table.mad()
+        },
+        index=names
+    ).sort_values('Mean rank')
+    topclf = df.index[0]
+    gamma = [0]
+    for x in df.index[1:]:
+        pmad = np.sqrt(((n - 1) * df.loc[topclf, "MAD"]**2
+                        + (n - 1) * df.loc[x, "MAD"]**2) / (2 * n - 2))
+        gamma.append((df.loc[topclf, "Median"] - df.loc[x, "Median"]) / pmad)
+    df["Effect size"] = gamma
+    print(df.to_string())
+    print(f"p = {pvalue}, cd = {cd:.2f} ranks")
+    print()
+    graph_ranks(avgrank, names, cd, width=4, reverse=True)
 
 
 @click.command()
 @click.argument('results', type=PathlibPath(exists=True))
-@click.option('--metrics', type=str, multiple=True, default=('mean',),
-              help="Metrics to output.")
+@click.option('--metrics', type=click.Choice(['mean', 'std', 'max']),
+              multiple=True, default=('mean',), help="Metrics to output.")
 @click.option('--plot', is_flag=True, help="Show matplotlib figures.")
 @click.option('--latex', type=Path, help="Directory to output latex tables.")
 @click.option('--regex', type=str, default='.*',
               help="Regex to limit results.")
 @click.option('--images', type=Path, help="Directory to output images.")
 @click.option('--excel', type=Path, help="Directory to output Excel files.")
-@click.option('--raw', is_flag=True, help="Don't rename and reorder columns.")
-@click.option(
-    '--anova', is_flag=True,
-    help="Perform repeated measures ANOVA on classifiers x features for all "
-         "datasets."
-)
+@click.option('--substitute', is_flag=True,
+              help="Don't rename and reorder columns.")
+@click.option('--test', type=click.Choice(['anova', 'friedman']),
+              help="Perform various statistical tests.")
+@click.option('--cmap', type=str, help="Colormap to use for plots.")
 def main(results: Path, metrics: Tuple[str], plot: bool, latex: Path,
-         regex: str, images: Path, excel: Path, raw: bool, anova: bool):
+         regex: str, images: Path, excel: Path, substitute: bool, test: str,
+         cmap: str):
+    """Analyse, view and plot results from directory RESULTS. The
+    directory is search recursively for experiment CSVs.
+    """
+
     logging.basicConfig()
     logger = logging.getLogger('view_results')
     logger.setLevel(logging.INFO)
@@ -150,7 +214,7 @@ def main(results: Path, metrics: Tuple[str], plot: bool, latex: Path,
         for d in dirs:
             logger.info(f"Reading directory {d}")
             table = {}
-            df_list = {}
+            df_list: Dict[Path, pd.DataFrame] = {}
             for filename in [x for x in sorted(d.glob('**/*.csv'))
                              if re.search(regex, str(x))]:
                 logger.debug(f"Found file {filename}")
@@ -175,7 +239,7 @@ def main(results: Path, metrics: Tuple[str], plot: bool, latex: Path,
             raise FileNotFoundError("No valid files found matching regex.")
 
         # Concatenate DataFrames for all datasets
-        df = pd.concat(uar_list, names=['Dataset', 'Classifier', 'Features'])
+        df = pd.concat(uar_list, names=['Corpus', 'Classifier', 'Features'])
         df.to_csv('/tmp/emotion_results.csv')
 
     # Move corpus to columns, outermost level
@@ -188,31 +252,61 @@ def main(results: Path, metrics: Tuple[str], plot: bool, latex: Path,
     df = df.loc[:, (slice(None), metrics)]
     df = df.sort_index(axis=1, level=0)
 
-    if not raw:
-        df.columns = df.columns.map(itmap(subs))
-        df.index = df.index.map(itmap(subs))
-
     full = df
     df = df.loc[:, (slice(None), 'mean')].droplevel('Metric', axis=1)
+
+    rankfeat = sorted(df.index.get_level_values('Features').unique())
+    rankclf = sorted(df.index.get_level_values('Classifier').unique())
+
+    # Statistical tests
+    if test is not None:
+        flat = df.stack().reset_index().rename(columns={0: 'UAR'})
+        if test == 'friedman':
+            _table = flat.pivot_table(
+                index='Corpus', columns='Classifier',
+                values='UAR'
+            )
+            print("Friedman test for classifiers by corpus:")
+            run_friedman(_table)
+            avgrank = np.argsort(rankdata(-_table.to_numpy(), axis=1).mean(0))
+            rankclf = _table.columns[avgrank]
+
+            _table = flat.pivot_table(
+                index='Corpus', columns='Features',
+                values='UAR'
+            )
+            print("Friedman test for features by corpus:")
+            run_friedman(_table)
+            avgrank = np.argsort(rankdata(-_table.to_numpy(), axis=1).mean(0))
+            rankfeat = _table.columns[avgrank]
+        else:
+            run_anova(flat)
+
+        if plot:
+            plt.show()
 
     # Get the best (classifier, features) combination and corresponding UAR
     best = pd.concat([df.idxmax(0), df.max(0)], 1, keys=['Combination', 'UAR'])
     best['Classifier'] = best['Combination'].map(lambda t: t[0])
     best['Features'] = best['Combination'].map(lambda t: t[1])
-    best.drop(columns='Combination')
     best = best[['Classifier', 'Features', 'UAR']]
-    substitute_labels(best)
 
-    # Classifier-features table
-    clf_feat = df.mean(1).unstack(1)
+    # Classifier-by-features table
+    clf_feat = df.mean(1).unstack(1).loc[rankclf, rankfeat]
 
     # {mean, max} per {classifier, features}
-    mean_clf = df.mean(level=0).T
-    mean_feat = df.mean(level=1).T
-    max_clf = df.max(level=0).T
-    max_feat = df.max(level=1).T
+    mean_clf = df.mean(level=0).T[rankclf]
+    mean_feat = df.mean(level=1).T[rankfeat]
+    max_clf = df.max(level=0).T[rankclf]
+    max_feat = df.max(level=1).T[rankfeat]
 
-    if not raw:
+    if substitute:
+        substitute_labels(df)
+
+        substitute_labels(best)
+        best['Classifier'] = best['Classifier'].map(subs)
+        best['Features'] = best['Features'].map(subs)
+
         # Order the columns how we want
         clf_feat = clf_feat.loc[
             ordered_intersect(SUBSTITUTIONS, clf_feat.index),
@@ -236,16 +330,6 @@ def main(results: Path, metrics: Tuple[str], plot: bool, latex: Path,
     print(full.swaplevel().sort_index().to_string(float_format=fmt))
     print()
 
-    if anova:
-        flat = df.stack().reset_index().rename(columns={0: 'UAR'})
-        flat = flat[~flat['Classifier'].isin(['aldeneh2017', 'latif2019',
-                                              'zhang2019', 'zhao2019'])]
-        if not flat.empty:
-            model = AnovaRM(flat, 'UAR', 'Corpus', within=['Classifier',
-                                                           'Features'])
-            res = model.fit()
-            print(res.anova_table)
-
     print("Best classifier-features combinations:")
     print(best.to_string(float_format=fmt))
     print()
@@ -267,31 +351,35 @@ def main(results: Path, metrics: Tuple[str], plot: bool, latex: Path,
     print(max_feat.to_string(float_format=fmt))
 
     if images or plot:
-        mean_clf_fig = plot_matrix(mean_clf, size=(4, 3.5))
-        max_clf_fig = plot_matrix(max_clf, size=(4, 3.5))
-        mean_feat_fig = plot_matrix(mean_feat, size=(5, 3.75),
-                                    rect=[0.2, 0.35, 0.8, 0.65])
-        max_feat_fig = plot_matrix(max_feat, size=(4, 3.5),
-                                   rect=[0.25, 0.3, 0.75, 0.7])
+        mean_clf_fig = plot_matrix(mean_clf, cmap=cmap)
+        max_clf_fig = plot_matrix(max_clf, cmap=cmap)
+        mean_feat_fig = plot_matrix(mean_feat, cmap=cmap)
+        max_feat_fig = plot_matrix(max_feat, cmap=cmap)
+        clf_feat_fig = plot_matrix(clf_feat, cmap=cmap)
 
         if images:
-            with PdfPages(images / 'mean_clf_matrix.pdf') as pdf:
+            images.mkdir(exist_ok=True, parents=True)
+            with PdfPages(images / 'mean_clf.pdf') as pdf:
                 pdf.savefig(mean_clf_fig)
 
-            with PdfPages(images / 'max_clf_matrix.pdf') as pdf:
+            with PdfPages(images / 'max_clf.pdf') as pdf:
                 pdf.savefig(max_clf_fig)
 
-            with PdfPages(images / 'mean_feat_matrix.pdf') as pdf:
+            with PdfPages(images / 'mean_feat.pdf') as pdf:
                 pdf.savefig(mean_feat_fig)
 
-            with PdfPages(images / 'max_feat_matrix.pdf') as pdf:
+            with PdfPages(images / 'max_feat.pdf') as pdf:
                 pdf.savefig(max_feat_fig)
+
+            with PdfPages(images / 'clf_feat.pdf') as pdf:
+                pdf.savefig(clf_feat_fig)
 
         if plot:
             plt.show()
 
     if latex:
-        to_latex(df, latex / 'combined.tex',
+        latex.mkdir(exist_ok=True, parents=True)
+        to_latex(full.stack(), latex / 'combined.tex',
                  label='tab:CombinedResults', caption="Combined results table")
         to_latex(
             mean_clf, latex / 'mean_clf.tex',
@@ -316,7 +404,7 @@ def main(results: Path, metrics: Tuple[str], plot: bool, latex: Path,
         to_latex(
             clf_feat, latex / 'clf_feat.tex',
             label='tab:FeatClassifier',
-            caption="Average performance of (classifier, feature) pairs "
+            caption="Performance of (classifier, feature) pairs averaged"
                     "across datasets"
         )
 
