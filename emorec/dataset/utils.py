@@ -10,15 +10,15 @@ from joblib import Parallel, delayed
 from ..utils import PathOrStr
 
 
-def parse_annotations(filename: PathOrStr,
-                      dtype: Optional[Type] = None) -> Dict[str, str]:
+def parse_annotations(
+    filename: PathOrStr, dtype: Optional[Type] = None
+) -> Dict[str, str]:
     """Returns a dict of the form {name: annotation}."""
     # Need index_col to be False or None due to
     # https://github.com/pandas-dev/pandas/issues/9435
-    df = pd.read_csv(filename, index_col=False, header=0,
-                     converters={0: str, 1: dtype})
+    df = pd.read_csv(filename, index_col=False, header=0, converters={0: str, 1: dtype})
     type_ = df.columns[1]
-    annotations = df.set_index('name')[type_].to_dict()
+    annotations = df.set_index("name")[type_].to_dict()
     return annotations
 
 
@@ -44,12 +44,14 @@ def get_audio_paths(file: PathOrStr) -> Sequence[Path]:
     return paths
 
 
-def write_netcdf_dataset(path: PathOrStr,
-                         names: Union[Sequence[str], np.ndarray],
-                         features: np.ndarray,
-                         slices: Union[Sequence[int], np.ndarray] = [],
-                         corpus: str = '',
-                         feature_names: Sequence[str] = []):
+def write_netcdf_dataset(
+    path: PathOrStr,
+    names: Union[Sequence[str], np.ndarray],
+    features: np.ndarray,
+    slices: Union[Sequence[int], np.ndarray] = [],
+    corpus: str = "",
+    feature_names: Sequence[str] = [],
+):
     """Writes a netCDF4 dataset to the given path. The dataset should
     contain features and annotations. Note that the features matrix has
     to be 2-D, and can either be a vector per instance, or a sequence of
@@ -72,36 +74,35 @@ def write_netcdf_dataset(path: PathOrStr,
         vector per instance, then this will be all 1's, otherwise will
         have the length of the sequence corresponding to each instance.
     """
-    dataset = netCDF4.Dataset(path, 'w')
-    dataset.createDimension('instance', len(names))
-    dataset.createDimension('concat', features.shape[0])
-    dataset.createDimension('features', features.shape[1])
+    dataset = netCDF4.Dataset(path, "w")
+    dataset.createDimension("instance", len(names))
+    dataset.createDimension("concat", features.shape[0])
+    dataset.createDimension("features", features.shape[1])
 
     if len(slices) == 0:
         slices = np.ones(len(names))
     if sum(slices) != len(features):
-        raise ValueError(f"Total slices is {sum(slices)} but length of "
-                         f"features is {len(features)}.")
-    _slices = dataset.createVariable('slices', int, ('instance',))
+        raise ValueError(
+            f"Total slices is {sum(slices)} but length of "
+            f"features is {len(features)}."
+        )
+    _slices = dataset.createVariable("slices", int, ("instance",))
     _slices[:] = np.array(slices)
 
-    filename = dataset.createVariable('name', str, ('instance',))
+    filename = dataset.createVariable("name", str, ("instance",))
     filename[:] = np.array(names)
 
-    _features = dataset.createVariable('features', np.float32,
-                                       ('concat', 'features'))
+    _features = dataset.createVariable("features", np.float32, ("concat", "features"))
     _features[:, :] = features
 
     if 0 < len(feature_names) < features.shape[1]:
-        raise ValueError(
-            f"feature_names has only {len(feature_names)} entries")
+        raise ValueError(f"feature_names has only {len(feature_names)} entries")
     elif len(feature_names) == 0:
-        feature_names = [f'feature{i}' for i in range(features.shape[1])]
-    _feature_names = dataset.createVariable('feature_names', str,
-                                            ('features',))
+        feature_names = [f"feature{i}" for i in range(features.shape[1])]
+    _feature_names = dataset.createVariable("feature_names", str, ("features",))
     _feature_names[:] = np.array(feature_names)
 
-    dataset.setncattr_string('corpus', corpus)
+    dataset.setncattr_string("corpus", corpus)
     dataset.close()
 
 
@@ -117,26 +118,31 @@ def resample_audio(paths: Iterable[Path], dir: PathOrStr):
     dir.mkdir(exist_ok=True, parents=True)
     print(f"Resampling {len(paths)} audio files to {dir}")
 
-    opts = ['-nostdin', '-ar', '16000', '-sample_fmt', 's16', '-ac', '1', '-y']
+    opts = ["-nostdin", "-ar", "16000", "-sample_fmt", "s16", "-ac", "1", "-y"]
     print(f"Using FFmpeg options: {' '.join(opts)}")
     Parallel(n_jobs=-1, verbose=1)(
         delayed(subprocess.run)(
-            ['ffmpeg', '-i', str(path), *opts, str(dir / (path.stem + '.wav'))],
-            stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
-        ) for path in paths
+            ["ffmpeg", "-i", str(path), *opts, str(dir / (path.stem + ".wav"))],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
+        for path in paths
     )
 
 
-def write_filelist(paths: Iterable[Path], out: PathOrStr = 'files.txt'):
+def write_filelist(paths: Iterable[Path], out: PathOrStr = "files.txt"):
     """Write sorted file list."""
     paths = sorted(paths, key=lambda p: p.stem)
-    with open(out, 'w') as fid:
-        fid.write('\n'.join(list(map(str, paths))) + '\n')
+    with open(out, "w") as fid:
+        fid.write("\n".join(list(map(str, paths))) + "\n")
     print("Wrote file list to files.txt")
 
 
-def write_annotations(annotations: Mapping[str, str], name: str = 'label',
-                      path: Union[PathOrStr, None] = None):
+def write_annotations(
+    annotations: Mapping[str, str],
+    name: str = "label",
+    path: Union[PathOrStr, None] = None,
+):
     """Write sorted annotations CSV.
 
     Args:
@@ -148,11 +154,11 @@ def write_annotations(annotations: Mapping[str, str], name: str = 'label',
     path: pathlike or str, optional
         Path to write CSV. If None, filename is name.csv
     """
-    df = pd.DataFrame.from_dict(annotations, orient='index', columns=[name])
-    df.index.name = 'name'
+    df = pd.DataFrame.from_dict(annotations, orient="index", columns=[name])
+    df.index.name = "name"
     print()
     print(f"Value counts for {name}:")
     print(df[name].value_counts().sort_index())
-    path = path or f'{name}.csv'
+    path = path or f"{name}.csv"
     df.sort_index().to_csv(path, header=True, index=True)
     print(f"Wrote CSV to {path}")

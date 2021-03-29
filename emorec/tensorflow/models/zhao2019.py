@@ -7,15 +7,26 @@ Emotion Recognition," IEEE Access, vol. 7, pp. 97515–97525, 2019, doi:
 """
 
 import tensorflow as tf
-from tensorflow.keras.layers import (LSTM, RNN, BatchNormalization,
-                                     Bidirectional, Conv2D, Dense, Dropout,
-                                     Input, LSTMCell, MaxPool2D, ReLU, Reshape,
-                                     concatenate)
+from tensorflow.keras.layers import (
+    LSTM,
+    RNN,
+    BatchNormalization,
+    Bidirectional,
+    Conv2D,
+    Dense,
+    Dropout,
+    Input,
+    LSTMCell,
+    MaxPool2D,
+    ReLU,
+    Reshape,
+    concatenate,
+)
 from tensorflow.keras.models import Model
 
 from .layers import Attention1D
 
-__all__ = ['model']
+__all__ = ["model"]
 
 
 def model(n_features: int, n_classes: int, steps: int = 512):
@@ -24,8 +35,7 @@ def model(n_features: int, n_classes: int, steps: int = 512):
     # BLSTM
     # blstm_seq = Bidirectional(RNN([LSTMCell(128, dropout=0.2), LSTMCell(128)],
     #                               return_sequences=True))(inputs)
-    blstm_seq = Bidirectional(LSTM(128, dropout=0.2,
-                                   return_sequences=True))(inputs)
+    blstm_seq = Bidirectional(LSTM(128, dropout=0.2, return_sequences=True))(inputs)
     seq_att = Attention1D()(blstm_seq)
 
     # FCN
@@ -49,12 +59,12 @@ def model(n_features: int, n_classes: int, steps: int = 512):
     conv3 = Dropout(0.2)(conv3)
 
     pool = Reshape((-1, 128))(conv3)
-    pool = Dense(128, activation='tanh')(pool)
+    pool = Dense(128, activation="tanh")(pool)
     fcn_att = Attention1D()(pool)
 
     concat = concatenate([seq_att, fcn_att])
-    x = Dense(128, activation='relu')(concat)
-    x = Dense(n_classes, activation='softmax')(x)
+    x = Dense(128, activation="relu")(concat)
+    x = Dense(n_classes, activation="softmax")(x)
     return Model(inputs=inputs, outputs=x)
 
 

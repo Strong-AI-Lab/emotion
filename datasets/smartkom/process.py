@@ -24,43 +24,44 @@ from joblib import Parallel, delayed
 from nltk.corpus import stopwords
 
 emotion_map = {
-    'Neutral': 'neutral',
-    'Freude/Erfolg': 'happiness',
-    'Uberlegen/Nachdenken': 'pondering',
-    'Ratlosigkeit': 'helplessness',
-    'Arger/Miserfolg': 'anger',
-    'Uberraschung/Verwunderung': 'surprise',
-    'Restklasse': 'unknown'
+    "Neutral": "neutral",
+    "Freude/Erfolg": "happiness",
+    "Uberlegen/Nachdenken": "pondering",
+    "Ratlosigkeit": "helplessness",
+    "Arger/Miserfolg": "anger",
+    "Uberraschung/Verwunderung": "surprise",
+    "Restklasse": "unknown",
 }
 
-stops = set(stopwords.words('german'))
-audio_dir = Path('audio')
+stops = set(stopwords.words("german"))
+audio_dir = Path("audio")
 
 
 def process_sess(sess_dir: Path):
     emotions = {}
     transcripts = {}
-    wav_file = next(sess_dir.glob(sess_dir.name + '?.wav'))
+    wav_file = next(sess_dir.glob(sess_dir.name + "?.wav"))
     audio, sr = soundfile.read(wav_file)
 
-    annot_file = next(x for x in sess_dir.glob(sess_dir.name + '_???.par')
-                      if 'SMA' not in x.name)
+    annot_file = next(
+        x for x in sess_dir.glob(sess_dir.name + "_???.par") if "SMA" not in x.name
+    )
     ush_list = []
     trn_list = []
     words = {}
     with open(annot_file) as fid:
         for line in fid:
-            if line.startswith('USH:'):
+            if line.startswith("USH:"):
                 # User state segments and labels
                 _, start, dur, emo, *rest = line.strip().split()
-                emo = emo.replace('"', '')
+                emo = emo.replace('"', "")
                 ush_list.append((int(start), int(dur), emo))
-            elif line.startswith('TRN:'):
+            elif line.startswith("TRN:"):
                 # Turn segments
                 _, start, dur, indices, turn = line.strip().split()
-                indices = [int(x) for x in indices.split(',')]
+                indices = [int(x) for x in indices.split(",")]
                 trn_list.append((int(start), int(dur), indices))
-            elif line.startswith('ORT:'):
+            elif line.startswith("ORT:"):
                 # Orthographic transcription
                 _, idx, word = line.strip().split()
                 idx = int(idx)
@@ -72,10 +73,10 @@ def process_sess(sess_dir: Path):
     trn_text = []
     for trn in trn_list:
         wordlist = [words[i] for i in trn[2]]
-        wordlist = [x for x in wordlist if '<' not in x and '>' not in x]
+        wordlist = [x for x in wordlist if "<" not in x and ">" not in x]
         wordlist = [x for x in wordlist if x.lower() not in stops]
-        s = ' '.join(wordlist)
-        s = s.replace('"', r'\"')
+        s = " ".join(wordlist)
+        s = s.replace('"', r"\"")
         trn_text.append(s)
 
     # Get overlapping USH segments for each turn so that we can get
@@ -111,15 +112,15 @@ def process_sess(sess_dir: Path):
         trn_map.append(emotion)
 
     for i, (start, end) in enumerate(zip(trn_starts, trn_ends)):
-        name = f'{annot_file.stem}_{i:03d}'
-        soundfile.write(audio_dir / (name + '.wav'), audio[start:end], sr)
+        name = f"{annot_file.stem}_{i:03d}"
+        soundfile.write(audio_dir / (name + ".wav"), audio[start:end], sr)
         emotions[name] = emotion_map[trn_map[i]]
         transcripts[name] = trn_text[i]
     return emotions, transcripts
 
 
 @click.command()
-@click.argument('input_dir', type=PathlibPath(exists=True, file_okay=False))
+@click.argument("input_dir", type=PathlibPath(exists=True, file_okay=False))
 def main(input_dir: Path):
     """Process the SmartKom dataset at location INPUT_DIR. Split audio
     into turns and select majority emotion as label.
@@ -129,20 +130,20 @@ def main(input_dir: Path):
     transcripts = {}
     audio_dir.mkdir(parents=True, exist_ok=True)
     r = Parallel(n_jobs=-1, verbose=1)(
-        delayed(process_sess)(s) for s in (input_dir / 'SK-Public').glob('*')
+        delayed(process_sess)(s)
+        for s in (input_dir / "SK-Public").glob("*")
         if s.is_dir()
     )
     for emo, trn in r:
         emotions.update(emo)
         transcripts.update(trn)
-    paths = list(audio_dir.glob('*.wav'))
+    paths = list(audio_dir.glob("*.wav"))
     write_filelist(paths)
     write_annotations(emotions)
-    write_annotations({p.stem: p.stem[8:11] for p in paths}, 'speaker')
-    df = pd.DataFrame.from_dict(transcripts, orient='index',
-                                columns=['Transcripts'])
-    df.index.name = 'Name'
-    df.to_csv('transcripts.csv')
+    write_annotations({p.stem: p.stem[8:11] for p in paths}, "speaker")
+    df = pd.DataFrame.from_dict(transcripts, orient="index", columns=["Transcripts"])
+    df.index.name = "Name"
+    df.to_csv("transcripts.csv")
 
 
 if __name__ == "__main__":

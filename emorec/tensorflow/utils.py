@@ -9,8 +9,14 @@ TFModelFunction = Callable[..., Model]
 DataFunction = Callable[..., tf.data.Dataset]
 
 
-def test_fit(model_fn: TFModelFunction, input_size: Tuple[int], *args,
-             batch_size: int = 64, num_instances: int = 7000, **kwargs):
+def test_fit(
+    model_fn: TFModelFunction,
+    input_size: Tuple[int],
+    *args,
+    batch_size: int = 64,
+    num_instances: int = 7000,
+    **kwargs,
+):
     """Tests the given model architecture/structure by training it on
     dummy data.
 
@@ -31,12 +37,13 @@ def test_fit(model_fn: TFModelFunction, input_size: Tuple[int], *args,
     **kwargs
         Keyword arguments to pass to model_fn().
     """
-    for gpu in tf.config.get_visible_devices('GPU'):
+    for gpu in tf.config.get_visible_devices("GPU"):
         tf.config.experimental.set_memory_growth(gpu, True)
 
     model = model_fn(*args, n_classes=7, **kwargs)
-    model.compile(loss='sparse_categorical_crossentropy',
-                  metrics=['sparse_categorical_accuracy'])
+    model.compile(
+        loss="sparse_categorical_crossentropy", metrics=["sparse_categorical_accuracy"]
+    )
     model.summary()
 
     valid = num_instances // 10
@@ -50,11 +57,13 @@ def test_fit(model_fn: TFModelFunction, input_size: Tuple[int], *args,
     model.fit(train_data, validation_data=valid_data, epochs=2, verbose=1)
 
 
-def create_tf_dataset(x: np.ndarray,
-                      y: np.ndarray,
-                      sample_weight: Optional[np.ndarray] = None,
-                      batch_size: int = 64,
-                      shuffle: bool = True) -> tf.data.Dataset:
+def create_tf_dataset(
+    x: np.ndarray,
+    y: np.ndarray,
+    sample_weight: Optional[np.ndarray] = None,
+    batch_size: int = 64,
+    shuffle: bool = True,
+) -> tf.data.Dataset:
     """Returns a TensorFlow Dataset instance with the given x and y.
 
     Args:
@@ -84,11 +93,13 @@ def create_tf_dataset(x: np.ndarray,
     return data.batch(batch_size).prefetch(8)
 
 
-def create_tf_dataset_ragged(x: np.ndarray,
-                             y: np.ndarray,
-                             sample_weight: Optional[np.ndarray] = None,
-                             batch_size: int = 64,
-                             shuffle: bool = True) -> tf.data.Dataset:
+def create_tf_dataset_ragged(
+    x: np.ndarray,
+    y: np.ndarray,
+    sample_weight: Optional[np.ndarray] = None,
+    batch_size: int = 64,
+    shuffle: bool = True,
+) -> tf.data.Dataset:
     """Returns a TensorFlow Dataset instance from the ragged x and y.
 
     Args:
@@ -109,6 +120,7 @@ def create_tf_dataset_ragged(x: np.ndarray,
         done *after* batching, because sequences are sorted by length,
         then batched in similar lengths.
     """
+
     def ragged_to_dense(x: tf.RaggedTensor, y):
         return x.to_tensor(), y
 
@@ -122,8 +134,9 @@ def create_tf_dataset_ragged(x: np.ndarray,
     if sample_weight is not None:
         sample_weight = sample_weight[perm]
 
-    ragged = tf.RaggedTensor.from_row_lengths(np.concatenate(list(x)),
-                                              [len(a) for a in x])
+    ragged = tf.RaggedTensor.from_row_lengths(
+        np.concatenate(list(x)), [len(a) for a in x]
+    )
     if sample_weight is None:
         data = tf.data.Dataset.from_tensor_slices((ragged, y))
     else:
@@ -150,14 +163,14 @@ def print_linear_model_structure(model: Layer, depth: int = 0):
     model: Model
         The model to describe.
     """
-    indent = '\t' * depth
+    indent = "\t" * depth
     if not isinstance(model, Model):
         print(indent, model.name, model.output_shape)
         return
 
     for layer in model.layers:
         name = layer.name
-        if name.startswith('tf_op_layer_'):
+        if name.startswith("tf_op_layer_"):
             name = name[12:]
 
         print(indent, layer.name, layer.output_shape)

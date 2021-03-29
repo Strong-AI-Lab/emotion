@@ -10,8 +10,8 @@ from emorec.utils import PathlibPath
 
 
 @click.command()
-@click.argument('input', type=PathlibPath(exists=True, dir_okay=False))
-@click.option('--plot', is_flag=True, help="Plot histogram/bar chart.")
+@click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
+@click.option("--plot", is_flag=True, help="Plot histogram/bar chart.")
 def main(input: Path, plot: bool):
     """Calculate statistics from annotations in INPUT."""
     _df = pd.read_csv(input, header=0, nrows=1)
@@ -21,7 +21,7 @@ def main(input: Path, plot: bool):
         ax.set_xlabel(input.stem)
         ax.set_ylabel("Count")
 
-    if _df.columns[1].lower() in ['speaker', 'label']:
+    if _df.columns[1].lower() in ["speaker", "label"]:
         dict_ = parse_annotations(input, dtype=str)
         counts = Counter(dict_.values())
         print(f"{len(counts)} distinct values of {input.stem}:")
@@ -29,8 +29,13 @@ def main(input: Path, plot: bool):
             print(f"{k}: {v}")
         if plot:
             ax.bar(counts.keys(), counts.values())
-            ax.set_xticklabels(counts.keys(), rotation=30, ha='right',
-                               fontsize='small', rotation_mode='anchor')
+            ax.set_xticklabels(
+                counts.keys(),
+                rotation=30,
+                ha="right",
+                fontsize="small",
+                rotation_mode="anchor",
+            )
             fig.tight_layout()
     else:
         dict_ = parse_annotations(input)
@@ -45,5 +50,5 @@ def main(input: Path, plot: bool):
     plt.show()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

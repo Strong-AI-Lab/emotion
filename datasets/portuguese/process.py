@@ -12,35 +12,35 @@ import click
 from emorec.dataset import resample_audio, write_filelist, write_annotations
 from emorec.utils import PathlibPath
 
-REGEX = re.compile(r'^\d+[sp][AB]_([a-z]+)\d+$')
+REGEX = re.compile(r"^\d+[sp][AB]_([a-z]+)\d+$")
 
 emotion_map = {
-    'angry': 'anger',
-    'disgust': 'disgust',
-    'fear': 'fear',
-    'happy': 'happiness',
-    'sad': 'sadness',
-    'neutral': 'neutral',
-    'surprise': 'surprise'
+    "angry": "anger",
+    "disgust": "disgust",
+    "fear": "fear",
+    "happy": "happiness",
+    "sad": "sadness",
+    "neutral": "neutral",
+    "surprise": "surprise",
 }
 
 
 @click.command()
-@click.argument('input_dir', type=PathlibPath(exists=True, file_okay=False))
+@click.argument("input_dir", type=PathlibPath(exists=True, file_okay=False))
 def main(input_dir: Path):
     """Process the Portuguese dataset at location INPUT_DIR and resample
     audio to 16 kHz 16-bit WAV audio.
     """
 
-    paths = list(input_dir.glob('*.wav'))
-    resample_dir = Path('resampled')
+    paths = list(input_dir.glob("*.wav"))
+    resample_dir = Path("resampled")
     resample_audio(paths, resample_dir)
 
-    write_filelist(resample_dir.glob('*.wav'))
-    write_annotations({p.stem: emotion_map[REGEX.match(p.stem).group(1)]
-                      for p in paths})
-    write_annotations({p.stem: p.stem[p.stem.find('_') - 1] for p in paths},
-                      'speaker')
+    write_filelist(resample_dir.glob("*.wav"))
+    write_annotations(
+        {p.stem: emotion_map[REGEX.match(p.stem).group(1)] for p in paths}
+    )
+    write_annotations({p.stem: p.stem[p.stem.find("_") - 1] for p in paths}, "speaker")
 
 
 if __name__ == "__main__":

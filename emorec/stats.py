@@ -2,7 +2,7 @@ from typing import Callable, List, Union
 
 import numpy as np
 
-__all__ = ['kappa', 'alpha', 'Deltas']
+__all__ = ["kappa", "alpha", "Deltas"]
 
 Matrix = List[List[float]]
 
@@ -22,9 +22,9 @@ def kappa(data: np.ndarray):
 
     p_j = np.sum(counts, axis=0) / (N * n)
     assert np.isclose(np.sum(p_j), 1)
-    Pe = np.sum(p_j**2)
+    Pe = np.sum(p_j ** 2)
 
-    P = (np.sum(counts**2, 1) - n) / (n * (n - 1))
+    P = (np.sum(counts ** 2, 1) - n) / (n * (n - 1))
     Pbar = np.mean(P)
 
     return (Pbar - Pe) / (1 - Pe)
@@ -36,8 +36,9 @@ class Deltas:
         return float(c != k)
 
 
-def alpha(data: np.ndarray,
-          delta: Union[Callable[[int, int], float], Matrix] = Deltas.nominal):
+def alpha(
+    data: np.ndarray, delta: Union[Callable[[int, int], float], Matrix] = Deltas.nominal
+):
     """Calculates Krippendorf's alpha coefficient [1, sec. 11.3] for
     inter-rater agreement.
 
@@ -52,6 +53,7 @@ def alpha(data: np.ndarray,
         The delta metric. Default is the nominal metric, which takes the
         value 1 in case c != k and 0 otherwise.
     """
+
     def _pad(x):
         return np.pad(x, [(0, R + 1 - x.shape[0])])
 
@@ -63,6 +65,7 @@ def alpha(data: np.ndarray,
 
         def _delta(c, k):
             return delta[c, k]
+
         delta = _delta
 
     # The following implementation was based off the Wikipedia article:

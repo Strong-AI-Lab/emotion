@@ -6,8 +6,8 @@ from emorec.utils import PathlibPath
 
 
 @click.command()
-@click.argument('input_dir', type=PathlibPath(exists=True, file_okay=False))
-@click.argument('csv_file', type=Path, default='transcripts.csv')
+@click.argument("input_dir", type=PathlibPath(exists=True, file_okay=False))
+@click.argument("csv_file", type=Path, default="transcripts.csv")
 def main(input_dir: Path, csv_file: Path):
     """Process EMO-DB transcripts.
 
@@ -15,19 +15,19 @@ def main(input_dir: Path, csv_file: Path):
     directory.
     """
     utt = {}
-    for p in input_dir.glob('silb/*.silb'):
-        with open(p, encoding='latin_1') as fid:
+    for p in input_dir.glob("silb/*.silb"):
+        with open(p, encoding="latin_1") as fid:
             words = []
             for line in fid:
                 line = line.strip()
                 _, word = line.split()
-                if word in ['.', '(']:
+                if word in [".", "("]:
                     continue
                 words.append(word.strip())
-            utt[p.stem] = ' '.join(words)
+            utt[p.stem] = " ".join(words)
 
-    df = pd.DataFrame({'Name': utt.keys(), 'Transcript': utt.values()})
-    df.sort_values('Name').to_csv(csv_file, index=False, header=True)
+    df = pd.DataFrame({"Name": utt.keys(), "Transcript": utt.values()})
+    df.sort_values("Name").to_csv(csv_file, index=False, header=True)
     print(f"Wrote CSV to {csv_file}")
 
 

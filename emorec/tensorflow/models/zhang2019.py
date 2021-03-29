@@ -11,22 +11,33 @@ from typing import Optional
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import (RNN, Conv1D, Dense, Dropout, GRUCell, GRU,
-                                     Input, MaxPool1D, Reshape,
-                                     TimeDistributed)
+from tensorflow.keras.layers import (
+    RNN,
+    Conv1D,
+    Dense,
+    Dropout,
+    GRUCell,
+    GRU,
+    Input,
+    MaxPool1D,
+    Reshape,
+    TimeDistributed,
+)
 from tensorflow.keras.models import Model, Sequential
 
 from .layers import Attention1D
 from ..utils import create_tf_dataset
 
-__all__ = ['model', 'create_windowed_dataset']
+__all__ = ["model", "create_windowed_dataset"]
 
 
-def create_windowed_dataset(x: np.ndarray,
-                            y: np.ndarray,
-                            sample_weight: Optional[np.ndarray] = None,
-                            batch_size: int = 64,
-                            shuffle: bool = True) -> tf.data.Dataset:
+def create_windowed_dataset(
+    x: np.ndarray,
+    y: np.ndarray,
+    sample_weight: Optional[np.ndarray] = None,
+    batch_size: int = 64,
+    shuffle: bool = True,
+) -> tf.data.Dataset:
     """Creates a non-ragged dataset with zero-padding."""
     arrs = []
     for seq in x:
@@ -35,12 +46,13 @@ def create_windowed_dataset(x: np.ndarray,
         for i in range(0, min(len(seq), 80000), 160):
             idx = i // 160
             maxl = min(len(seq) - i, 640)
-            arr[idx, :maxl] = seq[i:i + 640]
+            arr[idx, :maxl] = seq[i : i + 640]
         arrs.append(arr)
     arrs = np.array(arrs)
     assert tuple(arrs.shape) == (len(x), 500, 640)
-    return create_tf_dataset(arrs, y, sample_weight=sample_weight,
-                             batch_size=batch_size, shuffle=shuffle)
+    return create_tf_dataset(
+        arrs, y, sample_weight=sample_weight, batch_size=batch_size, shuffle=shuffle
+    )
 
 
 def model(n_classes: int):
@@ -48,16 +60,16 @@ def model(n_classes: int):
     # samples per 40ms segment. Each subsequent vector is shifted 10ms
     # from the previous. We assume the sequences are zero-padded to a
     # multiple of 640 samples.
-    inputs = Input((500, 640), name='input')
+    inputs = Input((500, 640), name="input")
     frames = tf.expand_dims(inputs, -1)
     dropout = Dropout(0.1)(frames)
 
     # Conv + maxpool over the 640 samples
     extraction = Sequential()
-    extraction.add(Conv1D(40, 40, padding='same', activation='relu'))
+    extraction.add(Conv1D(40, 40, padding="same", activation="relu"))
     extraction.add(MaxPool1D(2))
-    extraction.add(Conv1D(40, 40, padding='same', activation='relu'))
-    extraction.add(MaxPool1D(10, data_format='channels_first'))
+    extraction.add(Conv1D(40, 40, padding="same", activation="relu"))
+    extraction.add(MaxPool1D(10, data_format="channels_first"))
     extraction.add(Reshape((1280,)))
     features = TimeDistributed(extraction)(dropout)
 
@@ -68,7 +80,7 @@ def model(n_classes: int):
     # Attention
     att = Attention1D()(gru)
 
-    x = Dense(n_classes, activation='softmax')(att)
+    x = Dense(n_classes, activation="softmax")(att)
     return Model(inputs=inputs, outputs=x)
 
 

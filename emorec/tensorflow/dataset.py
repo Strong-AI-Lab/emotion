@@ -7,15 +7,15 @@ from ..utils import PathOrStr
 
 class TFRecordDataset(LabelledDataset):
     """A dataset contained in TFRecord files."""
+
     def __init__(self, file: PathOrStr):
         self.tf_dataset = tf.data.TFRecordDataset([str(file)])
         example = tf.train.Example()
         example.ParseFromString(next(iter(self.tf_dataset)).numpy())
         features = example.features.feature
-        corpus = features['corpus'].bytes_list.value[0].decode()
-        self.data_shape = tuple(features['features_shape'].int64_list.value)
-        self.data_dtype = features[
-            'features_dtype'].bytes_list.value[0].decode()
+        corpus = features["corpus"].bytes_list.value[0].decode()
+        self.data_shape = tuple(features["features_shape"].int64_list.value)
+        self.data_dtype = features["features_dtype"].bytes_list.value[0].decode()
         super().__init__(corpus)
 
     def _create_data(self):
@@ -26,11 +26,10 @@ class TFRecordDataset(LabelledDataset):
             example.ParseFromString(item.numpy())
             features = example.features.feature
             data = np.frombuffer(
-                features['features'].bytes_list.value[0],
-                dtype=self.dtype
+                features["features"].bytes_list.value[0], dtype=self.dtype
             )
             data = np.reshape(data, self.data_shape)
-            label = features['label'].bytes_list.value[0].decode()
+            label = features["label"].bytes_list.value[0].decode()
             label_int = self.class_to_int(label)
             self._x.append(data)
             self._y.append(label_int)

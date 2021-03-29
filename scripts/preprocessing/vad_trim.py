@@ -18,21 +18,22 @@ from emorec.dataset import get_audio_paths
 from emorec.utils import PathlibPath
 
 
-def filter_silence_speech(speech: np.ndarray, min_speech: int = 5,
-                          min_silence: int = 10):
+def filter_silence_speech(
+    speech: np.ndarray, min_speech: int = 5, min_silence: int = 10
+):
     silence = True
     i = 0
     while i < len(speech):
         if silence and speech[i]:
-            j = next((j for j in range(i + 1, len(speech)) if not speech[j]),
-                     len(speech))
+            j = next(
+                (j for j in range(i + 1, len(speech)) if not speech[j]), len(speech)
+            )
             if j - i >= min_speech:
                 silence = False
             else:
                 speech[i:j] = False
         elif not silence and not speech[i]:
-            j = next((j for j in range(i + 1, len(speech)) if speech[j]),
-                     len(speech))
+            j = next((j for j in range(i + 1, len(speech)) if speech[j]), len(speech))
             if j - i >= min_silence:
                 silence = True
             else:
@@ -42,13 +43,20 @@ def filter_silence_speech(speech: np.ndarray, min_speech: int = 5,
         i = j
 
 
-def mh2009_vad(path: Path, energy_thresh: float, freq_thresh: float,
-               sf_thresh: float, window: float, debug: bool):
+def mh2009_vad(
+    path: Path,
+    energy_thresh: float,
+    freq_thresh: float,
+    sf_thresh: float,
+    window: float,
+    debug: bool,
+):
     audio, sr = librosa.load(path, sr=16000)
     print(path)
     window_samples = int(sr * window)
-    s = librosa.stft(audio, n_fft=512, win_length=window_samples,
-                     hop_length=window_samples)
+    s = librosa.stft(
+        audio, n_fft=512, win_length=window_samples, hop_length=window_samples
+    )
     sxx = np.abs(s) ** 2
 
     e = np.log(sxx.mean(0))
@@ -99,23 +107,44 @@ def librosa_vad(path: Path) -> np.ndarray:
 
 
 @click.command()
-@click.argument('file', type=PathlibPath(exists=True, dir_okay=False))
-@click.argument('output', type=PathlibPath(file_okay=False))
+@click.argument("file", type=PathlibPath(exists=True, dir_okay=False))
+@click.argument("output", type=PathlibPath(file_okay=False))
 @click.option(
-    '--method', type=click.Choice(['mh2009', 'librosa'], case_sensitive=False),
-    default='MH2009', help="The method to use for VAD."
+    "--method",
+    type=click.Choice(["mh2009", "librosa"], case_sensitive=False),
+    default="MH2009",
+    help="The method to use for VAD.",
 )
-@click.option('--debug', is_flag=True)
+@click.option("--debug", is_flag=True)
 @optgroup.group('Arguments for method "mh2009"')
-@optgroup.option('--energy', 'energy_thresh', type=click.FLOAT, default=2.5,
-                 help="Energy threshold")
-@optgroup.option('--freq', 'freq_thresh', type=click.FLOAT, default=150,
-                 help="Max-frequency threshold")
-@optgroup.option('--sf', 'sf_thresh', type=click.FLOAT, default=10,
-                 help="Spectral flatness threshold")
-@optgroup.option('--window', type=click.FLOAT, default=0.01)
-def main(file: Path, output: Path, energy_thresh: float, freq_thresh: float,
-         sf_thresh: float, window: float, method: str, debug: bool):
+@optgroup.option(
+    "--energy", "energy_thresh", type=click.FLOAT, default=2.5, help="Energy threshold"
+)
+@optgroup.option(
+    "--freq",
+    "freq_thresh",
+    type=click.FLOAT,
+    default=150,
+    help="Max-frequency threshold",
+)
+@optgroup.option(
+    "--sf",
+    "sf_thresh",
+    type=click.FLOAT,
+    default=10,
+    help="Spectral flatness threshold",
+)
+@optgroup.option("--window", type=click.FLOAT, default=0.01)
+def main(
+    file: Path,
+    output: Path,
+    energy_thresh: float,
+    freq_thresh: float,
+    sf_thresh: float,
+    window: float,
+    method: str,
+    debug: bool,
+):
     """Performs voice activity detection (VAD) on audio clips referred
     to by FILE and cuts out the beginning and end of the clips where
     there is no voice.
@@ -123,9 +152,10 @@ def main(file: Path, output: Path, energy_thresh: float, freq_thresh: float,
     paths = get_audio_paths(file)
     output.mkdir(parents=True, exist_ok=True)
     for path in paths:
-        if method == 'mh2009':
-            trimmed = mh2009_vad(path, energy_thresh, freq_thresh, sf_thresh,
-                                 window, debug)
+        if method == "mh2009":
+            trimmed = mh2009_vad(
+                path, energy_thresh, freq_thresh, sf_thresh, window, debug
+            )
         else:
             trimmed = librosa_vad(path)
 

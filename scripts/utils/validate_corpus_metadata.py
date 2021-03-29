@@ -5,13 +5,13 @@ from pathlib import Path
 import jsonschema
 import requests
 
-SCHEMA_URI = 'https://agkphysics.github.io/schemas/emotional-speech-data/'
+SCHEMA_URI = "https://agkphysics.github.io/schemas/emotional-speech-data/"
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('input', type=Path)
-    parser.add_argument('--version', type=str, default='latest')
+    parser.add_argument("input", type=Path)
+    parser.add_argument("--version", type=str, default="latest")
     args = parser.parse_args()
 
     schema_uri = SCHEMA_URI + args.version

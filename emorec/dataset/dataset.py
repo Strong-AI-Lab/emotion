@@ -1,19 +1,16 @@
 import abc
-from emorec.dataset.utils import parse_annotations
 import warnings
 from pathlib import Path
-from typing import (Collection, Dict, List, Mapping, Optional, Set, Tuple,
-                    Type, Union)
+from typing import Collection, Dict, List, Mapping, Optional, Set, Tuple, Type, Union
 
 import numpy as np
 from sklearn.base import TransformerMixin
 from sklearn.preprocessing import StandardScaler, label_binarize
 
-from ..utils import (PathOrStr, clip_arrays, frame_arrays, pad_arrays,
-                     transpose_time)
-from .backend import (ARFFBackend, DatasetBackend, NetCDFBackend,
-                      RawAudioBackend)
+from ..utils import PathOrStr, clip_arrays, frame_arrays, pad_arrays, transpose_time
+from .backend import ARFFBackend, DatasetBackend, NetCDFBackend, RawAudioBackend
 from .corpora import corpora
+from .utils import parse_annotations
 
 
 def _make_flat(a: np.ndarray) -> Tuple[np.ndarray, List[int]]:
@@ -23,8 +20,7 @@ def _make_flat(a: np.ndarray) -> Tuple[np.ndarray, List[int]]:
     return flat, slices
 
 
-def _make_ragged(flat: np.ndarray,
-                 slices: Union[List[int], np.ndarray]) -> np.ndarray:
+def _make_ragged(flat: np.ndarray, slices: Union[List[int], np.ndarray]) -> np.ndarray:
     """Returns a list of variable-length sequences."""
     indices = np.cumsum(slices)
     arrs = np.split(flat, indices[:-1], axis=0)
@@ -32,9 +28,9 @@ def _make_ragged(flat: np.ndarray,
 
 
 _BACKENDS: Dict[str, Type[DatasetBackend]] = {
-    '.nc': NetCDFBackend,
-    '.txt': RawAudioBackend,
-    '.arff': ARFFBackend
+    ".nc": NetCDFBackend,
+    ".txt": RawAudioBackend,
+    ".arff": ARFFBackend,
 }
 
 
@@ -43,17 +39,16 @@ class Dataset(abc.ABC):
     of features and possibly speaker information.
     """
 
-    _speakers = ['unknown']
+    _speakers = ["unknown"]
     _male_speakers: List[str] = []
     _female_speakers: List[str] = []
     _speaker_groups = []
-    _corpus = ''
+    _corpus = ""
     _names: List[str] = []
     _features: List[str] = []
     _x: np.ndarray
 
-    def __init__(self, path: PathOrStr,
-                 speaker_path: Optional[PathOrStr] = None):
+    def __init__(self, path: PathOrStr, speaker_path: Optional[PathOrStr] = None):
         path = Path(path)
         try:
             self.backend = _BACKENDS[path.suffix](path)
@@ -69,21 +64,20 @@ class Dataset(abc.ABC):
             speaker_path = Path(speaker_path)
             spk_dict = parse_annotations(speaker_path, dtype=str)
             self._speakers = sorted(set(spk_dict[n] for n in self.names))
-            self._speaker_indices = np.array([self.speakers.index(spk_dict[n])
-                                             for n in self.names])
+            self._speaker_indices = np.array(
+                [self.speakers.index(spk_dict[n]) for n in self.names]
+            )
             # TODO: remove when unnecessary
             if self.corpus.lower() in corpora:
-                self._male_speakers = corpora[
-                    self.corpus.lower()].male_speakers
-                self._female_speakers = corpora[
-                    self.corpus.lower()].female_speakers
-                self._speaker_groups = corpora[
-                    self.corpus.lower()].speaker_groups
+                self._male_speakers = corpora[self.corpus.lower()].male_speakers
+                self._female_speakers = corpora[self.corpus.lower()].female_speakers
+                self._speaker_groups = corpora[self.corpus.lower()].speaker_groups
         else:
             self._speaker_indices = np.zeros(len(self.names), dtype=int)
 
-        self._speaker_counts = np.bincount(self.speaker_indices,
-                                           minlength=len(self.speakers))
+        self._speaker_counts = np.bincount(
+            self.speaker_indices, minlength=len(self.speakers)
+        )
         if any(x == 0 for x in self.speaker_counts):
             warnings.warn("Some speakers have no corresponding instances.")
 
@@ -95,10 +89,12 @@ class Dataset(abc.ABC):
 
     def _reset_male_female_indices(self):
         if self.male_speakers and self.female_speakers:
-            self._male_indices = np.isin(np.array(self.speakers)[
-                self.speaker_indices], self.male_speakers).nonzero()
-            self._female_indices = np.isin(np.array(self.speakers)[
-                self.speaker_indices], self.female_speakers).nonzero()
+            self._male_indices = np.isin(
+                np.array(self.speakers)[self.speaker_indices], self.male_speakers
+            ).nonzero()
+            self._female_indices = np.isin(
+                np.array(self.speakers)[self.speaker_indices], self.female_speakers
+            ).nonzero()
 
     def _reset_speaker_group_indices(self):
         speaker_to_group = np.empty(len(self.speakers), dtype=int)
@@ -117,10 +113,12 @@ class Dataset(abc.ABC):
         new_sp = np.unique(self.speaker_indices[idx])
         if len(new_sp) < len(self.speakers):
             new_speakers = [self.speakers[x] for x in new_sp]
-            self._speaker_indices = np.array([
-                new_speakers.index(self.speakers[self.speaker_indices[i]])
-                for i in idx
-            ])
+            self._speaker_indices = np.array(
+                [
+                    new_speakers.index(self.speakers[self.speaker_indices[i]])
+                    for i in idx
+                ]
+            )
             self._speakers = new_speakers
 
             new_sp_grp = np.unique(self.speaker_group_indices[idx])
@@ -128,10 +126,12 @@ class Dataset(abc.ABC):
             self._reset_speaker_group_indices()
 
             if self.male_speakers and self.female_speakers:
-                self._male_speakers = [s for s in self.male_speakers
-                                       if s in self.speakers]
-                self._female_speakers = [s for s in self.female_speakers
-                                         if s in self.speakers]
+                self._male_speakers = [
+                    s for s in self.male_speakers if s in self.speakers
+                ]
+                self._female_speakers = [
+                    s for s in self.female_speakers if s in self.speakers
+                ]
                 self._reset_male_female_indices()
         else:
             self._speaker_indices = self.speaker_indices[idx]
@@ -139,17 +139,18 @@ class Dataset(abc.ABC):
             self._male_indices = self.male_indices[idx]
             self._female_indices = self.female_indices[idx]
 
-    def normalise(self, normaliser: TransformerMixin = StandardScaler(),
-                  scheme: str = 'speaker'):
+    def normalise(
+        self, normaliser: TransformerMixin = StandardScaler(), scheme: str = "speaker"
+    ):
         """Transforms the X data matrix of this dataset using some
         normalisation method. I think in theory this should be
         idempotent.
         """
         norm_cls = normaliser.__class__
-        fqn = f'{norm_cls.__module__}.{norm_cls.__name__}'
+        fqn = f"{norm_cls.__module__}.{norm_cls.__name__}"
         print(f"Normalising dataset with scheme '{scheme}' using {fqn}.")
 
-        if scheme == 'all':
+        if scheme == "all":
             if self.x.dtype == object or len(self.x.shape) == 3:
                 # Non-contiguous or 3-D array
                 flat, slices = _make_flat(self.x)
@@ -158,7 +159,7 @@ class Dataset(abc.ABC):
                     self._x[i] = arr
             else:
                 self._x = normaliser.fit_transform(self.x)
-        elif scheme == 'speaker':
+        elif scheme == "speaker":
             for sp in range(len(self.speakers)):
                 idx = np.nonzero(self.speaker_indices == sp)[0]
                 if self.speaker_counts[sp] == 0:
@@ -183,13 +184,20 @@ class Dataset(abc.ABC):
         print(f"Clipping arrays to max length {length}.")
         clip_arrays(self.x, length=length)
 
-    def frame_arrays(self, frame_size: int = 640, frame_shift: int = 160,
-                     num_frames: Optional[int] = None):
+    def frame_arrays(
+        self,
+        frame_size: int = 640,
+        frame_shift: int = 160,
+        num_frames: Optional[int] = None,
+    ):
         """Create a sequence of frames from the raw signal."""
-        print(
-            f"Framing arrays with size {frame_size} and shift {frame_shift}.")
-        self._x = frame_arrays(self._x, frame_size=frame_size,
-                               frame_shift=frame_shift, num_frames=num_frames)
+        print(f"Framing arrays with size {frame_size} and shift {frame_shift}.")
+        self._x = frame_arrays(
+            self._x,
+            frame_size=frame_size,
+            frame_shift=frame_shift,
+            num_frames=num_frames,
+        )
 
     def transpose_time(self):
         """Transpose the time and feature axis of each instance."""
@@ -279,20 +287,20 @@ class Dataset(abc.ABC):
         return self.n_instances
 
     def __getitem__(self, idx) -> Tuple[np.ndarray, ...]:
-        return self.x[idx],
+        return (self.x[idx],)
 
     def __str__(self):
-        s = f'\nCorpus: {self.corpus}\n'
-        s += f'{self.n_instances} instances\n'
-        s += f'{len(self.features)} features\n'
-        s += f'{len(self.speakers)} speakers:\n'
-        s += f'\t{dict(zip(self.speakers, self.speaker_counts))}\n'
+        s = f"\nCorpus: {self.corpus}\n"
+        s += f"{self.n_instances} instances\n"
+        s += f"{len(self.features)} features\n"
+        s += f"{len(self.speakers)} speakers:\n"
+        s += f"\t{dict(zip(self.speakers, self.speaker_counts))}\n"
         if self.x.dtype == object or len(self.x.shape) == 3:
             lengths = [len(x) for x in self.x]
-            s += 'Sequences:\n'
-            s += f'min length: {np.min(lengths)}\n'
-            s += f'mean length: {np.mean(lengths)}\n'
-            s += f'max length: {np.max(lengths)}\n'
+            s += "Sequences:\n"
+            s += f"min length: {np.min(lengths)}\n"
+            s += f"mean length: {np.mean(lengths)}\n"
+            s += f"max length: {np.max(lengths)}\n"
         return s
 
 
@@ -305,23 +313,28 @@ class LabelledDataset(Dataset):
     _class_counts: np.ndarray
     _y: np.ndarray
 
-    def __init__(self, path: PathOrStr, label_path: PathOrStr,
-                 speaker_path: Optional[PathOrStr] = None):
+    def __init__(
+        self,
+        path: PathOrStr,
+        label_path: PathOrStr,
+        speaker_path: Optional[PathOrStr] = None,
+    ):
         super().__init__(path, speaker_path=speaker_path)
         label_dict = parse_annotations(label_path)
         labels = [label_dict[n] for n in self.names]
         self._classes = sorted(set(labels))
         self._y = np.array([self.class_to_int(x) for x in labels])
         self._class_counts = np.bincount(self.y)
-        self._labels = {'all': self.y}
+        self._labels = {"all": self.y}
 
     def remove_instances(self, keep: Collection[str]):
         idx = [i for i, x in enumerate(self.names) if x in keep]
         new_cl = np.unique(self.y[idx])
         if len(new_cl) < len(self.classes):
             new_classes = [self.classes[x] for x in new_cl]
-            self._y = np.array([new_classes.index(self.classes[self.y[i]])
-                                for i in idx])
+            self._y = np.array(
+                [new_classes.index(self.classes[self.y[i]]) for i in idx]
+            )
             self._classes = new_classes
         else:
             self._y = self.y[idx]
@@ -334,14 +347,15 @@ class LabelledDataset(Dataset):
         """
         self.binary_y = label_binarize(self.y, np.arange(self.n_classes))
         self._labels.update(
-            {c: self.binary_y[:, i] for i, c in enumerate(self.classes)})
+            {c: self.binary_y[:, i] for i, c in enumerate(self.classes)}
+        )
 
         if pos_aro and pos_val:
             print("Binarising arousal and valence")
             arousal_map = np.array([int(c in pos_aro) for c in self.classes])
             valence_map = np.array([int(c in pos_val) for c in self.classes])
-            self._labels['arousal'] = arousal_map[self.y]
-            self._labels['valence'] = valence_map[self.y]
+            self._labels["arousal"] = arousal_map[self.y]
+            self._labels["valence"] = valence_map[self.y]
 
     def map_classes(self, map: Mapping[str, str]):
         """Modifies classses based on the mapping in map. Keys not
@@ -349,8 +363,7 @@ class LabelledDataset(Dataset):
         sorted lexicographically.
         """
         new_classes = sorted(set([map.get(x, x) for x in self.classes]))
-        arr_map = np.array([new_classes.index(map.get(k, k))
-                            for k in self.classes])
+        arr_map = np.array([new_classes.index(map.get(k, k)) for k in self.classes])
         self._y = arr_map[self.y]
         self._class_counts = np.bincount(self.y)
         self._classes = new_classes
@@ -363,8 +376,9 @@ class LabelledDataset(Dataset):
         self._x = self._x[keep_idx]
         self._names = [self.names[i] for i in keep_idx]
         self._speaker_indices = self._speaker_indices[keep_idx]
-        self._speaker_counts = np.bincount(self.speaker_indices,
-                                           minlength=len(self.speakers))
+        self._speaker_counts = np.bincount(
+            self.speaker_indices, minlength=len(self.speakers)
+        )
         self._speaker_group_indices = self._speaker_indices
 
         self._classes = sorted(keep.intersection(self.classes))
@@ -406,8 +420,8 @@ class LabelledDataset(Dataset):
 
     def __str__(self):
         s = super().__str__()
-        s += f'{self.n_classes} classes:\n'
-        s += f'\t{dict(zip(self.classes, self.class_counts))}\n'
+        s += f"{self.n_classes} classes:\n"
+        s += f"\t{dict(zip(self.classes, self.class_counts))}\n"
         return s
 
     def __getitem__(self, idx) -> Tuple[np.ndarray, ...]:
@@ -419,15 +433,17 @@ class CombinedDataset(LabelledDataset):
     """A dataset that joins individual corpus datasets together and
     handles labelling differences.
     """
-    def __init__(self, *datasets: LabelledDataset,
-                 labels: Optional[Collection[str]] = None):
-        self._corpus = 'combined'
+
+    def __init__(
+        self, *datasets: LabelledDataset, labels: Optional[Collection[str]] = None
+    ):
+        self._corpus = "combined"
         self._corpora = [x.corpus for x in datasets]
         sizes = [len(x.x) for x in datasets]
         self._corpus_indices = np.repeat(np.arange(len(datasets)), sizes)
         self._corpus_counts = np.bincount(self.corpus_indices)
 
-        self._names = [d.corpus + '_' + n for d in datasets for n in d.names]
+        self._names = [d.corpus + "_" + n for d in datasets for n in d.names]
         self._features = datasets[0].features
 
         self._speakers = []
@@ -436,12 +452,12 @@ class CombinedDataset(LabelledDataset):
         speaker_group_indices = []
         for d in datasets:
             speaker_indices.append(d.speaker_indices + len(self.speakers))
-            self._speakers.extend([d.corpus + '_' + s for s in d.speakers])
+            self._speakers.extend([d.corpus + "_" + s for s in d.speakers])
 
             speaker_group_indices.append(
-                d.speaker_group_indices + len(self.speaker_groups))
-            new_group = [{d.corpus + '_' + s for s in g}
-                         for g in d.speaker_groups]
+                d.speaker_group_indices + len(self.speaker_groups)
+            )
+            new_group = [{d.corpus + "_" + s for s in g} for g in d.speaker_groups]
             self._speaker_groups.extend(new_group)
         self._speaker_indices = np.concatenate(speaker_indices)
         self._speaker_group_indices = np.concatenate(speaker_group_indices)
@@ -453,8 +469,7 @@ class CombinedDataset(LabelledDataset):
         str_labels = [d.classes[int(i)] for d in datasets for i in d.y]
         if labels is not None:
             drop_labels = all_labels - set(labels)
-            keep_idx = [i for i, x in enumerate(str_labels)
-                        if x not in drop_labels]
+            keep_idx = [i for i, x in enumerate(str_labels) if x not in drop_labels]
             self._x = self._x[keep_idx]
             self._speaker_indices = self._speaker_indices[keep_idx]
             self._classes = sorted(set(labels))
@@ -491,12 +506,13 @@ class CombinedDataset(LabelledDataset):
         other_idx = np.nonzero(~cond)[0]
         return corpus_idx, other_idx
 
-    def normalise(self, normaliser: TransformerMixin = StandardScaler(),
-                  scheme: str = 'speaker'):
+    def normalise(
+        self, normaliser: TransformerMixin = StandardScaler(), scheme: str = "speaker"
+    ):
 
-        if scheme == 'corpus':
+        if scheme == "corpus":
             norm_cls = normaliser.__class__
-            fqn = f'{norm_cls.__module__}.{norm_cls.__name__}'
+            fqn = f"{norm_cls.__module__}.{norm_cls.__name__}"
             print(f"Normalising dataset with scheme 'corpus' using {fqn}.")
 
             for corpus in range(len(self.corpora)):
@@ -512,6 +528,6 @@ class CombinedDataset(LabelledDataset):
 
     def __str__(self) -> str:
         s = super().__str__()
-        s += f'{len(self.corpora)} corpora:\n'
-        s += f'\t{dict(zip(self.corpora, self.corpus_counts))}\n'
+        s += f"{len(self.corpora)} corpora:\n"
+        s += f"\t{dict(zip(self.corpora, self.corpus_counts))}\n"
         return s

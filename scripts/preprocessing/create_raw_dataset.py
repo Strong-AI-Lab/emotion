@@ -8,9 +8,9 @@ from emorec.utils import PathlibPath
 
 
 @click.command()
-@click.argument('corpus', type=str)
-@click.argument('input', type=PathlibPath(exists=True, dir_okay=False))
-@click.argument('output', type=Path)
+@click.argument("corpus", type=str)
+@click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
+@click.argument("output", type=Path)
 def main(corpus: str, input: Path, output: Path):
     """Creates a NetCDF dataset containing the raw audio from files
     listed in INPUT file and writes to OUTPUT file. The CORPUS argument
@@ -39,8 +39,9 @@ def main(corpus: str, input: Path, output: Path):
     print(f"\tstd: {np.std(slices) / 16000:.3f} s")
 
     names = [f.stem for f in filenames]
-    write_netcdf_dataset(output, corpus=corpus, names=names, slices=slices,
-                         features=audio_arr)
+    write_netcdf_dataset(
+        output, corpus=corpus, names=names, slices=slices, features=audio_arr
+    )
     print(f"Wrote NetCDF4 dataset to {output}")
 
 

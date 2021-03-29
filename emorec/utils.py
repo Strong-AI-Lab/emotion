@@ -2,16 +2,32 @@
 
 from os import PathLike
 from pathlib import Path
-from typing import (Callable, Container, Iterable, List, Optional, Tuple,
-                    TypeVar, Union, overload)
+from typing import (
+    Callable,
+    Container,
+    Iterable,
+    List,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+    overload,
+)
 
 import click
 import numpy as np
 
 __all__ = [
-    'PathOrStr', 'PathlibPath', 'itmap', 'ordered_intersect', 'frame_arrays',
-    'pad_arrays', 'clip_arrays', 'transpose_time', 'shuffle_multiple',
-    'batch_arrays'
+    "PathOrStr",
+    "PathlibPath",
+    "itmap",
+    "ordered_intersect",
+    "frame_arrays",
+    "pad_arrays",
+    "clip_arrays",
+    "transpose_time",
+    "shuffle_multiple",
+    "batch_arrays",
 ]
 
 PathOrStr = Union[PathLike, str]
@@ -21,18 +37,20 @@ class PathlibPath(click.Path):
     """Convenience class that acts identically to `click.Path` except it
     converts the value to a `pathlib.Path` object.
     """
+
     def convert(self, value, param, ctx) -> Path:
         return Path(super().convert(value, param, ctx))
 
 
-T1 = TypeVar('T1')
-T2 = TypeVar('T2')
+T1 = TypeVar("T1")
+T2 = TypeVar("T2")
 
 
 def itmap(s: Callable[[T1], T2]):
     """Returns a new map function that additionally maps tuples to
     tuples and lists to lists.
     """
+
     @overload
     def _map(x: T1) -> T2:
         ...
@@ -52,6 +70,7 @@ def itmap(s: Callable[[T1], T2]):
             return tuple(s(y) for y in x)
         else:
             return s(x)
+
     return _map
 
 
@@ -62,9 +81,12 @@ def ordered_intersect(a: Iterable, b: Container) -> List:
     return [x for x in a if x in b]
 
 
-def frame_arrays(arrays: Union[List[np.ndarray], np.ndarray],
-                 frame_size: int = 640, frame_shift: int = 160,
-                 num_frames: Optional[int] = None):
+def frame_arrays(
+    arrays: Union[List[np.ndarray], np.ndarray],
+    frame_size: int = 640,
+    frame_shift: int = 160,
+    num_frames: Optional[int] = None,
+):
     """Creates sequences of frames from the given arrays. Each input
     array is a 1-D or L x 1 time domain signal. Each corresponding
     output array is a 2-D array of frames of shape (num_frames,
@@ -84,7 +106,7 @@ def frame_arrays(arrays: Union[List[np.ndarray], np.ndarray],
             if idx >= num_frames:
                 break
             maxl = min(len(seq) - i, frame_size)
-            arr[idx, :maxl] = seq[i:i + frame_size]
+            arr[idx, :maxl] = seq[i : i + frame_size]
         _arrs.append(arr)
     arrs = np.array(_arrs)
     assert tuple(arrs.shape) == (len(arrays), num_frames, frame_size)
@@ -157,15 +179,19 @@ def shuffle_multiple(*arrays: np.ndarray, numpy_indexing: bool = True):
         raise ValueError("Not all arrays have equal first dimension.")
 
     perm = np.random.default_rng().permutation(len(arrays[0]))
-    new_arrays = [array[perm] if numpy_indexing else [array[i] for i in perm]
-                  for array in arrays]
+    new_arrays = [
+        array[perm] if numpy_indexing else [array[i] for i in perm] for array in arrays
+    ]
     return new_arrays
 
 
-def batch_arrays(arrays_x: Union[np.ndarray, List[np.ndarray]], y: np.ndarray,
-                 batch_size: int = 32, shuffle: bool = True,
-                 uniform_batch_size: bool = False) \
-        -> Tuple[np.ndarray, np.ndarray]:
+def batch_arrays(
+    arrays_x: Union[np.ndarray, List[np.ndarray]],
+    y: np.ndarray,
+    batch_size: int = 32,
+    shuffle: bool = True,
+    uniform_batch_size: bool = False,
+) -> Tuple[np.ndarray, np.ndarray]:
     """Batches a list of arrays of different sizes, grouping them by
     size. This is designed for use with variable length sequences. Each
     batch will have a maximum of batch_size arrays, but may have less if
@@ -218,7 +244,7 @@ def batch_arrays(arrays_x: Union[np.ndarray, List[np.ndarray]], y: np.ndarray,
     for length in unique_len:
         idx = np.nonzero(lengths == length)[0]
         for b in range(0, len(idx), batch_size):
-            batch_idx = idx[b:b + batch_size]
+            batch_idx = idx[b : b + batch_size]
             size = batch_size if uniform_batch_size else len(batch_idx)
             _x = np.zeros((size, length) + fixed_shape, dtype=x_dtype)
             _y = np.zeros(size, dtype=y_dtype)

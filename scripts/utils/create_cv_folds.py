@@ -9,10 +9,10 @@ from emorec.utils import PathlibPath
 
 
 @click.command()
-@click.argument('input', type=PathlibPath(exists=True, dir_okay=False))
-@click.argument('labels', type=PathlibPath(exists=True, dir_okay=False))
-@click.argument('speakers', type=PathlibPath(exists=True, dir_okay=False))
-@click.argument('output', type=Path)
+@click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
+@click.argument("labels", type=PathlibPath(exists=True, dir_okay=False))
+@click.argument("speakers", type=PathlibPath(exists=True, dir_okay=False))
+@click.argument("output", type=Path)
 def main(input: Path, labels: Path, speakers: Path, output: Path):
     """Create directory structure with speaker-independent
     cross-validation folds. Each speaker has a directory which is
@@ -29,7 +29,7 @@ def main(input: Path, labels: Path, speakers: Path, output: Path):
     for i, speaker in enumerate(speaker_paths.keys()):
         for path in speaker_paths[speaker]:
             emotion = lbl_dict[path.stem]
-            fold = f'fold_{i + 1:d}'
+            fold = f"fold_{i + 1:d}"
             newpath = output / fold / emotion / path.name
             newpath.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(str(path), str(newpath))

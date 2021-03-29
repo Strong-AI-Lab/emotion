@@ -2,8 +2,7 @@ import abc
 import os
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from typing import (Any, Callable, Dict, Iterable, List, Optional, Sequence,
-                    Tuple, Union)
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -15,16 +14,21 @@ from .dataset import CombinedDataset, LabelledDataset
 
 ScoreFunction = Callable[[np.ndarray, np.ndarray], float]
 
-METRICS = ['prec', 'rec', 'uap', 'uar', 'war']
+METRICS = ["prec", "rec", "uap", "uar", "war"]
 
 
 class Classifier(abc.ABC):
     """Base class for classifiers used in test_model()."""
 
     @abc.abstractmethod
-    def fit(self, x_train: np.ndarray, y_train: np.ndarray,
-            x_valid: np.ndarray, y_valid: np.ndarray,
-            fold: Optional[Union[int, str]] = None):
+    def fit(
+        self,
+        x_train: np.ndarray,
+        y_train: np.ndarray,
+        x_valid: np.ndarray,
+        y_valid: np.ndarray,
+        fold: Optional[Union[int, str]] = None,
+    ):
         """Fits this classifier to the training data.
 
         Parameters:
@@ -39,21 +43,24 @@ class Classifier(abc.ABC):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def predict(self, x_test: np.ndarray,
-                y_test: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def predict(
+        self, x_test: np.ndarray, y_test: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """Generates predictions for the given input."""
         raise NotImplementedError()
 
 
-def within_corpus_cross_validation(model: Classifier,
-                                   x: np.ndarray,
-                                   y: np.ndarray,
-                                   speakers: np.ndarray,
-                                   groups: np.ndarray,
-                                   classes: List[str],
-                                   reps: int = 1,
-                                   splitter: BaseCrossValidator = KFold(10),
-                                   validation: str = 'valid'):
+def within_corpus_cross_validation(
+    model: Classifier,
+    x: np.ndarray,
+    y: np.ndarray,
+    speakers: np.ndarray,
+    groups: np.ndarray,
+    classes: List[str],
+    reps: int = 1,
+    splitter: BaseCrossValidator = KFold(10),
+    validation: str = "valid",
+):
     """Cross validates a `Classifier` instance on a single dataset.
 
     Parameters:
@@ -87,7 +94,8 @@ def within_corpus_cross_validation(model: Classifier,
     df = pd.DataFrame(
         index=pd.RangeIndex(1, folds + 1),
         columns=pd.MultiIndex.from_product(
-            [METRICS, classes, range(reps)], names=['metric', 'class', 'rep'])
+            [METRICS, classes, range(reps)], names=["metric", "class", "rep"]
+        ),
     )
 
     fold = 1
@@ -122,10 +130,8 @@ def within_corpus_cross_validation(model: Classifier,
             # cross-validation splitter
             # Make sure we have at least two speakers in the training
             # set so we can use one for validation set.
-            if validation == 'valid' and len(
-                    np.unique(speakers[train])) >= 2:
-                n_splits = splitter.get_n_splits(
-                    x_train, y_train, speakers[train])
+            if validation == "valid" and len(np.unique(speakers[train])) >= 2:
+                n_splits = splitter.get_n_splits(x_train, y_train, speakers[train])
 
                 # Select random inner fold to use as validation set
                 r = np.random.default_rng().integers(n_splits) + 1
@@ -137,7 +143,7 @@ def within_corpus_cross_validation(model: Classifier,
                 y_valid = y_train[valid]
                 x_train = x_train[train2]
                 y_train = y_train[train2]
-            elif validation == 'test':
+            elif validation == "test":
                 x_valid = x_test
                 y_valid = y_test
             else:
@@ -152,9 +158,9 @@ def within_corpus_cross_validation(model: Classifier,
     return df
 
 
-def cross_corpus_cross_validation(clf: Classifier,
-                                  combined_dataset: CombinedDataset,
-                                  reps: int = 1):
+def cross_corpus_cross_validation(
+    clf: Classifier, combined_dataset: CombinedDataset, reps: int = 1
+):
     """Performs cross-validation using each corpus as test set, and the
     rest as training set.
 
@@ -172,8 +178,8 @@ def cross_corpus_cross_validation(clf: Classifier,
         index=pd.Index(combined_dataset.corpora),
         columns=pd.MultiIndex.from_product(
             [METRICS, combined_dataset.classes, range(reps)],
-            names=['metric', 'class', 'rep']
-        )
+            names=["metric", "class", "rep"],
+        ),
     )
     n_classes = len(combined_dataset.classes)
     for corpus in combined_dataset.corpora:
@@ -185,41 +191,50 @@ def cross_corpus_cross_validation(clf: Classifier,
         y_test = combined_dataset.y[test_idx]
         for rep in range(reps):
             print(f"Rep {rep}")
-            clf.fit(x_train, y_train, x_valid=x_train, y_valid=y_train,
-                    fold=corpus)
+            clf.fit(x_train, y_train, x_valid=x_train, y_valid=y_train, fold=corpus)
             y_pred, y_true = clf.predict(x_test, y_test)
 
             # Record metrics
-            df.loc[corpus, ('war', slice(None), rep)] = recall_score(
-                y_true, y_pred, average='micro')
-            df.loc[corpus, ('uar', slice(None), rep)] = recall_score(
-                y_true, y_pred, average='macro')
-            df.loc[corpus, ('uap', slice(None), rep)] = precision_score(
-                y_true, y_pred, average='macro')
-            df.loc[corpus, ('rec', slice(None), rep)] = recall_score(
-                y_true, y_pred, average=None, labels=list(range(n_classes)))
-            df.loc[corpus, ('prec', slice(None), rep)] = precision_score(
-                y_true, y_pred, average=None, labels=list(range(n_classes)))
+            df.loc[corpus, ("war", slice(None), rep)] = recall_score(
+                y_true, y_pred, average="micro"
+            )
+            df.loc[corpus, ("uar", slice(None), rep)] = recall_score(
+                y_true, y_pred, average="macro"
+            )
+            df.loc[corpus, ("uap", slice(None), rep)] = precision_score(
+                y_true, y_pred, average="macro"
+            )
+            df.loc[corpus, ("rec", slice(None), rep)] = recall_score(
+                y_true, y_pred, average=None, labels=list(range(n_classes))
+            )
+            df.loc[corpus, ("prec", slice(None), rep)] = precision_score(
+                y_true, y_pred, average=None, labels=list(range(n_classes))
+            )
     return df
 
 
-def test_one_vs_rest(model_fn,
-                     dataset: LabelledDataset,
-                     gender: str = 'all',
-                     reps: int = 1,
-                     param_grid: Optional[Dict[str, Any]] = None,
-                     splitter: BaseCrossValidator = KFold(10)) -> pd.DataFrame:
+def test_one_vs_rest(
+    model_fn,
+    dataset: LabelledDataset,
+    gender: str = "all",
+    reps: int = 1,
+    param_grid: Optional[Dict[str, Any]] = None,
+    splitter: BaseCrossValidator = KFold(10),
+) -> pd.DataFrame:
     labels = sorted([x[:3] for x in dataset.classes])
 
     rec = pd.DataFrame(
-        index=pd.RangeIndex(splitter.get_n_splits(
-            dataset.x, dataset.y, dataset.speaker_indices)),
+        index=pd.RangeIndex(
+            splitter.get_n_splits(dataset.x, dataset.y, dataset.speaker_indices)
+        ),
         columns=pd.MultiIndex.from_product(
-            [['prec', 'rec'], labels, list(range(reps))],
-            names=['metric', 'class', 'rep']))
-    if gender == 'male':
+            [["prec", "rec"], labels, list(range(reps))],
+            names=["metric", "class", "rep"],
+        ),
+    )
+    if gender == "male":
         gender_indices = dataset.male_indices
-    elif gender == 'female':
+    elif gender == "female":
         gender_indices = dataset.female_indices
     else:
         gender_indices = np.arange(len(dataset.names))
@@ -229,23 +244,26 @@ def test_one_vs_rest(model_fn,
     for cls in dataset.classes:
         y = dataset.labels[cls][gender_indices]
         for rep in range(reps):
-            for fold, (train, test) in enumerate(
-                    splitter.split(x, y, groups)):
+            for fold, (train, test) in enumerate(splitter.split(x, y, groups)):
                 x_train, y_train = x[train], y[train]
                 x_test, y_test = x[test], y[test]
 
                 if param_grid:
                     classifier = optimise_params(
-                        param_grid, model_fn, recall_score, x_train, y_train,
-                        x_test, y_test
+                        param_grid,
+                        model_fn,
+                        recall_score,
+                        x_train,
+                        y_train,
+                        x_test,
+                        y_test,
                     )
                 else:
                     classifier = model_fn()
 
                 y_pred = classifier.predict(x_test)
-                rec[('prec', cls[:3], rep)][fold] = precision_score(y_test,
-                                                                    y_pred)
-                rec[('rec', cls[:3], rep)][fold] = recall_score(y_test, y_pred)
+                rec[("prec", cls[:3], rep)][fold] = precision_score(y_test, y_pred)
+                rec[("rec", cls[:3], rep)][fold] = recall_score(y_test, y_pred)
     return rec
 
 
@@ -257,14 +275,16 @@ def _test_one_param(params, cls, score_fn, x_train, y_train, x_valid, y_valid):
     return classifier, score
 
 
-def optimise_params(param_grid: Iterable[Dict[str, Sequence]],
-                    cls: Callable,
-                    score_fn: ScoreFunction,
-                    x_train: np.ndarray,
-                    y_train: np.ndarray,
-                    x_valid: np.ndarray,
-                    y_valid: np.ndarray,
-                    max_workers=None) -> BaseEstimator:
+def optimise_params(
+    param_grid: Iterable[Dict[str, Sequence]],
+    cls: Callable,
+    score_fn: ScoreFunction,
+    x_train: np.ndarray,
+    y_train: np.ndarray,
+    x_valid: np.ndarray,
+    y_valid: np.ndarray,
+    max_workers=None,
+) -> BaseEstimator:
     """Performs cross-validation using the given parameter grid and
     validation data.
 
@@ -282,9 +302,15 @@ def optimise_params(param_grid: Iterable[Dict[str, Sequence]],
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         max_score = -1
-        fn = partial(_test_one_param, cls=cls, score_fn=score_fn,
-                     x_train=x_train, y_train=y_train, x_valid=x_valid,
-                     y_valid=y_valid)
+        fn = partial(
+            _test_one_param,
+            cls=cls,
+            score_fn=score_fn,
+            x_train=x_train,
+            y_train=y_train,
+            x_valid=x_valid,
+            y_valid=y_valid,
+        )
         for clf, score in pool.map(fn, param_grid):
             if score > max_score:
                 max_score = score
@@ -293,36 +319,40 @@ def optimise_params(param_grid: Iterable[Dict[str, Sequence]],
 
 
 def _record_metrics(df, fold, y_true, y_pred, n_classes):
-    df.loc[fold, ('war', slice(None))] = recall_score(y_true, y_pred,
-                                                      average='micro')
-    df.loc[fold, ('uar', slice(None))] = recall_score(y_true, y_pred,
-                                                      average='macro')
-    df.loc[fold, ('uap', slice(None))] = precision_score(y_true, y_pred,
-                                                         average='macro')
-    df.loc[fold, ('rec', slice(None))] = recall_score(
-        y_true, y_pred, average=None, labels=list(range(n_classes)))
-    df.loc[fold, ('prec', slice(None))] = precision_score(
-        y_true, y_pred, average=None, labels=list(range(n_classes)))
+    df.loc[fold, ("war", slice(None))] = recall_score(y_true, y_pred, average="micro")
+    df.loc[fold, ("uar", slice(None))] = recall_score(y_true, y_pred, average="macro")
+    df.loc[fold, ("uap", slice(None))] = precision_score(
+        y_true, y_pred, average="macro"
+    )
+    df.loc[fold, ("rec", slice(None))] = recall_score(
+        y_true, y_pred, average=None, labels=list(range(n_classes))
+    )
+    df.loc[fold, ("prec", slice(None))] = precision_score(
+        y_true, y_pred, average=None, labels=list(range(n_classes))
+    )
 
 
 def print_results(df: pd.DataFrame):
     """Prints the results dataframe in a nice format."""
-    metrics = df.axes[1].get_level_values('metric').unique()
-    labels = df.axes[1].get_level_values('class').unique()
+    metrics = df.axes[1].get_level_values("metric").unique()
+    labels = df.axes[1].get_level_values("class").unique()
     print()
     print("Metrics: mean +- std. dev. over folds")
     print("Across reps:")
-    print('           ' + ' '.join([f'{c:<12}' for c in labels]))
+    print("           " + " ".join([f"{c:<12}" for c in labels]))
     for metric in metrics:
         class_scores = [
-            f'{df[(metric, c)].mean().mean():<4.2f} +- '
-            f'{df[(metric, c)].mean().std():<4.2f}' for c in labels
+            f"{df[(metric, c)].mean().mean():<4.2f} +- "
+            f"{df[(metric, c)].mean().std():<4.2f}"
+            for c in labels
         ]
         print(f'{metric:<4s} {" ".join(class_scores)}')
     print()
     print("Across classes and reps:")
     for metric in metrics:
-        print(f'{metric.upper():<4s}: {df[metric].mean().mean():.3f} +- '
-              f'{df[metric].mean().std():.2f} ({df[metric].max().max():.2f})')
+        print(
+            f"{metric.upper():<4s}: {df[metric].mean().mean():.3f} +- "
+            f"{df[metric].mean().std():.2f} ({df[metric].max().max():.2f})"
+        )
     print("")
     print()

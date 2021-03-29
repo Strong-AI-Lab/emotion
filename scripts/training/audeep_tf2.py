@@ -30,8 +30,9 @@ def _make_functions(model, optimizer, strategy, use_function=True):
         with tf.GradientTape() as tape:
             reconstruction, _ = model(data, training=True)
             targets = data[:, ::-1, :]
-            loss = tf.sqrt(tf.reduce_mean(tf.math.squared_difference(
-                targets, reconstruction)))
+            loss = tf.sqrt(
+                tf.reduce_mean(tf.math.squared_difference(targets, reconstruction))
+            )
 
         trainable_vars = model.trainable_variables
         gradients = tape.gradient(loss, trainable_vars)
@@ -44,20 +45,23 @@ def _make_functions(model, optimizer, strategy, use_function=True):
     def test_step(data):
         reconstruction, _ = model(data, training=False)
         targets = data[:, ::-1, :]
-        loss = tf.sqrt(tf.reduce_mean(tf.math.squared_difference(
-            targets, reconstruction)))
+        loss = tf.sqrt(
+            tf.reduce_mean(tf.math.squared_difference(targets, reconstruction))
+        )
 
         return loss
 
     def dist_train_step(batch):
         per_replica_losses = strategy.run(train_step, args=(batch,))
-        return strategy.reduce(tf.distribute.ReduceOp.SUM,
-                               per_replica_losses, axis=None)
+        return strategy.reduce(
+            tf.distribute.ReduceOp.SUM, per_replica_losses, axis=None
+        )
 
     def dist_test_step(batch):
         per_replica_losses = strategy.run(test_step, args=(batch,))
-        return strategy.reduce(tf.distribute.ReduceOp.MEAN,
-                               per_replica_losses, axis=None)
+        return strategy.reduce(
+            tf.distribute.ReduceOp.MEAN, per_replica_losses, axis=None
+        )
 
     if use_function:
         dist_train_step = tf.function(dist_train_step)
@@ -68,13 +72,13 @@ def _make_functions(model, optimizer, strategy, use_function=True):
 
 def train(args):
     args.logs.parent.mkdir(parents=True, exist_ok=True)
-    train_log_dir = str(args.logs / 'train')
-    valid_log_dir = str(args.logs / 'valid')
+    train_log_dir = str(args.logs / "train")
+    valid_log_dir = str(args.logs / "valid")
     train_writer = tf.summary.create_file_writer(train_log_dir)
     valid_writer = tf.summary.create_file_writer(valid_log_dir)
 
     if args.profile:
-        tf.profiler.experimental.start('')
+        tf.profiler.experimental.start("")
         tf.profiler.experimental.stop(save=False)
 
     strategy = tf.distribute.get_strategy()
@@ -83,15 +87,22 @@ def train(args):
 
     # Get data
     dataset = netCDF4.Dataset(str(args.dataset))
-    x = np.array(dataset.variables['features'])
+    x = np.array(dataset.variables["features"])
     dataset.close()
     n_spectrograms, max_time, features = x.shape
     np.random.default_rng().shuffle(x)
     n_valid = int(n_spectrograms * args.valid_fraction)
-    valid_data = tf.data.Dataset.from_tensor_slices(x[:n_valid]).batch(
-        args.batch_size).prefetch(10)
-    train_data = tf.data.Dataset.from_tensor_slices(x[n_valid:]).shuffle(
-        n_spectrograms).batch(args.batch_size).prefetch(100)
+    valid_data = (
+        tf.data.Dataset.from_tensor_slices(x[:n_valid])
+        .batch(args.batch_size)
+        .prefetch(10)
+    )
+    train_data = (
+        tf.data.Dataset.from_tensor_slices(x[n_valid:])
+        .shuffle(n_spectrograms)
+        .batch(args.batch_size)
+        .prefetch(100)
+    )
     summary_data = valid_data.take(1)
     # Reduce memory footprint
     del x
@@ -105,37 +116,40 @@ def train(args):
     step = tf.Variable(1)
     with strategy.scope():
         model = audeep_trae(
-            (max_time, features), units=args.units, layers=args.layers,
+            (max_time, features),
+            units=args.units,
+            layers=args.layers,
             bidirectional_encoder=args.bidirectional_encoder,
-            bidirectional_decoder=args.bidirectional_decoder
+            bidirectional_decoder=args.bidirectional_decoder,
         )
         # Using epsilon=1e-5 seems to offer better stability.
-        optimizer = tf.optimizers.Adam(learning_rate=args.learning_rate,
-                                       epsilon=1e-5)
+        optimizer = tf.optimizers.Adam(learning_rate=args.learning_rate, epsilon=1e-5)
         model.compile(optimizer=optimizer)
-        checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer,
-                                         step=step)
+        checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer, step=step)
     print()
     print("Model structure:")
     for layer in model.layers:
         name = layer.name
-        if name.startswith('tf_op_layer_'):
+        if name.startswith("tf_op_layer_"):
             name = name[12:]
         print(layer.name, layer.output_shape)
     print()
 
     # Write the graph only
-    tf.keras.callbacks.TensorBoard(args.logs / 'graph', write_graph=True,
-                                   profile_batch=0).set_model(model)
+    tf.keras.callbacks.TensorBoard(
+        args.logs / "graph", write_graph=True, profile_batch=0
+    ).set_model(model)
 
     checkpoint_manager = tf.train.CheckpointManager(
-        checkpoint, str(args.logs), max_to_keep=args.keep_checkpoints,
-        checkpoint_interval=args.save_interval, step_counter=step
+        checkpoint,
+        str(args.logs),
+        max_to_keep=args.keep_checkpoints,
+        checkpoint_interval=args.save_interval,
+        step_counter=step,
     )
     if args.cont:
         checkpoint.restore(checkpoint_manager.latest_checkpoint)
-        print(f"Restoring from checkpoint "
-              f"{checkpoint_manager.latest_checkpoint}")
+        print(f"Restoring from checkpoint " f"{checkpoint_manager.latest_checkpoint}")
 
     train_step, test_step = _make_functions(model, optimizer, strategy)
 
@@ -147,10 +161,8 @@ def train(args):
         n_batch = 0
         batch_time = time.perf_counter()
         for batch in tqdm(
-                train_data,
-                total=n_train_batches,
-                desc=f"Epoch {epoch:03d}",
-                unit='batch'):
+            train_data, total=n_train_batches, desc=f"Epoch {epoch:03d}", unit="batch"
+        ):
             if epoch == 2 and n_batch == 0 and args.profile:
                 tf.profiler.experimental.start(args.logdir)
             loss = train_step(batch)
@@ -176,7 +188,7 @@ def train(args):
         )
 
         with valid_writer.as_default():
-            tf.summary.scalar('rmse', valid_loss, step=epoch)
+            tf.summary.scalar("rmse", valid_loss, step=epoch)
 
             batch = next(iter(summary_data))
             reconstruction, representation = model(batch, training=False)
@@ -184,28 +196,28 @@ def train(args):
             images = tf.concat([batch, reconstruction], 2)
             images = tf.expand_dims(images, -1)
             images = (images + 1) / 2
-            tf.summary.image('combined', images, step=epoch, max_outputs=20)
-            tf.summary.histogram('representation', representation, step=epoch)
+            tf.summary.image("combined", images, step=epoch, max_outputs=20)
+            tf.summary.histogram("representation", representation, step=epoch)
 
         with train_writer.as_default():
-            tf.summary.scalar('rmse', train_loss, step=epoch)
+            tf.summary.scalar("rmse", train_loss, step=epoch)
 
         if epoch % args.save_interval == 0:
             checkpoint_manager.save(checkpoint_number=epoch)
-            print(f"Saved checkpoint to "
-                  f"{checkpoint_manager.latest_checkpoint}")
+            print(f"Saved checkpoint to " f"{checkpoint_manager.latest_checkpoint}")
 
-    save_path = str(args.logs / 'model')
+    save_path = str(args.logs / "model")
     model.save(save_path, include_optimizer=False)
     print(f"Saved model to {save_path}")
 
 
 def generate(args):
     dataset = netCDF4.Dataset(args.dataset)
-    data = tf.data.Dataset.from_tensor_slices(
-        dataset.variables['features']).batch(args.batch_size)
-    filenames = np.array(dataset.variables['name'])
-    labels = np.array(dataset.variables['label'])
+    data = tf.data.Dataset.from_tensor_slices(dataset.variables["features"]).batch(
+        args.batch_size
+    )
+    filenames = np.array(dataset.variables["name"])
+    labels = np.array(dataset.variables["label"])
     corpus = dataset.corpus
     dataset.close()
 
@@ -221,22 +233,21 @@ def generate(args):
         representations.append(representation.numpy())
     representations = np.concatenate(representations)
 
-    dataset = netCDF4.Dataset(str(args.output), 'w')
-    dataset.createDimension('instance', len(filenames))
-    dataset.createDimension('generated', representations.shape[-1])
+    dataset = netCDF4.Dataset(str(args.output), "w")
+    dataset.createDimension("instance", len(filenames))
+    dataset.createDimension("generated", representations.shape[-1])
 
-    filename = dataset.createVariable('name', str, ('instance',))
+    filename = dataset.createVariable("name", str, ("instance",))
     filename[:] = filenames
 
-    label_nominal = dataset.createVariable('label', str, ('instance',))
+    label_nominal = dataset.createVariable("label", str, ("instance",))
     label_nominal[:] = labels
 
-    features = dataset.createVariable('features', np.float32,
-                                      ('instance', 'generated'))
+    features = dataset.createVariable("features", np.float32, ("instance", "generated"))
     features[:, :] = representations
 
-    dataset.setncattr_string('feature_dims', '["generated"]')
-    dataset.setncattr_string('corpus', corpus)
+    dataset.setncattr_string("feature_dims", '["generated"]')
+    dataset.setncattr_string("corpus", corpus)
     dataset.close()
 
     print(f"Wrote netCDF4 file to {args.output}")
@@ -245,61 +256,85 @@ def generate(args):
 def main():
     parser = argparse.ArgumentParser()
 
-    subparsers = parser.add_subparsers(title='command', dest='command',
-                                       required=True)
+    subparsers = parser.add_subparsers(title="command", dest="command", required=True)
 
-    train_args = subparsers.add_parser('train')
-    train_args.add_argument('--dataset', type=Path, required=True,
-                            help="File containing spectrogram data.")
-    train_args.add_argument('--logs', type=Path, required=True,
-                            help="Directory to store TensorBoard logs.")
+    train_args = subparsers.add_parser("train")
+    train_args.add_argument(
+        "--dataset", type=Path, required=True, help="File containing spectrogram data."
+    )
+    train_args.add_argument(
+        "--logs", type=Path, required=True, help="Directory to store TensorBoard logs."
+    )
 
-    train_args.add_argument('--epochs', type=int, default=50,
-                            help="Number of epochs to train for.")
-    train_args.add_argument('--valid_fraction', type=float, default=0.1,
-                            help="Fraction of data to use as validation data.")
-    train_args.add_argument('--learning_rate', type=float, default=0.001,
-                            help="Learning rate.")
-    train_args.add_argument('--batch_size', type=int, default=64,
-                            help="Global batch size.")
-    train_args.add_argument('--multi_gpu', action='store_true',
-                            help="Use all GPUs for training.")
-    train_args.add_argument('--profile', action='store_true',
-                            help="Profile a batch.")
-    train_args.add_argument('--continue', action='store_true', dest='cont',
-                            help="Continue from latest checkpoint.")
-    train_args.add_argument('--keep_checkpoints', type=int, default=5,
-                            help="Number of checkpoints to keep.")
-    train_args.add_argument('--save_interval', type=int, default=10,
-                            help="Save every N epochs.")
+    train_args.add_argument(
+        "--epochs", type=int, default=50, help="Number of epochs to train for."
+    )
+    train_args.add_argument(
+        "--valid_fraction",
+        type=float,
+        default=0.1,
+        help="Fraction of data to use as validation data.",
+    )
+    train_args.add_argument(
+        "--learning_rate", type=float, default=0.001, help="Learning rate."
+    )
+    train_args.add_argument(
+        "--batch_size", type=int, default=64, help="Global batch size."
+    )
+    train_args.add_argument(
+        "--multi_gpu", action="store_true", help="Use all GPUs for training."
+    )
+    train_args.add_argument("--profile", action="store_true", help="Profile a batch.")
+    train_args.add_argument(
+        "--continue",
+        action="store_true",
+        dest="cont",
+        help="Continue from latest checkpoint.",
+    )
+    train_args.add_argument(
+        "--keep_checkpoints", type=int, default=5, help="Number of checkpoints to keep."
+    )
+    train_args.add_argument(
+        "--save_interval", type=int, default=10, help="Save every N epochs."
+    )
 
-    train_args.add_argument('--units', type=int, default=256,
-                            help="Dimensionality of RNN cells.")
-    train_args.add_argument('--layers', type=int, default=2,
-                            help="Number of stacked RNN layers.")
-    train_args.add_argument('--bidirectional_encoder', action='store_true',
-                            help="Use a bidirectional encoder.")
-    train_args.add_argument('--bidirectional_decoder', action='store_true',
-                            help="Use a bidirectional decoder.")
+    train_args.add_argument(
+        "--units", type=int, default=256, help="Dimensionality of RNN cells."
+    )
+    train_args.add_argument(
+        "--layers", type=int, default=2, help="Number of stacked RNN layers."
+    )
+    train_args.add_argument(
+        "--bidirectional_encoder",
+        action="store_true",
+        help="Use a bidirectional encoder.",
+    )
+    train_args.add_argument(
+        "--bidirectional_decoder",
+        action="store_true",
+        help="Use a bidirectional decoder.",
+    )
 
-    gen_args = subparsers.add_parser('generate')
-    gen_args.add_argument('--dataset', type=Path, required=True,
-                          help="File containing spectrogram data.")
-    gen_args.add_argument('--model', type=Path, required=True,
-                          help="Directory of Keras saved_model.")
-    gen_args.add_argument('--batch_size', type=int, default=256,
-                          help="Batch size.")
-    gen_args.add_argument('--output', type=Path, required=True,
-                          help="Path to output representations.")
+    gen_args = subparsers.add_parser("generate")
+    gen_args.add_argument(
+        "--dataset", type=Path, required=True, help="File containing spectrogram data."
+    )
+    gen_args.add_argument(
+        "--model", type=Path, required=True, help="Directory of Keras saved_model."
+    )
+    gen_args.add_argument("--batch_size", type=int, default=256, help="Batch size.")
+    gen_args.add_argument(
+        "--output", type=Path, required=True, help="Path to output representations."
+    )
 
     args = parser.parse_args()
 
-    for gpu in tf.config.list_physical_devices('GPU'):
+    for gpu in tf.config.list_physical_devices("GPU"):
         tf.config.experimental.set_memory_growth(gpu, True)
 
-    if args.command == 'train':
+    if args.command == "train":
         train(args)
-    elif args.command == 'generate':
+    elif args.command == "generate":
         generate(args)
 
 

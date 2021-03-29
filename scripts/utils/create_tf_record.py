@@ -11,10 +11,11 @@ import tensorflow as tf
 from emorec.dataset import parse_annotations
 
 parser = argparse.ArgumentParser()
-parser.add_argument('input', type=Path,
-                    help="ARFF file or file with list of filepaths.")
-parser.add_argument('--labels', type=Path, help="Path to labels file.")
-parser.add_argument('output', type=Path, help="Path to write TFRecord.")
+parser.add_argument(
+    "input", type=Path, help="ARFF file or file with list of filepaths."
+)
+parser.add_argument("--labels", type=Path, help="Path to labels file.")
+parser.add_argument("output", type=Path, help="Path to write TFRecord.")
 
 
 def _bytes_feature(value):
@@ -30,14 +31,19 @@ def _int64_feature(value):
 
 
 def serialise_example(name: str, features: np.ndarray, label: str):
-    example = tf.train.Example(features=tf.train.Features(feature={
-        'name': _bytes_feature(name),
-        'features': _bytes_feature(features.tobytes()),
-        'label': _bytes_feature(label),
-        'features_shape': tf.train.Feature(int64_list=tf.train.Int64List(
-            value=list(features.shape))),
-        'features_dtype': _bytes_feature(np.dtype(features.dtype).str)
-    }))
+    example = tf.train.Example(
+        features=tf.train.Features(
+            feature={
+                "name": _bytes_feature(name),
+                "features": _bytes_feature(features.tobytes()),
+                "label": _bytes_feature(label),
+                "features_shape": tf.train.Feature(
+                    int64_list=tf.train.Int64List(value=list(features.shape))
+                ),
+                "features_dtype": _bytes_feature(np.dtype(features.dtype).str),
+            }
+        )
+    )
     return example.SerializeToString()
 
 
@@ -45,10 +51,10 @@ def main():
     args = parser.parse_args()
 
     writer = tf.io.TFRecordWriter(str(args.output))
-    if args.input.suffix == '.arff':
+    if args.input.suffix == ".arff":
         with open(args.input) as fid:
             data = arff.load(fid)
-        for inst in data['data']:
+        for inst in data["data"]:
             name = inst[0]
             label = inst[-1]
             features = np.array(inst[1:-1], dtype=np.float32)

@@ -15,16 +15,19 @@ from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-DEVICE = torch.device('cuda')
+DEVICE = torch.device("cuda")
 
 
 class TimeRecurrentAutoencoder(nn.Module):
-    def __init__(self, n_features: int,
-                 n_units: int = 256,
-                 n_layers: int = 2,
-                 dropout: float = 0.2,
-                 bidirectional_encoder: bool = False,
-                 bidirectional_decoder: bool = False):
+    def __init__(
+        self,
+        n_features: int,
+        n_units: int = 256,
+        n_layers: int = 2,
+        dropout: float = 0.2,
+        bidirectional_encoder: bool = False,
+        bidirectional_decoder: bool = False,
+    ):
         super().__init__()
 
         encoder_state_size = n_units * n_layers
@@ -44,39 +47,51 @@ class TimeRecurrentAutoencoder(nn.Module):
         self.bidirectional_decoder = bidirectional_decoder
 
         self.encoder = nn.GRU(
-            n_features, n_units, num_layers=n_layers, dropout=dropout,
-            bidirectional=bidirectional_encoder, batch_first=True
+            n_features,
+            n_units,
+            num_layers=n_layers,
+            dropout=dropout,
+            bidirectional=bidirectional_encoder,
+            batch_first=True,
         )
         self.representation = nn.Sequential(
-            nn.Linear(encoder_state_size, decoder_state_size),
-            nn.Tanh()
+            nn.Linear(encoder_state_size, decoder_state_size), nn.Tanh()
         )
         self.decoder = nn.GRU(
-            n_features, n_units, num_layers=n_layers, dropout=dropout,
-            bidirectional=bidirectional_decoder, batch_first=True
+            n_features,
+            n_units,
+            num_layers=n_layers,
+            dropout=dropout,
+            bidirectional=bidirectional_decoder,
+            batch_first=True,
         )
         self.reconstruction = nn.Sequential(
-            nn.Linear(decoder_output_size, n_features), nn.Tanh())
+            nn.Linear(decoder_output_size, n_features), nn.Tanh()
+        )
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         targets = x.flip(1)
 
         num_directions = 2 if self.bidirectional_encoder else 1
-        encoder_h = torch.zeros(self.n_layers * num_directions, x.size(0),
-                                self.n_units, device=x.device)
+        encoder_h = torch.zeros(
+            self.n_layers * num_directions, x.size(0), self.n_units, device=x.device
+        )
         _, encoder_h = self.encoder(
-            F.dropout(x, self.dropout, self.training), encoder_h)
+            F.dropout(x, self.dropout, self.training), encoder_h
+        )
         encoder_h = torch.cat(encoder_h.unbind(), -1)
 
         representation = self.representation(encoder_h)
 
         num_directions = 2 if self.bidirectional_decoder else 1
-        decoder_h = torch.stack(representation.chunk(
-            self.n_layers * num_directions, -1))
+        decoder_h = torch.stack(
+            representation.chunk(self.n_layers * num_directions, -1)
+        )
 
         decoder_input = F.pad(targets[:, :-1, :], [0, 0, 1, 0])
         decoder_seq, _ = self.decoder(
-            F.dropout(decoder_input, self.dropout, self.training), decoder_h)
+            F.dropout(decoder_input, self.dropout, self.training), decoder_h
+        )
         decoder_seq = F.dropout(decoder_seq, self.dropout, self.training)
 
         reconstruction = self.reconstruction(decoder_seq)
@@ -86,7 +101,7 @@ class TimeRecurrentAutoencoder(nn.Module):
 
 def rmse_loss(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     """Root-mean-square error loss function."""
-    return torch.sqrt(torch.mean((x - y)**2))
+    return torch.sqrt(torch.mean((x - y) ** 2))
 
 
 def get_latest_save(directory: Union[str, Path]) -> Path:
@@ -103,27 +118,31 @@ def get_latest_save(directory: Union[str, Path]) -> Path:
         epoch number).
     """
     directory = Path(directory)
-    saves = list(directory.glob('model-*.pt'))
+    saves = list(directory.glob("model-*.pt"))
     if len(saves) == 0:
-        raise FileNotFoundError(
-            f"No save files found in directory {directory}")
-    return max(saves, key=lambda p: int(p.stem.split('-')[1]))
+        raise FileNotFoundError(f"No save files found in directory {directory}")
+    return max(saves, key=lambda p: int(p.stem.split("-")[1]))
 
 
-def save_model(directory: Union[Path, str], epoch: int,
-               model: TimeRecurrentAutoencoder, model_args: Dict[str, Any],
-               optimiser: Adam, optimiser_args: Dict[str, Any]):
+def save_model(
+    directory: Union[Path, str],
+    epoch: int,
+    model: TimeRecurrentAutoencoder,
+    model_args: Dict[str, Any],
+    optimiser: Adam,
+    optimiser_args: Dict[str, Any],
+):
     """Saves the given model and associated training parameters."""
-    save_path = Path(directory) / f'model-{epoch:04d}.pt'
+    save_path = Path(directory) / f"model-{epoch:04d}.pt"
     torch.save(
         {
-            'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'model_args': model_args,
-            'optimiser_state_dict': optimiser.state_dict(),
-            'optimiser_args': optimiser_args
+            "epoch": epoch,
+            "model_state_dict": model.state_dict(),
+            "model_args": model_args,
+            "optimiser_state_dict": optimiser.state_dict(),
+            "optimiser_args": optimiser_args,
         },
-        save_path
+        save_path,
     )
     print(f"Saved model to {save_path}.")
 
@@ -131,14 +150,16 @@ def save_model(directory: Union[Path, str], epoch: int,
 def get_data(path: PathOrStr, shuffle: bool = False):
     """Get data and metadata from netCDF dataset. Optionally shuffle x."""
     dataset = netCDF4.Dataset(path)
-    x = np.array(dataset.variables['features'])
-    num_inst = dataset.dimensions['instance'].size
-    names = np.array(dataset.variables['name'])
+    x = np.array(dataset.variables["features"])
+    num_inst = dataset.dimensions["instance"].size
+    names = np.array(dataset.variables["name"])
     corpus = dataset.corpus
     dataset.close()
 
     if len(x.shape) == 2:
-        assert len(x) % num_inst == 0, "Length of x is not a multiple of number of instances!"  # noqa
+        assert (
+            len(x) % num_inst == 0
+        ), "Length of x is not a multiple of number of instances!"  # noqa
         num_feat = x.shape[-1]
         x = x.reshape((num_inst, -1, num_feat))
 
@@ -154,23 +175,34 @@ def get_data(path: PathOrStr, shuffle: bool = False):
 
 
 @click.command()
-@click.argument('input', type=PathlibPath(exists=True, dir_okay=False))
-@click.option('--logs', type=Path, required=True)
-@click.option('--layers', type=int, default=2)
-@click.option('--units', type=int, default=256)
-@click.option('--dropout', type=float, default=0.2)
-@click.option('--bidirectional_encoder', is_flag=True)
-@click.option('--bidirectional_decoder', is_flag=True)
-@click.option('--batch_size', type=int, default=64)
-@click.option('--epochs', type=int, default=50)
-@click.option('--learning_rate', type=float, default=0.001)
-@click.option('--valid_fraction', type=float, default=0.1)
-@click.option('--continue', 'cont', is_flag=True)
-@click.option('--save_every', type=int, default=20)
-def train(input: Path, logs: Path, layers: int, units: int, dropout: float,
-          bidirectional_encoder: bool, bidirectional_decoder: bool,
-          batch_size: int, epochs: int, learning_rate: float,
-          valid_fraction: float, cont: bool, save_every: int):
+@click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
+@click.option("--logs", type=Path, required=True)
+@click.option("--layers", type=int, default=2)
+@click.option("--units", type=int, default=256)
+@click.option("--dropout", type=float, default=0.2)
+@click.option("--bidirectional_encoder", is_flag=True)
+@click.option("--bidirectional_decoder", is_flag=True)
+@click.option("--batch_size", type=int, default=64)
+@click.option("--epochs", type=int, default=50)
+@click.option("--learning_rate", type=float, default=0.001)
+@click.option("--valid_fraction", type=float, default=0.1)
+@click.option("--continue", "cont", is_flag=True)
+@click.option("--save_every", type=int, default=20)
+def train(
+    input: Path,
+    logs: Path,
+    layers: int,
+    units: int,
+    dropout: float,
+    bidirectional_encoder: bool,
+    bidirectional_decoder: bool,
+    batch_size: int,
+    epochs: int,
+    learning_rate: float,
+    valid_fraction: float,
+    cont: bool,
+    save_every: int,
+):
     print("Reading input from {}".format(input))
     x = get_data(input, shuffle=True)[0]
     x = torch.tensor(x)
@@ -178,23 +210,25 @@ def train(input: Path, logs: Path, layers: int, units: int, dropout: float,
     n_valid = int(valid_fraction * x.size(0))
     train_data = TensorDataset(x[n_valid:])
     valid_data = TensorDataset(x[:n_valid])
-    train_dl = DataLoader(train_data, batch_size=batch_size, shuffle=True,
-                          pin_memory=True)
-    valid_dl = DataLoader(valid_data, batch_size=batch_size,
-                          pin_memory=True)
+    train_dl = DataLoader(
+        train_data, batch_size=batch_size, shuffle=True, pin_memory=True
+    )
+    valid_dl = DataLoader(valid_data, batch_size=batch_size, pin_memory=True)
 
     if cont:
         save_path = get_latest_save(logs)
         load_dict = torch.load(save_path)
-        model_args = load_dict['model_args']
-        optimiser_args = load_dict['optimiser_args']
-        initial_epoch = 1 + load_dict['epoch']
+        model_args = load_dict["model_args"]
+        optimiser_args = load_dict["optimiser_args"]
+        initial_epoch = 1 + load_dict["epoch"]
     else:
         model_args = dict(
-            n_features=x.size(2), n_units=units, n_layers=layers,
+            n_features=x.size(2),
+            n_units=units,
+            n_layers=layers,
             dropout=dropout,
             bidirectional_encoder=bidirectional_encoder,
-            bidirectional_decoder=bidirectional_decoder
+            bidirectional_decoder=bidirectional_decoder,
         )
         optimiser_args = dict(lr=learning_rate, eps=1e-5)
         initial_epoch = 1
@@ -206,12 +240,12 @@ def train(input: Path, logs: Path, layers: int, units: int, dropout: float,
 
     if cont:
         print(f"Restoring model from {save_path}")
-        model.load_state_dict(load_dict['model_state_dict'])
-        optimiser.load_state_dict(load_dict['optimiser_state_dict'])
+        model.load_state_dict(load_dict["model_state_dict"])
+        optimiser.load_state_dict(load_dict["optimiser_state_dict"])
 
     logs.mkdir(parents=True, exist_ok=True)
-    train_writer = SummaryWriter(logs / 'train')
-    valid_writer = SummaryWriter(logs / 'valid')
+    train_writer = SummaryWriter(logs / "train")
+    valid_writer = SummaryWriter(logs / "valid")
     with torch.no_grad():
         batch = next(iter(train_dl))[0].to(DEVICE)
         train_writer.add_graph(model, input_to_model=batch)
@@ -221,8 +255,9 @@ def train(input: Path, logs: Path, layers: int, units: int, dropout: float,
         start_time = time.perf_counter()
         model.train()
         train_losses = []
-        for x, in tqdm(train_dl, desc=f'Epoch {epoch:03d}', unit='batch',
-                       leave=False):
+        for (x,) in tqdm(
+            train_dl, desc=f"Epoch {epoch:03d}", unit="batch", leave=False
+        ):
             x = x.to(DEVICE)
             optimiser.zero_grad()
             reconstruction, representation = model(x)
@@ -252,21 +287,23 @@ def train(input: Path, logs: Path, layers: int, units: int, dropout: float,
                 images = torch.cat([x, reconstruction], 2).unsqueeze(-1)
                 images = (images + 1) / 2
                 images = images[:20]
-                valid_writer.add_images('reconstruction', images,
-                                        global_step=epoch, dataformats='NHWC')
-                valid_writer.add_histogram('representation', representation,
-                                           global_step=epoch)
+                valid_writer.add_images(
+                    "reconstruction", images, global_step=epoch, dataformats="NHWC"
+                )
+                valid_writer.add_histogram(
+                    "representation", representation, global_step=epoch
+                )
 
             # Just get the loss for the rest, no summaries
-            for x, in it:
+            for (x,) in it:
                 x = x.to(DEVICE)
                 reconstruction, representation = model(x)
                 loss = loss_fn(x, reconstruction)
                 valid_losses.append(loss.item())
             valid_loss = np.mean(valid_losses)
 
-            train_writer.add_scalar('loss', train_loss, global_step=epoch)
-            valid_writer.add_scalar('loss', valid_loss, global_step=epoch)
+            train_writer.add_scalar("loss", train_loss, global_step=epoch)
+            valid_writer.add_scalar("loss", valid_loss, global_step=epoch)
 
             end_time = time.perf_counter() - start_time
             mean_time = train_time / len(train_dl)
@@ -278,22 +315,34 @@ def train(input: Path, logs: Path, layers: int, units: int, dropout: float,
 
         if epoch % save_every == 0:
             save_model(
-                logs, epoch=epoch, model=model, model_args=model_args,
-                optimiser=optimiser, optimiser_args=optimiser_args
+                logs,
+                epoch=epoch,
+                model=model,
+                model_args=model_args,
+                optimiser=optimiser,
+                optimiser_args=optimiser_args,
             )
 
     save_model(
-        logs, epoch=final_epoch, model=model, model_args=model_args,
-        optimiser=optimiser, optimiser_args=optimiser_args
+        logs,
+        epoch=final_epoch,
+        model=model,
+        model_args=model_args,
+        optimiser=optimiser,
+        optimiser_args=optimiser_args,
     )
 
 
 @click.command()
-@click.argument('input', type=PathlibPath(exists=True, dir_okay=False))
-@click.argument('output', type=Path)
-@click.option('--model', 'model_path', required=True,
-              type=PathlibPath(exists=True, dir_okay=False))
-@click.option('--batch_size', type=int, default=128)
+@click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
+@click.argument("output", type=Path)
+@click.option(
+    "--model",
+    "model_path",
+    required=True,
+    type=PathlibPath(exists=True, dir_okay=False),
+)
+@click.option("--batch_size", type=int, default=128)
 def generate(input: Path, output: Path, model_path: Path, batch_size: int):
     if model_path.is_dir():
         save_path = get_latest_save(model_path)
@@ -301,9 +350,9 @@ def generate(input: Path, output: Path, model_path: Path, batch_size: int):
         save_path = model_path
     print(f"Restoring model from {save_path}")
     load_dict = torch.load(save_path)
-    model = TimeRecurrentAutoencoder(**load_dict['model_args'])
+    model = TimeRecurrentAutoencoder(**load_dict["model_args"])
     model.cuda()
-    model.load_state_dict(load_dict['model_state_dict'])
+    model.load_state_dict(load_dict["model_state_dict"])
 
     x, filenames, corpus = get_data(input)
 
@@ -311,22 +360,25 @@ def generate(input: Path, output: Path, model_path: Path, batch_size: int):
     with torch.no_grad():
         model.eval()
         for i in range(0, len(x), batch_size):
-            batch = torch.tensor(x[i:i + batch_size], device=DEVICE)
+            batch = torch.tensor(x[i : i + batch_size], device=DEVICE)
             _, representation = model(batch)
-            representations[i:i + batch_size, :] = representation.cpu()
+            representations[i : i + batch_size, :] = representation.cpu()
 
-    write_netcdf_dataset(output, corpus=corpus, names=filenames,
-                         features=representations)
+    write_netcdf_dataset(
+        output, corpus=corpus, names=filenames, features=representations
+    )
     print(f"Wrote netCDF4 file to {output}")
 
 
 @click.group(no_args_is_help=True)
 def main():
     import os
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+
+    os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
     # Workaround for having both PyTorch and TensorFlow installed.
     import tensorflow as _tensorflow
     import tensorboard.compat.tensorflow_stub.io.gfile as _gfile
+
     _tensorflow.io.gfile = _gfile
 
 

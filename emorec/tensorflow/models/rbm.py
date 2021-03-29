@@ -7,7 +7,7 @@ import tensorflow as tf
 
 from ...utils import PathOrStr
 
-__all__ = ['BBRBM', 'GBRBM']
+__all__ = ["BBRBM", "GBRBM"]
 
 
 def _sample_bernoulli(p):
@@ -19,9 +19,9 @@ def _sample_std_normal(p):
 
 
 class DecayType(Enum):
-    STEP = 'STEP'
-    COSINE = 'COSINE'
-    EXP = 'EXP'
+    STEP = "STEP"
+    COSINE = "COSINE"
+    EXP = "EXP"
 
     def __str__(self):
         return self.name
@@ -45,8 +45,13 @@ class RBM:
     Heidelberg: Springer Berlin Heidelberg, 2012, pp. 599–619.
     """
 
-    def __init__(self, n_hidden: int, input_shape: Tuple[int, ...],
-                 logdir: PathOrStr = 'logs/rbm', output_histograms: bool = False):
+    def __init__(
+        self,
+        n_hidden: int,
+        input_shape: Tuple[int, ...],
+        logdir: PathOrStr = "logs/rbm",
+        output_histograms: bool = False,
+    ):
         """
         Args:
         -----
@@ -70,13 +75,10 @@ class RBM:
 
         self.h_bias = tf.Variable(tf.zeros((n_hidden,)))
         self.v_bias = tf.Variable(tf.zeros((n_visible,)))
-        self.W = tf.Variable(tf.random.normal((n_visible, n_hidden), 0.0,
-                                              0.01))
+        self.W = tf.Variable(tf.random.normal((n_visible, n_hidden), 0.0, 0.01))
 
-        self.h_bias_velocity = tf.Variable(tf.zeros_like(self.h_bias),
-                                           trainable=False)
-        self.v_bias_velocity = tf.Variable(tf.zeros_like(self.v_bias),
-                                           trainable=False)
+        self.h_bias_velocity = tf.Variable(tf.zeros_like(self.h_bias), trainable=False)
+        self.v_bias_velocity = tf.Variable(tf.zeros_like(self.v_bias), trainable=False)
         self.W_velocity = tf.Variable(tf.zeros_like(self.W), trainable=False)
 
         self.learning_rate = tf.Variable(0.01, trainable=False)
@@ -90,9 +92,11 @@ class RBM:
             self.logging = True
             logdir = Path(logdir)
             self.train_summary_writer = tf.summary.create_file_writer(
-                str(logdir / 'train'))
+                str(logdir / "train")
+            )
             self.valid_summary_writer = tf.summary.create_file_writer(
-                str(logdir / 'valid'))
+                str(logdir / "valid")
+            )
 
     def free_energy(self, batch: tf.Tensor):
         raise NotImplementedError("free_energy() not implemented.")
@@ -161,31 +165,37 @@ class RBM:
         # v - v'
         v_bias_delta = tf.reduce_mean(batch - p_v, 0)
 
-        self.W_velocity.assign(self.momentum * self.W_velocity
-                               + self.learning_rate * W_delta)
-        self.h_bias_velocity.assign(self.momentum * self.h_bias_velocity
-                                    + self.learning_rate * h_bias_delta)
-        self.v_bias_velocity.assign(self.momentum * self.v_bias_velocity
-                                    + self.learning_rate * v_bias_delta)
+        self.W_velocity.assign(
+            self.momentum * self.W_velocity + self.learning_rate * W_delta
+        )
+        self.h_bias_velocity.assign(
+            self.momentum * self.h_bias_velocity + self.learning_rate * h_bias_delta
+        )
+        self.v_bias_velocity.assign(
+            self.momentum * self.v_bias_velocity + self.learning_rate * v_bias_delta
+        )
 
         self.W.assign_add(self.W_velocity)
         self.h_bias.assign_add(self.h_bias_velocity)
         self.v_bias.assign_add(self.v_bias_velocity)
 
-        mse_batch = tf.reduce_mean((p_v - batch)**2)
+        mse_batch = tf.reduce_mean((p_v - batch) ** 2)
         return mse_batch
 
-    def train(self, train_data: tf.data.Dataset,
-              valid_data: Optional[tf.data.Dataset] = None,
-              init_learning_rate: float = 0.01,
-              final_learning_rate: float = 0.001,
-              learning_rate_decay: Optional[DecayType] = None,
-              learning_rate_decay_param: float = 0.5,
-              init_momentum: float = 0.5,
-              final_momentum: float = 0.9,
-              momentum_decay: Optional[DecayType] = None,
-              momentum_decay_param: float = 0.5,
-              n_epochs: int = 100):
+    def train(
+        self,
+        train_data: tf.data.Dataset,
+        valid_data: Optional[tf.data.Dataset] = None,
+        init_learning_rate: float = 0.01,
+        final_learning_rate: float = 0.001,
+        learning_rate_decay: Optional[DecayType] = None,
+        learning_rate_decay_param: float = 0.5,
+        init_momentum: float = 0.5,
+        final_momentum: float = 0.9,
+        momentum_decay: Optional[DecayType] = None,
+        momentum_decay_param: float = 0.5,
+        n_epochs: int = 100,
+    ):
         """Train this RBM.
 
         Args:
@@ -223,45 +233,44 @@ class RBM:
             lr_coeffB = 0.5 * (init_learning_rate + final_learning_rate)
         elif learning_rate_decay == DecayType.EXP:
             lr_coeffA = init_learning_rate
-            lr_coeffB = (tf.math.log(init_learning_rate)
-                         - tf.math.log(final_learning_rate))
+            lr_coeffB = tf.math.log(init_learning_rate) - tf.math.log(
+                final_learning_rate
+            )
         if momentum_decay == DecayType.COSINE:
             mom_coeffA = 0.5 * (init_momentum - final_momentum)
             mom_coeffB = 0.5 * (init_momentum + final_momentum)
         elif momentum_decay == DecayType.EXP:
             mom_coeffA = init_momentum
-            mom_coeffB = (tf.math.log(init_momentum)
-                          - tf.math.log(final_momentum))
+            mom_coeffB = tf.math.log(init_momentum) - tf.math.log(final_momentum)
 
         for epoch in range(1, n_epochs + 1):
             tf.print(f"Epoch: {epoch}")
             time_frac = float(epoch) / float(n_epochs)
 
-            if (learning_rate_decay == DecayType.STEP
-                    and time_frac > learning_rate_decay_param):
+            if (
+                learning_rate_decay == DecayType.STEP
+                and time_frac > learning_rate_decay_param
+            ):
                 self.learning_rate.assign(final_learning_rate)
             elif learning_rate_decay == DecayType.COSINE:
                 self.learning_rate.assign(
-                    lr_coeffA * tf.cos(pi * time_frac) + lr_coeffB)
+                    lr_coeffA * tf.cos(pi * time_frac) + lr_coeffB
+                )
             elif learning_rate_decay == DecayType.EXP:
-                self.learning_rate.assign(
-                    lr_coeffA * tf.exp(-lr_coeffB * time_frac))
+                self.learning_rate.assign(lr_coeffA * tf.exp(-lr_coeffB * time_frac))
 
-            if (momentum_decay == DecayType.STEP
-                    and time_frac > momentum_decay_param):
+            if momentum_decay == DecayType.STEP and time_frac > momentum_decay_param:
                 self.momentum.assign(final_momentum)
             elif momentum_decay == DecayType.COSINE:
-                self.momentum.assign(
-                    mom_coeffA * tf.cos(pi * time_frac) + mom_coeffB)
+                self.momentum.assign(mom_coeffA * tf.cos(pi * time_frac) + mom_coeffB)
             elif momentum_decay == DecayType.EXP:
-                self.momentum.assign(
-                    mom_coeffA * tf.exp(-mom_coeffB * time_frac))
+                self.momentum.assign(mom_coeffA * tf.exp(-mom_coeffB * time_frac))
 
             mse_train = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
             i = tf.constant(0, tf.int32)
             for batch in train_data:
                 if i % (train_size // 10) == 0:
-                    tf.print('.', end='')
+                    tf.print(".", end="")
 
                 mse_batch = self.train_batch(batch)
                 mse_train = mse_train.write(i, mse_batch)
@@ -271,96 +280,96 @@ class RBM:
             mse_train = tf.reduce_mean(mse_train)
 
             with self.train_summary_writer.as_default():
-                tf.summary.scalar('mse', mse_train, step=epoch)
-                tf.print(f'mse: {mse_train:.3f}, ', end='')
+                tf.summary.scalar("mse", mse_train, step=epoch)
+                tf.print(f"mse: {mse_train:.3f}, ", end="")
 
-                tf.summary.scalar('learining_rate', self.learning_rate,
-                                  step=epoch)
-                tf.summary.scalar('momentum', self.momentum, step=epoch)
-                weights_l2 = tf.reduce_sum(self.W**2)
-                tf.summary.scalar('weights_l2', weights_l2, step=epoch)
+                tf.summary.scalar("learining_rate", self.learning_rate, step=epoch)
+                tf.summary.scalar("momentum", self.momentum, step=epoch)
+                weights_l2 = tf.reduce_sum(self.W ** 2)
+                tf.summary.scalar("weights_l2", weights_l2, step=epoch)
 
                 if self.output_histograms:
-                    tf.summary.histogram('h_bias', self.h_bias, step=epoch)
-                    tf.summary.histogram('v_bias', self.v_bias, step=epoch)
-                    tf.summary.histogram('weights', self.W, step=epoch)
+                    tf.summary.histogram("h_bias", self.h_bias, step=epoch)
+                    tf.summary.histogram("v_bias", self.v_bias, step=epoch)
+                    tf.summary.histogram("weights", self.W, step=epoch)
 
-                    tf.summary.histogram('h_bias_velocity',
-                                         self.h_bias_velocity, step=epoch)
-                    tf.summary.histogram('v_bias_velocity',
-                                         self.v_bias_velocity, step=epoch)
-                    tf.summary.histogram('weights_velocity', self.W_velocity,
-                                         step=epoch)
+                    tf.summary.histogram(
+                        "h_bias_velocity", self.h_bias_velocity, step=epoch
+                    )
+                    tf.summary.histogram(
+                        "v_bias_velocity", self.v_bias_velocity, step=epoch
+                    )
+                    tf.summary.histogram(
+                        "weights_velocity", self.W_velocity, step=epoch
+                    )
 
                 batch = next(iter(train_data))
                 f_energy = self.free_energy(batch)
-                tf.summary.scalar('free_energy', f_energy, step=epoch)
+                tf.summary.scalar("free_energy", f_energy, step=epoch)
 
                 if 2 <= len(self.input_shape) <= 3:
                     if len(self.input_shape) == 3:
-                        new_shape = tf.concat(([self.n_hidden],
-                                               self.input_shape), axis=0)
+                        new_shape = tf.concat(
+                            ([self.n_hidden], self.input_shape), axis=0
+                        )
                     elif len(self.input_shape) == 2:
                         new_shape = tf.concat(
-                            ([self.n_hidden], self.input_shape, [1]), axis=0)
+                            ([self.n_hidden], self.input_shape, [1]), axis=0
+                        )
                     W = tf.transpose(self.W)
                     W = tf.reshape(W, new_shape)
                     W = (W + 2.0) / 4.0
-                    tf.summary.image('hidden_vis', W, step=epoch,
-                                     max_outputs=128)
+                    tf.summary.image("hidden_vis", W, step=epoch, max_outputs=128)
 
                     if len(self.input_shape) == 3:
                         new_shape = tf.concat(([-1], self.input_shape), axis=0)
                     elif len(self.input_shape) == 2:
-                        new_shape = tf.concat(([-1], self.input_shape, [1]),
-                                              axis=0)
+                        new_shape = tf.concat(([-1], self.input_shape, [1]), axis=0)
                     reconst = self.reconstruct_batch(batch)
                     reconst = tf.reshape(reconst, new_shape)
                     image = tf.reshape(batch, new_shape)
                     combined = tf.concat([image, reconst], 2)
-                    tf.summary.image('reconstruction', combined, step=epoch,
-                                     max_outputs=10)
+                    tf.summary.image(
+                        "reconstruction", combined, step=epoch, max_outputs=10
+                    )
 
             if valid_data:
-                mse_valid = tf.TensorArray(tf.float32, size=0,
-                                           dynamic_size=True)
+                mse_valid = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
                 i = tf.constant(0, tf.int32)
                 for batch in valid_data:
                     p_v = self.reconstruct_batch(batch)
-                    mse_batch = tf.reduce_mean((p_v - batch)**2)
+                    mse_batch = tf.reduce_mean((p_v - batch) ** 2)
                     mse_valid = mse_valid.write(i, mse_batch)
                     i += 1
                 mse_valid = mse_valid.stack()
                 mse_valid = tf.reduce_mean(mse_valid)
 
                 with self.valid_summary_writer.as_default():
-                    tf.summary.scalar('mse', mse_valid, step=epoch)
-                    tf.print(f'val_mse: {mse_valid:.3f}')
+                    tf.summary.scalar("mse", mse_valid, step=epoch)
+                    tf.print(f"val_mse: {mse_valid:.3f}")
 
                     batch = next(iter(valid_data))
 
                     if 2 <= len(self.input_shape) <= 3:
                         if len(self.input_shape) == 3:
-                            new_shape = tf.concat(([-1], self.input_shape),
-                                                  axis=0)
+                            new_shape = tf.concat(([-1], self.input_shape), axis=0)
                         elif len(self.input_shape) == 2:
-                            new_shape = tf.concat(([-1], self.input_shape,
-                                                   [1]), axis=0)
+                            new_shape = tf.concat(([-1], self.input_shape, [1]), axis=0)
                         reconst = self.reconstruct_batch(batch)
                         reconst = tf.reshape(reconst, new_shape)
                         image = tf.reshape(batch, new_shape)
                         combined = tf.concat([image, reconst], 2)
-                        tf.summary.image('reconstruction', combined,
-                                         step=epoch, max_outputs=10)
+                        tf.summary.image(
+                            "reconstruction", combined, step=epoch, max_outputs=10
+                        )
 
                     p_h = self.hidden_prob(batch)
                     p_h = tf.reshape(p_h, (1, -1, self.n_hidden, 1))
                     p_h = tf.transpose(p_h, [0, 2, 1, 3])
-                    tf.summary.image('hidden_prob', p_h, step=epoch)
+                    tf.summary.image("hidden_prob", p_h, step=epoch)
 
                     f_energy = self.free_energy(batch)
-                    tf.summary.scalar('free_energy', f_energy,
-                                      step=epoch)
+                    tf.summary.scalar("free_energy", f_energy, step=epoch)
 
     @tf.function
     def reconstruct_batch(self, batch):
@@ -403,8 +412,9 @@ class BBRBM(RBM):
 
     def free_energy(self, batch: tf.Tensor):
         x = self.h_bias + tf.matmul(batch, self.W)
-        f_energy = (- tf.reduce_sum(batch * self.v_bias, -1)
-                    - tf.reduce_sum(tf.nn.softplus(x), -1))
+        f_energy = -tf.reduce_sum(batch * self.v_bias, -1) - tf.reduce_sum(
+            tf.nn.softplus(x), -1
+        )
         f_energy = tf.reduce_mean(f_energy)
         return f_energy
 
@@ -423,8 +433,9 @@ class GBRBM(RBM):
 
     def free_energy(self, batch: tf.Tensor):
         x = self.h_bias + tf.matmul(batch, self.W)
-        f_energy = (0.5 * tf.reduce_sum((batch - self.v_bias)**2, -1)
-                    - tf.reduce_sum(tf.nn.softplus(x), -1))
+        f_energy = 0.5 * tf.reduce_sum((batch - self.v_bias) ** 2, -1) - tf.reduce_sum(
+            tf.nn.softplus(x), -1
+        )
         f_energy = tf.reduce_mean(f_energy)
         return f_energy
 
@@ -441,9 +452,14 @@ class GBRBM(RBM):
 class DBN:
     """Deep Belief Network, also known as a Deep Boltzmann Machine."""
 
-    def __init__(self, input_shape: Tuple[int], n_layers: int = 3,
-                 layer_nodes: Sequence[int] = [512, 256, 128],
-                 logdir: PathOrStr = 'logs/dbn', **kwargs):
+    def __init__(
+        self,
+        input_shape: Tuple[int],
+        n_layers: int = 3,
+        layer_nodes: Sequence[int] = [512, 256, 128],
+        logdir: PathOrStr = "logs/dbn",
+        **kwargs,
+    ):
         """Initialise this DBN.
 
         Args:
@@ -468,21 +484,33 @@ class DBN:
         logdir = Path(logdir)
         timestamp = tf.timestamp().numpy()
         logdir = logdir / str(timestamp)
-        self.layers = [BBRBM(layer_nodes[0], self.input_shape,
-                             logdir=logdir / 'rbm0', **kwargs)]
+        self.layers = [
+            BBRBM(layer_nodes[0], self.input_shape, logdir=logdir / "rbm0", **kwargs)
+        ]
         for i in range(1, n_layers):
-            self.layers.append(BBRBM(layer_nodes[i], logdir=logdir / f'rbm{i}',
-                                     input_shape=(layer_nodes[i - 1],)))
+            self.layers.append(
+                BBRBM(
+                    layer_nodes[i],
+                    logdir=logdir / f"rbm{i}",
+                    input_shape=(layer_nodes[i - 1],),
+                )
+            )
 
         self.train_summary_writer = tf.summary.create_file_writer(
-            str(logdir / 'dbn' / 'train'))
+            str(logdir / "dbn" / "train")
+        )
         self.valid_summary_writer = tf.summary.create_file_writer(
-            str(logdir / 'dbn' / 'valid'))
+            str(logdir / "dbn" / "valid")
+        )
 
-    def train(self, train_data: tf.data.Dataset,
-              valid_data: Optional[tf.data.Dataset] = None,
-              n_epochs: int = 100, learning_rate: float = 0.01,
-              momentum: float = 0.5):
+    def train(
+        self,
+        train_data: tf.data.Dataset,
+        valid_data: Optional[tf.data.Dataset] = None,
+        n_epochs: int = 100,
+        learning_rate: float = 0.01,
+        momentum: float = 0.5,
+    ):
         """Train each layer in this DBN in sequence, using the reconstructed
         output from previous layers as input.
 
@@ -501,8 +529,11 @@ class DBN:
         """
         print("Training layer 0")
         self.layers[0].train(
-            train_data, valid_data=valid_data, init_momentum=momentum,
-            init_learning_rate=learning_rate, n_epochs=n_epochs
+            train_data,
+            valid_data=valid_data,
+            init_momentum=momentum,
+            init_learning_rate=learning_rate,
+            n_epochs=n_epochs,
         )
         new_train_data = train_data
         new_valid_data = valid_data
@@ -512,9 +543,11 @@ class DBN:
             if new_valid_data:
                 new_valid_data = new_valid_data.map(self.layers[i - 1].forward)
             self.layers[i].train(
-                new_train_data, valid_data=new_valid_data,
-                init_momentum=momentum, init_learning_rate=learning_rate,
-                n_epochs=n_epochs
+                new_train_data,
+                valid_data=new_valid_data,
+                init_momentum=momentum,
+                init_learning_rate=learning_rate,
+                n_epochs=n_epochs,
             )
 
         if valid_data:
@@ -524,15 +557,15 @@ class DBN:
                 if len(self.input_shape) == 3:
                     new_shape = tf.concat(([-1], self.input_shape), axis=0)
                 elif len(self.input_shape) == 2:
-                    new_shape = tf.concat(([-1], self.input_shape, [1]),
-                                          axis=0)
+                    new_shape = tf.concat(([-1], self.input_shape, [1]), axis=0)
                 tf.print("Reconstructing")
                 reconst = self.reconstruct_batch(batch)
                 reconst = tf.reshape(reconst, new_shape)
                 image = tf.reshape(batch, new_shape)
                 combined = tf.concat([image, reconst], 2)
-                tf.summary.image('reconstruction', combined, step=n_epochs,
-                                 max_outputs=10)
+                tf.summary.image(
+                    "reconstruction", combined, step=n_epochs, max_outputs=10
+                )
 
     @tf.function
     def reconstruct_batch(self, batch: tf.Tensor):

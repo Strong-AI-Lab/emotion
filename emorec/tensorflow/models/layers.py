@@ -6,9 +6,10 @@ class Attention1D(Layer):
     """Layer that implements simple weighted pooling using softmax
     attention over a sequence of input vectors.
     """
+
     def build(self, input_shape: tuple):
         _, _, size = input_shape
-        self.weight = self.add_weight('weight', (size, 1))
+        self.weight = self.add_weight("weight", (size, 1))
 
     def call(self, inputs, **kwargs):
         alpha = tf.matmul(inputs, self.weight)  # (batch, steps, 1)
