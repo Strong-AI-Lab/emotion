@@ -1,5 +1,5 @@
-import subprocess
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -8,9 +8,10 @@ from typing import Sequence, Tuple, Union
 import click
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed
+
 from emorec.dataset import get_audio_paths, write_netcdf_dataset
 from emorec.utils import PathlibPath
-from joblib import Parallel, delayed
 
 OPENSMILE_DIR = Path("third_party", "opensmile")
 DEFAULT_CONF = OPENSMILE_DIR / "conf" / "IS09.conf"

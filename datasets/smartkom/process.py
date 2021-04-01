@@ -18,10 +18,11 @@ import click
 import numpy as np
 import pandas as pd
 import soundfile
-from emorec.dataset import write_filelist, write_annotations
-from emorec.utils import PathlibPath
 from joblib import Parallel, delayed
 from nltk.corpus import stopwords
+
+from emorec.dataset import write_annotations, write_filelist
+from emorec.utils import PathlibPath
 
 emotion_map = {
     "Neutral": "neutral",

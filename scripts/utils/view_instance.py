@@ -1,9 +1,10 @@
-import matplotlib.pyplot as plt
 from pathlib import Path
 from typing import Union
 
 import click
+import matplotlib.pyplot as plt
 import numpy as np
+
 from emorec.dataset import Dataset
 from emorec.utils import PathlibPath
 

@@ -4,15 +4,16 @@ from pathlib import Path
 from typing import List, Optional
 
 import click
-from click.types import Choice
 import joblib
 import librosa
 import netCDF4
 import numpy as np
-from click_option_group import optgroup, RequiredAnyOptionGroup
+from click.types import Choice
+from click_option_group import RequiredAnyOptionGroup, optgroup
+from matplotlib import pyplot as plt
+
 from emorec.dataset import get_audio_paths, write_netcdf_dataset
 from emorec.utils import PathlibPath
-from matplotlib import pyplot as plt
 
 
 def write_audeep_dataset(

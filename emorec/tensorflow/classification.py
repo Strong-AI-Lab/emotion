@@ -5,18 +5,17 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+import tensorflow as tf
 from sklearn.metrics import get_scorer
 from sklearn.model_selection import BaseCrossValidator, LeaveOneGroupOut
 from sklearn.model_selection._validation import _score
-from tqdm import tqdm
-
-import tensorflow as tf
 from tensorflow.keras.callbacks import Callback, History, TensorBoard
 from tensorflow.keras.losses import Loss, SparseCategoricalCrossentropy
 from tensorflow.keras.metrics import SparseCategoricalAccuracy
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam, Optimizer
 from tensorflow.keras.utils import Sequence
+from tqdm import tqdm
 
 from ..classification import Classifier, ScoreFunction
 from ..utils import batch_arrays, shuffle_multiple

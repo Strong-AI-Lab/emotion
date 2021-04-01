@@ -3,6 +3,7 @@ from pathlib import Path
 import click
 import numpy as np
 import soundfile
+
 from emorec.dataset import get_audio_paths, write_netcdf_dataset
 from emorec.utils import PathlibPath
 

@@ -4,9 +4,6 @@ from typing import Tuple
 
 import click
 import numpy as np
-from emorec.dataset import CombinedDataset, LabelledDataset
-from emorec.sklearn.models import PrecomputedSVC
-from emorec.utils import PathlibPath
 from sklearn.metrics import (
     average_precision_score,
     f1_score,
@@ -23,6 +20,10 @@ from sklearn.model_selection import (
     LeaveOneGroupOut,
     cross_validate,
 )
+
+from emorec.dataset import CombinedDataset, LabelledDataset
+from emorec.sklearn.models import PrecomputedSVC
+from emorec.utils import PathlibPath
 
 
 @click.command()

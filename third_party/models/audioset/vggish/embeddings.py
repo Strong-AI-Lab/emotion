@@ -6,10 +6,13 @@ from pathlib import Path
 import click
 import numpy as np
 import tensorflow.compat.v1 as tf
+
 from emorec.dataset import Dataset, write_netcdf_dataset
 
+# isort: off
 from vggish_postprocess import Postprocessor
 from vggish_slim import define_vggish_slim, load_vggish_slim_checkpoint
+# isort: on
 
 
 @click.command()

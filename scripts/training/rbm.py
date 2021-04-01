@@ -3,6 +3,7 @@ from pathlib import Path
 import click
 import numpy as np
 import tensorflow as tf
+
 from emorec.dataset import Dataset, write_netcdf_dataset
 from emorec.tensorflow.models import BBRBM, DecayType
 from emorec.utils import PathlibPath

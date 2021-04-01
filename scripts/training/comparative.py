@@ -10,12 +10,6 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from click_option_group import optgroup
-from emorec.dataset import LabelledDataset
-from emorec.sklearn.models import PrecomputedSVC
-from emorec.tensorflow.classification import tf_cross_validate
-from emorec.tensorflow.models.zhang2019 import create_windowed_dataset
-from emorec.tensorflow.utils import create_tf_dataset_ragged
-from emorec.utils import PathlibPath
 from scikeras.wrappers import KerasClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import get_scorer, make_scorer, precision_score, recall_score
@@ -31,6 +25,13 @@ from tensorflow.keras.layers import Dense, Dropout, Input
 from tensorflow.keras.losses import Loss
 from tensorflow.keras.metrics import Metric
 from tensorflow.keras.optimizers import Adam, Optimizer
+
+from emorec.dataset import LabelledDataset
+from emorec.sklearn.models import PrecomputedSVC
+from emorec.tensorflow.classification import tf_cross_validate
+from emorec.tensorflow.models.zhang2019 import create_windowed_dataset
+from emorec.tensorflow.utils import create_tf_dataset_ragged
+from emorec.utils import PathlibPath
 
 
 # SVM classifiers

@@ -5,6 +5,7 @@ import click
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
 from emorec.dataset import parse_annotations
 from emorec.utils import PathlibPath
 

@@ -15,7 +15,8 @@ import shutil
 from pathlib import Path
 
 import click
-from emorec.dataset import resample_audio, write_filelist, write_annotations
+
+from emorec.dataset import resample_audio, write_annotations, write_filelist
 from emorec.utils import PathlibPath
 
 emotion_map = {

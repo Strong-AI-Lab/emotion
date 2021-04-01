@@ -16,7 +16,8 @@ from pathlib import Path
 
 import click
 import pandas as pd
-from emorec.dataset import resample_audio, write_filelist, write_annotations
+
+from emorec.dataset import resample_audio, write_annotations, write_filelist
 from emorec.utils import PathlibPath
 
 MED_INT_REGEX = re.compile(r"^(\d\d?)([A-Za-z]+)$")

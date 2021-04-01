@@ -7,6 +7,7 @@ import click
 import netCDF4
 import numpy as np
 import pandas as pd
+
 from emorec.dataset import write_netcdf_dataset
 from emorec.utils import PathlibPath
 

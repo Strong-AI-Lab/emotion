@@ -9,6 +9,16 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from scikeras.wrappers import KerasClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import get_scorer, make_scorer, precision_score, recall_score
+from sklearn.model_selection import GridSearchCV, GroupKFold, LeaveOneGroupOut
+from sklearn.model_selection._validation import _score
+from sklearn.preprocessing import StandardScaler
+from tensorflow.keras import Model
+from tensorflow.keras.layers import Dense, Dropout, Input
+from tensorflow.keras.optimizers import Adam
+
 from emorec.dataset import LabelledDataset
 from emorec.sklearn.models import PrecomputedSVC
 from emorec.tensorflow.classification import DummyEstimator, tf_cross_validate
@@ -20,15 +30,6 @@ from emorec.tensorflow.models import (
 )
 from emorec.tensorflow.models.zhang2019 import create_windowed_dataset
 from emorec.tensorflow.utils import create_tf_dataset_ragged
-from scikeras.wrappers import KerasClassifier
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import get_scorer, make_scorer, precision_score, recall_score
-from sklearn.model_selection import GridSearchCV, GroupKFold, LeaveOneGroupOut
-from sklearn.model_selection._validation import _score
-from sklearn.preprocessing import StandardScaler
-from tensorflow.keras import Model
-from tensorflow.keras.layers import Dense, Dropout, Input
-from tensorflow.keras.optimizers import Adam
 
 
 # SVM classifiers

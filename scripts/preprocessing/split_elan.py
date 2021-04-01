@@ -4,8 +4,9 @@ from typing import List, Tuple
 
 import click
 import soundfile
-from emorec.utils import PathlibPath
 from joblib import Parallel, delayed
+
+from emorec.utils import PathlibPath
 
 
 def process(path: Path, out_dir: Path, prefix: str = ""):

@@ -12,7 +12,8 @@ This assumes the file structure from the original compressed file:
 from pathlib import Path
 
 import click
-from emorec.dataset import write_filelist, write_annotations
+
+from emorec.dataset import write_annotations, write_filelist
 from emorec.utils import PathlibPath
 
 emotion_map = {

@@ -4,6 +4,7 @@ from typing import Optional
 
 import click
 import pandas as pd
+
 from emorec.dataset import write_netcdf_dataset
 from emorec.utils import PathlibPath
 

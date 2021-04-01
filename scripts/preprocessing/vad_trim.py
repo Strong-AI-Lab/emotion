@@ -14,6 +14,7 @@ import librosa
 import numpy as np
 import soundfile
 from click_option_group import optgroup
+
 from emorec.dataset import get_audio_paths
 from emorec.utils import PathlibPath
 

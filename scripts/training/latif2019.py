@@ -11,6 +11,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from sklearn.metrics import get_scorer, make_scorer, precision_score, recall_score
+from sklearn.model_selection import LeaveOneGroupOut
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.metrics import SparseCategoricalAccuracy
+from tensorflow.keras.optimizers import RMSprop
+
 from emorec.dataset import LabelledDataset
 from emorec.tensorflow.classification import (
     BalancedSparseCategoricalAccuracy,
@@ -18,11 +24,6 @@ from emorec.tensorflow.classification import (
 )
 from emorec.tensorflow.models.latif2019 import model as _model
 from emorec.tensorflow.utils import create_tf_dataset_ragged
-from sklearn.metrics import get_scorer, make_scorer, precision_score, recall_score
-from sklearn.model_selection import LeaveOneGroupOut
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
-from tensorflow.keras.metrics import SparseCategoricalAccuracy
-from tensorflow.keras.optimizers import RMSprop
 
 
 def test_corpus(corpus: str):

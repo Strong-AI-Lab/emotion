@@ -3,6 +3,7 @@ from pathlib import Path
 import click
 import netCDF4
 import numpy as np
+
 from emorec.dataset import write_netcdf_dataset
 from emorec.utils import PathlibPath
 

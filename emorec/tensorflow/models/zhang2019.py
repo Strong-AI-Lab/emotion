@@ -12,12 +12,12 @@ from typing import Optional
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import (
+    GRU,
     RNN,
     Conv1D,
     Dense,
     Dropout,
     GRUCell,
-    GRU,
     Input,
     MaxPool1D,
     Reshape,
@@ -25,8 +25,8 @@ from tensorflow.keras.layers import (
 )
 from tensorflow.keras.models import Model, Sequential
 
-from .layers import Attention1D
 from ..utils import create_tf_dataset
+from .layers import Attention1D
 
 __all__ = ["model", "create_windowed_dataset"]
 

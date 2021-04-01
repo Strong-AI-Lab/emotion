@@ -6,6 +6,7 @@ from queue import Queue
 from threading import Thread
 
 import click
+
 from emorec.utils import PathlibPath
 
 q: "Queue[str]" = Queue()

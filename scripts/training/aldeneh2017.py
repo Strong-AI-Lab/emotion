@@ -11,12 +11,6 @@ from pathlib import Path
 
 import numpy as np
 import tensorflow as tf
-from emorec.classification import print_results, within_corpus_cross_validation
-from emorec.dataset import LabelledDataset
-from emorec.sklearn.classification import SKLearnClassifier
-from emorec.sklearn.models import PrecomputedSVC
-from emorec.tensorflow.classification import BatchedSequence, TFClassifier
-from emorec.tensorflow.models.aldeneh2017 import model as full_model
 from sklearn.metrics import recall_score
 from sklearn.model_selection import LeaveOneGroupOut, ParameterGrid
 from sklearn.preprocessing import StandardScaler
@@ -24,6 +18,13 @@ from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.layers import Conv1D, Dense, GlobalMaxPool1D, Input, concatenate
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import RMSprop
+
+from emorec.classification import print_results, within_corpus_cross_validation
+from emorec.dataset import LabelledDataset
+from emorec.sklearn.classification import SKLearnClassifier
+from emorec.sklearn.models import PrecomputedSVC
+from emorec.tensorflow.classification import BatchedSequence, TFClassifier
+from emorec.tensorflow.models.aldeneh2017 import model as full_model
 
 RESULTS_DIR = "results/aldeneh2017"
 

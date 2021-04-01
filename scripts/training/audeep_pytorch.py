@@ -7,13 +7,14 @@ import netCDF4
 import numpy as np
 import torch
 import torch.nn.functional as F
-from emorec.dataset import write_netcdf_dataset
-from emorec.utils import PathlibPath, PathOrStr
 from torch import nn
 from torch.optim import Adam
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+
+from emorec.dataset import write_netcdf_dataset
+from emorec.utils import PathlibPath, PathOrStr
 
 DEVICE = torch.device("cuda")
 
@@ -376,8 +377,8 @@ def main():
 
     os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
     # Workaround for having both PyTorch and TensorFlow installed.
-    import tensorflow as _tensorflow
     import tensorboard.compat.tensorflow_stub.io.gfile as _gfile
+    import tensorflow as _tensorflow
 
     _tensorflow.io.gfile = _gfile
 

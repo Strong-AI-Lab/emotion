@@ -5,6 +5,7 @@ from typing import Optional
 import arff
 import click
 import numpy as np
+
 from emorec.dataset import write_netcdf_dataset
 from emorec.utils import PathlibPath
 

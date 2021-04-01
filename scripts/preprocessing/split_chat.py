@@ -6,8 +6,9 @@ from typing import Tuple
 
 import click
 import soundfile
-from emorec.utils import PathlibPath
 from joblib import Parallel, delayed
+
+from emorec.utils import PathlibPath
 
 REGEX = re.compile(
     r"^\*([A-Z]{3}):\t.*(?:\n\t.*)*[.?!](?: .*\x15(\d+)_(\d+)\x15)?$", re.MULTILINE

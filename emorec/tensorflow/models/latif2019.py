@@ -23,7 +23,6 @@ from tensorflow.keras.layers import (
 )
 from tensorflow.keras.models import Model
 
-
 __all__ = ["model"]
 
 

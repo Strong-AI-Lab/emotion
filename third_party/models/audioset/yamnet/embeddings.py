@@ -1,17 +1,19 @@
 # NOTE: This file is not part of the TensorFlow YAMNet models repository
 
-
 import sys
 from pathlib import Path
 
 import click
 import tensorflow as tf
-from emorec.dataset import Dataset, write_netcdf_dataset
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Input
 
+from emorec.dataset import Dataset, write_netcdf_dataset
+
+# isort: off
 from params import Params
 from yamnet import yamnet
+# isort: on
 
 
 @click.command()

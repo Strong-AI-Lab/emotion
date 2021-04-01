@@ -15,7 +15,7 @@ from typing import Dict
 import click
 import pandas as pd
 
-from emorec.dataset import write_filelist, write_annotations
+from emorec.dataset import write_annotations, write_filelist
 from emorec.stats import alpha
 from emorec.utils import PathlibPath
 
