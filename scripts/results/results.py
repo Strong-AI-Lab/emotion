@@ -9,11 +9,11 @@ import click
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from emorec.utils import PathlibPath, itmap, ordered_intersect
 from matplotlib.backends.backend_pdf import PdfPages
 from scipy.stats import friedmanchisquare, rankdata
 from statsmodels.stats.anova import AnovaRM
 
+from emorec.utils import PathlibPath, itmap, ordered_intersect
 
 CLF_TIME = {
     # Sequence classifiers
@@ -102,7 +102,7 @@ def to_latex(df: pd.DataFrame, output: Path, label: str, caption: str):
     )
 
 
-def plot_matrix(df: pd.DataFrame, width: float = 7, cmap: str = "gray") -> plt.Figure:
+def plot_matrix(df: pd.DataFrame, width: float = 6, cmap: str = "Blues") -> plt.Figure:
     arr = df.to_numpy()
     height = int(arr.shape[0] / arr.shape[1] * width)
 
@@ -115,7 +115,7 @@ def plot_matrix(df: pd.DataFrame, width: float = 7, cmap: str = "gray") -> plt.F
 
     cmap_min, cmap_max = im.cmap(0), im.cmap(256)
 
-    thresh = 0.5
+    thresh = 0.65
     for i, j in itertools.product(range(len(ylabels)), range(len(xlabels))):
         color = cmap_max if arr[i, j] < thresh else cmap_min
         ax.text(
@@ -214,7 +214,7 @@ def run_friedman(table: pd.DataFrame):
     type=click.Choice(["anova", "friedman"]),
     help="Perform various statistical tests.",
 )
-@click.option("--cmap", type=str, help="Colormap to use for plots.")
+@click.option("--cmap", type=str, default="Blues", help="Colormap to use for plots.")
 def main(
     results: Path,
     metrics: Tuple[str],
@@ -291,8 +291,12 @@ def main(
     full = df
     df = df.loc[:, (slice(None), "mean")].droplevel("Metric", axis=1)
 
+    if substitute:
+        substitute_labels(df)
+
     rankfeat = sorted(df.index.get_level_values("Features").unique())
     rankclf = sorted(df.index.get_level_values("Classifier").unique())
+    rankclf = ordered_intersect(SUBSTITUTIONS, rankclf)
 
     # Statistical tests
     if test is not None:
@@ -314,9 +318,6 @@ def main(
         else:
             run_anova(flat)
 
-        if plot:
-            plt.show()
-
     # Get the best (classifier, features) combination and corresponding UAR
     best = pd.concat([df.idxmax(0), df.max(0)], 1, keys=["Combination", "UAR"])
     best["Classifier"] = best["Combination"].map(lambda t: t[0])
@@ -331,28 +332,6 @@ def main(
     mean_feat = df.mean(level=1).T[rankfeat]
     max_clf = df.max(level=0).T[rankclf]
     max_feat = df.max(level=1).T[rankfeat]
-
-    if substitute:
-        substitute_labels(df)
-
-        substitute_labels(best)
-        best["Classifier"] = best["Classifier"].map(subs)
-        best["Features"] = best["Features"].map(subs)
-
-        # Order the columns how we want
-        clf_feat = clf_feat.loc[
-            ordered_intersect(SUBSTITUTIONS, clf_feat.index),
-            ordered_intersect(SUBSTITUTIONS, clf_feat.columns),
-        ]
-        substitute_labels(clf_feat)
-        mean_feat = mean_feat[ordered_intersect(SUBSTITUTIONS, mean_feat.columns)]
-        substitute_labels(mean_feat)
-        max_feat = max_feat[ordered_intersect(SUBSTITUTIONS, max_feat.columns)]
-        substitute_labels(max_feat)
-        mean_clf = mean_clf[ordered_intersect(SUBSTITUTIONS, mean_clf.columns)]
-        substitute_labels(mean_clf)
-        max_clf = max_clf[ordered_intersect(SUBSTITUTIONS, max_clf.columns)]
-        substitute_labels(max_clf)
 
     print("Data table:")
     print(full.to_string(float_format=fmt))
