@@ -5,7 +5,7 @@ import click
 import netCDF4
 import numpy as np
 
-from emorec.dataset import write_netcdf_dataset
+from emorec.dataset import write_features
 from emorec.utils import PathlibPath
 
 
@@ -55,7 +55,7 @@ def main(input: Tuple[Path], output: Path):
     assert l_idx == total_length and i_idx == total_instances
 
     output.parent.mkdir(parents=True, exist_ok=True)
-    write_netcdf_dataset(
+    write_features(
         output,
         corpus="combined",
         names=names,

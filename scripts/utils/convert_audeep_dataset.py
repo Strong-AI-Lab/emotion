@@ -4,7 +4,7 @@ import click
 import netCDF4
 import numpy as np
 
-from emorec.dataset import write_netcdf_dataset
+from emorec.dataset import write_features
 from emorec.utils import PathlibPath
 
 
@@ -23,7 +23,7 @@ def main(input: Path, corpus: str):
     dataset.close()
 
     feature_names = [f"audeep{i + 1}" for i in range(features.shape[1])]
-    write_netcdf_dataset(
+    write_features(
         input,
         names=names,
         features=features,

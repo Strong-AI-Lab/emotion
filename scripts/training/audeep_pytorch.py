@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from emorec.dataset import write_netcdf_dataset
+from emorec.dataset import write_features
 from emorec.utils import PathlibPath, PathOrStr
 
 DEVICE = torch.device("cuda")
@@ -365,8 +365,13 @@ def generate(input: Path, output: Path, model_path: Path, batch_size: int):
             _, representation = model(batch)
             representations[i : i + batch_size, :] = representation.cpu()
 
-    write_netcdf_dataset(
-        output, corpus=corpus, names=filenames, features=representations
+    feature_names = [f"audeep{i + 1}" for i in range(representations.shape[-1])]
+    write_features(
+        output,
+        corpus=corpus,
+        names=filenames,
+        features=representations,
+        feature_names=feature_names,
     )
     print(f"Wrote netCDF4 file to {output}")
 

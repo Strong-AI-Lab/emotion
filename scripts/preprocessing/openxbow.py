@@ -8,7 +8,7 @@ import netCDF4
 import numpy as np
 import pandas as pd
 
-from emorec.dataset import write_netcdf_dataset
+from emorec.dataset import write_features
 from emorec.utils import PathlibPath
 
 OPENXBOW_JAR = "third_party/openxbow/openXBOW.jar"
@@ -81,13 +81,13 @@ def main(input: Path, output: Path, codebook: int, closest: int):
     data = pd.read_csv(tmpout, header=None, quotechar="'", dtype={0: str})
     os.remove(tmpout)
 
-    write_netcdf_dataset(
+    write_features(
         output,
         corpus=corpus,
         names=list(data.iloc[:, 0]),
         features=np.array(data.iloc[:, 1:]),
     )
-    print(f"Wrote netCDF dataset to {output}")
+    print(f"Wrote dataset to {output}")
 
 
 if __name__ == "__main__":

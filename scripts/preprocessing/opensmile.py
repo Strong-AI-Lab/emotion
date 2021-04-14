@@ -10,11 +10,10 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 
-from emorec.dataset import get_audio_paths, write_netcdf_dataset
+from emorec.dataset import get_audio_paths, write_features
 from emorec.utils import PathlibPath
 
 OPENSMILE_DIR = Path("third_party", "opensmile")
-DEFAULT_CONF = OPENSMILE_DIR / "conf" / "IS09.conf"
 OPENSMILE_BIN = "SMILExtract"
 try:
     subprocess.check_call(
@@ -76,7 +75,10 @@ def process_csv(path: Union[str, Path]):
 @click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
 @click.argument("output", type=Path)
 @click.option(
-    "--config", type=Path, default=DEFAULT_CONF, help="Path to openSMILE config file."
+    "--config",
+    type=PathlibPath(exists=True, dir_okay=False),
+    required=True,
+    help="Path to openSMILE config file.",
 )
 @click.option(
     "--debug", is_flag=True, help="Disable multiprocessing to highlight errors."
@@ -97,6 +99,10 @@ def main(
 
     if not config.exists():
         raise FileNotFoundError("Config file doesn't exist")
+
+    print(
+        f"Using SMILExtract at {OPENSMILE_BIN} with extra options {' '.join(smileargs)}"
+    )
 
     input_list = get_audio_paths(input)
     names = sorted(f.stem for f in input_list)
@@ -127,14 +133,14 @@ def main(
     assert len(full_array.shape) == 2
 
     output.parent.mkdir(parents=True, exist_ok=True)
-    write_netcdf_dataset(
+    write_features(
         output,
         corpus=corpus,
         names=names,
         features=full_array,
         slices=[x.shape[0] for x in arr_list],
     )
-    print(f"Wrote netCDF dataset to {output}")
+    print(f"Wrote dataset to {output}")
 
 
 if __name__ == "__main__":

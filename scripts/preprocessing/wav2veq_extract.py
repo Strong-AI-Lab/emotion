@@ -6,7 +6,7 @@ import torch
 from fairseq.models.wav2vec import Wav2Vec2Model, Wav2VecModel
 from tqdm import tqdm
 
-from emorec.dataset import Dataset, write_netcdf_dataset
+from emorec.dataset import Dataset, write_features
 from emorec.utils import PathlibPath
 
 
@@ -49,7 +49,9 @@ def main(input: Path, output: Path, checkpoint: Path, tp: int):
             _embeddings.append(c[0].mean(-1).cpu().numpy())
     embeddings = np.stack(_embeddings)
 
-    write_netcdf_dataset(output, dataset.names, embeddings, corpus=dataset.corpus)
+    write_features(
+        output, names=dataset.names, features=embeddings, corpus=dataset.corpus
+    )
     print(f"Wrote netCDF4 dataset to {output}")
 
 

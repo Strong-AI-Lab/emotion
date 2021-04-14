@@ -4,7 +4,7 @@ import click
 import numpy as np
 import tensorflow as tf
 
-from emorec.dataset import Dataset, write_netcdf_dataset
+from emorec.dataset import Dataset, write_features
 from emorec.tensorflow.models import BBRBM, DecayType
 from emorec.utils import PathlibPath
 
@@ -86,10 +86,10 @@ def main(
         )
         representations = np.concatenate(list(representations.as_numpy_iterator()))
         feature_names = [f"bbrbm{i + 1}" for i in range(representations.shape[-1])]
-        write_netcdf_dataset(
+        write_features(
             output,
-            dataset.names,
-            representations,
+            names=dataset.names,
+            features=representations,
             corpus=dataset.corpus,
             feature_names=feature_names,
         )

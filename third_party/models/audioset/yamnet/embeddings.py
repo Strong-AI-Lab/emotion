@@ -8,7 +8,7 @@ import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Input
 
-from emorec.dataset import Dataset, write_netcdf_dataset
+from emorec.dataset import Dataset, write_features
 
 # isort: off
 from params import Params
@@ -54,10 +54,10 @@ def main(input: Path, output: Path, batch_size: int):
 
     output.parent.mkdir(parents=True, exist_ok=True)
     feature_names = [f"yamnet{i + 1}" for i in range(embeddings.shape[-1])]
-    write_netcdf_dataset(
+    write_features(
         output,
-        dataset.names,
-        embeddings,
+        names=dataset.names,
+        features=embeddings,
         corpus=dataset.corpus,
         feature_names=feature_names,
     )

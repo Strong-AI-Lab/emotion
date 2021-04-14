@@ -2,8 +2,6 @@ import subprocess
 from pathlib import Path
 from typing import Dict, Iterable, Mapping, Optional, Sequence, Type, Union
 
-import netCDF4
-import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 
@@ -42,68 +40,6 @@ def get_audio_paths(file: PathOrStr) -> Sequence[Path]:
             p = Path(line.strip())
             paths.append(p if p.is_absolute() else (file.parent / p).resolve())
     return paths
-
-
-def write_netcdf_dataset(
-    path: PathOrStr,
-    names: Union[Sequence[str], np.ndarray],
-    features: np.ndarray,
-    slices: Union[Sequence[int], np.ndarray] = [],
-    corpus: str = "",
-    feature_names: Sequence[str] = [],
-):
-    """Writes a netCDF4 dataset to the given path. The dataset should
-    contain features and annotations. Note that the features matrix has
-    to be 2-D, and can either be a vector per instance, or a sequence of
-    vectors per instance. Also note that this cannot represent the
-    spectrograms in the format required by auDeep, since that is a 3-D
-    matrix of one spectrogram per instance.
-
-    Args:
-    -----
-    path: pathlike or str
-        The path to write the dataset.
-    corpus: str
-        The corpus name
-    names: sequence of str
-        Instance names
-    features: ndarray
-        Features matrix of shape (length, n_features).
-    slices: list of int, optional
-        The size of each slice along axis 0 of features. If there is one
-        vector per instance, then this will be all 1's, otherwise will
-        have the length of the sequence corresponding to each instance.
-    """
-    dataset = netCDF4.Dataset(path, "w")
-    dataset.createDimension("instance", len(names))
-    dataset.createDimension("concat", features.shape[0])
-    dataset.createDimension("features", features.shape[1])
-
-    if len(slices) == 0:
-        slices = np.ones(len(names))
-    if sum(slices) != len(features):
-        raise ValueError(
-            f"Total slices is {sum(slices)} but length of "
-            f"features is {len(features)}."
-        )
-    _slices = dataset.createVariable("slices", int, ("instance",))
-    _slices[:] = np.array(slices)
-
-    filename = dataset.createVariable("name", str, ("instance",))
-    filename[:] = np.array(names)
-
-    _features = dataset.createVariable("features", np.float32, ("concat", "features"))
-    _features[:, :] = features
-
-    if 0 < len(feature_names) < features.shape[1]:
-        raise ValueError(f"feature_names has only {len(feature_names)} entries")
-    elif len(feature_names) == 0:
-        feature_names = [f"feature{i}" for i in range(features.shape[1])]
-    _feature_names = dataset.createVariable("feature_names", str, ("features",))
-    _feature_names[:] = np.array(feature_names)
-
-    dataset.setncattr_string("corpus", corpus)
-    dataset.close()
 
 
 def resample_audio(paths: Iterable[Path], dir: PathOrStr):
@@ -156,9 +92,6 @@ def write_annotations(
     """
     df = pd.DataFrame.from_dict(annotations, orient="index", columns=[name])
     df.index.name = "name"
-    print()
-    print(f"Value counts for {name}:")
-    print(df[name].value_counts().sort_index())
     path = path or f"{name}.csv"
     df.sort_index().to_csv(path, header=True, index=True)
     print(f"Wrote CSV to {path}")

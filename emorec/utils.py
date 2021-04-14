@@ -81,6 +81,40 @@ def ordered_intersect(a: Iterable, b: Container) -> List:
     return [x for x in a if x in b]
 
 
+def flat_to_inst(x: np.ndarray, slices: np.ndarray) -> np.ndarray:
+    """Takes a flattened 2D data array and converts it to either a
+    contiguous 2D/3D array or a variable-length 3D array, with one
+    feature vector/matrix per instance.
+    """
+
+    if len(x) == len(slices):
+        # 2-D contiguous array
+        return x
+    elif all(x == slices[0] for x in slices):
+        # 3-D contiguous array
+        assert len(x) % len(slices) == 0
+        seq_len = len(x) // len(slices)
+        return np.reshape(x, (len(slices), seq_len, x[0].shape[-1]))
+    else:
+        # 3-D variable length array
+        indices = np.cumsum(slices)
+        arrs = np.split(x, indices[:-1], axis=0)
+        return np.array(arrs, dtype=object)
+
+
+def inst_to_flat(x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """The inverse of flat_to_inst(). Takes an instance matrix and
+    converts to a "flattened" 2D matrix.
+    """
+
+    slices = np.ones(len(x), dtype=int)
+    if len(x.shape) != 2:
+        slices = np.array([len(_x) for _x in x])
+        x = np.concatenate(x)
+    assert sum(slices) == len(x)
+    return x, slices
+
+
 def frame_arrays(
     arrays: Union[List[np.ndarray], np.ndarray],
     frame_size: int = 640,

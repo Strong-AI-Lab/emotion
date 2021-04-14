@@ -7,7 +7,7 @@ import click
 import numpy as np
 import tensorflow.compat.v1 as tf
 
-from emorec.dataset import Dataset, write_netcdf_dataset
+from emorec.dataset import Dataset, write_features
 
 # isort: off
 from vggish_postprocess import Postprocessor
@@ -63,10 +63,10 @@ def main(input: Path, output: Path, batch_size: int):
 
     output.parent.mkdir(parents=True, exist_ok=True)
     feature_names = [f"vggish{i + 1}" for i in range(embeddings.shape[-1])]
-    write_netcdf_dataset(
+    write_features(
         output,
-        dataset.names,
-        embeddings,
+        names=dataset.names,
+        features=embeddings,
         corpus=dataset.corpus,
         feature_names=feature_names,
     )

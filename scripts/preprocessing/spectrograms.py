@@ -12,7 +12,7 @@ from click.types import Choice
 from click_option_group import RequiredAnyOptionGroup, optgroup
 from matplotlib import pyplot as plt
 
-from emorec.dataset import get_audio_paths, write_netcdf_dataset
+from emorec.dataset import get_audio_paths, write_features
 from emorec.utils import PathlibPath
 
 
@@ -177,12 +177,12 @@ def calculate_spectrogram(
 def main(
     corpus: str,
     input: Path,
-    netcdf: Path,
-    audeep: Path,
-    preview: int,
-    length: float,
+    netcdf: Optional[Path],
+    audeep: Optional[Path],
+    preview: Optional[int],
+    length: Optional[float],
     skip: float,
-    clip: float,
+    clip: Optional[float],
     window_size: float,
     window_shift: float,
     mel_bands: int,
@@ -259,7 +259,7 @@ def main(
         slices = [len(x) for x in specs]
         specs = np.concatenate(specs)
         feature_names = [f"meldB{i + 1}" for i in range(mel_bands)]
-        write_netcdf_dataset(
+        write_features(
             netcdf,
             corpus=corpus,
             names=filenames,

@@ -1,37 +1,24 @@
 import abc
 import warnings
 from pathlib import Path
-from typing import Collection, Dict, List, Mapping, Optional, Set, Tuple, Type, Union
+from typing import Collection, Dict, List, Mapping, Optional, Set, Tuple
 
 import numpy as np
 from sklearn.base import TransformerMixin
 from sklearn.preprocessing import StandardScaler, label_binarize
 
-from ..utils import PathOrStr, clip_arrays, frame_arrays, pad_arrays, transpose_time
-from .backend import ARFFBackend, DatasetBackend, NetCDFBackend, RawAudioBackend
+from ..utils import (
+    PathOrStr,
+    clip_arrays,
+    flat_to_inst,
+    frame_arrays,
+    inst_to_flat,
+    pad_arrays,
+    transpose_time,
+)
 from .corpora import corpora
+from .features import read_features
 from .utils import parse_annotations
-
-
-def _make_flat(a: np.ndarray) -> Tuple[np.ndarray, List[int]]:
-    """Flattens an array of variable-length sequences."""
-    slices = [x.shape[0] for x in a]
-    flat = np.concatenate(a)
-    return flat, slices
-
-
-def _make_ragged(flat: np.ndarray, slices: Union[List[int], np.ndarray]) -> np.ndarray:
-    """Returns a list of variable-length sequences."""
-    indices = np.cumsum(slices)
-    arrs = np.split(flat, indices[:-1], axis=0)
-    return arrs
-
-
-_BACKENDS: Dict[str, Type[DatasetBackend]] = {
-    ".nc": NetCDFBackend,
-    ".txt": RawAudioBackend,
-    ".arff": ARFFBackend,
-}
 
 
 class Dataset(abc.ABC):
@@ -42,7 +29,7 @@ class Dataset(abc.ABC):
     _speakers = ["unknown"]
     _male_speakers: List[str] = []
     _female_speakers: List[str] = []
-    _speaker_groups = []
+    _speaker_groups: List[Set[str]] = []
     _corpus = ""
     _names: List[str] = []
     _features: List[str] = []
@@ -51,14 +38,14 @@ class Dataset(abc.ABC):
     def __init__(self, path: PathOrStr, speaker_path: Optional[PathOrStr] = None):
         path = Path(path)
         try:
-            self.backend = _BACKENDS[path.suffix](path)
+            data = read_features(path)
         except KeyError:
             raise NotImplementedError(f"Unknown filetype '{path.suffix}'.")
 
-        self._corpus = self.backend.corpus
-        self._names = self.backend.names
-        self._features = self.backend.feature_names
-        self._x = self.backend.features
+        self._corpus = data.corpus
+        self._names = data.names
+        self._features = data.feature_names
+        self._x = data.features
 
         if speaker_path:
             speaker_path = Path(speaker_path)
@@ -72,6 +59,7 @@ class Dataset(abc.ABC):
                 self._male_speakers = corpora[self.corpus.lower()].male_speakers
                 self._female_speakers = corpora[self.corpus.lower()].female_speakers
                 self._speaker_groups = corpora[self.corpus.lower()].speaker_groups
+                self._reset_male_female_indices()
         else:
             self._speaker_indices = np.zeros(len(self.names), dtype=int)
 
@@ -81,20 +69,17 @@ class Dataset(abc.ABC):
         if any(x == 0 for x in self.speaker_counts):
             warnings.warn("Some speakers have no corresponding instances.")
 
-        self._reset_male_female_indices()
-
         if not self.speaker_groups:
             self._speaker_groups = [{s} for s in self.speakers]
         self._reset_speaker_group_indices()
 
     def _reset_male_female_indices(self):
-        if self.male_speakers and self.female_speakers:
-            self._male_indices = np.isin(
-                np.array(self.speakers)[self.speaker_indices], self.male_speakers
-            ).nonzero()
-            self._female_indices = np.isin(
-                np.array(self.speakers)[self.speaker_indices], self.female_speakers
-            ).nonzero()
+        self._male_indices = np.isin(
+            np.array(self.speakers)[self.speaker_indices], self.male_speakers
+        ).nonzero()
+        self._female_indices = np.isin(
+            np.array(self.speakers)[self.speaker_indices], self.female_speakers
+        ).nonzero()
 
     def _reset_speaker_group_indices(self):
         speaker_to_group = np.empty(len(self.speakers), dtype=int)
@@ -151,26 +136,17 @@ class Dataset(abc.ABC):
         print(f"Normalising dataset with scheme '{scheme}' using {fqn}.")
 
         if scheme == "all":
-            if self.x.dtype == object or len(self.x.shape) == 3:
-                # Non-contiguous or 3-D array
-                flat, slices = _make_flat(self.x)
-                flat = normaliser.fit_transform(flat)
-                for i, arr in enumerate(_make_ragged(flat, slices)):
-                    self._x[i] = arr
-            else:
-                self._x = normaliser.fit_transform(self.x)
+            flat, slices = inst_to_flat(self.x)
+            flat = normaliser.fit_transform(flat)
+            self._x = flat_to_inst(flat, slices)
         elif scheme == "speaker":
             for sp in range(len(self.speakers)):
-                idx = np.nonzero(self.speaker_indices == sp)[0]
                 if self.speaker_counts[sp] == 0:
                     continue
-                if self.x.dtype == object or len(self.x.shape) == 3:
-                    # Non-contiguous or 3-D array
-                    flat, slices = _make_flat(self.x[idx])
-                    flat = normaliser.fit_transform(flat)
-                    self.x[idx] = _make_ragged(flat, slices)
-                else:
-                    self.x[idx] = normaliser.fit_transform(self.x[idx])
+                idx = np.nonzero(self.speaker_indices == sp)[0]
+                flat, slices = inst_to_flat(self.x[idx])
+                flat = normaliser.fit_transform(flat)
+                self.x[idx] = flat_to_inst(flat, slices)
 
     def pad_arrays(self, pad: int = 32):
         """Pads each array to the nearest multiple of `pad` greater than
@@ -518,9 +494,9 @@ class CombinedDataset(LabelledDataset):
             for corpus in range(len(self.corpora)):
                 idx = np.nonzero(self.corpus_indices == corpus)[0]
                 if self.x.dtype == object or len(self.x.shape) == 3:
-                    flat, slices = _make_flat(self.x[idx])
+                    flat, slices = inst_to_flat(self.x[idx])
                     flat = normaliser.fit_transform(flat)
-                    self.x[idx] = _make_ragged(flat, slices)
+                    self.x[idx] = flat_to_inst(flat, slices)
                 else:
                     self.x[idx] = normaliser.fit_transform(self.x[idx])
         else:
