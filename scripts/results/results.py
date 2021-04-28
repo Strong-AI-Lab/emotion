@@ -203,11 +203,24 @@ def run_friedman(table: pd.DataFrame):
     default=("mean",),
     help="Metrics to output.",
 )
+@click.option(
+    "--table",
+    "tables",
+    type=click.Choice(
+        ["mean_feat", "max_feat", "mean_clf", "max_clf", "clf_feat", "all"]
+    ),
+    multiple=True,
+    default=("all",),
+    help="Tables to show.",
+)
 @click.option("--plot", is_flag=True, help="Show matplotlib figures.")
-@click.option("--latex", type=Path, help="Directory to output latex tables.")
 @click.option("--regex", type=str, default=".*", help="Regex to limit results.")
-@click.option("--images", type=Path, help="Directory to output images.")
-@click.option("--excel", type=Path, help="Directory to output Excel files.")
+@click.option("--output_dir", type=Path, help="Directory to output files.")
+@click.option(
+    "--output_type",
+    type=click.Choice(["tex", "image", "excel", "csv"]),
+    help="Type(s) of output.",
+)
 @click.option("--substitute", is_flag=True, help="Don't rename and reorder columns.")
 @click.option(
     "--test",
@@ -218,11 +231,11 @@ def run_friedman(table: pd.DataFrame):
 def main(
     results: Path,
     metrics: Tuple[str],
+    tables: Tuple[str],
     plot: bool,
-    latex: Path,
     regex: str,
-    images: Path,
-    excel: Path,
+    output_dir: Path,
+    output_type: Tuple[str],
     substitute: bool,
     test: str,
     cmap: str,
@@ -230,6 +243,25 @@ def main(
     """Analyse, view and plot results from directory RESULTS. The
     directory is search recursively for experiment CSVs.
     """
+
+    def process_table(tab: pd.DataFrame, name: str, caption: str, label: str):
+        print(f"{caption}:")
+        print(tab.to_string(float_format=fmt))
+        print()
+        output = output_dir / f"{name}"
+        if plot or "image" in output_type:
+            tab_fig = plot_matrix(tab, cmap=cmap)
+            if "image" in output_type:
+                with PdfPages(output.with_suffix(".pdf")) as pdf:
+                    pdf.savefig(tab_fig)
+        if "latex" in output_type:
+            to_latex(
+                tab, output.with_suffix(".tex"), label=f"tab:{label}", caption=caption
+            )
+        if "excel" in output_type:
+            tab.to_excel(output.with_suffix(".xlsx"), merge_cells=False)
+        if "csv" in output_type:
+            tab.to_csv(output.with_suffix(".csv"), header=True, index=True)
 
     logging.basicConfig()
     logger = logging.getLogger("view_results")
@@ -288,18 +320,23 @@ def main(
     df = df.loc[:, (slice(None), metrics)]
     df = df.sort_index(axis=1, level=0)
 
-    full = df
-    df = df.loc[:, (slice(None), "mean")].droplevel("Metric", axis=1)
+    print("Combined results table:")
+    print(df.to_string(float_format=fmt))
+    print()
+    print(df.swaplevel().sort_index().to_string(float_format=fmt))
+    print()
 
+    df = df.loc[:, (slice(None), "mean")].droplevel("Metric", axis=1)
     if substitute:
         substitute_labels(df)
 
     rankfeat = sorted(df.index.get_level_values("Features").unique())
-    rankclf = sorted(df.index.get_level_values("Classifier").unique())
-    rankclf = ordered_intersect(SUBSTITUTIONS, rankclf)
+    rankclf = ordered_intersect(
+        SUBSTITUTIONS, df.index.get_level_values("Classifier").unique()
+    )
 
     # Statistical tests
-    if test is not None:
+    if test:
         flat = df.stack().reset_index().rename(columns={0: "UAR"})
         if test == "friedman":
             _table = flat.pivot_table(
@@ -323,115 +360,58 @@ def main(
     best["Classifier"] = best["Combination"].map(lambda t: t[0])
     best["Features"] = best["Combination"].map(lambda t: t[1])
     best = best[["Classifier", "Features", "UAR"]]
-
-    # Classifier-by-features table
-    clf_feat = df.mean(1).unstack(1).loc[rankclf, rankfeat]
-
-    # {mean, max} per {classifier, features}
-    mean_clf = df.mean(level=0).T[rankclf]
-    mean_feat = df.mean(level=1).T[rankfeat]
-    max_clf = df.max(level=0).T[rankclf]
-    max_feat = df.max(level=1).T[rankfeat]
-
-    print("Data table:")
-    print(full.to_string(float_format=fmt))
-    print()
-    print(full.swaplevel().sort_index().to_string(float_format=fmt))
-    print()
-
     print("Best classifier-features combinations:")
     print(best.to_string(float_format=fmt))
     print()
 
-    print("Average UAR of (classifier, feature) pairs:")
-    print(clf_feat.to_string(float_format=fmt))
-    print()
+    if output_dir:
+        output_dir.mkdir(exist_ok=True, parents=True)
 
-    print("Mean average UAR for each classifier:")
-    print(mean_clf.to_string(float_format=fmt))
-    print()
-    print("Mean average UAR for each feature set:")
-    print(mean_feat.to_string(float_format=fmt))
-    print()
-    print("Best average UAR achieved for each classifier:")
-    print(max_clf.to_string(float_format=fmt))
-    print()
-    print("Best average UAR achieved for each feature set:")
-    print(max_feat.to_string(float_format=fmt))
-
-    if images or plot:
-        mean_clf_fig = plot_matrix(mean_clf, cmap=cmap)
-        max_clf_fig = plot_matrix(max_clf, cmap=cmap)
-        mean_feat_fig = plot_matrix(mean_feat, cmap=cmap)
-        max_feat_fig = plot_matrix(max_feat, cmap=cmap)
-        clf_feat_fig = plot_matrix(clf_feat, cmap=cmap)
-
-        if images:
-            images.mkdir(exist_ok=True, parents=True)
-            with PdfPages(images / "mean_clf.pdf") as pdf:
-                pdf.savefig(mean_clf_fig)
-
-            with PdfPages(images / "max_clf.pdf") as pdf:
-                pdf.savefig(max_clf_fig)
-
-            with PdfPages(images / "mean_feat.pdf") as pdf:
-                pdf.savefig(mean_feat_fig)
-
-            with PdfPages(images / "max_feat.pdf") as pdf:
-                pdf.savefig(max_feat_fig)
-
-            with PdfPages(images / "clf_feat.pdf") as pdf:
-                pdf.savefig(clf_feat_fig)
-
-        if plot:
-            plt.show()
-
-    if latex:
-        latex.mkdir(exist_ok=True, parents=True)
-        to_latex(
-            full.stack(),
-            latex / "combined.tex",
-            label="tab:CombinedResults",
-            caption="Combined results table",
-        )
-        to_latex(
-            mean_clf,
-            latex / "mean_clf.tex",
-            label="tab:MeanClassifier",
-            caption="Mean average UAR for each classifier.",
-        )
-        to_latex(
-            mean_feat,
-            latex / "mean_feat.tex",
-            label="tab:MeanFeature",
-            caption="Mean average UAR for each feature set.",
-        )
-        to_latex(
-            max_clf,
-            latex / "max_clf.tex",
-            label="tab:MaxClassifier",
-            caption="Maximum average UAR for each classifier.",
-        )
-        to_latex(
-            max_feat,
-            latex / "max_feat.tex",
-            label="tab:MaxFeature",
-            caption="Maximum average UAR for each feature set.",
-        )
-        to_latex(
+    if "clf_feat" in tables or "all" in tables:
+        # Classifier-by-features table
+        clf_feat = df.mean(1).unstack(1).loc[rankclf, rankfeat]
+        process_table(
             clf_feat,
-            latex / "clf_feat.tex",
-            label="tab:FeatClassifier",
-            caption="Performance of (classifier, feature) pairs averaged"
-            "across datasets",
+            name="clf_feat",
+            caption="Average UAR of (classifier, feature) pairs",
+            label="FeatClassifier",
+        )
+    # {mean, max} per {classifier, features}
+    if "mean_clf" in tables or "all" in tables:
+        mean_clf = df.mean(level=0).T[rankclf]
+        process_table(
+            mean_clf,
+            name="mean_clf",
+            caption="Mean average UAR for each classifier",
+            label="MeanClassifier",
+        )
+    if "mean_feat" in tables or "all" in tables:
+        mean_feat = df.mean(level=1).T[rankfeat]
+        process_table(
+            mean_feat,
+            name="mean_feat",
+            caption="Mean average UAR for each feature set",
+            label="MeanFeature",
+        )
+    if "max_clf" in tables or "all" in tables:
+        max_clf = df.max(level=0).T[rankclf]
+        process_table(
+            max_clf,
+            name="max_clf",
+            caption="Best average UAR achieved for each classifier",
+            label="MaxClassifier",
+        )
+    if "max_feat" in tables or "all" in tables:
+        max_feat = df.max(level=1).T[rankfeat]
+        process_table(
+            max_feat,
+            name="max_feat",
+            caption="Best average UAR achieved for each feature set",
+            label="MaxFeature",
         )
 
-    if excel:
-        for tab, tabname in zip(
-            [full.stack(), clf_feat, mean_clf, mean_feat, max_clf, max_feat],
-            ["combined", "clf_feat", "mean_clf", "mean_feat", "max_clf", "max_feat"],
-        ):
-            tab.to_excel(excel / (tabname + ".xlsx"), merge_cells=False)
+    if plot:
+        plt.show()
 
 
 if __name__ == "__main__":
