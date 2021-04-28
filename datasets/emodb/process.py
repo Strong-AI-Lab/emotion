@@ -34,7 +34,13 @@ def main(input_dir: Path):
     paths = list(input_dir.glob("wav_corpus/*.wav"))
     write_filelist(paths)
     write_annotations({p.stem: emotion_map[p.stem[5]] for p in paths})
-    write_annotations({p.stem: p.stem[:2] for p in paths}, "speaker")
+    speaker_dict = {p.stem: p.stem[:2] for p in paths}
+    write_annotations(speaker_dict, "speaker")
+    male_speakers = ["03", "10", "11", "12", "15"]
+    gender_dict = {
+        k: "M" if v in male_speakers else "F" for k, v in speaker_dict.items()
+    }
+    write_annotations(gender_dict, "gender")
 
 
 if __name__ == "__main__":

@@ -72,7 +72,26 @@ def main(input_dir: Path):
         [p for p in resample_dir.glob("*.wav") if labels[p.stem] not in unused_emotions]
     )
     write_annotations({n: emotion_map[labels[n]] for n in labels})
-    write_annotations({p.stem: p.stem[16:19] for p in paths}, "speaker")
+    speaker_dict = {p.stem: p.stem[16:19] for p in paths}
+    write_annotations(speaker_dict, "speaker")
+    male_speakers = ["M01", "M02", "M03", "M04", "M05", "M06"]
+    gender_dict = {
+        k: "M" if v in male_speakers else "F" for k, v in speaker_dict.items()
+    }
+    write_annotations(gender_dict, "gender")
+    speaker_groups = [
+        {"M01", "F01"},
+        {"M02", "F02"},
+        {"M03", "F03"},
+        {"M04", "F04"},
+        {"M05", "F05"},
+        {"M06", "F06"},
+    ]
+    group_dict = {
+        k: next(i for i, x in enumerate(speaker_groups) if v in x)
+        for k, v in speaker_dict.items()
+    }
+    write_annotations(group_dict, "group")
 
     # Aggregated dimensional annotations per utterance
     df = pd.DataFrame.from_dict(
@@ -85,7 +104,9 @@ def main(input_dir: Path):
         df[dim].to_csv(dim + ".csv", index=True, header=True)
         print(f"Wrote CSV to {dim}.csv")
 
+    #
     # Ratings analysis
+    #
     ratings = pd.DataFrame(sorted(_ratings), columns=["name", "rater", "label"])
     ratings = ratings.drop_duplicates(["name", "rater"])
 

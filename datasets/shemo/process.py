@@ -42,7 +42,13 @@ def main(input_dir: Path):
         [p for p in resample_dir.glob("*.wav") if p.stem[3] not in unused_emotions]
     )
     write_annotations({p.stem: emotion_map[p.stem[3]] for p in paths})
-    write_annotations({p.stem: p.stem[:3] for p in paths}, "speaker")
+    speaker_dict = {p.stem: p.stem[:3] for p in paths}
+    write_annotations(speaker_dict, "speaker")
+    male_speakers = [f"M{i:02d}" for i in range(1, 57)]
+    gender_dict = {
+        k: "M" if v in male_speakers else "F" for k, v in speaker_dict.items()
+    }
+    write_annotations(gender_dict, "gender")
 
 
 if __name__ == "__main__":

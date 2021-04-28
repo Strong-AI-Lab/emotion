@@ -5,7 +5,7 @@ from typing import Dict, List
 
 import click
 
-from emorec.dataset import get_audio_paths, parse_annotations
+from emorec.dataset import get_audio_paths, read_annotations
 from emorec.utils import PathlibPath
 
 
@@ -20,13 +20,13 @@ def main(input: Path, labels: Path, speakers: Path, output: Path):
     patitioned by label.
     """
 
-    spk_dict = parse_annotations(speakers, dtype=str)
+    spk_dict = read_annotations(speakers, dtype=str)
     paths = get_audio_paths(input)
     speaker_paths: Dict[str, List[Path]] = defaultdict(list)
     for path in paths:
         speaker_paths[spk_dict[path.stem]].append(path)
 
-    lbl_dict = parse_annotations(labels)
+    lbl_dict = read_annotations(labels)
     for i, speaker in enumerate(speaker_paths.keys()):
         for path in speaker_paths[speaker]:
             emotion = lbl_dict[path.stem]

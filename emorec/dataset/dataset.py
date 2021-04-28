@@ -1,11 +1,23 @@
-import abc
+import os
 import warnings
-from pathlib import Path
-from typing import Collection, Dict, List, Mapping, Optional, Set, Tuple
+from itertools import chain
+from typing import (
+    Collection,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
 
 import numpy as np
 from sklearn.base import TransformerMixin
-from sklearn.preprocessing import StandardScaler, label_binarize
+from sklearn.preprocessing import StandardScaler
 
 from ..utils import (
     PathOrStr,
@@ -16,133 +28,235 @@ from ..utils import (
     pad_arrays,
     transpose_time,
 )
-from .corpora import corpora
+from .annotation import read_annotations
 from .features import read_features
-from .utils import parse_annotations
+
+_AT = TypeVar("_AT", str, int, float)
+
+_AnnotationCatsList = Union[Sequence[str], Sequence[int]]
+_AnnotationList = Union[
+    Sequence[Optional[str]], Sequence[Optional[int]], Sequence[Optional[float]]
+]
 
 
-class Dataset(abc.ABC):
-    """Abstract class representing a generic dataset consisting of a set
-    of features and possibly speaker information.
+class Dataset:
+    """Class representing a generic dataset, consisting of a set of
+    features and optional partitions and annotations. Has various
+    preprocessing methods.
+
+    An annotation is a scalar value for some (or all) instances in the
+    dataset. Annotations are allowed to be incomplete, which occurs when
+    majority vote labels cannot be assigned to all instances, for
+    example.
+
+    A partition is a partition of instances into disjoint groups (e.g.
+    speakers). A partition should be complete in that each instance is
+    in exactly one group in the partition. Each partition has a
+    corresponding annotation with the same name, using the group names
+    as categorical annotations.
     """
 
-    _speakers = ["unknown"]
-    _male_speakers: List[str] = []
-    _female_speakers: List[str] = []
-    _speaker_groups: List[Set[str]] = []
+    _partitions: Dict[str, Dict[str, Set[str]]]
+    _annotation_categories: Dict[str, _AnnotationCatsList]
+    _annotations: Dict[str, _AnnotationList]
     _corpus = ""
-    _names: List[str] = []
-    _features: List[str] = []
+    _names: List[str]
+    _feature_names: List[str]
     _x: np.ndarray
 
     def __init__(self, path: PathOrStr, speaker_path: Optional[PathOrStr] = None):
-        path = Path(path)
-        try:
-            data = read_features(path)
-        except KeyError:
-            raise NotImplementedError(f"Unknown filetype '{path.suffix}'.")
+        data = read_features(path)
 
         self._corpus = data.corpus
         self._names = data.names
-        self._features = data.feature_names
+        self._feature_names = data.feature_names
         self._x = data.features
 
-        if speaker_path:
-            speaker_path = Path(speaker_path)
-            spk_dict = parse_annotations(speaker_path, dtype=str)
-            self._speakers = sorted(set(spk_dict[n] for n in self.names))
-            self._speaker_indices = np.array(
-                [self.speakers.index(spk_dict[n]) for n in self.names]
-            )
-            # TODO: remove when unnecessary
-            if self.corpus.lower() in corpora:
-                self._male_speakers = corpora[self.corpus.lower()].male_speakers
-                self._female_speakers = corpora[self.corpus.lower()].female_speakers
-                self._speaker_groups = corpora[self.corpus.lower()].speaker_groups
-                self._reset_male_female_indices()
-        else:
-            self._speaker_indices = np.zeros(len(self.names), dtype=int)
+        self._partitions = {}
+        self._annotation_categories = {}
+        self._annotations = {}
 
-        self._speaker_counts = np.bincount(
-            self.speaker_indices, minlength=len(self.speakers)
-        )
+        if speaker_path:
+            self.update_speakers(speaker_path)
+        else:
+            self.update_speakers(["unknown"] * len(self.names))
+
+    def get_annotation_indices(self, annot_name: str) -> np.ndarray:
+        """Get annotation indices for categorical annotations (e.g.
+        speakers).
+        """
+        if annot_name not in self.annotation_categories:
+            raise ValueError(f"annotation {annot_name} doesn't have categories")
+        annotations = self.annotations[annot_name]
+        cats = self.annotation_categories[annot_name]
+        return np.array([cats.index(x) for x in annotations])
+
+    def get_annotation_counts(self, annot_name: str) -> np.ndarray:
+        """Get counts of discrete annotation values."""
+        uniq, counts = np.unique(self.annotations[annot_name], return_counts=True)
+        count_dict = dict(zip(uniq, counts))
+        return np.array([count_dict[x] for x in self.annotation_categories[annot_name]])
+
+    def update_annotation(
+        self,
+        annot_name: str,
+        annotations: Union[PathOrStr, Mapping[str, _AT], Sequence[_AT]],
+        dtype: Optional[Type[_AT]] = None,
+    ):
+        """Update or add an annotation."""
+        if isinstance(annotations, (os.PathLike, str)):
+            if dtype is None:
+                raise TypeError(
+                    "dtype must be specified when adding annotations from CSV"
+                )
+            annot_dict: Mapping[str, _AT] = read_annotations(annotations, dtype=dtype)
+        elif isinstance(annotations, Mapping):
+            annot_dict = annotations
+        else:
+            annot_dict = {
+                k: v for k, v in zip(self.names, annotations) if v is not None
+            }
+
+        if not set(self.names) <= set(annot_dict.keys()):
+            warnings.warn(f"Adding incomplete annotation {annot_name}.")
+        self._annotations[annot_name] = [annot_dict.get(name) for name in self.names]
+        type_ = type(annot_dict[self.names[0]])
+        if issubclass(type_, (str, int)):
+            self._annotation_categories[annot_name] = sorted(set(annot_dict.values()))
+
+    def get_group_indices(self, part_name: str) -> np.ndarray:
+        """Gets the group indices (i.e. indices into the groups array)
+        for a given partition.
+
+        Args:
+        -----
+        part_name: str
+            The partition name.
+
+        Returns:
+        --------
+        A NumPy array of group indices for each instance in the dataset.
+        """
+        return self.get_annotation_indices(part_name)
+
+    def get_group_counts(self, part_name: str) -> np.ndarray:
+        """Get group counts for a partition.
+
+        Args:
+        -----
+        part_name: str
+            The partition name.
+
+        Returns:
+        --------
+        A NumPy array of counts for the corresponding group in this
+        partition.
+        """
+        return np.array([len(g) for g in self.partitions[part_name].values()])
+
+    def update_partition(
+        self, part_name: str, groups: Union[PathOrStr, Mapping[str, str], Sequence[str]]
+    ):
+        """Add or update partition of instances in this dataset.
+
+        Args:
+        -----
+        part_name: str
+            The partition name.
+        groups: PathLike or str or dict or list
+            The groups for this partition. If PathLike, groups are read
+            from a CSV. If a dict, should be of the form {instance:
+            group}. If a list, should have a group for each instance.
+
+            The groups should be complete (i.e. the union of the groups
+            should contain all instances) and mutually exclusive (no two
+            groups should contain the same instance).
+        """
+        if isinstance(groups, (os.PathLike, str)):
+            grp_dict = read_annotations(groups, dtype=str)
+            names, grp = zip(*grp_dict.items())
+        elif isinstance(groups, Mapping):
+            names, grp = zip(*groups.items())
+        else:
+            names = tuple(self.names)
+            grp = tuple(groups)
+
+        if not set(self.names) <= set(names):
+            raise ValueError("Partition must cover all instances in the dataset.")
+
+        unique, idx = np.unique(grp, return_inverse=True)
+        self._partitions[part_name] = {}
+        for i, g_name in enumerate(unique):
+            name_idx = [j for j in range(len(idx)) if idx[j] == i]
+            names_group = {names[j] for j in name_idx}.intersection(self.names)
+            self._partitions[part_name][g_name] = names_group
+        self.update_annotation(part_name, groups, str)
+
+    def update_speakers(self, speakers: Union[PathOrStr, Dict[str, str], List[str]]):
+        """Update the speakers for this dataset.
+
+        Args:
+        -----
+        speakers: Path, str, dict or list
+            If Path or str, read speaker info from CSV at given path. If
+            dict, use speaker dict directly. If list, each speakers[i]
+            is the corresponding speaker for instance i.
+        """
+        self.update_partition("speakers", speakers)
+        self._update_speakers()
+
+    def _update_speakers(self):
+        self._speaker_indices = self.get_group_indices("speakers")
         if any(x == 0 for x in self.speaker_counts):
             warnings.warn("Some speakers have no corresponding instances.")
 
-        if not self.speaker_groups:
-            self._speaker_groups = [{s} for s in self.speakers]
-        self._reset_speaker_group_indices()
+    def remove_instances(
+        self, *, drop: Collection[str] = [], keep: Collection[str] = []
+    ):
+        """Remove instances from dataset. Recalculate annotations,
+        partitions, etc.
 
-    def _reset_male_female_indices(self):
-        self._male_indices = np.isin(
-            np.array(self.speakers)[self.speaker_indices], self.male_speakers
-        ).nonzero()
-        self._female_indices = np.isin(
-            np.array(self.speakers)[self.speaker_indices], self.female_speakers
-        ).nonzero()
-
-    def _reset_speaker_group_indices(self):
-        speaker_to_group = np.empty(len(self.speakers), dtype=int)
-        for i, group in enumerate(self.speaker_groups):
-            for sp in group:
-                speaker_to_group[self.speakers.index(sp)] = i
-        self._speaker_group_indices = speaker_to_group[self.speaker_indices]
-
-    def remove_instances(self, keep: Collection[str]):
-        """Remove instances not in keep. Recalculate speakers, groups,
-        etc.
+        Args:
+        -----
+        drop: collection of str
+            Instances to drop.
+        keep: collection of str
+            Instances to keep. Exactly one of drop and keep should be
+            non-empty.
         """
+        if bool(drop) == bool(keep):
+            raise ValueError("Exactly one of drop and keep should be non-empty.")
+
+        if len(drop) > 0:
+            keep = set(self.names) - set(drop)
+
         idx = [i for i, x in enumerate(self.names) if x in keep]
         self._names = [self.names[i] for i in idx]
         self._x = self.x[idx]
-        new_sp = np.unique(self.speaker_indices[idx])
-        if len(new_sp) < len(self.speakers):
-            new_speakers = [self.speakers[x] for x in new_sp]
-            self._speaker_indices = np.array(
-                [
-                    new_speakers.index(self.speakers[self.speaker_indices[i]])
-                    for i in idx
-                ]
-            )
-            self._speakers = new_speakers
 
-            new_sp_grp = np.unique(self.speaker_group_indices[idx])
-            self._speaker_groups = [self.speaker_groups[x] for x in new_sp_grp]
-            self._reset_speaker_group_indices()
-
-            if self.male_speakers and self.female_speakers:
-                self._male_speakers = [
-                    s for s in self.male_speakers if s in self.speakers
-                ]
-                self._female_speakers = [
-                    s for s in self.female_speakers if s in self.speakers
-                ]
-                self._reset_male_female_indices()
-        else:
-            self._speaker_indices = self.speaker_indices[idx]
-            self._speaker_group_indices = self.speaker_group_indices[idx]
-            self._male_indices = self.male_indices[idx]
-            self._female_indices = self.female_indices[idx]
+        for annot_name in self.annotations:
+            new_annotations = [self.annotations[annot_name][i] for i in idx]
+            if annot_name in self.partitions:
+                # This will also update annotations
+                self.update_partition(annot_name, new_annotations)
+            else:
+                self.update_annotation(annot_name, new_annotations)
+        self._update_speakers()
 
     def normalise(
         self, normaliser: TransformerMixin = StandardScaler(), scheme: str = "speaker"
     ):
         """Transforms the X data matrix of this dataset using some
-        normalisation method. I think in theory this should be
+        (global) normalisation method. I think in theory this should be
         idempotent.
         """
-        norm_cls = normaliser.__class__
-        fqn = f"{norm_cls.__module__}.{norm_cls.__name__}"
-        print(f"Normalising dataset with scheme '{scheme}' using {fqn}.")
 
         if scheme == "all":
             flat, slices = inst_to_flat(self.x)
             flat = normaliser.fit_transform(flat)
             self._x = flat_to_inst(flat, slices)
         elif scheme == "speaker":
-            for sp in range(len(self.speakers)):
-                if self.speaker_counts[sp] == 0:
-                    continue
+            for sp in range(len(self.speaker_names)):
                 idx = np.nonzero(self.speaker_indices == sp)[0]
                 flat, slices = inst_to_flat(self.x[idx])
                 flat = normaliser.fit_transform(flat)
@@ -191,24 +305,24 @@ class Dataset(abc.ABC):
         return len(self.names)
 
     @property
-    def features(self) -> List[str]:
+    def feature_names(self) -> List[str]:
         """List of feature names."""
-        return self._features
+        return self._feature_names
 
     @property
     def n_features(self) -> int:
         """Number of features."""
-        return len(self.features)
+        return len(self.feature_names)
 
     @property
-    def speakers(self) -> List[str]:
-        """List of speakers in this dataset."""
-        return self._speakers
+    def speaker_names(self) -> Sequence[str]:
+        """List of unique speakers in this dataset."""
+        return self.annotation_categories["speakers"]
 
     @property
     def speaker_counts(self) -> np.ndarray:
         """Number of instances for each speaker."""
-        return self._speaker_counts
+        return self.get_group_counts("speakers")
 
     @property
     def speaker_indices(self) -> np.ndarray:
@@ -218,36 +332,19 @@ class Dataset(abc.ABC):
         return self._speaker_indices
 
     @property
-    def male_speakers(self) -> List[str]:
-        """List of male speakers in this dataset."""
-        return self._male_speakers
+    def partitions(self) -> Dict[str, Dict[str, Set[str]]]:
+        """Mapping of instance partitions."""
+        return self._partitions
 
     @property
-    def male_indices(self) -> np.ndarray:
-        """Indices of instances which have male speakers."""
-        return self._male_indices
+    def annotations(self) -> Dict[str, _AnnotationList]:
+        """Mapping of annotations."""
+        return self._annotations
 
     @property
-    def female_speakers(self) -> List[str]:
-        """List of female speakers in this dataset."""
-        return self._female_speakers
-
-    @property
-    def female_indices(self) -> np.ndarray:
-        """Indices of instances which have female speakers."""
-        return self._female_indices
-
-    @property
-    def speaker_groups(self) -> List[Set[str]]:
-        """List of speaker groups."""
-        return self._speaker_groups
-
-    @property
-    def speaker_group_indices(self) -> np.ndarray:
-        """Indices into speaker groups array of corresponding speaker
-        group for each instance.
-        """
-        return self._speaker_group_indices
+    def annotation_categories(self) -> Dict[str, _AnnotationCatsList]:
+        """List of categories for categorical annotations."""
+        return self._annotation_categories
 
     @property
     def names(self) -> List[str]:
@@ -262,15 +359,12 @@ class Dataset(abc.ABC):
     def __len__(self) -> int:
         return self.n_instances
 
-    def __getitem__(self, idx) -> Tuple[np.ndarray, ...]:
-        return (self.x[idx],)
-
     def __str__(self):
         s = f"\nCorpus: {self.corpus}\n"
         s += f"{self.n_instances} instances\n"
-        s += f"{len(self.features)} features\n"
-        s += f"{len(self.speakers)} speakers:\n"
-        s += f"\t{dict(zip(self.speakers, self.speaker_counts))}\n"
+        s += f"{len(self.feature_names)} features\n"
+        s += f"{len(self.speaker_names)} speakers:\n"
+        s += f"\t{dict(zip(self.speaker_names, self.speaker_counts))}\n"
         if self.x.dtype == object or len(self.x.shape) == 3:
             lengths = [len(x) for x in self.x]
             s += "Sequences:\n"
@@ -285,87 +379,55 @@ class LabelledDataset(Dataset):
     instance.
     """
 
-    _classes: List[str]
-    _class_counts: np.ndarray
     _y: np.ndarray
 
     def __init__(
         self,
         path: PathOrStr,
-        label_path: PathOrStr,
+        label_path: Optional[PathOrStr] = None,
         speaker_path: Optional[PathOrStr] = None,
     ):
         super().__init__(path, speaker_path=speaker_path)
-        label_dict = parse_annotations(label_path)
-        labels = [label_dict[n] for n in self.names]
-        self._classes = sorted(set(labels))
-        self._y = np.array([self.class_to_int(x) for x in labels])
-        self._class_counts = np.bincount(self.y)
-        self._labels = {"all": self.y}
-
-    def remove_instances(self, keep: Collection[str]):
-        idx = [i for i, x in enumerate(self.names) if x in keep]
-        new_cl = np.unique(self.y[idx])
-        if len(new_cl) < len(self.classes):
-            new_classes = [self.classes[x] for x in new_cl]
-            self._y = np.array(
-                [new_classes.index(self.classes[self.y[i]]) for i in idx]
-            )
-            self._classes = new_classes
+        if label_path:
+            self.update_labels(label_path)
         else:
-            self._y = self.y[idx]
-        self._class_counts = np.bincount(self.y)
-        super().remove_instances(keep)
+            self.update_labels(["default"] * len(self.names))
+        self._y = self.get_annotation_indices("labels")
 
-    def binarise(self, pos_val: List[str] = [], pos_aro: List[str] = []):
-        """Creates a N x C array of binary values B, where B[i, j] is 1
-        if instance i belongs to class j, and 0 otherwise.
-        """
-        self.binary_y = label_binarize(self.y, np.arange(self.n_classes))
-        self._labels.update(
-            {c: self.binary_y[:, i] for i, c in enumerate(self.classes)}
-        )
+    def update_labels(self, labels: Union[PathOrStr, Mapping[str, str], Sequence[str]]):
+        self.update_annotation("labels", labels, str)
 
-        if pos_aro and pos_val:
-            print("Binarising arousal and valence")
-            arousal_map = np.array([int(c in pos_aro) for c in self.classes])
-            valence_map = np.array([int(c in pos_val) for c in self.classes])
-            self._labels["arousal"] = arousal_map[self.y]
-            self._labels["valence"] = valence_map[self.y]
+    def remove_instances(
+        self, *, drop: Collection[str] = [], keep: Collection[str] = []
+    ):
+        super().remove_instances(drop=drop, keep=keep)
+        self._y = self.get_annotation_indices("labels")
 
-    def map_classes(self, map: Mapping[str, str]):
+    def map_classes(self, mapping: Mapping[str, str]):
         """Modifies classses based on the mapping in map. Keys not
         corresponding to classes are ignored. The new classes will be
         sorted lexicographically.
         """
-        new_classes = sorted(set([map.get(x, x) for x in self.classes]))
-        arr_map = np.array([new_classes.index(map.get(k, k)) for k in self.classes])
-        self._y = arr_map[self.y]
-        self._class_counts = np.bincount(self.y)
-        self._classes = new_classes
+        new_labels = [mapping.get(x, x) for x in self.labels]
+        self.update_labels(new_labels)
+        self._y = self.get_annotation_indices("labels")
 
-    def remove_classes(self, keep: Collection[str]):
+    def remove_classes(self, *, drop: Collection[str] = [], keep: Collection[str] = []):
         """Remove instances with labels not in `keep`."""
-        keep = set(keep)
-        str_labels = [self.classes[int(i)] for i in self.y]
-        keep_idx = [i for i, x in enumerate(str_labels) if x in keep]
-        self._x = self._x[keep_idx]
-        self._names = [self.names[i] for i in keep_idx]
-        self._speaker_indices = self._speaker_indices[keep_idx]
-        self._speaker_counts = np.bincount(
-            self.speaker_indices, minlength=len(self.speakers)
-        )
-        self._speaker_group_indices = self._speaker_indices
+        if bool(drop) == bool(keep):
+            raise ValueError("Exactly one of drop and keep must be non-empty.")
 
-        self._classes = sorted(keep.intersection(self.classes))
-        str_labels = [x for x in str_labels if x in keep]
-        self._y = np.array([self._classes.index(y) for y in str_labels])
-        self._class_counts = np.bincount(self.y)
+        if len(drop) > 0:
+            keep = set(self.classes) - set(drop)
+
+        keep = set(keep)
+        keep_inst = [n for n, l in zip(self.names, self.labels) if l in keep]
+        self.remove_instances(keep=keep_inst)
 
     @property
-    def classes(self) -> List[str]:
+    def classes(self) -> Sequence[str]:
         """A list of emotion class labels."""
-        return self._classes
+        return self.annotation_categories["labels"]
 
     @property
     def n_classes(self) -> int:
@@ -375,24 +437,17 @@ class LabelledDataset(Dataset):
     @property
     def class_counts(self) -> np.ndarray:
         """Number of instances for each class."""
-        return self._class_counts
+        return self.get_annotation_counts("labels")
 
     @property
-    def labels(self) -> Dict[str, np.ndarray]:
-        """Mapping from label set to array of numeric labels. The keys
-        of the dictionary are {'all', 'arousal', 'valence', 'class1',
-        ...}
-        """
-        return self._labels
+    def labels(self) -> Sequence[str]:
+        """Mapping from instance to label."""
+        return self.annotations["labels"]
 
     @property
     def y(self) -> np.ndarray:
         """The class label array; one label per instance."""
         return self._y
-
-    def class_to_int(self, c: str) -> int:
-        """Returns the index of the given class label."""
-        return self.classes.index(c)
 
     def __str__(self):
         s = super().__str__()
@@ -400,74 +455,63 @@ class LabelledDataset(Dataset):
         s += f"\t{dict(zip(self.classes, self.class_counts))}\n"
         return s
 
-    def __getitem__(self, idx) -> Tuple[np.ndarray, ...]:
-        y = (self.y[idx],) if self.y is not None else ()
-        return super().__getitem__(idx) + y
-
 
 class CombinedDataset(LabelledDataset):
-    """A dataset that joins individual corpus datasets together and
-    handles labelling differences.
+    """A dataset that joins individual datasets together and handles
+    labelling differences.
     """
 
-    def __init__(
-        self, *datasets: LabelledDataset, labels: Optional[Collection[str]] = None
-    ):
+    def __init__(self, *datasets: LabelledDataset):
         self._corpus = "combined"
-        self._corpora = [x.corpus for x in datasets]
-        sizes = [len(x.x) for x in datasets]
-        self._corpus_indices = np.repeat(np.arange(len(datasets)), sizes)
-        self._corpus_counts = np.bincount(self.corpus_indices)
-
         self._names = [d.corpus + "_" + n for d in datasets for n in d.names]
-        self._features = datasets[0].features
+        self._feature_names = datasets[0].feature_names
+        self._x = np.concatenate([d.x for d in datasets])
 
-        self._speakers = []
-        speaker_indices = []
-        self._speaker_groups = []
-        speaker_group_indices = []
-        for d in datasets:
-            speaker_indices.append(d.speaker_indices + len(self.speakers))
-            self._speakers.extend([d.corpus + "_" + s for s in d.speakers])
+        self._partitions = {}
+        self._annotation_categories = {}
+        self._annotations = {}
 
-            speaker_group_indices.append(
-                d.speaker_group_indices + len(self.speaker_groups)
-            )
-            new_group = [{d.corpus + "_" + s for s in g} for g in d.speaker_groups]
-            self._speaker_groups.extend(new_group)
-        self._speaker_indices = np.concatenate(speaker_indices)
-        self._speaker_group_indices = np.concatenate(speaker_group_indices)
+        corpora_labels = [d.corpus for d in datasets for _ in d.names]
+        self.update_partition("corpora", corpora_labels)
 
-        self._x = np.concatenate([x.x for x in datasets])
+        speakers = [
+            d.corpus + "_" + s for d in datasets for s in d.annotations["speakers"]
+        ]
+        self.update_speakers(speakers)
 
-        all_labels = set(c for d in datasets for c in d.classes)
-        self._classes = sorted(all_labels)
-        str_labels = [d.classes[int(i)] for d in datasets for i in d.y]
-        if labels is not None:
-            drop_labels = all_labels - set(labels)
-            keep_idx = [i for i, x in enumerate(str_labels) if x not in drop_labels]
-            self._x = self._x[keep_idx]
-            self._speaker_indices = self._speaker_indices[keep_idx]
-            self._classes = sorted(set(labels))
-            str_labels = [x for x in str_labels if x not in drop_labels]
-        self._y = np.array([self._classes.index(y) for y in str_labels])
-        self._speaker_group_indices = self._speaker_indices
+        combined_labels = [l for d in datasets for l in d.labels]
+        self.update_labels(combined_labels)
+        self._y = self.get_annotation_indices("labels")
+
+        common_annotations = set(
+            chain.from_iterable(d.annotations.keys() for d in datasets)
+        ) - {"labels", "speakers"}
+        for annot_name in common_annotations:
+            combined_annot = []
+            for dataset in datasets:
+                annotations = dataset.annotations.get(annot_name)
+                if annotations is None:
+                    continue
+                if type(next(x for x in annotations if x is not None)) == str:
+                    annotations = [dataset.corpus + "_" + x for x in annotations]
+                combined_annot.extend(annotations)
+            self.update_annotation(annot_name, combined_annot)
 
     @property
-    def corpora(self) -> List[str]:
+    def corpora(self) -> Sequence[str]:
         """List of corpora in this CombinedDataset."""
-        return self._corpora
+        return self.annotation_categories["corpora"]
 
     @property
     def corpus_indices(self) -> np.ndarray:
         """Indices into corpora list of corresponding corpus for each
         instance.
         """
-        return self._corpus_indices
+        return self.get_annotation_indices("corpora")
 
     @property
     def corpus_counts(self) -> List[int]:
-        return self._corpus_counts
+        return self.get_annotation_counts("corpora")
 
     def corpus_to_idx(self, corpus: str) -> int:
         return self.corpora.index(corpus)
@@ -487,18 +531,11 @@ class CombinedDataset(LabelledDataset):
     ):
 
         if scheme == "corpus":
-            norm_cls = normaliser.__class__
-            fqn = f"{norm_cls.__module__}.{norm_cls.__name__}"
-            print(f"Normalising dataset with scheme 'corpus' using {fqn}.")
-
             for corpus in range(len(self.corpora)):
                 idx = np.nonzero(self.corpus_indices == corpus)[0]
-                if self.x.dtype == object or len(self.x.shape) == 3:
-                    flat, slices = inst_to_flat(self.x[idx])
-                    flat = normaliser.fit_transform(flat)
-                    self.x[idx] = flat_to_inst(flat, slices)
-                else:
-                    self.x[idx] = normaliser.fit_transform(self.x[idx])
+                flat, slices = inst_to_flat(self.x[idx])
+                flat = normaliser.fit_transform(flat)
+                self.x[idx] = flat_to_inst(flat, slices)
         else:
             super().normalise(normaliser, scheme)
 

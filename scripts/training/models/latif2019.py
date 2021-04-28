@@ -79,7 +79,7 @@ def test_corpus(corpus: str):
             for valid, test in cv.split(
                 _test_x, _test_y, dataset.speaker_indices[_test]
             ):
-                print(f"Fold {fold}/{len(dataset.speakers)}")
+                print(f"Fold {fold}/{len(dataset.speaker_names)}")
                 callbacks = (
                     [
                         EarlyStopping(

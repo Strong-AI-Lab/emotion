@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from emorec.dataset import parse_annotations
+from emorec.dataset import read_annotations
 from emorec.utils import PathlibPath
 
 
@@ -22,7 +22,7 @@ def main(input: Path, speakers: Path, output: Path):
 
     df = pd.read_csv(input, header=0)
     df = df.sort_values("Score", ascending=False)
-    spk_dict = parse_annotations(speakers)
+    spk_dict = read_annotations(speakers)
     df["Speaker"] = df["Clip"].map(spk_dict.get)
 
     print(f"Scores for {len(df)} clips.")

@@ -73,8 +73,8 @@ def main(input: Tuple[Path], save: Path, cv: str, norm: str):
     splitter = LeaveOneGroupOut()
     groups = None
     if cv == "speaker":
-        groups = dataset.speaker_group_indices
-        if len(dataset.speakers) > 10:
+        groups = dataset.group_indices
+        if len(dataset.speaker_names) > 10:
             splitter = GroupKFold(5)
         print("Using speaker-independent cross-validation.")
     elif cv == "corpus":

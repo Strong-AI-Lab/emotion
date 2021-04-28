@@ -8,6 +8,7 @@ from typing import (
     Iterable,
     List,
     Optional,
+    Sequence,
     Tuple,
     TypeVar,
     Union,
@@ -15,7 +16,9 @@ from typing import (
 )
 
 import click
+import joblib
 import numpy as np
+import tqdm
 
 __all__ = [
     "PathOrStr",
@@ -31,6 +34,35 @@ __all__ = [
 ]
 
 PathOrStr = Union[PathLike, str]
+
+
+# Class adapted from user394430's answer here:
+# https://stackoverflow.com/a/61900501/10044861
+# Licensed under CC BY-SA 4.0
+class TqdmParallel(joblib.Parallel):
+    """Convenience class that acts identically to joblib.Parallel except
+    it uses a tqdm progress bar.
+    """
+
+    def __init__(
+        self,
+        total: int = 1,
+        desc: str = "",
+        unit: str = "it",
+        **kwargs,
+    ):
+        self.total = total
+        self.tqdm_args = dict(desc=desc, unit=unit)
+        kwargs["verbose"] = 0
+        super().__init__(**kwargs)
+
+    def __call__(self, iterable):
+        with tqdm.tqdm(total=self.total, **self.tqdm_args) as self.pbar:
+            return super().__call__(iterable)
+
+    def print_progress(self):
+        self.pbar.n = self.n_completed_tasks
+        self.pbar.refresh()
 
 
 class PathlibPath(click.Path):
@@ -115,6 +147,14 @@ def inst_to_flat(x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     return x, slices
 
 
+def check_3d(arrays: Union[Sequence[np.ndarray], np.ndarray]):
+    """Checks if an array is 3D or each array in a list is 2D. Raises an
+    exception if this isn't the case.
+    """
+    if any(len(x.shape) != 2 for x in arrays):
+        raise ValueError("arrays must be 3D (contiguous or vlen).")
+
+
 def frame_arrays(
     arrays: Union[List[np.ndarray], np.ndarray],
     frame_size: int = 640,
@@ -149,13 +189,12 @@ def frame_arrays(
 
 def pad_arrays(arrays: Union[List[np.ndarray], np.ndarray], pad: int = 32):
     """Pads each array to the nearest multiple of `pad` greater than the
-    array size. Assumes axis 0 of each sub-array, or axis 1 of x is
-    time.
+    array size. Assumes axis 0 of each sub-array, or axis 1 of x, is
+    the time axis.
 
     NOTE: This function modifies the arrays in-place.
     """
     if isinstance(arrays, np.ndarray) and len(arrays.shape) > 1:
-        # Pad axis 1
         padding = int(np.ceil(arrays.shape[1] / pad)) * pad - arrays.shape[1]
         extra_dims = tuple((0, 0) for _ in arrays.shape[2:])
         arrays = np.pad(arrays, ((0, 0), (0, padding)) + extra_dims)
@@ -184,6 +223,7 @@ def transpose_time(arrays: Union[List[np.ndarray], np.ndarray]):
 
     NOTE: This function modifies the arrays in-place.
     """
+    check_3d(arrays)
     if isinstance(arrays, np.ndarray) and len(arrays.shape) == 3:
         arrays = arrays.transpose(0, 2, 1)
     else:

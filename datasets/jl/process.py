@@ -58,7 +58,12 @@ def main(input_dir: Path):
     write_annotations(
         {p.stem: emotion_map.get(REGEX.match(p.stem).group(1)) for p in paths}
     )
-    write_annotations({p.stem: p.stem[: p.stem.find("_")] for p in paths}, "speaker")
+    speaker_dict = {p.stem: p.stem[: p.stem.find("_")] for p in paths}
+    write_annotations(speaker_dict, "speaker")
+    gender_dict = {
+        k: "M" if v in ["male1", "male2"] else "F" for k, v in speaker_dict.items()
+    }
+    write_annotations(gender_dict, "gender")
 
 
 if __name__ == "__main__":

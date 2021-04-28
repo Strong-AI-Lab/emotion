@@ -85,7 +85,25 @@ def main(input_dir: Path):
         [p for p in resample_dir.glob("*.wav") if labels[p.stem] not in unused_emotions]
     )
     write_annotations({n: emotion_map[labels[n]] for n in labels})
-    write_annotations({p.stem: p.stem[3:6] for p in paths}, "speaker")
+    speaker_dict = {p.stem: p.stem[3:6] for p in paths}
+    write_annotations(speaker_dict, "speaker")
+    male_speakers = ["01M", "02M", "03M", "04M", "05M"]
+    gender_dict = {
+        k: "M" if v in male_speakers else "F" for k, v in speaker_dict.items()
+    }
+    write_annotations(gender_dict, "gender")
+    speaker_groups = [
+        {"01M", "01F"},
+        {"02M", "02F"},
+        {"03M", "03F"},
+        {"04M", "04F"},
+        {"05M", "05F"},
+    ]
+    group_dict = {
+        k: next(i for i, x in enumerate(speaker_groups) if v in x)
+        for k, v in speaker_dict.items()
+    }
+    write_annotations(group_dict, "group")
 
     # Aggregated dimensional annotations per utterance
     df = pd.DataFrame.from_dict(

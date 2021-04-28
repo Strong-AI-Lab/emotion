@@ -116,7 +116,7 @@ def test_classifier(
     bs: int = 64,
 ):
     splitter = LeaveOneGroupOut()
-    if len(dataset.speakers) > 12:
+    if len(dataset.speaker_names) > 12:
         splitter = GroupKFold(6)
 
     class_weight = dataset.n_instances / (dataset.n_classes * dataset.class_counts)
@@ -183,7 +183,7 @@ def test_classifier(
                 clf.fit(
                     dataset.x,
                     dataset.y,
-                    groups=dataset.speaker_group_indices,
+                    groups=dataset.group_indices,
                     sample_weight=sample_weight,
                 )
                 params.update(clf.best_params_)
@@ -195,7 +195,7 @@ def test_classifier(
                 dataset.y,
                 cv=splitter,
                 scoring=scoring,
-                groups=dataset.speaker_group_indices,
+                groups=dataset.group_indices,
                 fit_params=fit_params,
                 n_jobs=-1,
                 verbose=int(verbose),
@@ -227,7 +227,7 @@ def test_classifier(
                 dataset.y,
                 cv=splitter,
                 scoring=scoring,
-                groups=dataset.speaker_group_indices,
+                groups=dataset.group_indices,
                 data_fn=data_fn,
                 sample_weight=sample_weight,
                 log_dir=None,

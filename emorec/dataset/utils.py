@@ -1,23 +1,10 @@
 import subprocess
 from pathlib import Path
-from typing import Dict, Iterable, Mapping, Optional, Sequence, Type, Union
+from typing import Iterable, Sequence
 
-import pandas as pd
-from joblib import Parallel, delayed
+from joblib import delayed
 
-from ..utils import PathOrStr
-
-
-def parse_annotations(
-    filename: PathOrStr, dtype: Optional[Type] = None
-) -> Dict[str, str]:
-    """Returns a dict of the form {name: annotation}."""
-    # Need index_col to be False or None due to
-    # https://github.com/pandas-dev/pandas/issues/9435
-    df = pd.read_csv(filename, index_col=False, header=0, converters={0: str, 1: dtype})
-    type_ = df.columns[1]
-    annotations = df.set_index("name")[type_].to_dict()
-    return annotations
+from ..utils import PathOrStr, TqdmParallel
 
 
 def get_audio_paths(file: PathOrStr) -> Sequence[Path]:
@@ -56,7 +43,9 @@ def resample_audio(paths: Iterable[Path], dir: PathOrStr):
 
     opts = ["-nostdin", "-ar", "16000", "-sample_fmt", "s16", "-ac", "1", "-y"]
     print(f"Using FFmpeg options: {' '.join(opts)}")
-    Parallel(n_jobs=-1, verbose=1)(
+    TqdmParallel(
+        description="Resampling audio", total=len(paths), unit="file", n_jobs=-1
+    )(
         delayed(subprocess.run)(
             ["ffmpeg", "-i", str(path), *opts, str(dir / (path.stem + ".wav"))],
             stdout=subprocess.DEVNULL,
@@ -72,26 +61,3 @@ def write_filelist(paths: Iterable[Path], out: PathOrStr = "files.txt"):
     with open(out, "w") as fid:
         fid.write("\n".join(list(map(str, paths))) + "\n")
     print("Wrote file list to files.txt")
-
-
-def write_annotations(
-    annotations: Mapping[str, str],
-    name: str = "label",
-    path: Union[PathOrStr, None] = None,
-):
-    """Write sorted annotations CSV.
-
-    Args:
-    -----
-    annotations: mapping
-        A mapping of the form {name: annotation}.
-    name: str
-        Name of the annotation.
-    path: pathlike or str, optional
-        Path to write CSV. If None, filename is name.csv
-    """
-    df = pd.DataFrame.from_dict(annotations, orient="index", columns=[name])
-    df.index.name = "name"
-    path = path or f"{name}.csv"
-    df.sort_index().to_csv(path, header=True, index=True)
-    print(f"Wrote CSV to {path}")
