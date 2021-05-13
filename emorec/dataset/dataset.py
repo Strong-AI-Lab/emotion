@@ -332,9 +332,21 @@ class Dataset:
         return self._speaker_indices
 
     @property
+    def speakers(self) -> Sequence[str]:
+        return self.annotations["speakers"]
+
+    @property
+    def n_speakers(self) -> int:
+        return len(self.speaker_names)
+
+    @property
     def partitions(self) -> Dict[str, Dict[str, Set[str]]]:
         """Mapping of instance partitions."""
         return self._partitions
+
+    @property
+    def part_names(self) -> List[str]:
+        return list(self.partitions.keys())
 
     @property
     def annotations(self) -> Dict[str, _AnnotationList]:
@@ -395,7 +407,8 @@ class LabelledDataset(Dataset):
         self._y = self.get_annotation_indices("labels")
 
     def update_labels(self, labels: Union[PathOrStr, Mapping[str, str], Sequence[str]]):
-        self.update_annotation("labels", labels, str)
+        # TODO: Allow partial labels, etc.
+        self.update_partition("labels", labels)
 
     def remove_instances(
         self, *, drop: Collection[str] = [], keep: Collection[str] = []
@@ -474,9 +487,7 @@ class CombinedDataset(LabelledDataset):
         corpora_labels = [d.corpus for d in datasets for _ in d.names]
         self.update_partition("corpora", corpora_labels)
 
-        speakers = [
-            d.corpus + "_" + s for d in datasets for s in d.annotations["speakers"]
-        ]
+        speakers = [d.corpus + "_" + s for d in datasets for s in d.speakers]
         self.update_speakers(speakers)
 
         combined_labels = [l for d in datasets for l in d.labels]
@@ -493,7 +504,8 @@ class CombinedDataset(LabelledDataset):
                 if annotations is None:
                     continue
                 if type(next(x for x in annotations if x is not None)) == str:
-                    annotations = [dataset.corpus + "_" + x for x in annotations]
+                    annotations = [x if isinstance(x, str) else x for x in annotations]
+                    annotations = [dataset.corpus + "_" + str(x) for x in annotations]
                 combined_annot.extend(annotations)
             self.update_annotation(annot_name, combined_annot)
 

@@ -1,10 +1,173 @@
+from functools import partial
 from typing import Callable, List, Union
 
 import numpy as np
-
-__all__ = ["kappa", "alpha", "Deltas"]
+from sklearn.metrics.pairwise import pairwise_distances
 
 Matrix = List[List[float]]
+
+
+# Distance functions
+def _get_dist_func(metric: Union[Callable, str], **kwargs):
+    if callable(metric):
+        return partial(metric, **kwargs)
+    else:
+        if metric != "minkowski" and "p" in kwargs:
+            del kwargs["p"]
+        if metric != "mahalanobis" and "VI" in kwargs:
+            del kwargs["VI"]
+        return partial(pairwise_distances, metric=metric, **kwargs)
+
+
+def silhouette(
+    x: np.ndarray, groups: Union[List[int], np.ndarray], metric: str = "l2", p: int = 2
+):
+    """Calculates the mean silhouette value across a dataset given a
+    cluster assignment.
+
+    Args:
+    -----
+    data: numpy.ndarray
+        Data matrix, with shape (n_instances, n_features).
+    groups: list or numpy.ndarray
+        1D array of groups assignments of length n_instances. Groups
+        should be labelled from 0 to G - 1 inclusive, where G is the
+        number of groups.
+    metric: str or callable
+        Distance metric. If str, must be one of the sklearn or scipy
+        distance methods. If callable, must take two arguments and
+        return a pairwise distance matrix.
+    p: int
+        Value of p for p-norm when using "lp" distance metric.
+
+    Returns:
+    --------
+    mean_silhouette: float
+        The mean silhouette value taken over all instances in the
+        dataset. This value lies in [-1, 1] and is closer to 1 when the
+        instances are on average closer to their cluster than to
+        neighbouring clusters.
+    """
+    groups = np.array(groups)
+    n_groups = groups.max() + 1
+    d = _get_dist_func(metric, p=p)
+    pair_dist = d(x)
+
+    svals = np.empty(len(x))
+    for g in range(n_groups):
+        g_idx = np.flatnonzero(groups == g)
+        if len(g_idx) == 0:
+            svals[groups == g] = 0
+            continue
+
+        for i in g_idx:
+            a = pair_dist[i, g_idx[g_idx != i]].mean()
+            k_dist = []
+            for k in set(range(n_groups)) - {g}:
+                k_idx = np.flatnonzero(groups == k)
+                k_dist.append(pair_dist[i, k_idx].mean())
+            b = np.min(k_dist)
+            svals[i] = (b - a) / max(a, b)
+    return svals.mean()
+
+
+def corr_ratio(x: np.ndarray, groups: Union[List[int], np.ndarray]):
+    """Calculates correlation ratio for each feature using the given
+    groups.
+
+    Args:
+    -----
+    data: numpy.ndarray
+        Data matrix, with shape (n_instances, n_features).
+    groups: list or numpy.ndarray
+        1D array of groups assignments of length n_instances. Groups
+        should be labelled from 0 to G - 1 inclusive, where G is the
+        number of groups.
+
+    Returns:
+    --------
+    eta: numpy.ndarray
+        1D array of correlation coefficients of length n_features. Each
+        value is in [0, 1] except if a feature takes only one value, in
+        which case eta will be nan.
+    """
+    groups = np.array(groups)
+    n_groups = groups.max() + 1
+    counts = np.bincount(groups)
+    mean = x.mean(0)
+    g_means = np.empty((n_groups, x.shape[1]))
+    for g in range(n_groups):
+        g_means[g, :] = x[groups == g].mean(0)
+    num = np.sum(counts[:, None] * (g_means - mean) ** 2, axis=0)
+    den = np.sum((x - mean) ** 2, axis=0)
+    old_err = np.seterr(divide="ignore", invalid="ignore")
+    eta2 = num / den
+    np.seterr(**old_err)
+    return np.sqrt(eta2)
+
+
+def dunn(
+    x: np.ndarray,
+    clusters: Union[List[int], np.ndarray],
+    intra_method: str = "max",
+    inter_method: str = "cent",
+    metric: Union[Callable, str] = "l2",
+    p: int = 2,
+):
+    """Calculates the Dunn index for cluster "goodness".
+
+    Args:
+    -----
+    data: numpy.ndarray
+        Data matrix, with shape (n_instances, n_features).
+    clusters: list or numpy.ndarray
+        1D array of cluster assignments of length n_instances. Clusters
+        should be labelled from 0 to C - 1 inclusive, where C is the
+        number of clusters.
+    intra_method: str
+        Method for calculating intra-cluster distance. One of "max",
+        "mean", "cent".
+    inter_method: str
+        Method for calculating inter-cluster distance. One of "cent".
+    metric: str or callable
+        Distance metric. If str, must be one of the sklearn or scipy
+        distance methods. If callable, must take one positional argument
+        and return a pairwise distance matrix.
+    p: int
+        Value of p for p-norm when using "lp" distance metric.
+
+    Returns:
+    --------
+    dunn: float
+        The Dunn index for this data and cluster assignment.
+    """
+    clusters = np.array(clusters, dtype=int)
+    n_clusters = clusters.max() + 1
+    d = _get_dist_func(metric, p=p)
+
+    intra = np.zeros(n_clusters)
+    for c in range(n_clusters):
+        clust_data = x[clusters == c]
+        if intra_method == "max":
+            idx = np.triu_indices(len(clust_data))
+            intra[c] = d(clust_data)[idx].max()
+        elif intra_method == "mean":
+            idx = np.triu_indices(len(clust_data))
+            intra[c] = d(clust_data)[idx].mean()
+        elif intra_method == "cent":
+            mean = clust_data.mean(0)
+            intra[c] = d(clust_data, mean[None, :]).mean()
+
+    inter = np.zeros((n_clusters, n_clusters))
+    for i in range(n_clusters):
+        inter[i, i] = np.inf  # To avoid min = 0
+        for j in range(i + 1, n_clusters):
+            if inter_method == "cent":
+                mean_i = x[clusters == i].mean(0)
+                mean_j = x[clusters == j].mean(0)
+                inter[i, j] = inter[j, i] = d(mean_i[None, :], mean_j[None, :])
+
+    return inter.min() / intra.max()
 
 
 def kappa(data: np.ndarray):
