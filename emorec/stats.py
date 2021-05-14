@@ -19,6 +19,27 @@ def _get_dist_func(metric: Union[Callable, str], **kwargs):
         return partial(pairwise_distances, metric=metric, **kwargs)
 
 
+def davies_bouldin(
+    x: np.ndarray, groups: Union[List[int], np.ndarray], metric: str = "l2", p: int = 2
+):
+    groups = np.array(groups)
+    n_groups = groups.max() + 1
+    d = _get_dist_func(metric, p=p)
+
+    s = np.empty(n_groups)
+    centroids = np.empty((n_groups, x.shape[1]))
+    for i in range(n_groups):
+        centroids[i] = x[groups == i].mean(0)
+        s[i] = d(x[groups == i], centroids[i][None, :]).mean()
+    m = d(centroids)
+    old_err = np.seterr(divide="ignore")
+    r = (s[:, None] + s[None, :]) / m
+    np.seterr(**old_err)
+    np.fill_diagonal(r, -np.inf)
+    d = r.max(1)
+    return d.mean()
+
+
 def silhouette(
     x: np.ndarray, groups: Union[List[int], np.ndarray], metric: str = "l2", p: int = 2
 ):
@@ -53,22 +74,24 @@ def silhouette(
     d = _get_dist_func(metric, p=p)
     pair_dist = d(x)
 
-    svals = np.empty(len(x))
+    a = np.empty(len(x))
+    b = np.empty(len(x))
+    s = np.empty(len(x))
     for g in range(n_groups):
         g_idx = np.flatnonzero(groups == g)
-        if len(g_idx) == 0:
-            svals[groups == g] = 0
+        n_items = len(g_idx)
+        if n_items == 1:
+            s[g_idx] = 0
             continue
 
-        for i in g_idx:
-            a = pair_dist[i, g_idx[g_idx != i]].mean()
-            k_dist = []
-            for k in set(range(n_groups)) - {g}:
-                k_idx = np.flatnonzero(groups == k)
-                k_dist.append(pair_dist[i, k_idx].mean())
-            b = np.min(k_dist)
-            svals[i] = (b - a) / max(a, b)
-    return svals.mean()
+        # Correct for the inclusion of |xi - xi| = 0
+        a[g_idx] = n_items / (n_items - 1) * pair_dist[g_idx][:, g_idx].mean(1)
+        k_dist = []
+        for k in set(range(n_groups)) - {g}:
+            k_dist.append(pair_dist[g_idx][:, groups == k].mean(1))
+        b[g_idx] = np.stack(k_dist, axis=1).min(1)
+    s = (b - a) / np.maximum(a, b)
+    return s.mean()
 
 
 def corr_ratio(x: np.ndarray, groups: Union[List[int], np.ndarray]):

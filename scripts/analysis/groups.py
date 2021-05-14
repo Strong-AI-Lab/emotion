@@ -2,8 +2,8 @@ from pathlib import Path
 from typing import Iterable, Tuple
 
 import click
-import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.decomposition import PCA, FactorAnalysis, FastICA, KernelPCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
@@ -12,7 +12,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.random_projection import GaussianRandomProjection
 
 from emorec.dataset import CombinedDataset, LabelledDataset
-from emorec.stats import corr_ratio, dunn, silhouette
+from emorec.stats import corr_ratio, davies_bouldin, dunn, silhouette
 from emorec.utils import PathlibPath
 
 
@@ -105,11 +105,12 @@ def main(
 
     print(f"Dunn index {dunn(x, group_indices, metric=metric)}")
     print(f"Mean correlation ratio: {corr_ratio(x, group_indices).mean()}")
+    print(f"Davies-Bouldin index: {davies_bouldin(x, group_indices, metric=metric)}")
     print(f"Mean silhouette: {silhouette(x, group_indices, metric=metric)}")
 
     if plot:
         fig, ax = plt.subplots(figsize=(4, 4))
-        plot_opts = dict(marker=".", linewidths=0)
+        plot_opts = dict(marker=".", s=1)
         cmap = cm.get_cmap("rainbow")
         ax.set_title(f"Instance distribution by {part}")
         ax.set_xticks([])
