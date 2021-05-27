@@ -19,81 +19,6 @@ def _get_dist_func(metric: Union[Callable, str], **kwargs):
         return partial(pairwise_distances, metric=metric, **kwargs)
 
 
-def davies_bouldin(
-    x: np.ndarray, groups: Union[List[int], np.ndarray], metric: str = "l2", p: int = 2
-):
-    groups = np.array(groups)
-    n_groups = groups.max() + 1
-    d = _get_dist_func(metric, p=p)
-
-    s = np.empty(n_groups)
-    centroids = np.empty((n_groups, x.shape[1]))
-    for i in range(n_groups):
-        centroids[i] = x[groups == i].mean(0)
-        s[i] = d(x[groups == i], centroids[i][None, :]).mean()
-    m = d(centroids)
-    old_err = np.seterr(divide="ignore")
-    r = (s[:, None] + s[None, :]) / m
-    np.seterr(**old_err)
-    np.fill_diagonal(r, -np.inf)
-    d = r.max(1)
-    return d.mean()
-
-
-def silhouette(
-    x: np.ndarray, groups: Union[List[int], np.ndarray], metric: str = "l2", p: int = 2
-):
-    """Calculates the mean silhouette value across a dataset given a
-    cluster assignment.
-
-    Args:
-    -----
-    data: numpy.ndarray
-        Data matrix, with shape (n_instances, n_features).
-    groups: list or numpy.ndarray
-        1D array of groups assignments of length n_instances. Groups
-        should be labelled from 0 to G - 1 inclusive, where G is the
-        number of groups.
-    metric: str or callable
-        Distance metric. If str, must be one of the sklearn or scipy
-        distance methods. If callable, must take two arguments and
-        return a pairwise distance matrix.
-    p: int
-        Value of p for p-norm when using "lp" distance metric.
-
-    Returns:
-    --------
-    mean_silhouette: float
-        The mean silhouette value taken over all instances in the
-        dataset. This value lies in [-1, 1] and is closer to 1 when the
-        instances are on average closer to their cluster than to
-        neighbouring clusters.
-    """
-    groups = np.array(groups)
-    n_groups = groups.max() + 1
-    d = _get_dist_func(metric, p=p)
-    pair_dist = d(x)
-
-    a = np.empty(len(x))
-    b = np.empty(len(x))
-    s = np.empty(len(x))
-    for g in range(n_groups):
-        g_idx = np.flatnonzero(groups == g)
-        n_items = len(g_idx)
-        if n_items == 1:
-            s[g_idx] = 0
-            continue
-
-        # Correct for the inclusion of |xi - xi| = 0
-        a[g_idx] = n_items / (n_items - 1) * pair_dist[g_idx][:, g_idx].mean(1)
-        k_dist = []
-        for k in set(range(n_groups)) - {g}:
-            k_dist.append(pair_dist[g_idx][:, groups == k].mean(1))
-        b[g_idx] = np.stack(k_dist, axis=1).min(1)
-    s = (b - a) / np.maximum(a, b)
-    return s.mean()
-
-
 def corr_ratio(x: np.ndarray, groups: Union[List[int], np.ndarray]):
     """Calculates correlation ratio for each feature using the given
     groups.
@@ -132,7 +57,7 @@ def corr_ratio(x: np.ndarray, groups: Union[List[int], np.ndarray]):
 def dunn(
     x: np.ndarray,
     clusters: Union[List[int], np.ndarray],
-    intra_method: str = "max",
+    intra_method: str = "mean",
     inter_method: str = "cent",
     metric: Union[Callable, str] = "l2",
     p: int = 2,

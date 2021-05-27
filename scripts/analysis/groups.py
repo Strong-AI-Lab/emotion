@@ -5,14 +5,21 @@ import click
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from sklearn.decomposition import PCA, FactorAnalysis, FastICA, KernelPCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.manifold import TSNE, Isomap
+from sklearn.metrics import (
+    calinski_harabasz_score,
+    davies_bouldin_score,
+    pairwise_distances,
+    silhouette_score,
+)
 from sklearn.preprocessing import StandardScaler
 from sklearn.random_projection import GaussianRandomProjection
 
 from emorec.dataset import CombinedDataset, LabelledDataset
-from emorec.stats import corr_ratio, davies_bouldin, dunn, silhouette
+from emorec.stats import corr_ratio, dunn
 from emorec.utils import PathlibPath
 
 
@@ -39,7 +46,19 @@ def get_combined_data(files: Iterable[Path]):
 @click.option(
     "--transform",
     type=click.Choice(
-        ["pca", "kpca", "lda", "fa", "ica", "umap_u", "umap_s", "tsne", "rp", "isomap"]
+        [
+            "identity",
+            "pca",
+            "kpca",
+            "lda",
+            "fa",
+            "ica",
+            "umap_u",
+            "umap_s",
+            "tsne",
+            "rp",
+            "isomap",
+        ]
     ),
     help="Transformation to apply before clustering and plotting.",
 )
@@ -52,6 +71,7 @@ def get_combined_data(files: Iterable[Path]):
 @click.option("--plot/--noplot", default=False, help="2D plot of feature space.")
 @click.option("--metric", default="l2", help="Distance metric to use.")
 @click.option("--kernel", default="rbf", help="Kernel to use for kernel PCA.")
+@click.option("--csv", type=Path, help="Output CSV with metrics.")
 def main(
     input: Tuple[Path],
     transform: str,
@@ -60,6 +80,7 @@ def main(
     plot: bool,
     metric: str,
     kernel: str,
+    csv: Path,
 ):
     print("Combining data.")
     data = CombinedDataset(*get_combined_data(input))
@@ -67,7 +88,7 @@ def main(
     # Note this is not specifically speaker groups
     group_indices = data.get_group_indices(part)
     group_names = list(data.partitions[part].keys())
-    n_groups = len(data.partitions[part])
+    n_groups = group_indices.max() + 1
 
     print(f"{n_groups} groups:")
     print(", ".join(group_names))
@@ -77,17 +98,18 @@ def main(
         data.normalise(StandardScaler(), scheme="all")
     x = data.x
 
+    print(f"Transforming with {transform}")
     if transform == "pca":
         x = PCA().fit_transform(x)
     elif transform == "kpca":
-        x = KernelPCA(kernel=kernel).fit_transform(x)
+        x = KernelPCA(kernel=kernel, n_jobs=-1).fit_transform(x)
     elif transform == "lda":
         x = LinearDiscriminantAnalysis().fit_transform(x, group_indices)
     elif transform == "fa":
-        x = FactorAnalysis().fit_transform(x)
+        x = FactorAnalysis(max_iter=500).fit_transform(x)
     elif transform == "ica":
-        x = FastICA().fit_transform(x)
-    elif transform.startswith("umap"):
+        x = FastICA(max_iter=100).fit_transform(x)
+    elif transform in ["umap_u", "umap_s"]:
         # Import here due to loading time
         from umap import UMAP
 
@@ -97,16 +119,45 @@ def main(
         elif transform == "umap_s":
             x = umap.fit_transform(x, group_indices)
     elif transform == "tsne":
-        x = TSNE(perplexity=50, metric=metric).fit_transform(x)
+        x = TSNE(perplexity=50, metric=metric, n_jobs=-1).fit_transform(x)
     elif transform == "rp":
         x = GaussianRandomProjection(2).fit_transform(x)
     elif transform == "isomap":
-        x = Isomap(n_neighboursmetric=metric).fit_transform(x)
+        x = Isomap(n_neighbors=5, metric=metric, n_jobs=-1).fit_transform(x)
 
-    print(f"Dunn index {dunn(x, group_indices, metric=metric)}")
-    print(f"Mean correlation ratio: {corr_ratio(x, group_indices).mean()}")
-    print(f"Davies-Bouldin index: {davies_bouldin(x, group_indices, metric=metric)}")
-    print(f"Mean silhouette: {silhouette(x, group_indices, metric=metric)}")
+    print("Calculating intra-cluster distances")
+    intra_dists = []
+    for i in range(n_groups):
+        subset = x[group_indices == i]
+        intra_dists.append(pairwise_distances(subset, metric=metric, n_jobs=-1).mean())
+
+    df = pd.DataFrame(
+        {
+            "corpora": " ".join(data.corpora),
+            "partition": part,
+            "transform": transform,
+            "metric": metric,
+            "kernel": kernel,
+            "standardisation": std,
+            "dunn_index": dunn(x, group_indices, metric=metric),
+            "mean_correlation_ratio": corr_ratio(x, group_indices).mean(),
+            "davies_bouldin": davies_bouldin_score(x, group_indices),
+            "silhouette": silhouette_score(x, group_indices, metric=metric),
+            "calinski_harabasz_score": calinski_harabasz_score(x, group_indices),
+            "min_intra_dist": np.min(intra_dists),
+            "max_intra_dist": np.max(intra_dists),
+            "mean_intra_dist": np.mean(intra_dists),
+            "std_intra_dist": np.std(intra_dists),
+        },
+        index=[0],
+    )
+
+    if csv:
+        csv.parent.mkdir(exist_ok=True, parents=True)
+        df.to_csv(csv, index=False)
+        print(f"Wrote CSV to {csv}")
+    else:
+        print(df.loc[0].to_string())
 
     if plot:
         fig, ax = plt.subplots(figsize=(4, 4))
