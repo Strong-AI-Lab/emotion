@@ -8,10 +8,10 @@ from typing import Sequence, Tuple, Union
 import click
 import numpy as np
 import pandas as pd
-from joblib import Parallel, delayed
+from joblib import delayed
 
 from emorec.dataset import get_audio_paths, write_features
-from emorec.utils import PathlibPath
+from emorec.utils import PathlibPath, TqdmParallel
 
 OPENSMILE_DIR = Path("third_party", "opensmile")
 OPENSMILE_BIN = "SMILExtract"
@@ -110,9 +110,12 @@ def main(
     tmp = tempfile.mkdtemp(prefix="opensmile_", suffix=f"_{corpus}")
     print(f"Using temp directory {tmp}")
     parallel_args = dict(n_jobs=1 if debug else -1, verbose=1)
-    Parallel(prefer="threads", **parallel_args)(
-        delayed(opensmile)(path, config, tmp, debug, smileargs) for path in input_list
-    )
+    TqdmParallel(
+        total=len(input_list),
+        desc="Processing files",
+        prefer="threads",
+        **parallel_args,
+    )(delayed(opensmile)(path, config, tmp, debug, smileargs) for path in input_list)
 
     tmp_files = [Path(tmp) / f"{name}.csv" for name in names]
     missing = [f for f in tmp_files if not f.exists()]
@@ -123,9 +126,9 @@ def main(
         )
     # Use CPUs for this because I don't think it releases the GIL
     # for the whole processing.
-    arr_list = Parallel(**parallel_args)(
-        delayed(process_csv)(path) for path in tmp_files
-    )
+    arr_list = TqdmParallel(
+        total=len(tmp_files), desc="Processing CSVs", **parallel_args
+    )(delayed(process_csv)(path) for path in tmp_files)
     shutil.rmtree(tmp)
 
     # This should be a 2D array

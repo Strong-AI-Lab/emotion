@@ -36,7 +36,7 @@ def main(input: Path, output: Path, checkpoint: Path, tp: int):
     _embeddings = []
     for wav in tqdm(dataset.x):
         # Transpose so that the single 'feature' dimension becomes 'batch' dimension
-        tensor = torch.tensor(wav.T, device="cuda:0")
+        tensor = torch.tensor(wav.T, device="cuda")
         with torch.no_grad():
             if tp == 1:
                 z = model.feature_extractor(tensor)

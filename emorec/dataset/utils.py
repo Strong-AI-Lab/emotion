@@ -44,7 +44,7 @@ def resample_audio(paths: Iterable[Path], dir: PathOrStr):
     opts = ["-nostdin", "-ar", "16000", "-sample_fmt", "s16", "-ac", "1", "-y"]
     print(f"Using FFmpeg options: {' '.join(opts)}")
     TqdmParallel(
-        description="Resampling audio", total=len(paths), unit="file", n_jobs=-1
+        desc="Resampling audio", total=len(paths), unit="file", n_jobs=-1
     )(
         delayed(subprocess.run)(
             ["ffmpeg", "-i", str(path), *opts, str(dir / (path.stem + ".wav"))],
