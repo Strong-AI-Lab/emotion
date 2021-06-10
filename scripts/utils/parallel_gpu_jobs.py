@@ -30,7 +30,7 @@ def worker(gpu: int):
         if proc.stdout is not None:
             with proc.stdout:
                 for line in iter(proc.stdout.readline, ""):
-                    sys.stdout.write(f"GPU_{gpu}: {line}")
+                    sys.stdout.write(f"[GPU{gpu}]: {line}")
                     sys.stdout.flush()
         proc.wait()
         q.task_done()
@@ -38,7 +38,7 @@ def worker(gpu: int):
 
 @click.command()
 @click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
-@click.option("--gpus", type=int, default=2, help="Number of GPUs")
+@click.option("--gpus", type=int, default=1, help="Number of GPUs", show_default=True)
 def main(input: Path, gpus: int):
     """Runs all commands specified in the INPUT file, splitting the work
     across multiple GPUs such that each command runs solely on whichever
