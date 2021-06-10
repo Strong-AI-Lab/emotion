@@ -29,26 +29,27 @@ unused_emotions = ["F"]
 
 @click.command()
 @click.argument("input_dir", type=PathlibPath(exists=True, file_okay=False))
-def main(input_dir: Path):
+@click.option("--resample/--noresample", default=True)
+def main(input_dir: Path, resample: bool):
     """Process the ShEMO dataset at location INPUT_DIR and resample
     audio to 16 kHz 16-bit WAV audio.
     """
 
     paths = list(input_dir.glob("*/*.wav"))
-    resample_dir = Path("resampled")
-    resample_audio(paths, resample_dir)
+    if resample:
+        resample_dir = Path("resampled")
+        resample_audio(paths, resample_dir)
+        write_filelist(resample_dir.glob("*.wav"), "files_all.txt")
+        write_filelist(
+            [p for p in resample_dir.glob("*.wav") if p.stem[3] not in unused_emotions],
+            "files_5class.txt",
+        )
 
-    write_filelist(
-        [p for p in resample_dir.glob("*.wav") if p.stem[3] not in unused_emotions]
-    )
-    write_annotations({p.stem: emotion_map[p.stem[3]] for p in paths})
+    write_annotations({p.stem: emotion_map[p.stem[3]] for p in paths}, "label")
     speaker_dict = {p.stem: p.stem[:3] for p in paths}
     write_annotations(speaker_dict, "speaker")
-    male_speakers = [f"M{i:02d}" for i in range(1, 57)]
-    gender_dict = {
-        k: "M" if v in male_speakers else "F" for k, v in speaker_dict.items()
-    }
-    write_annotations(gender_dict, "gender")
+    write_annotations({k: v[0] for k, v in speaker_dict.items()}, "gender")
+    write_annotations({p.stem: "ar" for p in paths}, "language")
 
 
 if __name__ == "__main__":

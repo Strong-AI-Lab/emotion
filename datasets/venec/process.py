@@ -68,14 +68,17 @@ def get_emotion(s: str):
 
 @click.command()
 @click.argument("input_dir", type=PathlibPath(exists=True, file_okay=False))
-def main(input_dir: Path):
+@click.option("--resample/--noresample", default=True)
+def main(input_dir: Path, resample: bool):
     """Process the VENEC dataset at location INPUT_DIR and resample
     audio to 16 kHz 16-bit WAV audio.
     """
 
     paths = list(input_dir.glob("NoNameProsody/*.mp3"))
-    resample_dir = Path("resampled")
-    resample_audio(paths, resample_dir)
+    if resample:
+        resample_dir = Path("resampled")
+        resample_audio(paths, resample_dir)
+        write_filelist(resample_dir.glob("*.wav"), "files_all.txt")
 
     clip_info = pd.read_csv(
         input_dir / "veneccountryinfo.csv",
@@ -85,8 +88,10 @@ def main(input_dir: Path):
     clip_info.index = clip_info.index.map(lambda x: x[:-4])
 
     # Acted labels
-    labels = clip_info["Original"].map(lambda x: Path(x).stem).map(get_emotion)
-    write_annotations(labels.to_dict())
+    write_annotations(
+        clip_info["Original"].map(lambda x: Path(x).stem).map(get_emotion).to_dict(),
+        "label",
+    )
 
     def get_ratings(country: str = "USA") -> pd.DataFrame:
         csvfile = input_dir / f"CategoryRatings{country}.csv"
@@ -139,8 +144,14 @@ def main(input_dir: Path):
 
     ratings = get_ratings("USA")
 
-    write_filelist([p for p in resample_dir.glob("*.wav") if p.stem in ratings.index])
-    write_annotations(ratings["Speaker_ID"].to_dict(), "speaker")
+    write_filelist(
+        [p for p in resample_dir.glob("*.wav") if p.stem in ratings.index],
+        "files_17class.txt",
+    )
+    speaker_dict = ratings["Speaker_ID"].to_dict()
+    write_annotations(speaker_dict, "speaker")
+    write_annotations({k: v[:3] for k, v in speaker_dict.items()}, "country")
+    write_annotations({p.stem: "en" for p in paths}, "language")
 
 
 if __name__ == "__main__":

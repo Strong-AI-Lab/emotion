@@ -10,7 +10,6 @@ This assumes the file structure from the original compressed file:
 """
 
 from pathlib import Path
-from typing import Dict
 
 import click
 import pandas as pd
@@ -26,12 +25,9 @@ emotion_map = {
     "H": "happiness",
     "S": "sadness",
     "N": "neutral",
+    # For multiple modes, as in MSP-IMPROV
+    "X": "unknown"
 }
-
-
-def write_labelset(name: str, labels: Dict[str, str]):
-    df = pd.DataFrame({"Name": labels.keys(), "Emotion": labels.values()})
-    df.to_csv(f"labels_{name}.csv", header=True, index=False)
 
 
 @click.command()
@@ -42,11 +38,14 @@ def main(input_dir: Path):
     paths = list(input_dir.glob("AudioWAV/*.wav"))
     # 1076_MTI_SAD_XX has no audio signal
     write_filelist([p for p in paths if p.stem != "1076_MTI_SAD_XX"])
-    write_annotations({p.stem: emotion_map[p.stem[9]] for p in paths})
+    write_annotations({p.stem: emotion_map[p.stem[9]] for p in paths}, "label_acted")
     write_annotations({p.stem: p.stem[:4] for p in paths}, "speaker")
+    write_annotations({p.stem: "en" for p in paths}, "language")
 
     summaryTable = pd.read_csv(
-        "processedResults/summaryTable.csv", low_memory=False, index_col=0
+        input_dir / "processedResults" / "summaryTable.csv",
+        low_memory=False,
+        index_col=0,
     )
     summaryTable["ActedEmo"] = summaryTable["FileName"].apply(lambda x: x[9])
 
@@ -60,22 +59,22 @@ def main(input_dir: Path):
 
     # Majority vote annotations from other modalities
     valid = summaryTable["MultiModalVote"].isin(list("NHDFAS"))
-    multiModal = summaryTable[valid]
-    labels = dict(zip(multiModal["FileName"], multiModal["MultiModalVote"]))
-    write_labelset("multimodal", labels)
+    summaryTable.loc[~valid, "MultiModalVote"] = "X"
+    labels = dict(zip(summaryTable["FileName"], summaryTable["MultiModalVote"]))
+    write_annotations(labels, "label_multimodal")
 
     valid = summaryTable["FaceVote"].isin(list("NHDFAS"))
-    face = summaryTable[valid]
-    labels = dict(zip(face["FileName"], face["FaceVote"]))
-    write_labelset("face", labels)
+    summaryTable.loc[~valid, "FaceVote"] = "X"
+    labels = dict(zip(summaryTable["FileName"], summaryTable["FaceVote"]))
+    write_annotations(labels, "label_face")
 
     valid = summaryTable["VoiceVote"].isin(list("NHDFAS"))
-    voice = summaryTable[valid]
-    labels = dict(zip(voice["FileName"], voice["VoiceVote"]))
-    write_labelset("voice", labels)
+    summaryTable.loc[~valid, "VoiceVote"] = "X"
+    labels = dict(zip(summaryTable["FileName"], summaryTable["VoiceVote"]))
+    write_annotations(labels, "label_voice")
 
     finishedResponses = pd.read_csv(
-        "finishedResponses.csv", low_memory=False, index_col=0
+        input_dir / "finishedResponses.csv", low_memory=False, index_col=0
     )
     finishedResponses["respLevel"] = pd.to_numeric(
         finishedResponses["respLevel"], errors="coerce"
@@ -84,7 +83,7 @@ def main(input_dir: Path):
     finishedResponses = finishedResponses.drop([137526, 312184], errors="ignore")
 
     finishedEmoResponses = pd.read_csv(
-        "finishedEmoResponses.csv", low_memory=False, index_col=0
+        input_dir / "finishedEmoResponses.csv", low_memory=False, index_col=0
     )
     finishedEmoResponses = finishedEmoResponses.query(
         "clipNum != 7443 and clipNum != 7444"
@@ -127,7 +126,9 @@ def main(input_dir: Path):
         print()
 
     tabulatedVotes = pd.read_csv(
-        "processedResults/tabulatedVotes.csv", low_memory=False, index_col=0
+        input_dir / "processedResults" / "tabulatedVotes.csv",
+        low_memory=False,
+        index_col=0,
     )
     tabulatedVotes["mode"] = tabulatedVotes.index // 100000
     tabulatedVotes["mode"] = tabulatedVotes["mode"].map(

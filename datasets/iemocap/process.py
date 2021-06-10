@@ -26,8 +26,8 @@ from emorec.utils import PathlibPath
 
 # [START_TIME - END_TIME] TURN_NAME EMOTION [V, A, D]
 REGEX = re.compile(
-    r"^\[(\d+\.\d+) - (\d+\.\d+)\]\t(\w+)\t(\w+)\t\[(\d+\.\d+), (\d+\.\d+), (\d+\.\d+)\]$"
-)  # noqa
+    r"^\[(\d+\.\d+) - (\d+\.\d+)\]\t(\w+)\t(\w+)\t\[(\d+\.\d+), (\d+\.\d+), (\d+\.\d+)\]$"  # noqa
+)
 
 emotion_map = {
     "ang": "anger",
@@ -49,14 +49,11 @@ unused_emotions = ["dis", "fru", "fea", "sur", "oth", "xxx"]
 
 @click.command()
 @click.argument("input_dir", type=PathlibPath(exists=True, file_okay=False))
-def main(input_dir: Path):
+@click.option("--resample/--noresample", default=True)
+def main(input_dir: Path, resample: bool):
     """Process the IEMOCAP dataset at location INPUT_DIR and resample
     audio to 16 kHz 16-bit WAV audio.
     """
-
-    paths = list(input_dir.glob("Session?/sentences/wav/*/*.wav"))
-    resample_dir = Path("resampled")
-    resample_audio(paths, resample_dir)
 
     dimensions = {}
     labels = {}
@@ -81,29 +78,31 @@ def main(input_dir: Path):
                     *annotations, comments = _annotations.strip().split(";")
                     label = annotations[0].strip()
                     _ratings.append((name, rater, label))
-    write_filelist(
-        [p for p in resample_dir.glob("*.wav") if labels[p.stem] not in unused_emotions]
-    )
-    write_annotations({n: emotion_map[labels[n]] for n in labels})
+
+    paths = list(input_dir.glob("Session?/sentences/wav/*/*.wav"))
+    if resample:
+        resample_dir = Path("resampled")
+        resample_audio(paths, resample_dir)
+        write_filelist(resample_dir.glob("*.wav"), "files_all.txt")
+        write_filelist(
+            [
+                p
+                for p in resample_dir.glob("*.wav")
+                if labels[p.stem] not in unused_emotions
+            ],
+            "files_4class.txt",
+        )
+
+    write_annotations({n: emotion_map[labels[n]] for n in labels}, "label")
     speaker_dict = {p.stem: p.stem[3:6] for p in paths}
     write_annotations(speaker_dict, "speaker")
-    male_speakers = ["01M", "02M", "03M", "04M", "05M"]
-    gender_dict = {
-        k: "M" if v in male_speakers else "F" for k, v in speaker_dict.items()
-    }
-    write_annotations(gender_dict, "gender")
-    speaker_groups = [
-        {"01M", "01F"},
-        {"02M", "02F"},
-        {"03M", "03F"},
-        {"04M", "04F"},
-        {"05M", "05F"},
-    ]
-    group_dict = {
-        k: next(i for i, x in enumerate(speaker_groups) if v in x)
-        for k, v in speaker_dict.items()
-    }
-    write_annotations(group_dict, "group")
+    write_annotations({k: v[-1] for k, v in speaker_dict.items()}, "gender")
+    write_annotations({k: v[:2] for k, v in speaker_dict.items()}, "session")
+    write_annotations(
+        {p.stem: p.stem[p.stem.find("_") + 1 : p.stem.rfind("_") - 2] for p in paths},
+        "sess_type",
+    )
+    write_annotations({p.stem: "en" for p in paths}, "language")
 
     # Aggregated dimensional annotations per utterance
     df = pd.DataFrame.from_dict(

@@ -140,8 +140,9 @@ def main(input_dir: Path):
         transcripts.update(trn)
     paths = list(audio_dir.glob("*.wav"))
     write_filelist(paths)
-    write_annotations(emotions)
+    write_annotations(emotions, "label")
     write_annotations({p.stem: p.stem[8:11] for p in paths}, "speaker")
+    write_annotations({p.stem: "de" for p in paths}, "language")
     df = pd.DataFrame.from_dict(transcripts, orient="index", columns=["Transcripts"])
     df.index.name = "Name"
     df.to_csv("transcripts.csv")

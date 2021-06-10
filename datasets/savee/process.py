@@ -48,9 +48,11 @@ def main(input_dir: Path):
     paths = list(resample_dir.glob("*.wav"))
     write_filelist(paths)
     write_annotations(
-        {p.stem: emotion_map[REGEX.match(p.stem).group(2)] for p in paths}
+        {p.stem: emotion_map[REGEX.match(p.stem).group(2)] for p in paths},
+        "label",
     )
     write_annotations({p.stem: p.stem[:2] for p in paths}, "speaker")
+    write_annotations({p.stem: "en" for p in paths}, "language")
 
 
 if __name__ == "__main__":

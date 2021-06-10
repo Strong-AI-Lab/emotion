@@ -1,4 +1,4 @@
-from typing import Dict, Mapping, Optional, Type, TypeVar, Union
+from typing import Dict, Mapping, Optional, Type, TypeVar
 
 import pandas as pd
 
@@ -20,9 +20,7 @@ def read_annotations(
 
 
 def write_annotations(
-    annotations: Mapping[str, object],
-    name: str = "label",
-    path: Union[PathOrStr, None] = None,
+    annotations: Mapping[str, object], name: str, path: Optional[PathOrStr] = None
 ):
     """Write sorted annotations CSV.
 
