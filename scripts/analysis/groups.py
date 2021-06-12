@@ -102,7 +102,9 @@ def main(
     if transform == "pca":
         x = PCA().fit_transform(x)
     elif transform == "kpca":
-        x = KernelPCA(kernel=kernel, n_jobs=-1).fit_transform(x)
+        x = KernelPCA(kernel=kernel, n_components=x.shape[1], n_jobs=-1).fit_transform(
+            x
+        )
     elif transform == "lda":
         x = LinearDiscriminantAnalysis().fit_transform(x, group_indices)
     elif transform == "fa":
