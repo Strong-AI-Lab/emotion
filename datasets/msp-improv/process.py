@@ -98,8 +98,7 @@ def main(input_dir: Path, resample: bool):
     )
     df.index.name = "name"
     for dim in ["activation", "valence", "dominance", "naturalness"]:
-        df[dim].to_csv(dim + ".csv", index=True, header=True)
-        print(f"Wrote CSV to {dim}.csv")
+        write_annotations(df[dim].to_dict(), dim)
 
     #
     # Ratings analysis

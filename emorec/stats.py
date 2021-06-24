@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Callable, List, Union
+from typing import Callable, List, Tuple, Union
 
 import numpy as np
 from sklearn.metrics.pairwise import pairwise_distances
@@ -7,7 +7,6 @@ from sklearn.metrics.pairwise import pairwise_distances
 Matrix = List[List[float]]
 
 
-# Distance functions
 def _get_dist_func(metric: Union[Callable, str], **kwargs):
     if callable(metric):
         return partial(metric, **kwargs)
@@ -17,6 +16,27 @@ def _get_dist_func(metric: Union[Callable, str], **kwargs):
         if metric != "mahalanobis" and "VI" in kwargs:
             del kwargs["VI"]
         return partial(pairwise_distances, metric=metric, **kwargs)
+
+
+def bhattacharyya_dist(
+    mus: Tuple[np.ndarray, np.ndarray], covs: Tuple[np.ndarray, np.ndarray]
+):
+    mu1 = np.expand_dims(mus[0], 1)
+    mu2 = np.expand_dims(mus[1], 1)
+    cov1 = np.array(covs[0])
+    cov2 = np.array(covs[1])
+    cov = (cov1 + cov2) / 2
+    sign1, ldet1 = np.linalg.slogdet(cov1)
+    sign2, ldet2 = np.linalg.slogdet(cov2)
+    _, ldet = np.linalg.slogdet(cov)
+    if sign1 <= 0:
+        raise ValueError("cov1 is not positive-definite.")
+    if sign2 <= 0:
+        raise ValueError("cov2 is not positive-definite.")
+    covinv = np.linalg.inv(cov)
+    db = (mu1 - mu2).T.dot(covinv).dot(mu1 - mu2) / 8 + ldet / 2 - ldet1 / 4 - ldet2 / 4
+
+    return db.item()
 
 
 def corr_ratio(x: np.ndarray, groups: Union[List[int], np.ndarray]):

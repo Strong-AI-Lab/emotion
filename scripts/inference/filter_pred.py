@@ -1,3 +1,4 @@
+import typing
 from collections import defaultdict
 from pathlib import Path
 
@@ -48,7 +49,7 @@ def main(input: Path, speakers: Path, output: Path):
     print(sp_cls)
     print()
 
-    counts: defaultdict[str, int] = defaultdict(int)
+    counts: typing.DefaultDict[str, int] = defaultdict(int)
     for _, row in df.iterrows():
         counts[row["Speaker"]] += 1
         if len([x for x in counts if counts[x] >= 20]) >= 5:

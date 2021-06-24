@@ -3,7 +3,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Sequence, Tuple, Union
+from typing import Tuple
 
 import click
 import numpy as np
@@ -28,51 +28,9 @@ except FileNotFoundError:
     )
 
 
-def opensmile(
-    path: Union[str, Path],
-    config: Union[str, Path],
-    tmp: Union[str, Path] = "tmp",
-    debug: bool = False,
-    restargs: Sequence[str] = [],
-):
-    name = Path(path).stem
-    output_file = Path(tmp) / f"{name}.csv"
-    if output_file.exists():
-        output_file.unlink()
-
-    smile_args = [
-        OPENSMILE_BIN,
-        "-C",
-        str(config),
-        "-I",
-        str(path),
-        "-csvoutput",
-        str(output_file),
-        "-classes",
-        "{unknown}",
-        "-class",
-        "unknown",
-        "-instname",
-        name,
-        *restargs,
-    ]
-
-    subprocess.run(
-        smile_args,
-        stdout=None if debug else subprocess.DEVNULL,
-        stderr=subprocess.STDOUT,
-        shell=False,
-    )
-
-
-def process_csv(path: Union[str, Path]):
-    df = pd.read_csv(path, quotechar="'", header=None)
-    return df.iloc[:, 1:]
-
-
 @click.command()
 @click.argument("corpus", type=str)
-@click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
+@click.argument("input", type=PathlibPath(exists=True))
 @click.argument("output", type=Path)
 @click.option(
     "--config",
@@ -92,56 +50,60 @@ def main(
     debug: bool,
     smileargs: Tuple[str],
 ):
-    """Batch process a list of files in INPUT using the openSMILE
+    """Process a list of files in INPUT using the openSMILE
     Toolkit. The corpus name is set to CORPUS and a netCDF dataset is
     written to OUTPUT.
     """
 
-    if not config.exists():
-        raise FileNotFoundError("Config file doesn't exist")
+    input_list = sorted(get_audio_paths(input))
+    tmp = tempfile.mkdtemp(prefix="opensmile_", suffix=f"_{corpus}")
+    tmp_files = [Path(tmp, f"{path.stem}.csv") for path in input_list]
+    n_jobs = 1 if debug else -1
 
     print(
         f"Using SMILExtract at {OPENSMILE_BIN} with extra options {' '.join(smileargs)}"
     )
-
-    input_list = get_audio_paths(input)
-    names = sorted(f.stem for f in input_list)
-
-    tmp = tempfile.mkdtemp(prefix="opensmile_", suffix=f"_{corpus}")
-    print(f"Using temp directory {tmp}")
-    parallel_args = dict(n_jobs=1 if debug else -1, verbose=1)
-    TqdmParallel(
-        total=len(input_list),
-        desc="Processing files",
-        prefer="threads",
-        **parallel_args,
-    )(delayed(opensmile)(path, config, tmp, debug, smileargs) for path in input_list)
-
-    tmp_files = [Path(tmp) / f"{name}.csv" for name in names]
-    missing = [f for f in tmp_files if not f.exists()]
+    TqdmParallel(total=len(input_list), desc="Processing files", n_jobs=n_jobs)(
+        delayed(subprocess.run)(
+            [
+                OPENSMILE_BIN,
+                "-C",
+                str(config),
+                "-I",
+                str(path),
+                "-csvoutput",
+                str(tmp_file),
+                "-instname",
+                path.stem,
+                *smileargs,
+            ],
+            stdout=None if debug else subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+            shell=False,
+        )
+        for path, tmp_file in zip(input_list, tmp_files)
+    )
+    missing = {f.stem for f in tmp_files if not f.exists()}
     if len(missing) > 0:
         raise RuntimeError(
-            "Not all audio files were processed properly. These files are "
-            "missing:\n" + "\n".join(map(str, missing))
+            "Not all audio files were processed properly. These names are "
+            "missing:\n" + "\n\t".join(missing)
         )
-    # Use CPUs for this because I don't think it releases the GIL
-    # for the whole processing.
-    arr_list = TqdmParallel(
-        total=len(tmp_files), desc="Processing CSVs", **parallel_args
-    )(delayed(process_csv)(path) for path in tmp_files)
-    shutil.rmtree(tmp)
-
-    # This should be a 2D array
-    full_array = np.concatenate(arr_list, axis=0)
-    assert len(full_array.shape) == 2
+    df_list = TqdmParallel(total=len(tmp_files), desc="Processing CSVs", n_jobs=n_jobs)(
+        delayed(pd.read_csv)(path, quotechar="'", header=0, index_col=0)
+        for path in tmp_files
+    )
+    shutil.rmtree(tmp, ignore_errors=True)
+    feats = np.concatenate(df_list, axis=0)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     write_features(
         output,
         corpus=corpus,
-        names=names,
-        features=full_array,
-        slices=[x.shape[0] for x in arr_list],
+        names=[x.stem for x in input_list],
+        features=feats,
+        feature_names=list(df_list[0].columns),
+        slices=[len(x) for x in df_list],
     )
     print(f"Wrote dataset to {output}")
 

@@ -219,6 +219,7 @@ def run_friedman(table: pd.DataFrame):
 @click.option(
     "--output_type",
     type=click.Choice(["tex", "image", "excel", "csv"]),
+    multiple=True,
     help="Type(s) of output.",
 )
 @click.option("--substitute", is_flag=True, help="Don't rename and reorder columns.")
@@ -248,20 +249,24 @@ def main(
         print(f"{caption}:")
         print(tab.to_string(float_format=fmt))
         print()
-        output = output_dir / f"{name}"
         if plot or "image" in output_type:
             tab_fig = plot_matrix(tab, cmap=cmap)
+        if output_dir:
+            output = output_dir / f"{name}"
             if "image" in output_type:
                 with PdfPages(output.with_suffix(".pdf")) as pdf:
                     pdf.savefig(tab_fig)
-        if "latex" in output_type:
-            to_latex(
-                tab, output.with_suffix(".tex"), label=f"tab:{label}", caption=caption
-            )
-        if "excel" in output_type:
-            tab.to_excel(output.with_suffix(".xlsx"), merge_cells=False)
-        if "csv" in output_type:
-            tab.to_csv(output.with_suffix(".csv"), header=True, index=True)
+            if "latex" in output_type:
+                to_latex(
+                    tab,
+                    output.with_suffix(".tex"),
+                    label=f"tab:{label}",
+                    caption=caption,
+                )
+            if "excel" in output_type:
+                tab.to_excel(output.with_suffix(".xlsx"), merge_cells=False)
+            if "csv" in output_type:
+                tab.to_csv(output.with_suffix(".csv"), header=True, index=True)
 
     logging.basicConfig()
     logger = logging.getLogger("view_results")

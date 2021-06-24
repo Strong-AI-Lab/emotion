@@ -1,31 +1,40 @@
 import subprocess
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Iterable, List
 
 from joblib import delayed
 
 from ..utils import PathOrStr, TqdmParallel
 
 
-def get_audio_paths(file: PathOrStr) -> Sequence[Path]:
-    """Given a path to a file containing a list of audio files, returns
-    a sequence of absolute paths to the audio files.
+def get_audio_paths(path: PathOrStr, absolute: bool = True) -> List[Path]:
+    """Given a path to a dir or list of audio files, return a sequence
+    of absolute paths to those files. Note that this method handles
+    relative paths but returns absolute paths, and doesn't resolve
+    canonical paths (i.e. it doesn't follow symlinks.)
 
     Args:
     -----
     file: pathlike or str
-        Path to a file containing a list of paths to audio clips.
+        Path to a directory containing audio clips, or a file containing
+        a list of paths to audio clips.
+    absolute: bool
+        If `True`, return absolute paths, otherwise return the paths
+        already in the file/directory. Default is `True`.
 
     Returns:
     --------
-        Sequence of paths to audio files.
+        List of paths to audio files. Paths will be absolute paths if
+        `absolute=True`.
     """
-    file = Path(file)
-    paths = []
-    with open(file) as fid:
-        for line in fid:
-            p = Path(line.strip())
-            paths.append(p if p.is_absolute() else (file.parent / p).resolve())
+    path = Path(path)
+    if path.is_dir():
+        paths = [x for x in path.glob("*") if not x.is_dir()]
+    else:
+        with open(path) as fid:
+            paths = [path.parent / x.strip() for x in fid]
+    if absolute:
+        return [x.absolute() for x in paths]
     return paths
 
 
@@ -60,4 +69,4 @@ def write_filelist(paths: Iterable[Path], out: PathOrStr = "files.txt"):
     paths = sorted(paths, key=lambda p: p.stem)
     with open(out, "w") as fid:
         fid.write("\n".join(list(map(str, paths))) + "\n")
-    print("Wrote file list to files.txt")
+    print(f"Wrote file list to {out}")

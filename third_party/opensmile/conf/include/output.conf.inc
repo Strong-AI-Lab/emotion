@@ -21,5 +21,5 @@ frameTime=0
 filename=\cm[csvoutput{?}:output CSV file for summarised parameters, set to a valid filename to enable this output sink, data is appended if file exists]
 delimChar=,
 instanceName=\cm[instname(N){noname}:name of instance]
-printHeader=0
+printHeader=1
 append=0

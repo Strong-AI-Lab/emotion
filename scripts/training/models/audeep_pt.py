@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Any, Dict, Tuple, Union
 
 import click
-import netCDF4
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -13,7 +12,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from emorec.dataset import write_features
+from emorec.dataset import write_features, Dataset
 from emorec.utils import PathlibPath, PathOrStr
 
 DEVICE = torch.device("cuda")
@@ -71,6 +70,7 @@ class TimeRecurrentAutoencoder(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        # x (B, T, F)
         targets = x.flip(1)
 
         num_directions = 2 if self.bidirectional_encoder else 1
@@ -150,29 +150,23 @@ def save_model(
 
 def get_data(path: PathOrStr, shuffle: bool = False):
     """Get data and metadata from netCDF dataset. Optionally shuffle x."""
-    dataset = netCDF4.Dataset(path)
-    x = np.array(dataset.variables["features"])
-    num_inst = dataset.dimensions["instance"].size
-    names = np.array(dataset.variables["name"])
-    corpus = dataset.corpus
-    dataset.close()
-
-    if len(x.shape) == 2:
-        assert (
-            len(x) % num_inst == 0
-        ), "Length of x is not a multiple of number of instances!"  # noqa
-        num_feat = x.shape[-1]
-        x = x.reshape((num_inst, -1, num_feat))
+    dataset = Dataset(path)
+    x = dataset.x
+    names = np.array(dataset.names)
 
     if shuffle:
         perm = np.random.default_rng().permutation(len(x))
         x = x[perm]
         names = names[perm]
 
+    x = scale(x, -1, 1)
+    return x, names, dataset.corpus
+
+
+def scale(x, low: float = -1, high: float = 1):
     xmin = np.min(x, axis=(1, 2), keepdims=True)
     xmax = np.max(x, axis=(1, 2), keepdims=True)
-    x = 2 * (x - xmin) / (xmax - xmin) - 1
-    return x, names, corpus
+    return (high - low) * (x - xmin) / (xmax - xmin) + low
 
 
 @click.command()
@@ -355,7 +349,7 @@ def generate(input: Path, output: Path, model_path: Path, batch_size: int):
     model.cuda()
     model.load_state_dict(load_dict["model_state_dict"])
 
-    x, filenames, corpus = get_data(input)
+    x, names, corpus = get_data(input)
 
     representations = np.empty((len(x), model.embedding_size))
     with torch.no_grad():
@@ -369,7 +363,7 @@ def generate(input: Path, output: Path, model_path: Path, batch_size: int):
     write_features(
         output,
         corpus=corpus,
-        names=filenames,
+        names=names,
         features=representations,
         feature_names=feature_names,
     )

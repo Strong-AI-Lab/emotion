@@ -1,16 +1,19 @@
 import inspect
 import typing
+import warnings
 from collections import Counter
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import arff
+import librosa
 import netCDF4
 import numpy as np
 import pandas as pd
 import soundfile
+from joblib import delayed
 
-from ..utils import PathOrStr, flat_to_inst, inst_to_flat
+from ..utils import PathOrStr, TqdmParallel, flat_to_inst, inst_to_flat
 from .utils import get_audio_paths
 
 
@@ -59,22 +62,28 @@ def read_netcdf(path: PathOrStr):
     with netCDF4.Dataset(path) as dataset:
         return FeaturesData(
             corpus=dataset.corpus,
-            names=[Path(f).stem for f in dataset.variables["name"]],
+            names=list(dataset.variables["name"]),
             features=np.array(dataset.variables["features"]),
             slices=np.array(dataset.variables["slices"]),
             feature_names=list(dataset.variables["feature_names"]),
         )
 
 
-def read_raw(path: PathOrStr):
+def read_raw(path: PathOrStr, sample_rate: int = 16000):
     path = Path(path)
     filepaths = get_audio_paths(path)
     _audio = []
-    for filepath in filepaths:
-        audio, sr = soundfile.read(filepath, always_2d=True, dtype="float32")
-        if sr != 16000:
-            raise RuntimeError(f"File {filepath} has samplerate {sr}.")
-        _audio.append(audio.mean(1)[:, np.newaxis])
+
+    def read_one_file(filepath):
+        with warnings.catch_warnings():
+            audio, _ = librosa.load(
+                filepath, sr=sample_rate, mono=True, res_type="kaiser_fast"
+            )
+        return np.expand_dims(audio, -1)
+
+    _audio = TqdmParallel(len(filepaths), desc="Reading audio", leave=False, n_jobs=-1)(
+        delayed(read_one_file)(filepath) for filepath in filepaths
+    )
 
     return FeaturesData(
         corpus=path.parent.stem,
@@ -113,20 +122,12 @@ class FeaturesData:
         features: np.ndarray = np.empty(0),
         feature_names: List[str] = [],
         slices: Union[np.ndarray, List[int]] = [],
-        dataset: "Optional[FeaturesData]" = None,
     ):
-        if dataset is not None:
-            self._corpus = dataset.corpus
-            self._names = dataset.names
-            self._features = dataset.features
-            self._feature_names = dataset.feature_names
-            self._slices = dataset.slices
-        else:
-            self._corpus = corpus
-            self._names = names
-            self._features = features
-            self._feature_names = feature_names
-            self._slices = np.array(slices, copy=False)
+        self._corpus = corpus
+        self._names = names
+        self._features = features
+        self._feature_names = feature_names
+        self._slices = np.array(slices, copy=False)
 
         if len(self.features) > 0:
             if len(slices) > 0:
@@ -149,6 +150,7 @@ class FeaturesData:
         """Write features to any file format."""
 
         path = Path(path)
+        path.parent.mkdir(exist_ok=True, parents=True)
         meth = FeaturesData._write_backends.get(path.suffix)
         if meth is None:
             raise ValueError(f"File format {path.suffix} not supported.")

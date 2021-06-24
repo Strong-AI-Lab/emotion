@@ -1,31 +1,31 @@
-import argparse
 from pathlib import Path
 
+import click
 import pandas as pd
 
 from emorec.dataset import get_audio_paths
+from emorec.utils import PathlibPath
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("names", type=Path)
-    parser.add_argument("--filenames", type=Path, required=True)
-    parser.add_argument("output", type=Path)
-    args = parser.parse_args()
+@click.command()
+@click.argument("clips", type=PathlibPath(exists=True))
+@click.argument("filelist", type=PathlibPath(exists=True))
+def main(clips: Path, filelist: Path):
+    """Convert names in CLIPS to filepaths from FILELIST. Write to
+    stdout.
+    """
 
-    if args.names.suffix == ".csv":
-        df = pd.read_csv(args.names, header=0)
-        names = list(df["Clip"])
+    if clips.suffix == ".csv":
+        df = pd.read_csv(clips, header=0, index_col=0)
+        names = list(df.index)
     else:
-        with open(args.names) as fid:
+        with open(clips) as fid:
             names = list(map(str.strip, fid))
 
-    paths = get_audio_paths(args.filenames)
+    paths = get_audio_paths(filelist)
     name_to_file = {p.stem: str(p) for p in paths}
 
-    ordered = [name_to_file[n] for n in names if n in name_to_file]
-    with open(args.output, "w") as fid:
-        fid.write("\n".join(ordered) + "\n")
+    print("\n".join(map(name_to_file.__getitem__, names)))
 
 
 if __name__ == "__main__":

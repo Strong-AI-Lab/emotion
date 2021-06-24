@@ -1,5 +1,6 @@
 click
 click-option-group
+fairseq==0.10.2
 joblib
 liac-arff
 librosa
@@ -7,6 +8,7 @@ matplotlib>=3.0.0
 netCDF4
 nltk
 numpy
+Orange3
 pandas>=1.0.0
 scikeras
 scipy

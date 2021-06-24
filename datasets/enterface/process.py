@@ -56,7 +56,13 @@ def main(input_dir: Path, resample: bool):
 
     newpaths = list(resample_dir.glob("*.wav"))
     write_filelist([p for p in newpaths if not p.stem.startswith("s6_")])
-    write_annotations({p.stem: emotion_map[p.stem[-4:-2]] for p in newpaths}, "label")
+    write_annotations(
+        {
+            p.stem: emotion_map[p.stem[p.stem.find("_") + 1 : p.stem.find("_") + 3]]
+            for p in newpaths
+        },
+        "label",
+    )
     write_annotations({p.stem: p.stem[: p.stem.find("_")] for p in newpaths}, "speaker")
     write_annotations({p.stem: "en" for p in newpaths}, "language")
 

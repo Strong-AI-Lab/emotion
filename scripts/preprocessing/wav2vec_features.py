@@ -2,15 +2,17 @@ from pathlib import Path
 
 import click
 import numpy as np
+import librosa
 import torch
 from fairseq.models.wav2vec import Wav2Vec2Model, Wav2VecModel
 from tqdm import tqdm
 
-from emorec.dataset import Dataset, write_features
+from emorec.dataset import write_features, get_audio_paths
 from emorec.utils import PathlibPath
 
 
 @click.command()
+@click.argument("corpus", type=str)
 @click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
 @click.argument("output", type=Path)
 @click.option(
@@ -20,9 +22,7 @@ from emorec.utils import PathlibPath
     help="Path to checkpoint.",
 )
 @click.option("--type", "tp", type=int, default=1, help="Wav2Vec version, 1 or 2.")
-def main(input: Path, output: Path, checkpoint: Path, tp: int):
-    dataset = Dataset(input)
-
+def main(corpus: str, input: Path, output: Path, checkpoint: Path, tp: int):
     print(f"Loading model from {checkpoint}")
     cp = torch.load(checkpoint)
     if tp == 1:
@@ -34,9 +34,11 @@ def main(input: Path, output: Path, checkpoint: Path, tp: int):
     model.eval()
 
     _embeddings = []
-    for wav in tqdm(dataset.x):
-        # Transpose so that the single 'feature' dimension becomes 'batch' dimension
-        tensor = torch.tensor(wav.T, device="cuda")
+    filepaths = get_audio_paths(input)
+    names = [x.stem for x in filepaths]
+    for filepath in tqdm(filepaths):
+        wav, _ = librosa.load(filepath, sr=16000, mono=True, res_type="kaiser_fast")
+        tensor = torch.tensor(wav, device="cuda").unsqueeze(0)
         with torch.no_grad():
             if tp == 1:
                 z = model.feature_extractor(tensor)
@@ -50,7 +52,7 @@ def main(input: Path, output: Path, checkpoint: Path, tp: int):
     embeddings = np.stack(_embeddings)
 
     write_features(
-        output, names=dataset.names, features=embeddings, corpus=dataset.corpus
+        output, names=names, features=embeddings, corpus=corpus
     )
     print(f"Wrote netCDF4 dataset to {output}")
 

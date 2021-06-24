@@ -1,38 +1,44 @@
-"""Selects speech clips in a given length range."""
-
-import argparse
 from pathlib import Path
 
-import librosa
+import click
 import soundfile
+from tqdm import tqdm
+
+from emorec.dataset import get_audio_paths
+from emorec.utils import PathlibPath
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("input", type=Path, help="Input directory.")
-    parser.add_argument(
-        "--minlength",
-        type=float,
-        default=5,
-        help="Minimum length (in seconds) of resulting speech clips.",
-    )
-    parser.add_argument(
-        "--maxlength",
-        type=float,
-        default=15,
-        help="Maximum length (in seconds) of resulting speech clips.",
-    )
-    parser.add_argument("output", type=Path, help="Output file.")
-    args = parser.parse_args()
-
+@click.command()
+@click.argument("input", type=PathlibPath(exists=True))
+@click.argument("output", type=Path)
+@click.option(
+    "--minlength",
+    type=float,
+    default=5,
+    help="Minimum length (in seconds) of resulting speech clips.",
+)
+@click.option(
+    "--maxlength",
+    type=float,
+    default=5,
+    help="Maximum length (in seconds) of resulting speech clips.",
+)
+def main(input: Path, output: Path, minlength: float, maxlength: float):
+    """Selects speech clips in a given length range."""
     clips = []
-    for path in sorted(args.input.glob("*.wav")):
+    if input.is_dir():
+        paths = sorted(input.glob("**/*.wav"))
+    else:
+        paths = get_audio_paths(input)
+    print(f"Found {len(paths)} files total.")
+    for path in tqdm(paths, desc="Processing clips"):
         length = soundfile.info(path).duration
-        if args.minlength < length < args.maxlength:
-            clips.append(str(path.absolute()))
+        if minlength < length < maxlength:
+            clips.append(str(path))
+    print(f"Found {len(clips)} valid clips.")
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    with open(args.output, "w") as fid:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with open(output, "w") as fid:
         fid.write("\n".join(clips) + "\n")
 
 

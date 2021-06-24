@@ -11,8 +11,6 @@ import pandas as pd
 from emorec.dataset import write_features
 from emorec.utils import PathlibPath
 
-OPENXBOW_JAR = "third_party/openxbow/openXBOW.jar"
-
 
 @click.command()
 @click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
@@ -56,7 +54,7 @@ def main(input: Path, output: Path, codebook: int, closest: int):
     xbow_args = [
         "java",
         "-jar",
-        f"{OPENXBOW_JAR}",
+        "third_party/openxbow/openXBOW.jar",
         "-i",
         tmpin,
         "-o",

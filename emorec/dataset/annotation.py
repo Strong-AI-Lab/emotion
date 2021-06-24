@@ -14,8 +14,7 @@ def read_annotations(
     # Need index_col to be False or None due to
     # https://github.com/pandas-dev/pandas/issues/9435
     df = pd.read_csv(filename, index_col=False, header=0, converters={0: str, 1: dtype})
-    type_ = df.columns[1]
-    annotations = df.set_index("name")[type_].to_dict()
+    annotations = df.set_index(df.columns[0])[df.columns[1]].to_dict()
     return annotations
 
 
