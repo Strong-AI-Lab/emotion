@@ -3,7 +3,7 @@ import typing
 import warnings
 from collections import Counter
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
 import arff
 import librosa
@@ -249,9 +249,9 @@ class FeaturesData:
 
 
 _READ_BACKENDS: Dict[str, Callable] = {
+    ".nc": read_netcdf,
     ".arff": read_arff,
     ".csv": read_csv,
-    ".nc": read_netcdf,
     ".txt": read_raw,
 }
 
@@ -269,6 +269,15 @@ def register_format(
         _READ_BACKENDS[suffix] = read
     if write is not None:
         FeaturesData._write_backends[suffix] = write
+
+
+def find_features_file(files: Iterable[Path]) -> Path:
+    files = list(files)
+    for suffix in _READ_BACKENDS:
+        file = next((x for x in files if x.suffix == suffix), None)
+        if file is not None:
+            return file
+    raise FileNotFoundError(f"No features found in {files}")
 
 
 def read_features(path: PathOrStr, **kwargs) -> FeaturesData:

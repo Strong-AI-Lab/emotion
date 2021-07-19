@@ -10,8 +10,9 @@ from emorec.utils import PathlibPath
 
 
 @click.command()
-@click.argument("input", type=PathlibPath(exists=True))
+@click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
 @click.argument("output", type=Path)
+@click.option("--features", required=True, help="Features to use.")
 @click.option(
     "--model",
     type=PathlibPath(exists=True, dir_okay=False),
@@ -22,18 +23,19 @@ from emorec.utils import PathlibPath
     "--norm",
     type=click.Choice(["speaker", "corpus", "all"]),
     default="speaker",
+    show_default=True,
     help="Normalisation scheme.",
 )
-def main(input: Path, output: Path, model: Path, norm: str):
-    """Perform inference on a given INPUT features using a pre-trained
+def main(input: Path, output: Path, features: str, model: Path, norm: str):
+    """Perform inference on a given INPUT dataset using a pre-trained
     model. Gives the predicted class and confidence and writes CSV to
     OUTPUT.
     """
 
-    print(f"Reading features from {input}")
-    dataset = Dataset(input)
+    dataset = Dataset(input, features=features)
+    print(dataset)
     names = np.array(dataset.names)
-    dataset.normalise(scheme=norm)
+    dataset.normalise(partition=norm)
     with open(model, "rb") as fid:
         print(f"Loading model from {model}")
         clf = pickle.load(fid)

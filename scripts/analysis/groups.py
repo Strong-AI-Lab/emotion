@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Iterable, Tuple
+from typing import Tuple
 
 import click
 import matplotlib.cm as cm
@@ -18,31 +18,14 @@ from sklearn.metrics import (
 from sklearn.preprocessing import StandardScaler
 from sklearn.random_projection import GaussianRandomProjection
 
-from emorec.dataset import CombinedDataset, LabelledDataset
+from emorec.dataset import load_multiple
 from emorec.stats import corr_ratio, dunn
 from emorec.utils import PathlibPath
 
 
-def get_combined_data(files: Iterable[Path]):
-    datasets = []
-    for file in files:
-        print(f"Loading {file}")
-        dataset = LabelledDataset(file)
-        dataset_dir = Path("datasets", dataset.corpus)
-        dataset.update_speakers(dataset_dir / "speaker.csv")
-        dataset.update_labels(dataset_dir / "label.csv")
-        sp_group_path = dataset_dir / "group.csv"
-        if sp_group_path.exists():
-            dataset.update_annotation("speaker_groups", sp_group_path)
-        gender_path = dataset_dir / "gender.csv"
-        if gender_path.exists():
-            dataset.update_annotation("gender", gender_path)
-        datasets.append(dataset)
-    return datasets
-
-
 @click.command()
 @click.argument("input", type=PathlibPath(exists=True, dir_okay=False), nargs=-1)
+@click.argument("--features", required=True, help="Features to load.")
 @click.option(
     "--transform",
     type=click.Choice(
@@ -66,7 +49,7 @@ def get_combined_data(files: Iterable[Path]):
     "--std/--nostd", default=True, help="Standardise features.", show_default=True
 )
 @click.option(
-    "--part", "--groups", default="speakers", help="Partition to use for comparison."
+    "--part", "--groups", default="speaker", help="Partition to use for comparison."
 )
 @click.option("--plot/--noplot", default=False, help="2D plot of feature space.")
 @click.option("--metric", default="l2", help="Distance metric to use.")
@@ -74,6 +57,7 @@ def get_combined_data(files: Iterable[Path]):
 @click.option("--csv", type=Path, help="Output CSV with metrics.")
 def main(
     input: Tuple[Path],
+    features: str,
     transform: str,
     std: bool,
     part: str,
@@ -82,21 +66,18 @@ def main(
     kernel: str,
     csv: Path,
 ):
-    print("Combining data.")
-    data = CombinedDataset(*get_combined_data(input))
-
-    # Note this is not specifically speaker groups
+    data = load_multiple(input, features)
     group_indices = data.get_group_indices(part)
-    group_names = list(data.partitions[part].keys())
+    group_names = data.get_group_names(part)
     n_groups = group_indices.max() + 1
 
     print(f"{n_groups} groups:")
     print(", ".join(group_names))
 
+    x = data.x
     if std:
         print("Standardising features independently (globally)")
-        data.normalise(StandardScaler(), scheme="all")
-    x = data.x
+        x = StandardScaler().fit_transform(x)
 
     print(f"Transforming with {transform}")
     if transform == "pca":
@@ -135,7 +116,7 @@ def main(
 
     df = pd.DataFrame(
         {
-            "corpora": " ".join(data.corpora),
+            "corpora": " ".join(data.corpus_names),
             "partition": part,
             "transform": transform,
             "metric": metric,

@@ -2,6 +2,7 @@
 /datasets/*/*
 !/datasets/*/process.py
 !/datasets/*/process_transcripts.py
+!/datasets/*/corpus.yaml
 
 !/datasets/semaine/extract_turns.py
 
@@ -22,6 +23,9 @@ __pycache__
 # TensorFlow
 *.ckpt
 *.h5
+
+# PyTorch
+*.pt
 
 # Misc general
 .vscode

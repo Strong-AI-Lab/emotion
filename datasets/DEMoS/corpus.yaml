@@ -1,0 +1,17 @@
+DEMoS:
+  description: DEMoS dataset
+  annotations:
+  partitions:
+    - label
+    - speaker
+    - language
+    - gender
+  subsets:
+    default: PR
+    all:
+      clips: files_all
+      description: All files
+    PR:
+      clips: files_PR
+      description: Prototypical emotions
+  features_dir: ../../features/DEMoS

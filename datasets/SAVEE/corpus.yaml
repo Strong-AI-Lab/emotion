@@ -1,0 +1,13 @@
+SAVEE:
+  description: SAVEE dataset
+  annotations:
+  partitions:
+    - label
+    - speaker
+    - language
+  subsets:
+    default: all
+    all:
+      clips: files
+      description: All files
+  features_dir: ../../features/SAVEE

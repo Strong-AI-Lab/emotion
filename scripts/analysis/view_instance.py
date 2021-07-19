@@ -3,9 +3,8 @@ from typing import Union
 
 import click
 import matplotlib.pyplot as plt
-import numpy as np
 
-from emorec.dataset import Dataset
+from emorec.dataset import read_features
 from emorec.utils import PathlibPath
 
 
@@ -18,7 +17,7 @@ def main(input: Path, instance: str):
     named instance.
     """
 
-    dataset = Dataset(input)
+    data = read_features(input)
     if instance.isdigit():
         idx: Union[int, slice] = int(instance)
     else:
@@ -28,12 +27,9 @@ def main(input: Path, instance: str):
             end = int(instance[_i + 1 :])
             idx = slice(start, end)
         else:
-            idx = dataset.names.index(instance)
-    arr = dataset.x[idx]
-    if len(arr.shape) == 1:
-        arr = np.expand_dims(arr, 0)
-
-    names = dataset.names[idx]
+            idx = data.names.index(instance)
+    arr = data.features[idx]
+    names = data.names[idx]
     print(names)
 
     plt.figure()

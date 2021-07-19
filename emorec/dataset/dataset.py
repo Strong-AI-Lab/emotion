@@ -1,42 +1,40 @@
+import logging
 import os
-import warnings
 from itertools import chain
+from pathlib import Path
 from typing import (
+    Any,
     Collection,
     Dict,
+    Iterable,
     List,
     Mapping,
     Optional,
     Sequence,
     Set,
-    Tuple,
     Type,
     TypeVar,
     Union,
 )
 
 import numpy as np
+import yaml
 from sklearn.base import TransformerMixin
 from sklearn.preprocessing import StandardScaler
 
 from ..utils import (
     PathOrStr,
     clip_arrays,
-    flat_to_inst,
     frame_arrays,
-    inst_to_flat,
+    group_transform,
     pad_arrays,
     transpose_time,
 )
 from .annotation import read_annotations
-from .features import read_features
+from .features import find_features_file, read_features
+from .utils import get_audio_paths
 
-_AT = TypeVar("_AT", str, int, float)
-
-_AnnotationCatsList = Union[Sequence[str], Sequence[int]]
-_AnnotationList = Union[
-    Sequence[Optional[str]], Sequence[Optional[int]], Sequence[Optional[float]]
-]
+_D = TypeVar("_D", bound="Dataset")
 
 
 class Dataset:
@@ -44,107 +42,233 @@ class Dataset:
     features and optional partitions and annotations. Has various
     preprocessing methods.
 
-    An annotation is a scalar value for some (or all) instances in the
-    dataset. Annotations are allowed to be incomplete, which occurs when
-    majority vote labels cannot be assigned to all instances, for
-    example.
+    An annotation is a scalar value for all instances in the dataset.
 
     A partition is a partition of instances into disjoint groups (e.g.
     speakers). A partition should be complete in that each instance is
     in exactly one group in the partition. Each partition has a
     corresponding annotation with the same name, using the group names
     as categorical annotations.
+
+    Args:
+    -----
+    corpus_info: Pathlike or str, optional
+        Path to corpus info in YAML format.
+    features: Pathlike or str, optional
+        Path to features file, or unique name of features in corpus
+        features directory.
+    subset: str, optional
+        The subset of instances to use.
     """
 
-    _partitions: Dict[str, Dict[str, Set[str]]]
-    _annotation_categories: Dict[str, _AnnotationCatsList]
-    _annotations: Dict[str, _AnnotationList]
-    _corpus = ""
+    _partitions: Set[str]
+    _annotations: Dict[str, Dict[str, Any]]
+    _corpus: str = ""
     _names: List[str]
     _feature_names: List[str]
     _x: np.ndarray
+    _subset: str = ""
+    _subsets: Dict[str, Collection[str]]
 
-    def __init__(self, path: PathOrStr, speaker_path: Optional[PathOrStr] = None):
-        data = read_features(path)
+    _default_subset: str = ""
+    _features_path: Path
+    _features_dir: Path
 
-        self._corpus = data.corpus
-        self._names = data.names
+    def __init__(
+        self,
+        corpus_info: Optional[PathOrStr] = None,
+        features: Optional[PathOrStr] = None,
+        subset: str = "default",
+    ):
+        self._partitions = set()
+        self._annotations = {}
+        self._subsets = {}
+        self._names = []
+        self._feature_names = []
+        self._x = np.empty((0, 0), dtype=np.float32)
+
+        if corpus_info is not None:
+            self.init_corpus_info(corpus_info)
+            self.use_subset(subset)
+        if features is not None:
+            self.update_features(features)
+
+    def init_corpus_info(self, path: PathOrStr):
+        """Initialise corpus metadata from YAML.
+
+        Args:
+        -----
+        path: os.Pathlike or str
+            The path to a YAML file containing corpus metadata.
+        """
+        path = Path(path)
+        with open(path) as fid:
+            doc = yaml.safe_load(fid)
+
+        if self.corpus == "":
+            self._corpus = next(iter(doc))
+        corpus_info = doc[self.corpus]
+
+        self._features_dir = path.parent / corpus_info["features_dir"]
+
+        if "subsets" in corpus_info:
+            for subset, subset_info in corpus_info["subsets"].items():
+                subset_info = corpus_info["subsets"][subset]
+                if subset == "default":
+                    self._default_subset = subset_info
+                    continue
+                clips_file = path.parent / f"{subset_info['clips']}.txt"
+                self.subsets[subset] = {x.stem for x in get_audio_paths(clips_file)}
+        if corpus_info.get("partitions", None):
+            for partition in corpus_info["partitions"]:
+                self.update_annotation(
+                    partition, path.parent / f"{partition}.csv", dtype=str
+                )
+        if corpus_info.get("annotations", None):
+            for annotation in corpus_info["annotations"]:
+                self.update_annotation(annotation, path.parent / f"{annotation}.csv")
+
+    def _verify_annotations(self, annot_name: Optional[str] = None):
+        def verify_annotation(annot_name):
+            annotations = self.annotations[annot_name]
+            missing = set(self.names) - annotations.keys()
+            if len(missing) > 0:
+                raise ValueError(
+                    f"Incomplete annotation {annot_name}. These names are missing:\n"
+                    f"{missing}"
+                )
+
+        if annot_name is not None:
+            verify_annotation(annot_name)
+        else:
+            for annot_name in self.annotations:
+                verify_annotation(annot_name)
+
+    def update_features(self, features: PathOrStr, subset: Optional[str] = None):
+        """Update the features matrix, instance names and feature names
+        for this dataset.
+
+        Args:
+        -----
+        features: os.PathLike or str
+            Path to a set of features or unique name of features in
+            corpus features dir.
+        subset: str, optional
+            The subset to select.
+        """
+        features = Path(features)
+        if len(features.suffix) == 0:
+            features = find_features_file(self._features_dir.glob(f"{features}.*"))
+        self._features = features.stem
+        data = read_features(features)
         self._feature_names = data.feature_names
         self._x = data.features
+        self._names = data.names
+        if not subset:
+            subset = self.subset
+        self.use_subset(subset)
 
-        self._partitions = {}
-        self._annotation_categories = {}
-        self._annotations = {}
+    def use_subset(self, subset: str = "default"):
+        """Use a different subset of the instances.
 
-        if speaker_path:
-            self.update_speakers(speaker_path)
-        else:
-            self.update_speakers(["unknown"] * len(self.names))
-
-    def get_annotation_indices(self, annot_name: str) -> np.ndarray:
-        """Get annotation indices for categorical annotations (e.g.
-        speakers).
+        Args:
+        -----
+        subset: str
+            Name of subset to use. Default is "default" which uses the
+            default subset specified in corpus_info.
         """
-        if annot_name not in self.annotation_categories:
-            raise ValueError(f"annotation {annot_name} doesn't have categories")
-        annotations = self.annotations[annot_name]
-        cats = self.annotation_categories[annot_name]
-        return np.array([cats.index(x) for x in annotations])
-
-    def get_annotation_counts(self, annot_name: str) -> np.ndarray:
-        """Get counts of discrete annotation values."""
-        uniq, counts = np.unique(self.annotations[annot_name], return_counts=True)
-        count_dict = dict(zip(uniq, counts))
-        return np.array([count_dict[x] for x in self.annotation_categories[annot_name]])
+        if len(self._subsets) == 0:
+            self._subset = "all"
+        else:
+            if subset == "default":
+                subset = self._default_subset
+            self._subset = subset
+            self.remove_instances(keep=self.subsets[subset])
+        self._verify_annotations()
 
     def update_annotation(
         self,
         annot_name: str,
-        annotations: Union[PathOrStr, Mapping[str, _AT], Sequence[_AT]],
-        dtype: Optional[Type[_AT]] = None,
+        annotations: Union[PathOrStr, Mapping[str, Any], Sequence[Any]],
+        dtype: Optional[Type] = None,
     ):
-        """Update or add an annotation."""
+        """Add or update an annotation.
+
+        Args:
+        -----
+        annot_name: str
+            The name of the annotation.
+        annotations: PathLike, str, mapping or sequence
+            Annotations to add, similar to update_partition(). If
+            PathLike or str, annotations are read from a CSV. If a dict,
+            should be of the form {instance: annotation}. If a list,
+            should have an annotation for each instance.
+        dtype: type, optional
+            The type of annotations for reading from CSV file.
+        """
         if isinstance(annotations, (os.PathLike, str)):
-            if dtype is None:
-                raise TypeError(
-                    "dtype must be specified when adding annotations from CSV"
-                )
-            annot_dict: Mapping[str, _AT] = read_annotations(annotations, dtype=dtype)
+            annot_dict = read_annotations(annotations, dtype=dtype)
         elif isinstance(annotations, Mapping):
-            annot_dict = annotations
+            annot_dict = dict(annotations)
         else:
             annot_dict = {
                 k: v for k, v in zip(self.names, annotations) if v is not None
             }
 
-        if not set(self.names) <= set(annot_dict.keys()):
-            warnings.warn(f"Adding incomplete annotation {annot_name}.")
-        self._annotations[annot_name] = [annot_dict.get(name) for name in self.names]
-        type_ = type(annot_dict[self.names[0]])
-        if issubclass(type_, (str, int)):
-            self._annotation_categories[annot_name] = sorted(set(annot_dict.values()))
+        self._annotations[annot_name] = annot_dict
+        if isinstance(next(iter(annot_dict.values())), str):
+            self.partitions.add(annot_name)
+        self._verify_annotations(annot_name)
 
-    def get_group_indices(self, part_name: str) -> np.ndarray:
+    def remove_annotation(self, annot_name: str):
+        """Removes a set of annotations from the dataset.
+
+        Args:
+        -----
+        annot_name: str
+            Annotation name.
+        """
+        del self.annotations[annot_name]
+        self.partitions.difference_update({annot_name})
+
+    def get_annotations(self, annot_name: str) -> List[Any]:
+        """Get a list of annotations for each instance currently in the
+        dataset.
+
+        Args:
+        -----
+        annot_name: str
+            Annotation name.
+
+        Returns:
+        --------
+        A list of values, one for each instance in the datset, in the
+        same order they appear in names and x.
+        """
+        return [self.annotations[annot_name][x] for x in self.names]
+
+    def get_group_indices(self, annot_name: str) -> np.ndarray:
         """Gets the group indices (i.e. indices into the groups array)
         for a given partition.
 
         Args:
         -----
-        part_name: str
+        annot_name: str
             The partition name.
 
         Returns:
         --------
         A NumPy array of group indices for each instance in the dataset.
         """
-        return self.get_annotation_indices(part_name)
+        _, idx = np.unique(self.get_annotations(annot_name), return_inverse=True)
+        return idx
 
-    def get_group_counts(self, part_name: str) -> np.ndarray:
+    def get_group_counts(self, annot_name: str) -> np.ndarray:
         """Get group counts for a partition.
 
         Args:
         -----
-        part_name: str
+        annot_name: str
             The partition name.
 
         Returns:
@@ -152,47 +276,22 @@ class Dataset:
         A NumPy array of counts for the corresponding group in this
         partition.
         """
-        return np.array([len(g) for g in self.partitions[part_name].values()])
+        _, counts = np.unique(self.get_annotations(annot_name), return_counts=True)
+        return counts
 
-    def update_partition(
-        self, part_name: str, groups: Union[PathOrStr, Mapping[str, str], Sequence[str]]
-    ):
-        """Add or update partition of instances in this dataset.
+    def get_group_names(self, annot_name: str) -> List[str]:
+        """Get the names of groups in a partition.
 
         Args:
         -----
-        part_name: str
-            The partition name.
-        groups: PathLike or str or dict or list
-            The groups for this partition. If PathLike, groups are read
-            from a CSV. If a dict, should be of the form {instance:
-            group}. If a list, should have a group for each instance.
-
-            The groups should be complete (i.e. the union of the groups
-            should contain all instances) and mutually exclusive (no two
-            groups should contain the same instance).
+        annot_name: str
+            Annotation name.
         """
-        if isinstance(groups, (os.PathLike, str)):
-            grp_dict = read_annotations(groups, dtype=str)
-            names, grp = zip(*grp_dict.items())
-        elif isinstance(groups, Mapping):
-            names, grp = zip(*groups.items())
-        else:
-            names = tuple(self.names)
-            grp = tuple(groups)
+        return list(np.unique(self.get_annotations(annot_name)))
 
-        if not set(self.names) <= set(names):
-            raise ValueError("Partition must cover all instances in the dataset.")
-
-        unique, idx = np.unique(grp, return_inverse=True)
-        self._partitions[part_name] = {}
-        for i, g_name in enumerate(unique):
-            name_idx = [j for j in range(len(idx)) if idx[j] == i]
-            names_group = {names[j] for j in name_idx}.intersection(self.names)
-            self._partitions[part_name][g_name] = names_group
-        self.update_annotation(part_name, groups, str)
-
-    def update_speakers(self, speakers: Union[PathOrStr, Dict[str, str], List[str]]):
+    def update_speakers(
+        self, speakers: Union[PathOrStr, Mapping[str, str], Sequence[str]]
+    ):
         """Update the speakers for this dataset.
 
         Args:
@@ -202,13 +301,7 @@ class Dataset:
             dict, use speaker dict directly. If list, each speakers[i]
             is the corresponding speaker for instance i.
         """
-        self.update_partition("speakers", speakers)
-        self._update_speakers()
-
-    def _update_speakers(self):
-        self._speaker_indices = self.get_group_indices("speakers")
-        if any(x == 0 for x in self.speaker_counts):
-            warnings.warn("Some speakers have no corresponding instances.")
+        self.update_annotation("speaker", speakers, dtype=str)
 
     def remove_instances(
         self, *, drop: Collection[str] = [], keep: Collection[str] = []
@@ -233,45 +326,52 @@ class Dataset:
         idx = [i for i, x in enumerate(self.names) if x in keep]
         self._names = [self.names[i] for i in idx]
         self._x = self.x[idx]
+        self._verify_annotations()
 
-        for annot_name in self.annotations:
-            new_annotations = [self.annotations[annot_name][i] for i in idx]
-            if annot_name in self.partitions:
-                # This will also update annotations
-                self.update_partition(annot_name, new_annotations)
-            else:
-                self.update_annotation(annot_name, new_annotations)
-        self._update_speakers()
+    def copy(self: _D) -> _D:
+        import copy
+
+        new_dataset = type(self)()
+        new_dataset._annotations = copy.deepcopy(self._annotations)
+        new_dataset._corpus = self._corpus
+        new_dataset._feature_names = self._feature_names.copy()
+        new_dataset._names = self._names.copy()
+        new_dataset._partitions = copy.deepcopy(self._partitions)
+        new_dataset._x = self._x.copy()
+        return new_dataset
 
     def normalise(
-        self, normaliser: TransformerMixin = StandardScaler(), scheme: str = "speaker"
+        self, partition: str, normaliser: TransformerMixin = StandardScaler()
     ):
-        """Transforms the X data matrix of this dataset using some
-        (global) normalisation method. I think in theory this should be
-        idempotent.
+        """Transforms the data matrix of this dataset in-place using
+        some (offline) normalisation method.
+
+        Args:
+        -----
+        normaliser:
+            The transform to apply. Must implement fit_transform().
+        partition: str
+            The partition to apply in a per-group fashion. If "all",
+            then perform global normalisation on all the data. Default
+            is "speaker" to do per-speaker normalisation.
         """
 
-        if scheme == "all":
-            flat, slices = inst_to_flat(self.x)
-            flat = normaliser.fit_transform(flat)
-            self._x = flat_to_inst(flat, slices)
-        elif scheme == "speaker":
-            for sp in range(len(self.speaker_names)):
-                idx = np.nonzero(self.speaker_indices == sp)[0]
-                flat, slices = inst_to_flat(self.x[idx])
-                flat = normaliser.fit_transform(flat)
-                self.x[idx] = flat_to_inst(flat, slices)
+        if partition == "all":
+            groups = np.zeros(len(self.x), dtype=int)
+        else:
+            groups = self.get_group_indices(partition)
+        group_transform(self.x, groups, normaliser, inplace=True)
 
     def pad_arrays(self, pad: int = 32):
         """Pads each array to the nearest multiple of `pad` greater than
         the array size. Assumes axis 0 of x is time.
         """
-        print(f"Padding array lengths to nearest multiple of {pad}.")
+        logging.info(f"Padding array lengths to nearest multiple of {pad}.")
         pad_arrays(self.x, pad=pad)
 
     def clip_arrays(self, length: int):
         """Clips each array to the specified maximum length."""
-        print(f"Clipping arrays to max length {length}.")
+        logging.info(f"Clipping arrays to max length {length}.")
         clip_arrays(self.x, length=length)
 
     def frame_arrays(
@@ -281,7 +381,7 @@ class Dataset:
         num_frames: Optional[int] = None,
     ):
         """Create a sequence of frames from the raw signal."""
-        print(f"Framing arrays with size {frame_size} and shift {frame_shift}.")
+        logging.info(f"Framing arrays with size {frame_size} and shift {frame_shift}.")
         self._x = frame_arrays(
             self._x,
             frame_size=frame_size,
@@ -291,7 +391,7 @@ class Dataset:
 
     def transpose_time(self):
         """Transpose the time and feature axis of each instance."""
-        print("Transposing time and feature axis of data.")
+        logging.info("Transposing time and feature axis of data.")
         self._x = transpose_time(self._x)
 
     @property
@@ -317,51 +417,56 @@ class Dataset:
     @property
     def speaker_names(self) -> Sequence[str]:
         """List of unique speakers in this dataset."""
-        return self.annotation_categories["speakers"]
+        return self.get_group_names("speaker")
 
     @property
     def speaker_counts(self) -> np.ndarray:
         """Number of instances for each speaker."""
-        return self.get_group_counts("speakers")
+        return self.get_group_counts("speaker")
 
     @property
     def speaker_indices(self) -> np.ndarray:
         """Indices into speakers array of corresponding speaker for each
         instance.
         """
-        return self._speaker_indices
+        return self.get_group_indices("speaker")
 
     @property
-    def speakers(self) -> Sequence[str]:
-        return self.annotations["speakers"]
+    def speakers(self) -> List[str]:
+        return self.get_annotations("speaker")
 
     @property
     def n_speakers(self) -> int:
         return len(self.speaker_names)
 
     @property
-    def partitions(self) -> Dict[str, Dict[str, Set[str]]]:
+    def partitions(self) -> Set[str]:
         """Mapping of instance partitions."""
         return self._partitions
 
     @property
     def part_names(self) -> List[str]:
-        return list(self.partitions.keys())
+        return list(self.partitions)
 
     @property
-    def annotations(self) -> Dict[str, _AnnotationList]:
-        """Mapping of annotations."""
+    def annotations(self) -> Dict[str, Dict[str, Any]]:
+        """Each annotation is a mapping from instance name to value."""
         return self._annotations
-
-    @property
-    def annotation_categories(self) -> Dict[str, _AnnotationCatsList]:
-        """List of categories for categorical annotations."""
-        return self._annotation_categories
 
     @property
     def names(self) -> List[str]:
         """List of instance names."""
         return self._names
+
+    @property
+    def subset(self) -> str:
+        """Name of clip subset used."""
+        return self._subset
+
+    @property
+    def subsets(self) -> Dict[str, Collection[str]]:
+        """List of subsets"""
+        return self._subsets
 
     @property
     def x(self) -> np.ndarray:
@@ -372,11 +477,14 @@ class Dataset:
         return self.n_instances
 
     def __str__(self):
-        s = f"\nCorpus: {self.corpus}\n"
+        s = f"Corpus: {self.corpus}\n"
+        for part in self.partitions:
+            group_names = self.get_group_names(part)
+            s += f"partition '{part}'' ({len(group_names)} groups):\n"
+            s += f"\t{dict(zip(group_names, self.get_group_counts(part)))}\n"
         s += f"{self.n_instances} instances\n"
-        s += f"{len(self.feature_names)} features\n"
-        s += f"{len(self.speaker_names)} speakers:\n"
-        s += f"\t{dict(zip(self.speaker_names, self.speaker_counts))}\n"
+        s += f"subset: {self.subset}\n"
+        s += f"using {self._features} ({self.n_features} features)\n"
         if self.x.dtype == object or len(self.x.shape) == 3:
             lengths = [len(x) for x in self.x]
             s += "Sequences:\n"
@@ -391,30 +499,8 @@ class LabelledDataset(Dataset):
     instance.
     """
 
-    _y: np.ndarray
-
-    def __init__(
-        self,
-        path: PathOrStr,
-        label_path: Optional[PathOrStr] = None,
-        speaker_path: Optional[PathOrStr] = None,
-    ):
-        super().__init__(path, speaker_path=speaker_path)
-        if label_path:
-            self.update_labels(label_path)
-        else:
-            self.update_labels(["default"] * len(self.names))
-        self._y = self.get_annotation_indices("labels")
-
     def update_labels(self, labels: Union[PathOrStr, Mapping[str, str], Sequence[str]]):
-        # TODO: Allow partial labels, etc.
-        self.update_partition("labels", labels)
-
-    def remove_instances(
-        self, *, drop: Collection[str] = [], keep: Collection[str] = []
-    ):
-        super().remove_instances(drop=drop, keep=keep)
-        self._y = self.get_annotation_indices("labels")
+        self.update_annotation("label", labels, dtype=str)
 
     def map_classes(self, mapping: Mapping[str, str]):
         """Modifies classses based on the mapping in map. Keys not
@@ -423,7 +509,6 @@ class LabelledDataset(Dataset):
         """
         new_labels = [mapping.get(x, x) for x in self.labels]
         self.update_labels(new_labels)
-        self._y = self.get_annotation_indices("labels")
 
     def remove_classes(self, *, drop: Collection[str] = [], keep: Collection[str] = []):
         """Remove instances with labels not in `keep`."""
@@ -438,9 +523,9 @@ class LabelledDataset(Dataset):
         self.remove_instances(keep=keep_inst)
 
     @property
-    def classes(self) -> Sequence[str]:
+    def classes(self) -> List[str]:
         """A list of emotion class labels."""
-        return self.annotation_categories["labels"]
+        return self.get_group_names("label")
 
     @property
     def n_classes(self) -> int:
@@ -450,23 +535,17 @@ class LabelledDataset(Dataset):
     @property
     def class_counts(self) -> np.ndarray:
         """Number of instances for each class."""
-        return self.get_annotation_counts("labels")
+        return self.get_group_counts("label")
 
     @property
-    def labels(self) -> Sequence[str]:
+    def labels(self) -> List[str]:
         """Mapping from instance to label."""
-        return self.annotations["labels"]
+        return self.get_annotations("label")
 
     @property
     def y(self) -> np.ndarray:
         """The class label array; one label per instance."""
-        return self._y
-
-    def __str__(self):
-        s = super().__str__()
-        s += f"{self.n_classes} classes:\n"
-        s += f"\t{dict(zip(self.classes, self.class_counts))}\n"
-        return s
+        return self.get_group_indices("label")
 
 
 class CombinedDataset(LabelledDataset):
@@ -475,84 +554,57 @@ class CombinedDataset(LabelledDataset):
     """
 
     def __init__(self, *datasets: LabelledDataset):
+        super().__init__()
+
+        logging.info("Combining " + ", ".join(d.corpus for d in datasets))
+
         self._corpus = "combined"
         self._names = [d.corpus + "_" + n for d in datasets for n in d.names]
         self._feature_names = datasets[0].feature_names
+        self._features = datasets[0]._features
         self._x = np.concatenate([d.x for d in datasets])
 
-        self._partitions = {}
-        self._annotation_categories = {}
-        self._annotations = {}
+        self.update_annotation(
+            "corpus", [d.corpus for d in datasets for _ in d.names], dtype=str
+        )
+        self.update_speakers([d.corpus + "_" + s for d in datasets for s in d.speakers])
 
-        corpora_labels = [d.corpus for d in datasets for _ in d.names]
-        self.update_partition("corpora", corpora_labels)
-
-        speakers = [d.corpus + "_" + s for d in datasets for s in d.speakers]
-        self.update_speakers(speakers)
-
-        combined_labels = [l for d in datasets for l in d.labels]
-        self.update_labels(combined_labels)
-        self._y = self.get_annotation_indices("labels")
-
-        common_annotations = set(
-            chain.from_iterable(d.annotations.keys() for d in datasets)
-        ) - {"labels", "speakers"}
+        common_annotations = set(chain(*(d.annotations for d in datasets)))
+        common_annotations -= {"speaker"}  # assumed to be per-dataset
         for annot_name in common_annotations:
-            combined_annot = []
+            combined_annot = {}
             for dataset in datasets:
-                annotations = dataset.annotations.get(annot_name)
-                if annotations is None:
-                    continue
-                if type(next(x for x in annotations if x is not None)) == str:
-                    annotations = [x if isinstance(x, str) else x for x in annotations]
-                    annotations = [dataset.corpus + "_" + str(x) for x in annotations]
-                combined_annot.extend(annotations)
+                annotations = dataset.annotations.get(annot_name, {})
+                combined_annot.update(
+                    {dataset.corpus + "_" + k: v for k, v in annotations.items()}
+                )
             self.update_annotation(annot_name, combined_annot)
 
     @property
-    def corpora(self) -> Sequence[str]:
+    def corpus_names(self) -> Sequence[str]:
         """List of corpora in this CombinedDataset."""
-        return self.annotation_categories["corpora"]
+        return self.get_group_names("corpus")
 
     @property
     def corpus_indices(self) -> np.ndarray:
         """Indices into corpora list of corresponding corpus for each
         instance.
         """
-        return self.get_annotation_indices("corpora")
+        return self.get_group_indices("corpus")
 
     @property
     def corpus_counts(self) -> List[int]:
-        return self.get_annotation_counts("corpora")
+        return self.get_group_counts("corpus")
 
-    def corpus_to_idx(self, corpus: str) -> int:
-        return self.corpora.index(corpus)
 
-    def get_corpus_split(self, corpus: str) -> Tuple[np.ndarray, np.ndarray]:
-        """Returns a tuple (corpus_idx, other_idx) containing the
-        indices of x and y for the specified corpus and all other
-        corpora.
-        """
-        cond = self.corpus_indices == self.corpus_to_idx(corpus)
-        corpus_idx = np.nonzero(cond)[0]
-        other_idx = np.nonzero(~cond)[0]
-        return corpus_idx, other_idx
-
-    def normalise(
-        self, normaliser: TransformerMixin = StandardScaler(), scheme: str = "speaker"
-    ):
-
-        if scheme == "corpus":
-            for corpus in range(len(self.corpora)):
-                idx = np.nonzero(self.corpus_indices == corpus)[0]
-                flat, slices = inst_to_flat(self.x[idx])
-                flat = normaliser.fit_transform(flat)
-                self.x[idx] = flat_to_inst(flat, slices)
-        else:
-            super().normalise(normaliser, scheme)
-
-    def __str__(self) -> str:
-        s = super().__str__()
-        s += f"{len(self.corpora)} corpora:\n"
-        s += f"\t{dict(zip(self.corpora, self.corpus_counts))}\n"
-        return s
+def load_multiple(corpus_files: Iterable[PathOrStr], features: str) -> CombinedDataset:
+    corpus_files = list(corpus_files)
+    if len(corpus_files) == 0:
+        raise RuntimeError("No corpus metadata files given.")
+    datasets = []
+    for file in corpus_files:
+        dataset = LabelledDataset(file)
+        logging.info(f"Loading {dataset.corpus}")
+        dataset.update_features(features)
+        datasets.append(dataset)
+    return CombinedDataset(*datasets)

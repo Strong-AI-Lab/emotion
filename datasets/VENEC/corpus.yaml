@@ -1,0 +1,17 @@
+VENEC:
+  description: VENEC dataset
+  annotations:
+  partitions:
+    - label
+    - speaker
+    - language
+    - country
+  subsets:
+    default: 18class
+    all:
+      clips: files_all
+      description: All files
+    18class:
+      clips: files_18class
+      description: Files with speakers containing all emotions except neutral
+  features_dir: ../../features/VENEC

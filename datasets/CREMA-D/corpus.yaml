@@ -1,0 +1,15 @@
+CREMA-D:
+  description: CREMA-D dataset
+  annotations:
+  partitions:
+    - label
+    - label_multimodal
+    - label_face
+    - label_voice
+    - speaker
+  subsets:
+    default: all
+    all:
+      clips: files
+      description: All files
+  features_dir: ../../features/CREMA-D

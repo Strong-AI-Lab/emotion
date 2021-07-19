@@ -38,7 +38,7 @@ def main(input_dir: Path):
     paths = list(input_dir.glob("AudioWAV/*.wav"))
     # 1076_MTI_SAD_XX has no audio signal
     write_filelist([p for p in paths if p.stem != "1076_MTI_SAD_XX"])
-    write_annotations({p.stem: emotion_map[p.stem[9]] for p in paths}, "label_acted")
+    write_annotations({p.stem: emotion_map[p.stem[9]] for p in paths}, "label")
     write_annotations({p.stem: p.stem[:4] for p in paths}, "speaker")
     write_annotations({p.stem: "en" for p in paths}, "language")
 
