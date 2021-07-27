@@ -4,7 +4,7 @@
 !/datasets/*/process_transcripts.py
 !/datasets/*/corpus.yaml
 
-!/datasets/semaine/extract_turns.py
+!/datasets/SEMAINE/extract_turns.py
 
 # Misc. project related
 smile.log

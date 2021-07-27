@@ -31,8 +31,7 @@ def main(input: Tuple[Path], plot: bool, files: Path):
             df = df[df.index.isin(names)]
         dfs.append(df)
         col = df[df.columns[0]]
-        print(f"Statistics for {col.name}:")
-        print("===========================")
+        print(f"== Statistics for {col.name} ==")
         print(col.describe().to_string())
         print()
         if col.dtype == object:
@@ -50,8 +49,8 @@ def main(input: Tuple[Path], plot: bool, files: Path):
                 col.plot(kind="hist", ylabel=None, ax=ax)
             fig.tight_layout()
 
-    print("Pairwise tables:")
     if len(input) > 1:
+        print("== Pairwise tables ==")
         joined = dfs[0]
         refcol = joined.columns[0]
         for df in dfs[1:]:

@@ -1,10 +1,7 @@
-import typing
-from collections import defaultdict
 from pathlib import Path
 
 import click
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 
 from emorec.dataset import read_annotations
@@ -13,60 +10,84 @@ from emorec.utils import PathlibPath
 
 @click.command()
 @click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
-@click.argument("speakers", type=PathlibPath(exists=True, dir_okay=False))
+@click.argument("speaker_info", type=PathlibPath(exists=True, dir_okay=False))
 @click.argument("output", type=PathlibPath(dir_okay=False))
-def main(input: Path, speakers: Path, output: Path):
+@click.option("--speakers", help="Speakers to select (comma-separated).")
+@click.option(
+    "--num_clips",
+    type=int,
+    default=20,
+    help="Number of clips to select per speaker.",
+    show_default=True,
+)
+@click.option(
+    "--min_clips",
+    type=int,
+    default=0,
+    help="Minimum number of clips required for speaker to be included.",
+    show_default=True,
+)
+@click.option("--plot/--noplot", default=False, help="Plot histogram of scores.")
+def main(
+    input: Path,
+    speaker_info: Path,
+    output: Path,
+    speakers: str,
+    num_clips: int,
+    min_clips: int,
+    plot: bool,
+):
     """Filters predictions from INPUT in a stratified manner according
-    to the speakers in SPEAKERS. For each speaker the same number of
+    to the speakers in SPEAKER_INFO. For each speaker the same number of
     top/bottom clips are selected. A new CSV file is written to OUTPUT.
     """
 
-    df = pd.read_csv(input, header=0)
-    df = df.sort_values("Score", ascending=False)
-    spk_dict = read_annotations(speakers)
-    df["Speaker"] = df["Clip"].map(spk_dict.get)
+    df = pd.read_csv(input, header=0, index_col=0)
+    spk_dict = read_annotations(speaker_info, dtype=str)
+    df["Speaker"] = df.index.map(spk_dict.get)
+    df.sort_values("Score", inplace=True)
 
-    print(f"Scores for {len(df)} clips.")
+    print(f"Scores for {len(df)} clips:")
     print(df["Score"].describe())
     print()
-
-    hist, bins = np.histogram(df["Score"], bins=200, range=(0, 1))
-    bins += 1 / 400
-    plt.bar(bins[:-1], hist, width=1 / 200)
-    plt.vlines(
-        [df["Score"].mean(), df["Score"].median()],
-        ymin=0,
-        ymax=hist.max(),
-        colors=["red", "orange"],
-    )
-    plt.title("Histogram of scores")
-    plt.xlabel("Score")
-    plt.ylabel("Count")
-    plt.show()
+    if plot:
+        ax = df["Score"].plot(
+            kind="hist",
+            bins=200,
+            xlim=(0, 1),
+            xlabel="Score",
+            title="Histogram of scores",
+        )
+        ax.vlines(
+            [df["Score"].mean(), df["Score"].median()],
+            ymin=0,
+            ymax=ax.get_ylim()[1],
+            colors=["red", "orange"],
+        )
+        plt.show()
 
     sp_cls = df.groupby(["Speaker"]).size().sort_values()
     print("Speaker counts:")
     print(sp_cls)
     print()
+    if speakers is not None:
+        valid_speakers = sp_cls.index.isin(speakers.split(","))
+    else:
+        valid_speakers = sp_cls[sp_cls > min_clips].index
+    print(f"{len(valid_speakers)} valid speakers.")
 
-    counts: typing.DefaultDict[str, int] = defaultdict(int)
-    for _, row in df.iterrows():
-        counts[row["Speaker"]] += 1
-        if len([x for x in counts if counts[x] >= 20]) >= 5:
-            break
-
-    top_sp = [x for x in counts if counts[x] >= 20]
-    print("Top scoring speakers")
-    print(df.head(sum(counts.values()))["Speaker"].value_counts()[top_sp])
-    print()
-
-    groups = df[df["Speaker"].isin(top_sp)].groupby("Speaker")
-    top_speakers = pd.concat([groups.head(20), groups.tail(20)])
-    top_speakers = top_speakers.sort_values(["Speaker", "Score"])
+    large_speakers = sp_cls[sp_cls >= num_clips].index.intersection(valid_speakers)
+    small_speakers = sp_cls[sp_cls < num_clips].index.intersection(valid_speakers)
+    large_df = df[df["Speaker"].isin(large_speakers)]
+    small_df = df[df["Speaker"].isin(small_speakers)]
+    gb = large_df.groupby("Speaker")
+    out_df = pd.concat([gb.head(num_clips // 2), gb.tail(num_clips // 2), small_df])
 
     output.parent.mkdir(parents=True, exist_ok=True)
-    top_speakers[["Clip", "Score"]].to_csv(output, header=True, index=False)
-    print(f"Wrote CSV to {output}")
+    out_df.sort_values(by=["Speaker", "Score"])["Score"].to_csv(
+        output, index=True, header=True
+    )
+    print(f"Wrote {len(out_df)} clips CSV to {output}")
 
 
 if __name__ == "__main__":

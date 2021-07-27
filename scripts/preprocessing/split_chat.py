@@ -21,10 +21,7 @@ REGEX = re.compile(
 @click.argument("output", type=Path)
 @click.option("--prefix", type=str, default="")
 def main(input: Tuple[Path], output: Path, prefix: str):
-    """Splits CHAT (.cha) files and associated audio into segments.
-
-    This is designed around the Leap corpus and may not work elsewhere.
-    """
+    """Splits CHAT (.cha) files and associated audio into segments."""
 
     def process(path: Path):
         audio, _ = librosa.load(path, sr=16000, res_type="kaiser_fast")
