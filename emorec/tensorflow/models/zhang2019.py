@@ -87,4 +87,4 @@ def model(n_classes: int):
 if __name__ == "__main__":
     from ..utils import test_fit
 
-    test_fit(zhang2019_model, (500, 640), batch_size=16)
+    test_fit(model, (500, 640), batch_size=16)
