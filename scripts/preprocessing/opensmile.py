@@ -10,8 +10,8 @@ import numpy as np
 import pandas as pd
 from joblib import delayed
 
-from emorec.dataset import get_audio_paths, write_features
-from emorec.utils import PathlibPath, TqdmParallel
+from ertk.dataset import get_audio_paths, write_features
+from ertk.utils import PathlibPath, TqdmParallel
 
 OPENSMILE_DIR = Path("third_party", "opensmile")
 OPENSMILE_BIN = "SMILExtract"

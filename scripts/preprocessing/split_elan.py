@@ -7,7 +7,7 @@ import librosa
 import soundfile
 from joblib import delayed
 
-from emorec.utils import PathlibPath, TqdmParallel
+from ertk.utils import PathlibPath, TqdmParallel
 
 
 @click.command()

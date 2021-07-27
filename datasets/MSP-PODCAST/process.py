@@ -20,9 +20,9 @@ import click
 import numpy as np
 import pandas as pd
 
-from emorec.dataset import write_annotations, write_filelist
-from emorec.stats import alpha
-from emorec.utils import PathlibPath
+from ertk.dataset import write_annotations, write_filelist
+from ertk.stats import alpha
+from ertk.utils import PathlibPath
 
 REGEX = re.compile(
     r"^UTD-IMPROV-([A-Z0-9-]+)\.avi; ([A-Z]); A:(\d+\.\d+|NaN); V:(\d+\.\d+|NaN); D:(\d+\.\d+|NaN) ; N:(\d+\.\d+|NaN);$"  # noqa

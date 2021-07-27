@@ -22,9 +22,9 @@ from sklearn.model_selection import (
     cross_validate,
 )
 
-from emorec.dataset import load_multiple
-from emorec.sklearn.models import PrecomputedSVC
-from emorec.utils import PathlibPath
+from ertk.dataset import load_multiple
+from ertk.sklearn.models import PrecomputedSVC
+from ertk.utils import PathlibPath
 
 
 @click.command()

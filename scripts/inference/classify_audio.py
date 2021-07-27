@@ -5,8 +5,8 @@ import click
 import numpy as np
 import pandas as pd
 
-from emorec.dataset import Dataset
-from emorec.utils import PathlibPath
+from ertk.dataset import Dataset
+from ertk.utils import PathlibPath
 
 
 @click.command()

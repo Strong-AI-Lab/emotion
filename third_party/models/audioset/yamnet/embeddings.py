@@ -8,7 +8,7 @@ import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Input
 
-from emorec.dataset import Dataset, write_features
+from ertk.dataset import Dataset, write_features
 
 # isort: off
 from params import Params

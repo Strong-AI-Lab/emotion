@@ -18,9 +18,9 @@ from sklearn.metrics import (
 from sklearn.preprocessing import StandardScaler
 from sklearn.random_projection import GaussianRandomProjection
 
-from emorec.dataset import load_multiple
-from emorec.stats import corr_ratio, dunn
-from emorec.utils import PathlibPath
+from ertk.dataset import load_multiple
+from ertk.stats import corr_ratio, dunn
+from ertk.utils import PathlibPath
 
 
 @click.command()

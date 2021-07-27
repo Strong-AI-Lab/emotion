@@ -2,6 +2,6 @@
 ignore = E741, # ambiguous variable name
          W503  # line-break before binary operator
 per-file-ignores =
-    emorec/*/__init__.py:F401
+    ertk/*/__init__.py:F401
 max-line-length = 88
 extend-ignore = E203

@@ -3,7 +3,7 @@ from pathlib import Path
 import click
 import pandas as pd
 
-from emorec.utils import PathlibPath
+from ertk.utils import PathlibPath
 
 
 @click.command()

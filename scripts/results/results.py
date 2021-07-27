@@ -13,7 +13,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from scipy.stats import friedmanchisquare, rankdata
 from statsmodels.stats.anova import AnovaRM
 
-from emorec.utils import PathlibPath, itmap, ordered_intersect
+from ertk.utils import PathlibPath, itmap, ordered_intersect
 
 CLF_TIME = {
     # Sequence classifiers

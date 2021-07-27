@@ -10,8 +10,8 @@ from click.types import Choice
 from click_option_group import RequiredAnyOptionGroup, optgroup
 from matplotlib import pyplot as plt
 
-from emorec.dataset import get_audio_paths, write_features
-from emorec.utils import PathlibPath, TqdmParallel
+from ertk.dataset import get_audio_paths, write_features
+from ertk.utils import PathlibPath, TqdmParallel
 
 
 def calculate_spectrogram(

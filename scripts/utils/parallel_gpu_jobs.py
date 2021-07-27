@@ -7,7 +7,7 @@ from threading import Thread
 
 import click
 
-from emorec.utils import PathlibPath
+from ertk.utils import PathlibPath
 
 q: "Queue[str]" = Queue()
 

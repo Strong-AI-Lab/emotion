@@ -5,8 +5,8 @@ import click
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from emorec.dataset import get_audio_paths
-from emorec.utils import PathlibPath
+from ertk.dataset import get_audio_paths
+from ertk.utils import PathlibPath
 
 
 @click.command()

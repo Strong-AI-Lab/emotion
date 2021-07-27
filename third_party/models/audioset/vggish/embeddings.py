@@ -7,7 +7,7 @@ import click
 import numpy as np
 import tensorflow.compat.v1 as tf
 
-from emorec.dataset import Dataset, write_features
+from ertk.dataset import Dataset, write_features
 
 # isort: off
 from vggish_postprocess import Postprocessor

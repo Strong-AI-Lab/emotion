@@ -4,9 +4,9 @@ import click
 import numpy as np
 import tensorflow as tf
 
-from emorec.dataset import Dataset, write_features
-from emorec.tensorflow.models import BBRBM, DecayType
-from emorec.utils import PathlibPath
+from ertk.dataset import Dataset, write_features
+from ertk.tensorflow.models import BBRBM, DecayType
+from ertk.utils import PathlibPath
 
 
 @click.command()

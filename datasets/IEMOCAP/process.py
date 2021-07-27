@@ -20,9 +20,9 @@ import click
 import numpy as np
 import pandas as pd
 
-from emorec.dataset import resample_audio, write_annotations, write_filelist
-from emorec.stats import alpha
-from emorec.utils import PathlibPath
+from ertk.dataset import resample_audio, write_annotations, write_filelist
+from ertk.stats import alpha
+from ertk.utils import PathlibPath
 
 # [START_TIME - END_TIME] TURN_NAME EMOTION [V, A, D]
 REGEX = re.compile(

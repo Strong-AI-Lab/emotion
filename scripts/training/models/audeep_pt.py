@@ -12,8 +12,8 @@ from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from emorec.dataset import write_features, Dataset
-from emorec.utils import PathlibPath, PathOrStr
+from ertk.dataset import write_features, Dataset
+from ertk.utils import PathlibPath, PathOrStr
 
 DEVICE = torch.device("cuda")
 

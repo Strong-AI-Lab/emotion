@@ -19,12 +19,12 @@ from tensorflow.keras.layers import Conv1D, Dense, GlobalMaxPool1D, Input, conca
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import RMSprop
 
-from emorec.classification import print_results, within_corpus_cross_validation
-from emorec.dataset import LabelledDataset
-from emorec.sklearn.classification import SKLearnClassifier
-from emorec.sklearn.models import PrecomputedSVC
-from emorec.tensorflow.classification import BatchedSequence, TFClassifier
-from emorec.tensorflow.models.aldeneh2017 import model as full_model
+from ertk.classification import print_results, within_corpus_cross_validation
+from ertk.dataset import LabelledDataset
+from ertk.sklearn.classification import SKLearnClassifier
+from ertk.sklearn.models import PrecomputedSVC
+from ertk.tensorflow.classification import BatchedSequence, TFClassifier
+from ertk.tensorflow.models.aldeneh2017 import model as full_model
 
 RESULTS_DIR = "results/aldeneh2017"
 

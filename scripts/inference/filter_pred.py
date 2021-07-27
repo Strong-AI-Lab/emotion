@@ -4,8 +4,8 @@ import click
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from emorec.dataset import read_annotations
-from emorec.utils import PathlibPath
+from ertk.dataset import read_annotations
+from ertk.utils import PathlibPath
 
 
 @click.command()

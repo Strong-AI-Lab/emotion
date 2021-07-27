@@ -13,8 +13,8 @@ from pathlib import Path
 
 import click
 
-from emorec.dataset import resample_audio, write_annotations, write_filelist
-from emorec.utils import PathlibPath
+from ertk.dataset import resample_audio, write_annotations, write_filelist
+from ertk.utils import PathlibPath
 
 REGEX = re.compile(r"^(DC|JE|JK|KL)([a-z][a-z]?)[0-9][0-9]$")
 

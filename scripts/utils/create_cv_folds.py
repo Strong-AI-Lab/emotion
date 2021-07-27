@@ -5,8 +5,8 @@ from typing import Dict, List
 
 import click
 
-from emorec.dataset import get_audio_paths, read_annotations
-from emorec.utils import PathlibPath
+from ertk.dataset import get_audio_paths, read_annotations
+from ertk.utils import PathlibPath
 
 
 @click.command()

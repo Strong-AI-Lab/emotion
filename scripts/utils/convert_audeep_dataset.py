@@ -4,8 +4,8 @@ import click
 import netCDF4
 import numpy as np
 
-from emorec.dataset import write_features
-from emorec.utils import PathlibPath
+from ertk.dataset import write_features
+from ertk.utils import PathlibPath
 
 
 @click.command()

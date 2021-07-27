@@ -7,8 +7,8 @@ import torch
 from fairseq.models.wav2vec import Wav2Vec2Model, Wav2VecModel
 from tqdm import tqdm
 
-from emorec.dataset import write_features, get_audio_paths
-from emorec.utils import PathlibPath
+from ertk.dataset import write_features, get_audio_paths
+from ertk.utils import PathlibPath
 
 
 @click.command()

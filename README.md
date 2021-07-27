@@ -18,7 +18,7 @@ Then you can use this virtual environment:
 ```
 . .venv/bin/activate
 ```
-To install the `emorec` library:
+To install the `ertk` library:
 ```
 python setup.py install
 ```

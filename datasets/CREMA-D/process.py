@@ -14,9 +14,9 @@ from pathlib import Path
 import click
 import pandas as pd
 
-from emorec.dataset import write_annotations, write_filelist
-from emorec.stats import alpha
-from emorec.utils import PathlibPath
+from ertk.dataset import write_annotations, write_filelist
+from ertk.stats import alpha
+from ertk.utils import PathlibPath
 
 emotion_map = {
     "A": "anger",

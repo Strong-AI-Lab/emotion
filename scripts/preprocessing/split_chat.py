@@ -9,7 +9,7 @@ import librosa
 import soundfile
 from joblib import delayed
 
-from emorec.utils import PathlibPath, TqdmParallel
+from ertk.utils import PathlibPath, TqdmParallel
 
 REGEX = re.compile(
     r"^\*([A-Z]{3}):\t.*(?:\n\t.*)*[.?!](?: .*\x15(\d+)_(\d+)\x15)?$", re.MULTILINE

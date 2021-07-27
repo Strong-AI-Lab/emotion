@@ -17,13 +17,13 @@ from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.metrics import SparseCategoricalAccuracy
 from tensorflow.keras.optimizers import RMSprop
 
-from emorec.dataset import LabelledDataset
-from emorec.tensorflow.classification import (
+from ertk.dataset import LabelledDataset
+from ertk.tensorflow.classification import (
     BalancedSparseCategoricalAccuracy,
     tf_train_val_test,
 )
-from emorec.tensorflow.models.latif2019 import model as _model
-from emorec.tensorflow.utils import create_tf_dataset_ragged
+from ertk.tensorflow.models.latif2019 import model as _model
+from ertk.tensorflow.utils import create_tf_dataset_ragged
 
 
 def test_corpus(corpus: str):

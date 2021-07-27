@@ -8,8 +8,8 @@ import netCDF4
 import numpy as np
 import pandas as pd
 
-from emorec.dataset import write_features
-from emorec.utils import PathlibPath
+from ertk.dataset import write_features
+from ertk.utils import PathlibPath
 
 
 @click.command()

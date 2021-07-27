@@ -11,16 +11,16 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from emorec.classification import within_corpus_cross_validation
-from emorec.dataset import load_multiple
-from emorec.sklearn.models import (
+from ertk.classification import within_corpus_cross_validation
+from ertk.dataset import load_multiple
+from ertk.sklearn.models import (
     PrecomputedSVC,
     default_rf_param_grid,
     default_svm_param_grid,
 )
-from emorec.tensorflow import compile_wrap, get_tf_model_fn
-from emorec.tensorflow.models.mlp import model as mlp_model
-from emorec.utils import PathlibPath, get_cv_splitter
+from ertk.tensorflow import compile_wrap, get_tf_model_fn
+from ertk.tensorflow.models.mlp import model as mlp_model
+from ertk.utils import PathlibPath, get_cv_splitter
 
 
 @click.command()

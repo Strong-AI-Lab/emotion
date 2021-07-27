@@ -15,8 +15,8 @@ import numpy as np
 import soundfile
 from click_option_group import optgroup
 
-from emorec.dataset import get_audio_paths
-from emorec.utils import PathlibPath
+from ertk.dataset import get_audio_paths
+from ertk.utils import PathlibPath
 
 
 def filter_silence_speech(

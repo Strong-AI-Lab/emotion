@@ -2,8 +2,8 @@ from pathlib import Path
 
 import click
 
-from emorec.dataset import read_features
-from emorec.utils import PathlibPath
+from ertk.dataset import read_features
+from ertk.utils import PathlibPath
 
 
 @click.command()
