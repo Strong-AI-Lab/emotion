@@ -65,10 +65,12 @@ class Dataset:
     _annotations: Dict[str, Dict[str, Any]]
     _corpus: str = ""
     _names: List[str]
+    _features: str = ""
     _feature_names: List[str]
     _x: np.ndarray
     _subset: str = ""
-    _subsets: Dict[str, Collection[str]]
+    _subsets: Dict[str, Set[str]]
+    _subset_path: Dict[str, Path]
 
     _default_subset: str = ""
     _features_path: Path
@@ -83,6 +85,7 @@ class Dataset:
         self._partitions = set()
         self._annotations = {}
         self._subsets = {}
+        self._subset_path = {}
         self._names = []
         self._feature_names = []
         self._x = np.empty((0, 0), dtype=np.float32)
@@ -111,40 +114,42 @@ class Dataset:
 
         self._features_dir = path.parent / corpus_info["features_dir"]
 
-        if "subsets" in corpus_info:
-            for subset, subset_info in corpus_info["subsets"].items():
-                subset_info = corpus_info["subsets"][subset]
-                if subset == "default":
-                    self._default_subset = subset_info
-                    continue
-                clips_file = path.parent / f"{subset_info['clips']}.txt"
-                self.subsets[subset] = {x.stem for x in get_audio_paths(clips_file)}
-        if corpus_info.get("partitions", None):
+        for subset, subset_info in corpus_info["subsets"].items():
+            subset_info = corpus_info["subsets"][subset]
+            if subset == "default":
+                self._default_subset = subset_info
+                continue
+            clips_file = path.parent / f"{subset_info['clips']}.txt"
+            self._subset_path[subset] = clips_file
+            self.subsets[subset] = {x.stem for x in get_audio_paths(clips_file)}
+        self._names = sorted(self.subsets[self._default_subset])  # TODO
+
+        if corpus_info["partitions"]:
             for partition in corpus_info["partitions"]:
                 self.update_annotation(
                     partition, path.parent / f"{partition}.csv", dtype=str
                 )
-        if corpus_info.get("annotations", None):
+        if corpus_info["annotations"]:
             for annotation in corpus_info["annotations"]:
                 self.update_annotation(annotation, path.parent / f"{annotation}.csv")
 
     def _verify_annotations(self, annot_name: Optional[str] = None):
-        def verify_annotation(annot_name):
+        """Make sure there is a value for each instance for each annotation."""
+
+        def verify_annotation(annot_name: str):
             annotations = self.annotations[annot_name]
             missing = set(self.names) - annotations.keys()
             if len(missing) > 0:
-                raise ValueError(
-                    f"Incomplete annotation {annot_name}. These names are missing:\n"
+                raise RuntimeError(
+                    f"Incomplete annotation {annot_name}. These names are missing:"
                     f"{missing}"
                 )
 
-        if annot_name is not None:
+        to_verify = self.annotations.keys() if annot_name is None else {annot_name}
+        for annot_name in to_verify:
             verify_annotation(annot_name)
-        else:
-            for annot_name in self.annotations:
-                verify_annotation(annot_name)
 
-    def update_features(self, features: PathOrStr, subset: Optional[str] = None):
+    def update_features(self, features: PathOrStr):
         """Update the features matrix, instance names and feature names
         for this dataset.
 
@@ -156,17 +161,24 @@ class Dataset:
         subset: str, optional
             The subset to select.
         """
-        features = Path(features)
-        if len(features.suffix) == 0:
-            features = find_features_file(self._features_dir.glob(f"{features}.*"))
-        self._features = features.stem
+        if features == "raw_audio":
+            self._features = "raw_audio"
+            features = self._subset_path[self.subset or "all"]
+        else:
+            features = Path(features)
+            if len(features.suffix) == 0:
+                features = find_features_file(self._features_dir.glob(f"{features}.*"))
+            self._features = features.stem
         data = read_features(features)
         self._feature_names = data.feature_names
-        self._x = data.features
-        self._names = data.names
-        if not subset:
-            subset = self.subset
-        self.use_subset(subset)
+        if not self.corpus:
+            self._corpus = data.corpus
+        if len(self.names) > 0:
+            names = set(self.names)
+            self._x = data.features[[i for i, n in enumerate(data.names) if n in names]]
+        else:
+            self._x = data.features
+            self._names = data.names
 
     def use_subset(self, subset: str = "default"):
         """Use a different subset of the instances.
@@ -177,7 +189,7 @@ class Dataset:
             Name of subset to use. Default is "default" which uses the
             default subset specified in corpus_info.
         """
-        if len(self._subsets) == 0:
+        if len(self.subsets) == 0:
             self._subset = "all"
         else:
             if subset == "default":
@@ -216,12 +228,61 @@ class Dataset:
             }
 
         self._annotations[annot_name] = annot_dict
-        if isinstance(next(iter(annot_dict.values())), str):
+        if (
+            dtype is not None
+            and issubclass(dtype, str)
+            or isinstance(next(iter(annot_dict.values())), str)
+        ):
             self.partitions.add(annot_name)
         self._verify_annotations(annot_name)
 
+    def map_groups(self, part_name: str, mapping: Mapping[str, str]):
+        """Map group names in a partition.
+
+        Args:
+        -----
+        part_name: str
+            Name of partition.
+        mapping: dict
+            Group name mapping.
+        """
+        groups = self.get_annotations(part_name)
+        self.update_annotation(
+            part_name, [mapping.get(x, x) for x in groups], dtype=str
+        )
+
+    def remove_groups(
+        self,
+        part_name: str,
+        *,
+        drop: Collection[str] = None,
+        keep: Collection[str] = None,
+    ):
+        """Remove instances corresponding to groups from the given
+        partition.
+
+        Args:
+        -----
+        part_name: str
+            The partition name.
+        groups: collection of str
+            The groups to remove in given partition.
+        """
+        drop = set([] if drop is None else drop)
+        keep = set([] if keep is None else keep)
+
+        if (len(drop) == 0) ^ (len(keep) == 0):
+            raise ValueError("Exactly one of drop and keep should be non-empty.")
+
+        if len(keep) == 0:
+            keep = set(self.get_group_names(part_name)) - drop
+
+        annotation = self.annotations[part_name]
+        self.remove_instances(keep=[x for x in self.names if annotation[x] in keep])
+
     def remove_annotation(self, annot_name: str):
-        """Removes a set of annotations from the dataset.
+        """Removes a set of annotations from the dataset. This doe not
+        remove any instances.
 
         Args:
         -----
@@ -229,11 +290,12 @@ class Dataset:
             Annotation name.
         """
         del self.annotations[annot_name]
+        # Use difference_update in case annot_name is not already a partition
         self.partitions.difference_update({annot_name})
 
     def get_annotations(self, annot_name: str) -> List[Any]:
-        """Get a list of annotations for each instance currently in the
-        dataset.
+        """Get a list of annotations, one for each instance currently in
+        the dataset.
 
         Args:
         -----
@@ -304,7 +366,7 @@ class Dataset:
         self.update_annotation("speaker", speakers, dtype=str)
 
     def remove_instances(
-        self, *, drop: Collection[str] = [], keep: Collection[str] = []
+        self, *, drop: Collection[str] = None, keep: Collection[str] = None
     ):
         """Remove instances from dataset. Recalculate annotations,
         partitions, etc.
@@ -315,18 +377,26 @@ class Dataset:
             Instances to drop.
         keep: collection of str
             Instances to keep. Exactly one of drop and keep should be
-            non-empty.
+            given.
         """
-        if bool(drop) == bool(keep):
-            raise ValueError("Exactly one of drop and keep should be non-empty.")
+        drop = set([] if drop is None else drop)
+        keep = set([] if keep is None else keep)
 
-        if len(drop) > 0:
+        if (len(drop) == 0) == (len(keep) == 0):
+            raise ValueError("Exactly one of drop and keep should be given.")
+
+        if len(keep) == 0:
             keep = set(self.names) - set(drop)
 
         idx = [i for i, x in enumerate(self.names) if x in keep]
         self._names = [self.names[i] for i in idx]
         self._x = self.x[idx]
-        self._verify_annotations()
+        try:
+            self._verify_annotations()
+        except RuntimeError as e:
+            raise RuntimeError(
+                "Incomplete annotations after removing instances."
+            ) from e
 
     def copy(self: _D) -> _D:
         import copy
@@ -367,12 +437,12 @@ class Dataset:
         the array size. Assumes axis 0 of x is time.
         """
         logging.info(f"Padding array lengths to nearest multiple of {pad}.")
-        pad_arrays(self.x, pad=pad)
+        self._x = pad_arrays(self.x, pad=pad)
 
     def clip_arrays(self, length: int):
         """Clips each array to the specified maximum length."""
         logging.info(f"Clipping arrays to max length {length}.")
-        clip_arrays(self.x, length=length)
+        self._x = clip_arrays(self.x, length=length)
 
     def frame_arrays(
         self,
@@ -464,8 +534,8 @@ class Dataset:
         return self._subset
 
     @property
-    def subsets(self) -> Dict[str, Collection[str]]:
-        """List of subsets"""
+    def subsets(self) -> Dict[str, Set[str]]:
+        """Dict from subset name to set of clip names."""
         return self._subsets
 
     @property
@@ -478,7 +548,7 @@ class Dataset:
 
     def __str__(self):
         s = f"Corpus: {self.corpus}\n"
-        for part in self.partitions:
+        for part in sorted(self.partitions):
             group_names = self.get_group_names(part)
             s += f"partition '{part}'' ({len(group_names)} groups):\n"
             s += f"\t{dict(zip(group_names, self.get_group_counts(part)))}\n"
@@ -507,29 +577,32 @@ class LabelledDataset(Dataset):
         corresponding to classes are ignored. The new classes will be
         sorted lexicographically.
         """
-        new_labels = [mapping.get(x, x) for x in self.labels]
-        self.update_labels(new_labels)
+        self.map_groups("label", mapping)
 
-    def remove_classes(self, *, drop: Collection[str] = [], keep: Collection[str] = []):
+    def remove_classes(
+        self, *, drop: Collection[str] = None, keep: Collection[str] = None
+    ):
         """Remove instances with labels not in `keep`."""
-        if bool(drop) == bool(keep):
-            raise ValueError("Exactly one of drop and keep must be non-empty.")
-
-        if len(drop) > 0:
+        if drop is not None:
+            if keep is not None:
+                raise ValueError("Exactly one of drop and keep must be non-empty.")
             keep = set(self.classes) - set(drop)
+        elif keep is None:
+            raise ValueError("Exactly one of drop and keep must be non-empty.")
 
         keep = set(keep)
         keep_inst = [n for n, l in zip(self.names, self.labels) if l in keep]
         self.remove_instances(keep=keep_inst)
+        self.remove_groups("label", drop)
 
     @property
     def classes(self) -> List[str]:
-        """A list of emotion class labels."""
+        """List of unique class labels."""
         return self.get_group_names("label")
 
     @property
     def n_classes(self) -> int:
-        """Total number of emotion classes."""
+        """Number of unique classes."""
         return len(self.classes)
 
     @property
@@ -539,7 +612,7 @@ class LabelledDataset(Dataset):
 
     @property
     def labels(self) -> List[str]:
-        """Mapping from instance to label."""
+        """List of labels for instances."""
         return self.get_annotations("label")
 
     @property
@@ -549,15 +622,17 @@ class LabelledDataset(Dataset):
 
 
 class CombinedDataset(LabelledDataset):
-    """A dataset that joins individual datasets together and handles
-    labelling differences.
+    """A dataset that joins one or more individual datasets together and
+    merges annotations.
     """
 
     def __init__(self, *datasets: LabelledDataset):
         super().__init__()
 
-        logging.info("Combining " + ", ".join(d.corpus for d in datasets))
+        if len(datasets) == 1:
+            dataset = datasets[0]
 
+        logging.info("Combining " + ", ".join(d.corpus for d in datasets))
         self._corpus = "combined"
         self._names = [d.corpus + "_" + n for d in datasets for n in d.names]
         self._feature_names = datasets[0].feature_names
@@ -569,7 +644,13 @@ class CombinedDataset(LabelledDataset):
         )
         self.update_speakers([d.corpus + "_" + s for d in datasets for s in d.speakers])
 
-        common_annotations = set(chain(*(d.annotations for d in datasets)))
+        # TODO: handle case when only some datasets have a given annotation?
+        all_annotations = set(chain(*(d.annotations for d in datasets)))
+        common_annotations = {
+            x for x in all_annotations if all(x in d.annotations for d in datasets)
+        }
+        logging.info(f"All annotations: {all_annotations}")
+        logging.info(f"Common annotations: {common_annotations}")
         common_annotations -= {"speaker"}  # assumed to be per-dataset
         for annot_name in common_annotations:
             combined_annot = {}
@@ -598,6 +679,16 @@ class CombinedDataset(LabelledDataset):
 
 
 def load_multiple(corpus_files: Iterable[PathOrStr], features: str) -> CombinedDataset:
+    """Load one or more datasets with the given features.
+
+    Args:
+    -----
+    corpus_files: iterable
+        The corpus description YAML files to load.
+    features: str
+        A common set of features to load. This will be found in the
+        features directory corresponding to each corpus.
+    """
     corpus_files = list(corpus_files)
     if len(corpus_files) == 0:
         raise RuntimeError("No corpus metadata files given.")

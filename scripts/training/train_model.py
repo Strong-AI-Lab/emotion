@@ -29,7 +29,7 @@ from ertk.utils import PathlibPath
 
 @click.command()
 @click.argument("input", type=PathlibPath(exists=True, dir_okay=False), nargs=-1)
-@click.argument("--features", required=True, help="Features to load.")
+@click.option("--features", required=True, help="Features to load.")
 @click.option("--save", type=Path, help="Location to save the model.")
 @click.option(
     "--cv",

@@ -6,6 +6,7 @@ JL:
     - speaker
     - gender
     - language
+    - country
     - sentence
   subsets:
     default: primary

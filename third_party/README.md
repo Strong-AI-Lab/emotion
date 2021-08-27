@@ -21,8 +21,9 @@ recurrent neural network for representation learning from spectrograms.
 We include a slightly modified repository as dependency. These
 modifications include saving per epoch instead of per batch, and a
 custom metadata parser using `files.txt`. There are some scripts that
-use auDeep that must be run inside the auDeep Docker container, which
-can be built in the main auDeep directory:
+use auDeep that must be run with the version of auDeep from this repo.
+
+A Docker image can also be built from the main auDeep directory:
 ```
 docker build -t audeep .
 ```

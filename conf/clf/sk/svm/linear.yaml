@@ -1,0 +1,6 @@
+# We use degree 1 polynomial because it converges faster due to feature
+# scaling (with gamma="auto").
+kernel: "poly"
+degree: 1
+coef0: 0
+gamma: "auto"

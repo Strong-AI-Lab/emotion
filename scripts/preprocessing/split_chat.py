@@ -1,6 +1,7 @@
 """Splits a CHAT file into respective turns designated by timecodes."""
 
 import re
+import warnings
 from pathlib import Path
 from typing import Tuple
 
@@ -24,7 +25,9 @@ def main(input: Tuple[Path], output: Path, prefix: str):
     """Splits CHAT (.cha) files and associated audio into segments."""
 
     def process(path: Path):
+        warnings.simplefilter("ignore", UserWarning)
         audio, _ = librosa.load(path, sr=16000, res_type="kaiser_fast")
+        warnings.simplefilter("default", UserWarning)
 
         cha_file = path.with_suffix(".cha")
         with open(cha_file) as fid:

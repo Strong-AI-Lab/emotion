@@ -1,4 +1,4 @@
-"""Process the raw MSP-IMPROV dataset.
+"""Process the raw MSP-PODCAST dataset.
 
 This assumes the file structure from the original compressed file:
 /.../
@@ -11,9 +11,7 @@ This assumes the file structure from the original compressed file:
     ...
 """
 
-
 import json
-import re
 from pathlib import Path
 
 import click
@@ -23,10 +21,6 @@ import pandas as pd
 from ertk.dataset import write_annotations, write_filelist
 from ertk.stats import alpha
 from ertk.utils import PathlibPath
-
-REGEX = re.compile(
-    r"^UTD-IMPROV-([A-Z0-9-]+)\.avi; ([A-Z]); A:(\d+\.\d+|NaN); V:(\d+\.\d+|NaN); D:(\d+\.\d+|NaN) ; N:(\d+\.\d+|NaN);$"  # noqa
-)
 
 emotion_map = {
     "A": "anger",
@@ -40,8 +34,6 @@ emotion_map = {
     "O": "other",
     "X": "unknown",
 }
-
-unused_emotions = ["O", "X"]
 
 
 @click.command()

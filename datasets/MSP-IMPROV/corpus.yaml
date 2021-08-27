@@ -10,6 +10,7 @@ MSP-IMPROV:
     - speaker
     - gender
     - language
+    - country
     - recording
     - acted_label
     - session

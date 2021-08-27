@@ -9,6 +9,7 @@ IEMOCAP:
     - speaker
     - gender
     - language
+    - country
     - session
     - sess_type
   subsets:

@@ -5,6 +5,7 @@ SAVEE:
     - label
     - speaker
     - language
+    - country
   subsets:
     default: all
     all:

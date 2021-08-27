@@ -54,9 +54,9 @@ def main(input: Tuple[Path], plot: bool, files: Path):
         joined = dfs[0]
         refcol = joined.columns[0]
         for df in dfs[1:]:
-            joined = pd.merge(joined, df, left_index=True, right_index=True)
+            joined = joined.join(df)
         for col in joined.columns[1:]:
-            print(f"For column '{col}'")
+            print(f"For column '{col}':")
             if plot:
                 fig, ax = plt.subplots()
                 ax.set_title(f"Distribution of {col} per {refcol}")
@@ -67,6 +67,14 @@ def main(input: Tuple[Path], plot: bool, files: Path):
                     print(table.to_string())
                     if plot:
                         table.plot(kind="bar", stacked=True, ax=ax)
+                    if len(joined.columns) > 2:
+                        uniq = (
+                            joined.groupby([refcol, col])
+                            .nunique()
+                            .unstack(fill_value=0)
+                        )
+                        print("Unique")
+                        print(uniq.to_string())
                 else:
                     print(joined.groupby([refcol])[col].describe())
                     if plot:

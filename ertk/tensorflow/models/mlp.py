@@ -1,6 +1,6 @@
 """Basic MLP model."""
 
-from typing import Tuple
+from typing import Sequence
 
 from tensorflow.keras.layers import Dense, Dropout, Input
 from tensorflow.keras.models import Model
@@ -9,7 +9,7 @@ from tensorflow.keras.models import Model
 def model(
     n_features: int,
     n_classes: int,
-    units: Tuple[int, ...] = (512,),
+    units: Sequence[int] = [512],
     dropout: float = 0.5,
 ) -> Model:
     """Creates a Keras model with hidden layers and ReLU activation,

@@ -1,0 +1,3 @@
+kernel: "poly"
+degree: 3
+gamma: "auto"

@@ -1,0 +1,2 @@
+n_estimators: [100, 250, 500]
+max_depth: [null, 10, 20, 50]

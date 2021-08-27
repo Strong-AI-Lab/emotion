@@ -1,1 +1,3 @@
-__version__ = "2021.03.0"
+"""ERTK: Emotion Recognition ToolKit"""
+
+__version__ = "2021.07.1"

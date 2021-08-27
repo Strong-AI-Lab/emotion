@@ -1,9 +1,11 @@
-from typing import Any, Dict, Optional, Sequence
+import logging
+import time
+from typing import Any, Callable, Dict, Optional, Sequence, Union
 
+import joblib
 import numpy as np
 import pandas as pd
-from sklearn.base import ClassifierMixin
-from sklearn.pipeline import Pipeline
+from sklearn.base import BaseEstimator
 from sklearn.metrics import (
     accuracy_score,
     f1_score,
@@ -12,15 +14,14 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
 )
-from sklearn.model_selection import (
-    BaseCrossValidator,
-    KFold,
-    LeaveOneGroupOut,
-    cross_validate,
-)
+from sklearn.model_selection import BaseCrossValidator, LeaveOneGroupOut
 from sklearn.utils.multiclass import unique_labels
+from tensorflow.keras.models import Model
 
 from .dataset import LabelledDataset
+from .sklearn.classification import sk_cross_validate
+from .tensorflow.classification import tf_cross_validate
+from .utils import get_cv_splitter
 
 
 def binary_accuracy_score(
@@ -76,6 +77,9 @@ def binary_accuracy_score(
 
 
 def standard_class_scoring(classes: Sequence[str]):
+    # FIXME: Use labels param with macro and micro recall instead of
+    # (balanced) accuracy in order to account for absent classes from
+    # test data? Or rely on user to create valid train/test splits.
     scoring = {
         "uar": get_scorer("balanced_accuracy"),
         "war": get_scorer("accuracy"),
@@ -103,40 +107,15 @@ def standard_class_scoring(classes: Sequence[str]):
     return scoring
 
 
-def _filter_params(params: Dict[str, Any], obj: object, method: str) -> Dict[str, Any]:
-    import inspect
-
-    sig = inspect.signature(getattr(obj, method))
-    params = params.copy()
-    for key in set(params.keys()):
-        # Can't use kwargs detection because scikit doesn't support kwargs in general
-        if (
-            key not in sig.parameters
-            or sig.parameters[key].kind == inspect.Parameter.POSITIONAL_ONLY
-        ):
-            del params[key]
-    return params
-
-
-def _get_pipeline_params(params: Dict[str, Any], pipeline: Pipeline) -> Dict[str, Any]:
-    new_params = {}
-    for name, est in pipeline.named_steps.items():
-        if est is None or est == "passthrough":
-            continue
-        filt_params = _filter_params(params, est, "fit")
-        new_params.update({name + "__" + k: v for k, v in filt_params.items()})
-    return new_params
-
-
 def within_corpus_cross_validation(
-    clf: ClassifierMixin,
+    clf: Union[BaseEstimator, Callable[..., Model]],
     dataset: LabelledDataset,
     partition: Optional[str] = None,
-    sample_weights: np.ndarray = None,
-    reps: int = 1,
-    splitter: BaseCrossValidator = KFold(10),
-    verbose: bool = False,
+    sample_weight: np.ndarray = None,
+    cv: Union[BaseCrossValidator, int] = 10,
+    verbose: int = 0,
     n_jobs: int = 1,
+    fit_params: Dict[str, Any] = {},
 ) -> pd.DataFrame:
     """Cross validates a `Classifier` instance on a single dataset.
 
@@ -149,9 +128,7 @@ def within_corpus_cross_validation(
     partition: str, optional
         The name of the partition to cross-validate over. If None, then
         don't use group cross-validation.
-    reps: int
-        The number of repetitions, default is 1 for a single run.
-    splitter: sklearn.model_selection.BaseCrossValidator
+    splitter: int or BaseCrossValidator
         A splitter used for cross-validation. Default is KFold(10) for
         10 fold cross-validation.
     verbose: bool
@@ -164,41 +141,39 @@ def within_corpus_cross_validation(
     df: pandas.DataFrame
         A dataframe holding the results from all runs with this model.
     """
-    group_indices = None if partition is None else dataset.get_group_indices(partition)
-    x = dataset.x
-
+    groups = None if partition is None else dataset.get_group_indices(partition)
+    if isinstance(cv, int):
+        cv = get_cv_splitter(bool(partition), cv)
     scoring = standard_class_scoring(dataset.classes)
-    score_dfs = []
-    for rep in range(1, reps + 1):
-        print(f"Rep {rep}/{reps}")
 
-        fit_params = {"sample_weight": sample_weights, "groups": group_indices}
-        if isinstance(clf, Pipeline):
-            fit_params = _get_pipeline_params(fit_params, clf)
-        else:
-            fit_params = _filter_params(fit_params, clf, "fit")
+    if isinstance(clf, BaseEstimator):
+        fit_params.update({"sample_weight": sample_weight, "groups": groups})
+        cross_validate_fn = sk_cross_validate
+    else:  # FIXME: check properly
+        n_jobs = 1
+        cross_validate_fn = tf_cross_validate
 
-        scores = cross_validate(
+    start_time = time.perf_counter()
+    with joblib.Parallel(n_jobs=n_jobs, verbose=verbose):
+        scores = cross_validate_fn(
             clf,
-            x,
+            dataset.x,
             dataset.y,
-            cv=splitter,
+            cv=cv,
             scoring=scoring,
-            groups=group_indices,
-            n_jobs=n_jobs,
+            groups=groups,
             verbose=verbose,
             fit_params=fit_params,
         )
+    total_time = time.perf_counter() - start_time
+    logging.info(f"Cross-validation complete in {total_time:.2f}s")
 
-        n_folds = len(next(iter(scores.values())))
-        if isinstance(splitter, LeaveOneGroupOut) and partition is not None:
-            index = pd.Index(dataset.get_group_names(partition), name="fold")
-        else:
-            index = pd.RangeIndex(1, n_folds + 1, name="fold")
-        score_df = pd.DataFrame(
-            {k[5:]: v for k, v in scores.items() if k.startswith("test_")},
-            index=index,
-        )
-        score_dfs.append(score_df)
-
-    return pd.concat(score_dfs, keys=list(range(1, reps + 1)), names=["rep"])
+    n_folds = len(next(iter(scores.values())))
+    if isinstance(cv, LeaveOneGroupOut) and partition is not None:
+        index = pd.Index(dataset.get_group_names(partition), name="fold")
+    else:
+        index = pd.RangeIndex(1, n_folds + 1, name="fold")
+    score_df = pd.DataFrame(
+        {k[5:]: v for k, v in scores.items() if k.startswith("test_")}, index=index
+    )
+    return score_df

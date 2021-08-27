@@ -4,11 +4,10 @@ import tempfile
 from pathlib import Path
 
 import click
-import netCDF4
 import numpy as np
 import pandas as pd
 
-from ertk.dataset import write_features
+from ertk.dataset import read_features, write_features
 from ertk.utils import PathlibPath
 
 
@@ -28,7 +27,15 @@ from ertk.utils import PathlibPath
     help="Number of closest codes to increment per vector. This acts as a "
     "smoothing parameter.",
 )
-def main(input: Path, output: Path, codebook: int, closest: int):
+@click.option(
+    "--jar",
+    type=PathlibPath(exists=True),
+    default=Path("third_party/openxbow/openXBOW.jar"),
+    help="Path to openXBOW.jar",
+    show_default=True,
+)
+@click.option("--log/--nolog", default=True, help="Use log(1 + x) scaling.")
+def main(input: Path, output: Path, codebook: int, closest: int, jar: Path, log: bool):
     """Process sequences of LLD vectors using the openXBOW software.
     INPUT should be a dataset containing the feature vectors, one per
     instance. The vector-quantized features are written to a new dataset
@@ -38,29 +45,19 @@ def main(input: Path, output: Path, codebook: int, closest: int):
     _, tmpin = tempfile.mkstemp(prefix="openxbow_", suffix=".csv")
     _, tmpout = tempfile.mkstemp(prefix="openxbow_", suffix=".csv")
 
-    # We need to temporarily convert to CSV
-    dataset = netCDF4.Dataset(input)
-    corpus = dataset.corpus
-    names = np.array(dataset.variables["name"])
-    slices = np.array(dataset.variables["slices"])
-    names = np.repeat(names, slices)
-    features = np.array(dataset.variables["features"])
-    n_features = features.shape[1]
-    df = pd.concat([pd.Series(names), pd.DataFrame(features)], axis=1)
-    df.to_csv(tmpin, header=False, index=False)
-    dataset.close()
+    dataset = read_features(input)
+    dataset.write_csv(tmpin, header=False)
 
-    attr_format = f"n1[{n_features}]"
     xbow_args = [
         "java",
         "-jar",
-        "third_party/openxbow/openXBOW.jar",
+        str(jar),
         "-i",
         tmpin,
         "-o",
         tmpout,
         "-attributes",
-        attr_format,
+        f"n1[{len(dataset.feature_names)}]",
         "-csvSep",
         ",",
         "-writeName",
@@ -69,19 +66,19 @@ def main(input: Path, output: Path, codebook: int, closest: int):
         str(codebook),
         "-a",
         str(closest),
-        "-log",
         "-norm",
         "1",
     ]
+    if log:
+        xbow_args.append("-log")
     subprocess.call(xbow_args)
     os.remove(tmpin)
-
     data = pd.read_csv(tmpout, header=None, quotechar="'", dtype={0: str})
     os.remove(tmpout)
 
     write_features(
         output,
-        corpus=corpus,
+        corpus=dataset.corpus,
         names=list(data.iloc[:, 0]),
         features=np.array(data.iloc[:, 1:]),
     )

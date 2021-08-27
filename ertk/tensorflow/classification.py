@@ -1,17 +1,16 @@
+import logging
 from collections import defaultdict
-from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import tensorflow as tf
 from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.model_selection import BaseCrossValidator, LeaveOneGroupOut
+from sklearn.model_selection import BaseCrossValidator
 from tensorflow.keras.callbacks import History, TensorBoard
 from tensorflow.keras.metrics import SparseCategoricalAccuracy
 
-from ..dataset import LabelledDataset
 from ..utils import get_scores, ScoreFunction
-from .utils import DataFunction, TFModelFunction, create_tf_dataset_ragged
+from .utils import DataFunction, TFModelFunction, create_tf_dataset
 
 
 def tf_train_val_test(
@@ -19,10 +18,11 @@ def tf_train_val_test(
     train_data: Tuple[np.ndarray, ...],
     valid_data: Tuple[np.ndarray, ...],
     test_data: Optional[Tuple[np.ndarray, ...]] = None,
-    data_fn: DataFunction = create_tf_dataset_ragged,
+    data_fn: DataFunction = create_tf_dataset,
     scoring: Union[
         str, List[str], Dict[str, ScoreFunction], Callable[..., float]
     ] = "accuracy",
+    batch_size: int = 32,
     **fit_params,
 ) -> Dict[str, Union[float, History]]:
     """Trains on given data, using given validation data, and tests on
@@ -59,24 +59,32 @@ def tf_train_val_test(
     if test_data is None:
         test_data = valid_data
 
-    clf = TFClassifierWrapper(model_fn, data_fn=data_fn)
-    history = clf.fit(train_data, valid_data, **fit_params)
-    y_pred, y_true = clf.predict(test_data[0], test_data[1])
+    tf.keras.backend.clear_session()
 
-    scores = get_scores(scoring, y_pred, y_true)
-    scores["history"] = history.history
+    train_dataset = data_fn(*train_data, batch_size=batch_size)
+    valid_dataset = data_fn(*valid_data, batch_size=batch_size, shuffle=False)
+    test_dataset = data_fn(*test_data, batch_size=batch_size, shuffle=False)
+
+    clf = model_fn()
+    history = clf.fit(train_dataset, validation_data=valid_dataset, **fit_params)
+    y_pred = tf.argmax(clf.predict(test_dataset), axis=-1)
+
+    scores = get_scores(scoring, y_pred, test_data[1])
+    scores["history"] = history
     return scores
 
 
 def tf_cross_validate(
     model_fn: TFModelFunction,
-    dataset: LabelledDataset,
-    partition: Optional[str] = None,
-    cv: BaseCrossValidator = LeaveOneGroupOut(),
-    scoring: Union[str, List[str], Dict[str, ScoreFunction]] = "accuracy",
-    data_fn: DataFunction = create_tf_dataset_ragged,
-    sample_weight=None,
-    log_dir: Optional[Path] = None,
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    groups: Optional[np.ndarray] = None,
+    cv: BaseCrossValidator = None,
+    verbose: int = 0,
+    scoring: Union[
+        str, List[str], Dict[str, ScoreFunction], Callable[..., float]
+    ] = "accuracy",
     fit_params: Dict[str, Any] = {},
 ):
     """Performs cross-validation on a TensorFlow model. This works with
@@ -110,26 +118,31 @@ def tf_cross_validate(
         Any keyword arguments to supply to the Keras fit() method.
         Default is no keyword arguments.
     """
-    scores = defaultdict(list)
-    groups = None if partition is None else dataset.get_group_indices(partition)
-    n_folds = cv.get_n_splits(dataset.x, dataset.y, groups)
-    for fold, (train, test) in enumerate(cv.split(dataset.x, dataset.y, groups)):
-        if fit_params.get("verbose", False):
-            print(f"\tFold {fold + 1}/{n_folds}")
+    for gpu in tf.config.list_physical_devices("GPU"):
+        tf.config.experimental.set_memory_growth(gpu, True)
 
-        x_train = dataset.x[train]
-        y_train = dataset.y[train]
-        x_test = dataset.x[test]
-        y_test = dataset.y[test]
-        sw_train = sample_weight[train] if sample_weight else None
-        sw_test = sample_weight[test] if sample_weight else None
+    log_dir = fit_params.pop("log_dir", None)
+    sw = fit_params.pop("sample_weight", None)
+    data_fn = fit_params.pop("data_fn", create_tf_dataset)
+
+    n_folds = cv.get_n_splits(x, y, groups)
+    scores = defaultdict(list)
+    for fold, (train, test) in enumerate(cv.split(x, y, groups)):
+        if verbose:
+            logging.info(f"Fold {fold + 1}/{n_folds}")
+
+        x_train = x[train]
+        y_train = y[train]
+        x_test = x[test]
+        y_test = y[test]
+        sw_train = sw[train] if sw is not None else None
+        sw_test = sw[test] if sw is not None else None
 
         callbacks = []
         if log_dir is not None:
-            tb_log_dir = log_dir / str(fold + 1)
             callbacks.append(
                 TensorBoard(
-                    log_dir=tb_log_dir,
+                    log_dir=log_dir / str(fold + 1),
                     profile_batch=0,
                     write_graph=False,
                     write_images=False,
@@ -144,6 +157,7 @@ def tf_cross_validate(
             test_data=(x_test, y_test, sw_test),
             data_fn=data_fn,
             scoring=scoring,
+            verbose=verbose,
             **fit_params,
         )
 

@@ -51,6 +51,7 @@ def main(input_dir: Path, resample: bool):
         {k: ["F", "M"][int(v) % 2] for k, v in speaker_dict.items()}, "gender"
     )
     write_annotations({p.stem: "en" for p in paths}, "language")
+    write_annotations({p.stem: "ca" for p in paths}, "country")
     write_annotations({p.stem: p.stem[9:11] for p in paths}, "intensity")
     write_annotations({p.stem: p.stem[12:14] for p in paths}, "statement")
 

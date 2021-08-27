@@ -32,6 +32,8 @@ def main(input_dir: Path, resample: bool):
     """
 
     paths = list(input_dir.glob("*.wav"))
+    if len(paths) == 0:
+        raise FileNotFoundError("No audio files found.")
     if resample:
         resample_dir = Path("resampled")
         resample_audio(paths, resample_dir)
@@ -43,6 +45,7 @@ def main(input_dir: Path, resample: bool):
     )
     write_annotations({p.stem: p.stem[:3] for p in paths}, "speaker")
     write_annotations({p.stem: "en" for p in paths}, "language")
+    write_annotations({p.stem: "ca" for p in paths}, "country")
 
 
 if __name__ == "__main__":

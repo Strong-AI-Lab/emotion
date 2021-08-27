@@ -34,8 +34,7 @@ emotion_map = {
     "hap": "happiness",
     "sad": "sadness",
     "neu": "neutral",
-    # Excitement is usually mapped to happiness
-    "exc": "happiness",
+    "exc": "excitement",
     "dis": "disgust",
     "fru": "frustration",
     "fea": "fear",
@@ -43,8 +42,6 @@ emotion_map = {
     "oth": "other",
     "xxx": "unknown",
 }
-
-unused_emotions = ["dis", "fru", "fea", "sur", "oth", "xxx"]
 
 
 @click.command()
@@ -88,7 +85,7 @@ def main(input_dir: Path, resample: bool):
             [
                 p
                 for p in resample_dir.glob("*.wav")
-                if labels[p.stem] not in unused_emotions
+                if labels[p.stem] in ["ang", "hap", "neu", "sad", "exc"]
             ],
             "files_4class.txt",
         )
@@ -103,6 +100,7 @@ def main(input_dir: Path, resample: bool):
         "sess_type",
     )
     write_annotations({p.stem: "en" for p in paths}, "language")
+    write_annotations({p.stem: "us" for p in paths}, "country")
 
     # Aggregated dimensional annotations per utterance
     df = pd.DataFrame.from_dict(
@@ -119,7 +117,9 @@ def main(input_dir: Path, resample: bool):
     # There are 3 (non-self) raters per utterance. Agreement is the
     # proportion of labels which are the same. This formula only works
     # for 3 raters.
-    agreement = np.mean((4 - ratings.groupby("name")["label"].nunique()) / 3)
+    mode_count = 4 - ratings.groupby("name")["label"].nunique()
+    agreement = np.mean(mode_count / 3)
+    print(mode_count.value_counts().rename_axis("majority").to_frame("count"))
     print(f"Mean label agreement: {agreement:.3f}")
 
     # Simple way to get int matrix of labels for raters x clips
@@ -131,7 +131,7 @@ def main(input_dir: Path, resample: bool):
     )
     data[data.isna()] = 0
     data = data.astype(int).to_numpy()
-    print(f"Krippendorf's alpha: {alpha(data):.3f}")
+    print(f"Krippendorf's alpha (categorical): {alpha(data):.3f}")
 
 
 if __name__ == "__main__":

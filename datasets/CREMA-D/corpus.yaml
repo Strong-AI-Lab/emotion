@@ -7,6 +7,8 @@ CREMA-D:
     - label_face
     - label_voice
     - speaker
+    - language
+    - country
   subsets:
     default: all
     all:

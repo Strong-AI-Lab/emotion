@@ -163,14 +163,19 @@ def kappa(data: np.ndarray):
 
 class Deltas:
     @staticmethod
-    def nominal(c, k):
+    def nominal(c: int, k: int):
         return float(c != k)
+
+    @staticmethod
+    def interval(c: float, k: float):
+        return (c - k) ** 2
 
 
 def alpha(
-    data: np.ndarray, delta: Union[Callable[[int, int], float], Matrix] = Deltas.nominal
+    data: np.ndarray,
+    delta: Union[Callable[[int, int], float], List[List[float]], str] = "nominal",
 ):
-    """Calculates Krippendorf's alpha coefficient [1, sec. 11.3] for
+    """Calculates Krippendorff's alpha coefficient [1, sec. 11.3] for
     inter-rater agreement.
 
     [1] K. Krippendorff, Content analysis: An introduction to its
@@ -179,31 +184,50 @@ def alpha(
     Args:
     -----
     data: numpy.ndarray
-        The data matrix, with raters as rows and units as columns.
-    delta: callable or 2-D array-like
+        The data matrix, shape (n_raters, n_units). Each cell (i, j)
+        represents the value assigned to unit j by rater i, or 0
+        representing no response.
+    delta: callable, 2-D array-like or str
         The delta metric. Default is the nominal metric, which takes the
         value 1 in case c != k and 0 otherwise.
     """
+    # The following implementation was based off the Wikipedia article:
+    # https://en.wikipedia.org/wiki/Krippendorff%27s_alpha
 
-    def _pad(x):
-        return np.pad(x, [(0, R + 1 - x.shape[0])])
+    # Response categories go from 1 to R, 0 represents no response
+    R = np.max(data)
+    counts = np.apply_along_axis(lambda x: np.bincount(x, minlength=R + 1), 0, data).T
+    count_sum = np.sum(counts, 0)
+    assert len(count_sum) == R + 1
+
+    def ordinal(c: int, k: int):
+        if k < c:
+            c, k = k, c
+        s = (
+            sum(count_sum[g] for g in range(c, k + 1))
+            - (count_sum[c] + count_sum[k]) / 2
+        )
+        return s ** 2
+
+    if isinstance(delta, str):
+        delta = {
+            "nominal": Deltas.nominal,
+            "ordinal": ordinal,
+            "interval": Deltas.interval,
+        }[delta]
 
     if not callable(delta):
         try:
-            delta[0, 0]
+            delta[0][0]
         except IndexError:
-            raise TypeError("delta must be either callable or 2D array.")
+            raise TypeError("delta must be either str, callable or 2D array.")
 
         def _delta(c, k):
-            return delta[c, k]
+            new_delta = delta
+            return new_delta[c][k]
 
         delta = _delta
 
-    # The following implementation was based off the Wikipedia article:
-    # https://en.wikipedia.org/wiki/Krippendorff%27s_alpha
-    R = np.max(data)
-
-    counts = np.apply_along_axis(lambda x: _pad(np.bincount(x)), 0, data).T
     m_u = np.sum(counts[:, 1:], 1)
 
     valid = m_u >= 2

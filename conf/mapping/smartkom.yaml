@@ -1,0 +1,4 @@
+# This mapping is used for 3-class classification experiments with
+# combined corpora
+label:
+  helplessness: sadness

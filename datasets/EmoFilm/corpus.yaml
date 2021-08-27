@@ -5,6 +5,8 @@ EmoFilm:
     - label
     - speaker
     - language
+    - gender
+    - film
   subsets:
     default: all
     all:

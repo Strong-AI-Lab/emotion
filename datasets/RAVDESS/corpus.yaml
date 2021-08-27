@@ -6,6 +6,7 @@ RAVDESS:
     - speaker
     - gender
     - language
+    - country
     - statement
     - intensity
   subsets:

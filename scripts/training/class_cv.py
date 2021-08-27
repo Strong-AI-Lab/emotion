@@ -1,26 +1,17 @@
 import json
-from functools import partial
+import warnings
 from pathlib import Path
-from typing import Callable, Tuple
+from typing import Tuple
 
 import click
+import pandas as pd
 from click_option_group import optgroup
-from scikeras.wrappers import KerasClassifier
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 from ertk.classification import within_corpus_cross_validation
 from ertk.dataset import load_multiple
-from ertk.sklearn.models import (
-    PrecomputedSVC,
-    default_rf_param_grid,
-    default_svm_param_grid,
-)
-from ertk.tensorflow import compile_wrap, get_tf_model_fn
-from ertk.tensorflow.models.mlp import model as mlp_model
-from ertk.utils import PathlibPath, get_cv_splitter
+from ertk.utils import PathlibPath, get_arg_mapping, get_cv_splitter
 
 
 @click.command()
@@ -29,23 +20,38 @@ from ertk.utils import PathlibPath, get_cv_splitter
 @click.option("--clf", "clf_type", required=True, help="Classifier to use.")
 @optgroup.group("Results options")
 @optgroup.option("--results", type=Path, help="Results directory.")
+@optgroup.option("--logdir", type=Path, help="TF/PyTorch logs directory.")
+@optgroup.group("Data options")
+@optgroup.option("--map_groups", help="Group mapping.")
+@optgroup.option(
+    "--sel_groups", help="Group selection. This is a map from partition to group."
+)
+@optgroup.option(
+    "--clip_seq", type=int, help="Clip sequences to this length (before pad)."
+)
+@optgroup.option(
+    "--pad_seq", type=int, help="Pad sequences to multiple of this length (after clip)."
+)
 @optgroup.group("Cross-validation options")
 @optgroup.option("--partition", help="Partition for LOGO CV.")
 @optgroup.option(
     "--kfold",
     type=int,
-    default=-1,
-    help="Optional k when using (group) k-fold cross-validation.",
-)
-@optgroup.option(
-    "--inner_part", help="Partition to use for inner CV (e.g. with grid-search)."
+    default=5,
+    help="k when using (group) k-fold cross-validation, or leave-one-out.",
 )
 @optgroup.option(
     "--inner_kfold",
     type=int,
     default=2,
-    help="k for inner k-fold CV. If None then LOGO is used. If 1 then a random split "
-    "is used.",
+    help="k for inner k-fold CV (where relevant). If None then LOGO is used. "
+    "If 1 then a random split is used.",
+)
+@optgroup.option("--test_size", type=float, help="Test size when kfold=1.")
+@optgroup.option(
+    "--inner_group/--noinner_group",
+    default=True,
+    help="Whether to use group-based inner CV (e.g. GroupKFold, LeaveOneGroupOut).",
 )
 @optgroup.option(
     "--reps",
@@ -61,146 +67,223 @@ from ertk.utils import PathlibPath, get_cv_splitter
     help="Normalisation method. 'online' means use training data for normalisation.",
 )
 @optgroup.option(
-    "--sample_weight/--nosample_weight", default=True, help="Balances sample weights."
+    "--transform",
+    type=click.Choice(["std", "minmax"]),
+    default="std",
+    show_default=True,
+    help="Transformation class.",
+)
+@optgroup.option(
+    "--balanced/--imbalanced", default=True, help="Balances sample weights."
 )
 @optgroup.group("Misc. options")
 @optgroup.option("--verbose/--noverbose", default=False, help="Verbose training.")
 @optgroup.group("Model-specific options")
+@optgroup.option(
+    "--clf_args",
+    "clf_args_file",
+    type=PathlibPath(exists=True, dir_okay=False),
+    help="File containing keyword arguments to give to model initialisation.",
+)
+@optgroup.option(
+    "--param_grid",
+    "param_grid_file",
+    type=PathlibPath(exists=True),
+    help="File with parameter grid data.",
+)
 @optgroup.option("--learning_rate", type=float, default=1e-4, show_default=True)
 @optgroup.option("--batch_size", type=int, default=64, show_default=True)
 @optgroup.option("--epochs", type=int, default=50, show_default=True)
+@optgroup.group(
+    "Deprecated options", help="These options are deprecated, don't use them."
+)
+@optgroup.option(
+    "--inner_cv/--noinner_cv",
+    "use_inner_cv",
+    default=True,
+    help="Whether to use inner CV. This is deprecated and only exists for backwards "
+    "compatibility.",
+)
 def main(
     clf_type: str,
     input: Tuple[Path],
     features: str,
     partition: str,
     kfold: int,
-    inner_part: str,
     inner_kfold: int,
+    test_size: float,
+    inner_group: bool,
     results: Path,
+    logdir: Path,
     reps: int,
     normalise: str,
-    sample_weight: bool,
+    transform: str,
+    balanced: bool,
+    map_groups: str,
+    sel_groups: str,
+    clip_seq: int,
+    pad_seq: int,
     verbose: bool,
+    clf_args_file: str,
+    param_grid_file: Path,
     learning_rate: float,
     batch_size: int,
     epochs: int,
+    use_inner_cv: bool,
 ):
-    """Runs a training routine using the given classifier CLF_TYPE and
-    INPUT datasets. Metrics are optionally written to a results file.
+    """Runs cross-validation on the given INPUT datasets. Metrics are
+    optionally written to a results file.
     """
 
-    if len(input) == 0:
-        raise ValueError("No input dataset(s) specified.")
+    if verbose:
+        import logging
+
+        logging.basicConfig(level=logging.INFO)
 
     dataset = load_multiple(input, features)
-    if normalise == "online":
-        transform = StandardScaler()
+
+    if map_groups:
+        mapping = get_arg_mapping(map_groups)
+        for part in mapping:
+            dataset.map_groups(part, mapping[part])
+    if sel_groups:
+        mapping = get_arg_mapping(sel_groups)
+        for part in mapping:
+            dataset.remove_groups(part, keep=mapping[part])
+
+    if clip_seq:
+        dataset.clip_arrays(clip_seq)
+    if pad_seq:
+        dataset.pad_arrays(pad_seq)
+
+    transformer = {"std": StandardScaler, "minmax": MinMaxScaler}[transform]()
+    if normalise == "none":
+        transformer = None
     else:
-        dataset.normalise(normaliser=StandardScaler(), partition=normalise)
-        transform = None
+        dataset.normalise(normaliser=transformer, partition=normalise)
+        transformer = None
 
-    splitter = get_cv_splitter(bool(partition), kfold)
+    if partition:
+        n_groups = len(dataset.get_group_names(partition))
+        kfold = min(kfold, n_groups)
+        if inner_kfold > 1 and kfold > 1:
+            inner_kfold = min(inner_kfold, n_groups // kfold)
+            inner_kfold = -1 if inner_kfold == 1 else inner_kfold
 
-    sample_weights = None
-    if sample_weight:
+    cv = get_cv_splitter(bool(partition), kfold, test_size=test_size)
+    if not use_inner_cv:
+        warnings.warn(
+            "--noinner_cv is deprecated and only exists for backwards compatibility."
+        )
+        inner_cv = cv
+    else:
+        inner_cv = get_cv_splitter(inner_group, inner_kfold)
+
+    sample_weight = None
+    if balanced:
         class_weight = dataset.n_instances / (dataset.n_classes * dataset.class_counts)
-        sample_weights = class_weight[dataset.y]
+        sample_weight = class_weight[dataset.y]
+
+    model_args = {}
+    if clf_args_file:
+        model_args = get_arg_mapping(clf_args_file)
+    param_grid = {}
+    if param_grid_file:
+        param_grid = get_arg_mapping(param_grid_file)
 
     n_jobs = -1
-    if clf_type.startswith(("svm", "rf")):
-        if clf_type.startswith("svm"):
-            param_grid = default_svm_param_grid(clf_type.split("/")[-1])
-            cls = PrecomputedSVC
-        else:
-            param_grid = default_rf_param_grid()
-            cls = RandomForestClassifier
-        param_grid = {"clf__" + k: v for k, v in param_grid.items()}
-        inner_cv = get_cv_splitter(inner_part is not None, inner_kfold)
+    clf_lib, clf_type = clf_type.split("/", maxsplit=1)
+    if clf_lib == "sk":
+        from sklearn.model_selection import GridSearchCV
+
+        from ertk.sklearn.models import get_sk_model
+
+        clf = get_sk_model(clf_type, **model_args)
         clf = GridSearchCV(
-            Pipeline([("transform", transform), ("clf", cls())]),
-            param_grid=param_grid,
+            Pipeline([("transform", transformer), ("clf", clf)]),
+            {"clf__" + k: v for k, v in param_grid.items()},
             scoring="balanced_accuracy",
             cv=inner_cv,
             verbose=verbose,
-            n_jobs=1,
+            n_jobs=1 if use_inner_cv else -1,
         )
         params = param_grid
-    else:
-        import tensorflow as tf
+        if not use_inner_cv:
+            # Get best params then pass best to main cross-validation routine
+            # XXX: This exists because of mistake in our original implementation.
+            clf.fit(
+                dataset.x,
+                dataset.labels,
+                groups=dataset.get_group_indices(partition) if partition else None,
+                clf__sample_weight=sample_weight,
+            )
+            params = clf.best_params_
+            clf = clf.best_estimator_
+    elif clf_lib == "tf":
+        from ertk.tensorflow import compile_wrap, get_tf_model_fn
 
-        tf.get_logger().setLevel(40)  # ERROR level
-        for gpu in tf.config.list_physical_devices("GPU"):
-            tf.config.experimental.set_memory_growth(gpu, True)
-
-        if clf_type.startswith("mlp"):
-            _layers = clf_type.split("/")[-1]
-            if _layers == "1layer":
-                layers = 1
-                # Force CPU only for 1 layer, empirically faster
-                import os
-
-                os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-            elif _layers == "2layer":
-                layers = 2
-                n_jobs = 1
-            elif _layers == "3layer":
-                layers = 3
-                n_jobs = 1
-            model_fn: Callable = partial(mlp_model, units=(512,) * layers)
-        else:
-            model_fn = get_tf_model_fn(clf_type)
-        params = {
-            "learning_rate": learning_rate,
+        # No parallel CV to avoid running out of GPU memory
+        n_jobs = 1
+        model_args.update(
+            {"n_features": dataset.n_features, "n_classes": dataset.n_classes}
+        )
+        model_fn = compile_wrap(
+            get_tf_model_fn(
+                clf_type,
+                **model_args,
+            ),
+            opt_kwargs={"learning_rate": learning_rate},
+        )
+        fit_params = {
+            "log_dir": logdir,
             "epochs": epochs,
             "batch_size": batch_size,
         }
-        clf = KerasClassifier(
-            compile_wrap(model_fn, opt_kwargs=dict(learning_rate=learning_rate)),
-            n_features=dataset.n_features,
-            n_classes=dataset.n_classes,
-            batch_size=batch_size,
-            epochs=epochs,
-            verbose=verbose,
-        )
-        clf = Pipeline([("transform", transform), ("clf", clf)])
+        params = {"learning_rate": learning_rate, **fit_params}
+        clf = model_fn
+    else:
+        raise ValueError(f"Invalid classifier type {clf_type}")
 
     print("== Dataset ==")
     print(dataset)
-    print()
     print("== Cross-validation settings ==")
     print(f"Using {dataset.n_classes}-class classification.")
-    print(f"Using {splitter} as CV splitter.")
+    print(f"Using classifier {clf}.")
+    print(f"Using {kfold} k-fold CV.")
     if partition:
         print(f"Using {partition} as split partition.")
-    print(f"Using {inner_cv} as inner CV splitter.")
-    if inner_part:
-        print(f"Using {inner_part} as inner CV partition.")
-    if sample_weight:
+    if use_inner_cv:
+        print(f"Using {inner_cv} as inner CV splitter.")
+    if balanced:
         print("Using balanced sample weights.")
     if normalise == "online":
         print("Using 'online' normalisation.")
     else:
         print(f"Normalising globally using {normalise} partition.")
 
-    df = within_corpus_cross_validation(
-        clf,
-        dataset,
-        partition=partition,
-        reps=reps,
-        sample_weights=sample_weights,
-        splitter=splitter,
-        verbose=verbose,
-        n_jobs=n_jobs,
-    )
-    df["params"] = [json.dumps(params, default=list)] * len(df)
+    dfs = []
+    for rep in range(1, reps + 1):
+        print(f"Rep {rep}/{reps}")
+        df = within_corpus_cross_validation(
+            clf,
+            dataset,
+            partition=partition,
+            sample_weight=sample_weight,
+            cv=cv,
+            verbose=verbose,
+            n_jobs=n_jobs,
+            fit_params=fit_params,
+        )
+        df["params"] = [json.dumps(params, default=str)] * len(df)
+        dfs.append(df)
+    df = pd.concat(dfs, keys=list(range(1, reps + 1)), names=["rep"])
     if results:
         results.parent.mkdir(parents=True, exist_ok=True)
         df.to_csv(results)
         print(f"Wrote CSV to {results}")
     else:
         print(df)
-        print(df.mean(numeric_only=True))
+    print(df.mean(numeric_only=True))
 
 
 if __name__ == "__main__":

@@ -31,19 +31,21 @@ emotion_map = {
 
 @click.command()
 @click.argument("input_dir", type=PathlibPath(exists=True, file_okay=False))
-def main(input_dir: Path):
+@click.option("--resample/--noresample", default=True)
+def main(input_dir: Path, resample: bool):
     """Process the SAVEE dataset at location INPUT_DIR and resample
     audio to 16 kHz 16-bit WAV audio.
     """
 
     resample_dir = Path("resampled")
-    for sp in ["DC", "JE", "JK", "KL"]:
-        paths = list(input_dir.glob(sp + "/*.wav"))
-        resample_audio(paths, resample_dir / sp)
-    for sp in ["DC", "JE", "JK", "KL"]:
-        for f in (resample_dir / sp).glob("*.wav"):
-            shutil.move(f, resample_dir / (sp + f.name))
-        (resample_dir / sp).rmdir()
+    if resample:
+        for sp in ["DC", "JE", "JK", "KL"]:
+            paths = list(input_dir.glob(sp + "/*.wav"))
+            resample_audio(paths, resample_dir / sp)
+        for sp in ["DC", "JE", "JK", "KL"]:
+            for f in (resample_dir / sp).glob("*.wav"):
+                shutil.move(f, resample_dir / (sp + f.name))
+            (resample_dir / sp).rmdir()
 
     paths = list(resample_dir.glob("*.wav"))
     write_filelist(paths)
@@ -53,6 +55,7 @@ def main(input_dir: Path):
     )
     write_annotations({p.stem: p.stem[:2] for p in paths}, "speaker")
     write_annotations({p.stem: "en" for p in paths}, "language")
+    write_annotations({p.stem: "gb" for p in paths}, "country")
 
 
 if __name__ == "__main__":

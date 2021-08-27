@@ -1,7 +1,6 @@
 from functools import partial
-from typing import Any, Dict, Sequence, Union
+from typing import Any, Dict, Union
 
-import numpy as np
 from sklearn.base import BaseEstimator
 from sklearn.metrics.pairwise import kernel_metrics
 from sklearn.svm import SVC
@@ -25,26 +24,6 @@ def _get_kernel_func(
     elif kernel == "rbf":
         params = {"gamma": gamma}
     return partial(f, **params)
-
-
-def default_svm_param_grid(kernel="linear") -> Dict[str, Sequence[Any]]:
-    param_grid = {"C": 2.0 ** np.arange(-6, 7, 2)}
-    if kernel == "linear":
-        param_grid.update({"kernel": ["poly"], "degree": [1], "coef0": [0]})
-    elif kernel == "poly2":
-        param_grid.update({"kernel": ["poly"], "degree": [2]})
-        param_grid["coef0"] = [-1, 0, 1]
-    elif kernel == "poly3":
-        param_grid.update({"kernel": ["poly"], "degree": [3]})
-        param_grid["coef0"] = [-1, 0, 1]
-    elif kernel == "rbf":
-        param_grid["kernel"] = ["rbf"]
-        param_grid["gamma"] = 2.0 ** np.arange(-12, -1, 2)
-    else:
-        raise NotImplementedError(
-            "Other kinds of SVM are not currently " "implemented."
-        )
-    return param_grid
 
 
 class PrecomputedSVC(SVC):

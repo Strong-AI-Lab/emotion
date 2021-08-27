@@ -383,7 +383,7 @@ def main(
         )
     # {mean, max} per {classifier, features}
     if "mean_clf" in tables or "all" in tables:
-        mean_clf = df.mean(level=0).T[rankclf]
+        mean_clf = df.groupby(level="Classifier").mean().T[rankclf]
         process_table(
             mean_clf,
             name="mean_clf",
@@ -391,7 +391,7 @@ def main(
             label="MeanClassifier",
         )
     if "mean_feat" in tables or "all" in tables:
-        mean_feat = df.mean(level=1).T[rankfeat]
+        mean_feat = df.groupby(level="Features").mean().T[rankfeat]
         process_table(
             mean_feat,
             name="mean_feat",
@@ -399,7 +399,7 @@ def main(
             label="MeanFeature",
         )
     if "max_clf" in tables or "all" in tables:
-        max_clf = df.max(level=0).T[rankclf]
+        max_clf = df.groupby(level="Classifier").max().T[rankclf]
         process_table(
             max_clf,
             name="max_clf",
@@ -407,7 +407,7 @@ def main(
             label="MaxClassifier",
         )
     if "max_feat" in tables or "all" in tables:
-        max_feat = df.max(level=1).T[rankfeat]
+        max_feat = df.groupby(level="Features").max().T[rankfeat]
         process_table(
             max_feat,
             name="max_feat",

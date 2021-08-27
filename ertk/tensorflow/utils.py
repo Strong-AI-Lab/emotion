@@ -17,7 +17,7 @@ DataFunction = Callable[..., tf.data.Dataset]
 
 
 def compile_wrap(
-    model_fn: Optional[Callable[..., Model]] = None,
+    model_fn: Optional[TFModelFunction] = None,
     opt_cls: Type[Optimizer] = Adam,
     opt_kwargs: Dict[str, Any] = dict(learning_rate=0.0001),
     metrics: List[Union[str, Metric]] = ["sparse_categorical_accuracy"],
@@ -143,7 +143,7 @@ def create_tf_dataset(
 
     if shuffle:
         data = data.shuffle(len(x))
-    return data.batch(batch_size).prefetch(8)
+    return data.batch(batch_size)
 
 
 def create_tf_dataset_ragged(

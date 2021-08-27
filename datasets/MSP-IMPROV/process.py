@@ -89,6 +89,7 @@ def main(input_dir: Path, resample: bool):
     write_annotations({k: v[0] for k, v in speaker_dict.items()}, "gender")
     write_annotations({k: v[-2:] for k, v in speaker_dict.items()}, "session")
     write_annotations({p.stem: "en" for p in paths}, "language")
+    write_annotations({p.stem: "us" for p in paths}, "country")
 
     # Aggregated dimensional annotations per utterance
     df = pd.DataFrame.from_dict(
@@ -104,41 +105,43 @@ def main(input_dir: Path, resample: bool):
     # Ratings analysis
     #
     ratings = pd.DataFrame(sorted(_ratings), columns=["name", "rater", "label"])
-    ratings = ratings.drop_duplicates(["name", "rater"])
-
-    num_ratings = ratings.groupby("name").size().to_frame("total")
-    label_count = ratings.groupby(["name", "label"]).size().to_frame("freq")
-    # Count of majority label per utterance
-    mode_count = (
-        label_count.reset_index()
-        .sort_values("freq", ascending=False)
-        .drop_duplicates(subset="name")
-        .set_index("name")
-        .join(num_ratings)
-        .sort_index()
+    print("Number of duplicate (clip, rater) pairs:")
+    print(ratings.groupby(["name", "rater"]).size().value_counts().loc[2:])
+    ratings.drop_duplicates(["name", "rater"], inplace=True)
+    # Frequency of mode label(s) per utterance
+    name_groups = ratings.groupby("name")
+    mode_labels = (
+        name_groups["label"]
+        .value_counts(sort=True, ascending=False)
+        .rename("freq")
+        .reset_index(level="label")
+        .groupby(level="name")
+        .first()
+        .join(name_groups.size().rename("total"))
     )
 
     # Include only names with a label which is strictly a plurality
-    mode_count = mode_count[
-        ratings.groupby("name")["label"]
-        .agg(lambda x: "".join(x.mode()))
-        .isin(set("NASH"))
-        .sort_index()
+    mode_labels = mode_labels.loc[
+        name_groups["label"].agg(lambda x: "".join(x.mode())).isin(set("NASH"))
     ]
-    # Acted label
-    mode_count["acted"] = [x[3] for x in mode_count.index]
+    print(f"{len(mode_labels)} clips have plurality vote")
 
     # Agreement is mean proportion of labels which are plurality label
-    agreement = np.mean(mode_count["freq"] / mode_count["total"])
+    agreement = np.mean(mode_labels["freq"] / mode_labels["total"])
     print(f"Mean label agreement: {agreement:.3f}")
 
-    # Agreement with acted label
-    agreement = (mode_count["label"] == mode_count["acted"]).sum() / len(mode_count)
-    print(f"Acted agreement: {agreement:.3f}")
+    # Acted label
+    mode_labels["acted"] = [x[14] for x in mode_labels.index]
 
-    clips = ratings.join(mode_count["label"], "name", rsuffix="_vote", how="inner")
-    accuracy = (clips["label"] == clips["label_vote"]).sum() / len(clips)
-    print(f"Human accuracy: {accuracy:.3f}")
+    # Agreement with acted label
+    agreement = (mode_labels["label"] == mode_labels["acted"]).mean()
+    print(f"Plurality vote accuracy to acted: {agreement:.3f}")
+
+    clips = ratings.merge(mode_labels, on="name", suffixes=("_human", "_vote"))
+    accuracy = (clips["label_human"] == clips["label_vote"]).mean()
+    print(f"Human accuracy to plurality vote: {accuracy:.3f}")
+    accuracy = (clips["label_human"] == clips["acted"]).mean()
+    print(f"Human accuracy to acted: {accuracy:.3f}")
 
     # Simple way to get int matrix of labels for raters x clips
     data = (

@@ -1,8 +1,9 @@
-"""Various utility functions for modifying arrays and other things."""
+"""Various utility classes and functions."""
 
 from os import PathLike
 from pathlib import Path
 from typing import (
+    Any,
     Callable,
     Container,
     Dict,
@@ -20,6 +21,7 @@ import click
 import joblib
 import numpy as np
 import tqdm
+import yaml
 from sklearn.base import TransformerMixin
 from sklearn.metrics import get_scorer
 from sklearn.model_selection import (
@@ -32,22 +34,7 @@ from sklearn.model_selection import (
     LeaveOneOut,
 )
 
-__all__ = [
-    "PathOrStr",
-    "PathlibPath",
-    "itmap",
-    "ordered_intersect",
-    "frame_arrays",
-    "pad_arrays",
-    "clip_arrays",
-    "transpose_time",
-    "shuffle_multiple",
-    "batch_arrays",
-]
-
 PathOrStr = Union[PathLike, str]
-
-ScoreFunction = Callable[[np.ndarray, np.ndarray], float]
 
 
 # Class adapted from user394430's answer here:
@@ -111,10 +98,8 @@ def itmap(s: Callable[[T1], T2]):
         ...
 
     def _map(x):
-        if isinstance(x, list):
-            return list(s(y) for y in x)
-        elif isinstance(x, tuple):
-            return tuple(s(y) for y in x)
+        if isinstance(x, (list, tuple)):
+            return type(x)(s(y) for y in x)
         else:
             return s(x)
 
@@ -126,6 +111,60 @@ def ordered_intersect(a: Iterable, b: Container) -> List:
     elements appear in `a`.
     """
     return [x for x in a if x in b]
+
+
+def get_arg_mapping_multi(s: str) -> Dict[str, List[Any]]:
+    """Given a string mapping from the command-line, returns a dict
+    representing that mapping.
+
+    The string form of the mapping is:
+        key:value[,key:value]+
+    Duplicate keys will be mapped to a list of values.
+
+    Args:
+    -----
+    s: str
+        String representing the mapping. It cannot contain spaces or
+        shell symbols (unless escaped).
+
+    Returns:
+    --------
+    mapping: dict
+        A dictionary mapping keys to lists of values from the string.
+    """
+    mapping: Dict[str, List[str]] = {}
+    for cls in s.split(","):
+        key, val = cls.split(":")
+        if key in mapping:
+            mapping[key].append(val)
+        else:
+            mapping[key] = [val]
+    return mapping
+
+
+def get_arg_mapping(s: Union[Path, str]) -> Dict[str, Any]:
+    """Given a mapping on the command-line, returns a dict representing
+    that mapping. Mapping can be a string or a more complex YAML file.
+
+    The string form of the mapping is:
+        key:value[,key:value]+
+
+    Args:
+    -----
+    s: PathLike or str
+        String representing the mapping or path to YAML containing
+        mapping. If a string, it cannot contain spaces or shell symbols
+        (unless escaped).
+
+    Returns:
+    --------
+    mapping: dict
+        A dictionary mapping keys to values from the string.
+    """
+    if isinstance(s, Path) or Path(s).exists():
+        with open(s) as fid:
+            return yaml.safe_load(fid)
+    return {k: v[0] if len(v) == 1 else v for k, v in get_arg_mapping_multi(s).items()}
 
 
 def flat_to_inst(x: np.ndarray, slices: np.ndarray) -> np.ndarray:
@@ -206,30 +245,27 @@ def pad_arrays(arrays: Union[List[np.ndarray], np.ndarray], pad: int = 32):
     """Pads each array to the nearest multiple of `pad` greater than the
     array size. Assumes axis 0 of each sub-array, or axis 1 of x, is
     the time axis.
-
-    NOTE: This function modifies the arrays in-place.
     """
     if isinstance(arrays, np.ndarray) and len(arrays.shape) > 1:
         padding = int(np.ceil(arrays.shape[1] / pad)) * pad - arrays.shape[1]
         extra_dims = tuple((0, 0) for _ in arrays.shape[2:])
-        arrays = np.pad(arrays, ((0, 0), (0, padding)) + extra_dims)
-    else:
-        for i in range(len(arrays)):
-            x = arrays[i]
-            padding = int(np.ceil(x.shape[0] / pad)) * pad - x.shape[0]
-            arrays[i] = np.pad(x, ((0, padding), (0, 0)))
-    return arrays
+        return np.pad(arrays, ((0, 0), (0, padding)) + extra_dims)
+    new_arrays = []
+    for x in arrays:
+        padding = int(np.ceil(x.shape[0] / pad)) * pad - x.shape[0]
+        new_arrays.append(np.pad(x, ((0, padding), (0, 0))))
+    if isinstance(arrays, np.ndarray):
+        return np.ndarray(new_arrays, dtype=object)
+    return new_arrays
 
 
 def clip_arrays(arrays: Union[List[np.ndarray], np.ndarray], length: int):
-    """Clips each array to the specified maximum length.
-
-    NOTE: This function modifies the arrays in-place.
-    """
-    for i in range(len(arrays)):
-        arrays[i] = np.copy(arrays[i][:length])
-    assert all(len(x) <= length for x in arrays)
-    return arrays
+    """Clips each array to the specified maximum length."""
+    if isinstance(arrays, np.ndarray):
+        if len(arrays.shape) > 1:
+            return arrays[:, :length, ...]
+        return np.ndarray([x[:length].copy() for x in arrays], dtype=object)
+    return [x[:length].copy() for x in arrays]
 
 
 def transpose_time(arrays: Union[List[np.ndarray], np.ndarray]):
@@ -353,13 +389,14 @@ class TrainValidation(BaseCrossValidator):
     """
 
     def split(self, X, y, groups):
-        return np.arange(len(X)), np.arange(len(X))
+        yield np.arange(len(X)), np.arange(len(X))
 
     def get_n_splits(self, X, y, groups):
         return 1
 
 
 def get_cv_splitter(group: bool, k: int, test_size: float = 0.2):
+    # TODO: Leave-|k|-out for k < 0?
     if k == 0:
         return TrainValidation()
     if group:
@@ -413,10 +450,13 @@ def group_transform(
     return x
 
 
+ScoreFunction = Callable[[np.ndarray, np.ndarray], float]
+
+
 def get_scores(
     scoring: Union[str, List[str], Dict[str, ScoreFunction], Callable[..., float]],
-    y_pred,
-    y_true,
+    y_pred: np.ndarray,
+    y_true: np.ndarray,
 ):
     from sklearn.model_selection._validation import _score
 
