@@ -159,7 +159,7 @@ def main(
     transformer = {"std": StandardScaler, "minmax": MinMaxScaler}[transform]()
     if normalise == "none":
         transformer = None
-    else:
+    elif normalise != "online":
         dataset.normalise(normaliser=transformer, partition=normalise)
         transformer = None
 
@@ -208,6 +208,7 @@ def main(
             n_jobs=1 if use_inner_cv else -1,
         )
         params = param_grid
+        fit_params = {}
         if not use_inner_cv:
             # Get best params then pass best to main cross-validation routine
             # XXX: This exists because of mistake in our original implementation.
