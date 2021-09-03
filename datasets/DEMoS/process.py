@@ -40,8 +40,8 @@ def main(input_dir: Path, resample: bool):
     if resample:
         resample_dir = Path("resampled")
         resample_audio(paths, resample_dir)
-        write_filelist(resample_dir.glob("*.wav"), "files_all.txt")
-        write_filelist(resample_dir.glob("PR_*.wav"), "files_PR.txt")
+        write_filelist(resample_dir.glob("*.wav"), "files_all")
+        write_filelist(resample_dir.glob("PR_*.wav"), "files_PR")
 
     write_annotations({p.stem: emotion_map[p.stem[-6:-3]] for p in paths}, "label")
     speaker_dict = {p.stem: p.stem[-9:-7] for p in paths}

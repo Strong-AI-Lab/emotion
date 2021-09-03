@@ -78,7 +78,7 @@ def main(input_dir: Path, resample: bool):
     if resample:
         resample_dir = Path("resampled")
         resample_audio(paths, resample_dir)
-        write_filelist(resample_dir.glob("*.wav"), "files_all.txt")
+        write_filelist(resample_dir.glob("*.wav"), "files_all")
 
     clip_info = pd.read_csv(
         input_dir / "veneccountryinfo.csv",
@@ -146,7 +146,7 @@ def main(input_dir: Path, resample: bool):
 
     write_filelist(
         [p for p in resample_dir.glob("*.wav") if p.stem in ratings.index],
-        "files_17class.txt",
+        "files_18class",
     )
     speaker_dict = ratings["Speaker_ID"].to_dict()
     write_annotations(speaker_dict, "speaker")

@@ -37,7 +37,7 @@ def main(input_dir: Path, resample: bool):
     if resample:
         resample_dir = Path("resampled")
         resample_audio(paths, resample_dir)
-        write_filelist(resample_dir.glob("*.wav"))
+        write_filelist(resample_dir.glob("*.wav"), "files_all")
 
     write_annotations(
         {p.stem: emotion_map[p.stem[p.stem.rfind("_") + 1 :]] for p in paths},

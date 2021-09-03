@@ -55,7 +55,8 @@ def main(input_dir: Path, resample: bool):
             shutil.move(f, f.with_name(f.name.replace("s_3", "s3")))
 
     newpaths = list(resample_dir.glob("*.wav"))
-    write_filelist([p for p in newpaths if not p.stem.startswith("s6_")])
+    write_filelist([p for p in newpaths], "files_all")
+    write_filelist([p for p in newpaths if not p.stem.startswith("s6_")], "files_no_s6")
     write_annotations(
         {
             p.stem: emotion_map[p.stem[p.stem.find("_") + 1 : p.stem.find("_") + 3]]

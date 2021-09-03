@@ -15,5 +15,6 @@ scipy
 soundfile
 statsmodels
 tensorflow>=2.3
+tf-slim
 torch
 tqdm

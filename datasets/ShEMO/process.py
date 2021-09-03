@@ -39,10 +39,10 @@ def main(input_dir: Path, resample: bool):
     if resample:
         resample_dir = Path("resampled")
         resample_audio(paths, resample_dir)
-        write_filelist(resample_dir.glob("*.wav"), "files_all.txt")
+        write_filelist(resample_dir.glob("*.wav"), "files_all")
         write_filelist(
             [p for p in resample_dir.glob("*.wav") if p.stem[3] not in unused_emotions],
-            "files_5class.txt",
+            "files_5class",
         )
 
     write_annotations({p.stem: emotion_map[p.stem[3]] for p in paths}, "label")

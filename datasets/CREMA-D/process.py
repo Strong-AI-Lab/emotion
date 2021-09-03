@@ -49,7 +49,7 @@ def main(input_dir: Path, resample: bool):
         Path("resampled").mkdir(exist_ok=True)
         for p in tqdm(paths, desc="Copying audio"):
             shutil.copyfile(p, Path("resampled", p.name))
-    write_filelist(Path("resampled").glob("*.wav"), "files.txt")
+    write_filelist(Path("resampled").glob("*.wav"), "files_all")
 
     summaryTable = pd.read_csv(
         input_dir / "processedResults" / "summaryTable.csv",

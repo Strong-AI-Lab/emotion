@@ -139,7 +139,7 @@ def main(input_dir: Path):
         emotions.update(emo)
         transcripts.update(trn)
     paths = list(audio_dir.glob("*.wav"))
-    write_filelist(paths)
+    write_filelist(paths, "files_all")
     write_annotations(emotions, "label")
     write_annotations({p.stem: p.stem[8:11] for p in paths}, "speaker")
     write_annotations({p.stem: "de" for p in paths}, "language")

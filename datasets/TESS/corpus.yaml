@@ -9,6 +9,6 @@ TESS:
   subsets:
     default: all
     all:
-      clips: files
+      clips: files_all
       description: All files
   features_dir: ../../features/TESS

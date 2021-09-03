@@ -49,14 +49,14 @@ def main(input_dir: Path, resample: bool):
     if resample:
         resample_dir = Path("resampled")
         resample_audio(paths, resample_dir)
-        write_filelist([p for p in resample_dir.glob("*.wav")], "files_all.txt")
+        write_filelist([p for p in resample_dir.glob("*.wav")], "files_all")
         write_filelist(
             [
                 p
                 for p in resample_dir.glob("*.wav")
                 if REGEX.match(p.stem).group(1) not in unused_emotions
             ],
-            "files_primary.txt",
+            "files_primary",
         )
         write_filelist(
             [
@@ -64,7 +64,7 @@ def main(input_dir: Path, resample: bool):
                 for p in resample_dir.glob("*.wav")
                 if REGEX.match(p.stem).group(1) in unused_emotions
             ],
-            "files_secondary.txt",
+            "files_secondary",
         )
 
     write_annotations(

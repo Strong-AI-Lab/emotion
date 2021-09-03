@@ -7,8 +7,11 @@ eNTERFACE:
     - language
     - country
   subsets:
-    default: all
+    default: no_s6
     all:
-      clips: files
+      clips: files_all
       description: All files
+    no_s6:
+      clips: files_no_s6
+      description: Files without speaker 6 due to imbalance.
   features_dir: ../../features/eNTERFACE

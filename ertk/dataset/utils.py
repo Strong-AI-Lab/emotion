@@ -70,8 +70,16 @@ def resample_audio(paths: Iterable[Path], dir: PathOrStr):
     )
 
 
-def write_filelist(paths: Iterable[Path], out: PathOrStr = "files.txt"):
-    """Write sorted file list."""
+def write_filelist(paths: Iterable[Path], name: str):
+    """Write sorted file list.
+
+    Args:
+    -----
+    paths: iterable of Path
+        Paths to audio clips.
+    name: str
+        Name of resulting file list.
+    """
     paths = sorted(paths, key=lambda p: p.stem)
-    with open(out, "w") as fid:
+    with open(f"{name}.txt", "w") as fid:
         fid.write("\n".join(list(map(str, paths))) + "\n")

@@ -48,7 +48,7 @@ def main(input_dir: Path, resample: bool):
             (resample_dir / sp).rmdir()
 
     paths = list(resample_dir.glob("*.wav"))
-    write_filelist(paths)
+    write_filelist(paths, "files_all")
     write_annotations(
         {p.stem: emotion_map[REGEX.match(p.stem).group(2)] for p in paths},
         "label",
