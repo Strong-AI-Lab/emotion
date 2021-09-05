@@ -92,6 +92,10 @@ def main(input_dir: Path, resample: bool):
         clip_info["Original"].map(lambda x: Path(x).stem).map(get_emotion).to_dict(),
         "label",
     )
+    write_annotations(
+        clip_info["Original"].map(lambda x: Path(x).parts[0].split("_")[0]).to_dict(),
+        "intensity",
+    )
 
     def get_ratings(country: str = "USA") -> pd.DataFrame:
         csvfile = input_dir / f"CategoryRatings{country}.csv"

@@ -6,6 +6,7 @@ VENEC:
     - speaker
     - language
     - country
+    - intensity
   subsets:
     default: 18class
     all:

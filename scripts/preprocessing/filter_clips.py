@@ -31,7 +31,7 @@ def main(input: Path, output: Path, minlength: float, maxlength: float):
     else:
         paths = get_audio_paths(input)
     print(f"Found {len(paths)} files total.")
-    for path in tqdm(paths, desc="Processing clips"):
+    for path in tqdm(paths, desc="Processing clips", disable=None):
         length = soundfile.info(path).duration
         if minlength < length < maxlength:
             clips.append(str(path))

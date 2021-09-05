@@ -36,4 +36,3 @@ def write_annotations(
     df.index.name = "name"
     path = path or f"{name}.csv"
     df.sort_index().to_csv(path, header=True, index=True)
-    print(f"Wrote CSV to {path}")

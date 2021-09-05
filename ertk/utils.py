@@ -54,7 +54,7 @@ class TqdmParallel(joblib.Parallel):
         **kwargs,
     ):
         self.total = total
-        self.tqdm_args = {"desc": desc, "unit": unit, "leave": leave}
+        self.tqdm_args = {"desc": desc, "unit": unit, "leave": leave, "disable": None}
         kwargs["verbose"] = 0
         super().__init__(**kwargs)
 

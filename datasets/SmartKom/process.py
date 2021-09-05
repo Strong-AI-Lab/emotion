@@ -18,11 +18,11 @@ import click
 import numpy as np
 import pandas as pd
 import soundfile
-from joblib import Parallel, delayed
+from joblib import delayed
 from nltk.corpus import stopwords
 
 from ertk.dataset import write_annotations, write_filelist
-from ertk.utils import PathlibPath
+from ertk.utils import PathlibPath, TqdmParallel
 
 emotion_map = {
     "Neutral": "neutral",
@@ -35,7 +35,7 @@ emotion_map = {
 }
 
 stops = set(stopwords.words("german"))
-audio_dir = Path("audio")
+audio_dir = Path("resampled")
 
 
 def process_sess(sess_dir: Path):
@@ -130,10 +130,9 @@ def main(input_dir: Path):
     emotions = {}
     transcripts = {}
     audio_dir.mkdir(parents=True, exist_ok=True)
-    r = Parallel(n_jobs=-1, verbose=1)(
-        delayed(process_sess)(s)
-        for s in (input_dir / "SK-Public").glob("*")
-        if s.is_dir()
+    sessions = [x for x in (input_dir / "SK-Public").glob("*") if x.is_dir()]
+    r = TqdmParallel(total=len(sessions), n_jobs=-1)(
+        delayed(process_sess)(s) for s in sessions
     )
     for emo, trn in r:
         emotions.update(emo)
