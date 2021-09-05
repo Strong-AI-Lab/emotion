@@ -24,18 +24,20 @@ run_test() {
     local results_clf="$1"; shift
     local conf="$1"; shift
     local grid="$1"; shift
-
     echo "$corpus" "$features" "$clf" "$results_clf" "$conf" "$grid"
 
-    local common_opts=(--features "$FEATURES_DIR/$corpus/$features.nc" --clf "$clf" --noinner_cv --balanced --results "$RESULTS_DIR/norm_offline/$corpus/$results_clf/$features.csv")
+    local base_opts=(--features "$FEATURES_DIR/$corpus/$features.nc" --clf "$clf" --noinner_cv --balanced)
     if [ -n "$conf" ]; then
-        common_opts=("${common_opts[@]}" --clf_args "$conf")
+        base_opts=("${base_opts[@]}" --clf_args "$conf")
     fi
     if [ -n "$grid" ]; then
-        common_opts=("${common_opts[@]}" --param_grid "$grid")
+        base_opts=("${base_opts[@]}" --param_grid "$grid")
     fi
 
+    local common_opts
+
     # Experiments reported in paper
+    common_opts=("${base_opts[@]}" --results "$RESULTS_DIR/norm_offline/$corpus/$results_clf/$features.csv")
     case $corpus in
         CaFE|EMO-DB|JL|Portuguese|SAVEE|TESS)
             # Leave-one-speaker-out
@@ -60,7 +62,7 @@ run_test() {
     esac
 
     # "Online" normalisation experiments with proper inner CV
-    common_opts=("${common_opts[@]}" --normalise online)
+    common_opts=("${base_opts[@]}" --normalise online --results "$RESULTS_DIR/norm_offline/$corpus/$results_clf/$features.csv")
     case $corpus in
         CaFE|EMO-DB|JL|SAVEE)
             # Leave-one-speaker-out

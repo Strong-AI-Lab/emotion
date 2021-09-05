@@ -5,10 +5,10 @@
 export TF_CPP_MIN_LOG_LEVEL=1
 
 # Change this for VGGish/YAMNet as required depending on GPU memory
-as_batch_size=256
+batch_size=${batch_size:=256}
 
-# Change to path to wav2vec models dir
-wav2vec_models_dir=$HOME/src/fairseq/examples/wav2vec
+# Change to correct wav2vec models dir
+wav2vec_models_dir=${wav2vec_models_dir:=$HOME/src/fairseq/examples/wav2vec}
 
 for corpus in CaFE CREMA-D DEMoS EMO-DB EmoFilm eNTERFACE IEMOCAP JL MSP-IMPROV Portuguese RAVDESS SAVEE ShEMO SmartKom TESS URDU VENEC; do
     # auDeep dataset conversion
@@ -33,33 +33,34 @@ for corpus in CaFE CREMA-D DEMoS EMO-DB EmoFilm eNTERFACE IEMOCAP JL MSP-IMPROV 
 
     # Spectrograms
     python scripts/preprocessing/spectrograms.py \
+        $corpus \
         datasets/$corpus/files_all.txt \
-        --corpus $corpus \
-        --labels datasets/$corpus/labels.csv \
         --window_size 0.025 \
         --window_shift 0.01 \
         --mel_bands 64 \
         --fmin 125 \
         --fmax 7500 \
-        --netcdf features/$corpus/spectrograms-0.025-0.010-64.nc
+        --output features/$corpus/spectrograms-0.025-0.010-64.nc
 
     # YAMNet and VGGish mean embeddings
     python scripts/preprocessing/yamnet_features.py \
         features/$corpus/spectrograms-0.025-0.010-64.nc \
         features/$corpus/yamnet.nc \
-        --batch_size $as_batch_size
+        --batch_size $batch_size
     python scripts/preprocessing/vggish_features.py \
         features/$corpus/spectrograms-0.025-0.010-64.nc \
         features/$corpus/vggish.nc \
-        --batch_size $as_batch_size
+        --batch_size $batch_size
 
     # (VQ-)Wav2Vec mean embeddings
     python scripts/preprocessing/wav2vec_features.py \
         --checkpoint "$wav2vec_models_dir/wav2vec_large.pt" \
+        --type 1 \
         datasets/$corpus/files_all.txt \
         features/$corpus/wav2vec.nc
     python scripts/preprocessing/wav2vec_features.py \
         --checkpoint "$wav2vec_models_dir/vq-wav2vec.pt" \
+        --type 1 \
         datasets/$corpus/files_all.txt \
         features/$corpus/vq-wav2vec.nc
     # Wav2Vec 2.0

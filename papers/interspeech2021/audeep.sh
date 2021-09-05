@@ -1,9 +1,9 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 # Generates spectrograms using the auDeep code.
 
 # Change batch_size as necessary for your GPU memory
-batch_size=128
+batch_size=${batch_size:=128}
 
 for corpus in CaFE CREMA-D DEMoS EMO-DB EmoFilm eNTERFACE IEMOCAP JL MSP-IMPROV Portuguese RAVDESS SAVEE ShEMO SmartKom TESS URDU VENEC; do
     echo "Extracting auDeep spectrograms for $corpus"
@@ -20,7 +20,7 @@ done
 
 echo "Training auDeep model"
 audeep t-rae train \
-    --batch-size $batch_size \
+    --batch-size 128 \
     --num-epochs 250 \
     --run-name logs/audeep \
     --checkpoints-to-keep 5 \
