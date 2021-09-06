@@ -3,6 +3,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import numpy as np
 import tensorflow as tf
+from sklearn.pipeline import Pipeline
 from tensorflow.keras.layers import Layer, Wrapper
 from tensorflow.keras.losses import Loss
 from tensorflow.keras.metrics import Metric
@@ -12,7 +13,7 @@ from tensorflow.keras.utils import Sequence
 
 from ..utils import batch_arrays, shuffle_multiple
 
-TFModelFunction = Callable[..., Model]
+TFModelFunction = Callable[..., Union[Model, Pipeline]]
 DataFunction = Callable[..., tf.data.Dataset]
 
 
@@ -200,10 +201,10 @@ def create_tf_dataset_ragged(
     if shuffle:
         data = data.shuffle(len(x) // batch_size + 1)
 
-    if sample_weight is not None:
-        data = data.map(ragged_to_dense_weighted)
-    else:
+    if sample_weight is None:
         data = data.map(ragged_to_dense)
+    else:
+        data = data.map(ragged_to_dense_weighted)
     return data
 
 
