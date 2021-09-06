@@ -271,7 +271,7 @@ class Dataset:
         drop = set([] if drop is None else drop)
         keep = set([] if keep is None else keep)
 
-        if not (len(drop) == 0) ^ (len(keep) == 0):
+        if (len(drop) == 0) == (len(keep) == 0):
             raise ValueError("Exactly one of drop and keep should be non-empty.")
 
         if len(keep) == 0:

@@ -6,6 +6,10 @@ was developed mainly to facilitate my PhD research, but I have tried to
 make the Python library more generally useful and full of utilities for
 processing datasets and training/testing models.
 
+# Papers
+See [`papers/README.md`](papers/README.md) for more information about
+scripts for individual publications.
+
 # Datasets
 See [`datsets/README.md`](datasets/README.md) for more information about
 the supported datasets and the required processing.
@@ -56,15 +60,3 @@ more details.
 Scripts are contained in the [`scripts/`](scripts/) directory, in a
 subdirectory roughly corresponding to their function. Each script should
 have usage info if you give `--help` as an argument.
-
-# Papers
-The [`papers/`](papers/) directory contains copies of scripts used to
-run experiments and results for a given paper that we've published. Each
-directory corresponds to a publicaiton and has a README with a
-description of the paper and how to run the experiments. Each
-publication will also be associated with a git tag and a GitHub release
-on the [releases](https://github.com/Strong-AI-Lab/emotion/releases)
-page.
-
-**NOTE**: Scripts in the `papers/` directory will probably not be updated.
-Please checkout the appropriate git tag to use these scripts.

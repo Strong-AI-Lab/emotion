@@ -74,7 +74,11 @@ def main(input_dir: Path, resample: bool):
     audio to 16 kHz 16-bit WAV audio.
     """
 
-    paths = list(input_dir.glob("NoNameProsody/*.mp3"))
+    paths = [
+        x
+        for x in input_dir.glob("NoNameProsody/*.mp3")
+        if x.stem not in ["1528", "0191", "2080", "0723"]
+    ]
     if resample:
         resample_dir = Path("resampled")
         resample_audio(paths, resample_dir)

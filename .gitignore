@@ -30,3 +30,4 @@ __pycache__
 # Misc general
 .vscode
 desktop.ini
+nohup*.out

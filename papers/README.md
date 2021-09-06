@@ -1,6 +1,15 @@
 # Papers
 
-In this directory is code and results for papers we have published.
+This directory contains scripts used to run experiments for papers that
+we've published. Each subdirectory corresponds to a publicaiton and has
+a README with a description of the paper and how to run the experiments.
+Each publication will also be associated with a git tag and a GitHub
+release on the
+[releases](https://github.com/Strong-AI-Lab/emotion/releases) page.
+
+**NOTE**: Scripts in subdirectories will probably not be updated much
+after publication. Please checkout the appropriate git tag to use these
+scripts.
 
 ## [ALTA 2020](https://aclanthology.org/2020.alta-1.13/)
 A. Keesing, I. Watson, and M. Witbrock, ‘Convolutional and Recurrent

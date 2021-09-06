@@ -40,7 +40,7 @@ def worker(t_id: int):
 @click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
 @click.option(
     "--threads",
-    "--n_threads",
+    "n_threads",
     type=int,
     default=1,
     help="Number of threads",

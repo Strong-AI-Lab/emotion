@@ -56,17 +56,20 @@ for corpus in CaFE CREMA-D DEMoS EMO-DB EmoFilm eNTERFACE IEMOCAP JL MSP-IMPROV 
     python scripts/preprocessing/wav2vec_features.py \
         --checkpoint "$wav2vec_models_dir/wav2vec_large.pt" \
         --type 1 \
+        $corpus \
         datasets/$corpus/files_all.txt \
         features/$corpus/wav2vec.nc
     python scripts/preprocessing/wav2vec_features.py \
         --checkpoint "$wav2vec_models_dir/vq-wav2vec.pt" \
         --type 1 \
+        $corpus \
         datasets/$corpus/files_all.txt \
         features/$corpus/vq-wav2vec.nc
     # Wav2Vec 2.0
     python scripts/preprocessing/wav2vec_features.py \
         --checkpoint "$wav2vec_models_dir/libri960_big.pt" \
         --type 2 \
+        $corpus \
         datasets/$corpus/files_all.txt \
         features/$corpus/wav2vec2.nc
 done

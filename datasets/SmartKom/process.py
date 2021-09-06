@@ -20,6 +20,7 @@ import pandas as pd
 import soundfile
 from joblib import delayed
 from nltk.corpus import stopwords
+from tqdm import tqdm
 
 from ertk.dataset import write_annotations, write_filelist
 from ertk.utils import PathlibPath, TqdmParallel
@@ -68,7 +69,7 @@ def process_sess(sess_dir: Path):
                 idx = int(idx)
                 words[idx] = word
     if len(ush_list) == 0 or len(trn_list) == 0:
-        print(f"Missing USH or TRN for {sess_dir.name}")
+        tqdm.write(f"Missing USH or TRN for {sess_dir.name}")
         return {}, {}
 
     trn_text = []
