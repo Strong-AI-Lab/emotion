@@ -6,6 +6,7 @@ import numpy as np
 import tensorflow as tf
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.model_selection import BaseCrossValidator
+from sklearn.pipeline import Pipeline
 from tensorflow.keras.callbacks import History, TensorBoard
 from tensorflow.keras.metrics import SparseCategoricalAccuracy
 
@@ -65,11 +66,23 @@ def tf_train_val_test(
     valid_dataset = data_fn(*valid_data, batch_size=batch_size, shuffle=False)
     test_dataset = data_fn(*test_data, batch_size=batch_size, shuffle=False)
 
+    for d in [train_dataset, valid_dataset, test_dataset]:
+        d = d.prefetch(2)
+
     clf = model_fn()
+    if isinstance(clf, Pipeline):
+        train_data = (
+            clf._fit(train_data[0], train_data[1], **clf._check_fit_params()),
+            *train_data[1:],
+        )
+        clf = clf._final_estimator
     history = clf.fit(train_dataset, validation_data=valid_dataset, **fit_params)
+    # Setting y_true is necessary for dataset creation routines that may
+    # reorder data on creation (but without shuffling each time).
+    y_true = np.concatenate([x[1] for x in test_dataset.as_numpy_iterator()])
     y_pred = tf.argmax(clf.predict(test_dataset), axis=-1)
 
-    scores = get_scores(scoring, y_pred, test_data[1])
+    scores = get_scores(scoring, y_pred, y_true)
     scores["history"] = history
     return scores
 

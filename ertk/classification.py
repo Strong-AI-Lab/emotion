@@ -110,6 +110,7 @@ def standard_class_scoring(classes: Sequence[str]):
 def within_corpus_cross_validation(
     clf: Union[BaseEstimator, Callable[..., Model]],
     dataset: LabelledDataset,
+    clf_lib: Optional[str] = None,
     partition: Optional[str] = None,
     sample_weight: np.ndarray = None,
     cv: Union[BaseCrossValidator, int] = 10,
@@ -125,6 +126,10 @@ def within_corpus_cross_validation(
         The classifier to test.
     dataset: LabelledDataset
         The dataset for within-corpus cross-validation.
+    clf_lib: str
+        One of {"sk", "tf", "pt"} to select which library-specific
+        cross-validation method to use, since they're not all quite
+        compatible.
     partition: str, optional
         The name of the partition to cross-validate over. If None, then
         don't use group cross-validation.
@@ -146,10 +151,10 @@ def within_corpus_cross_validation(
         cv = get_cv_splitter(bool(partition), cv)
     scoring = standard_class_scoring(dataset.classes)
 
-    if isinstance(clf, BaseEstimator):
+    if clf_lib == "sk":
         fit_params.update({"sample_weight": sample_weight, "groups": groups})
         cross_validate_fn = sk_cross_validate
-    else:  # FIXME: check properly
+    elif clf_lib == "tf":
         n_jobs = 1
         cross_validate_fn = tf_cross_validate
 
