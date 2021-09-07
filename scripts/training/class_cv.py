@@ -149,7 +149,10 @@ def main(
     if sel_groups:
         mapping = get_arg_mapping(sel_groups)
         for part in mapping:
-            dataset.remove_groups(part, keep=mapping[part])
+            keep = mapping[part]
+            if isinstance(keep, str):
+                keep = [keep]
+            dataset.remove_groups(part, keep=keep)
 
     if clip_seq:
         dataset.clip_arrays(clip_seq)
