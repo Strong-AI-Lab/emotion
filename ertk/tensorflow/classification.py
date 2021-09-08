@@ -11,7 +11,12 @@ from tensorflow.keras.callbacks import History, TensorBoard
 from tensorflow.keras.metrics import SparseCategoricalAccuracy
 
 from ..utils import get_scores, ScoreFunction
-from .utils import DataFunction, TFModelFunction, create_tf_dataset
+from .utils import (
+    DataFunction,
+    TFModelFunction,
+    create_tf_dataset,
+    create_tf_dataset_ragged,
+)
 
 
 def tf_train_val_test(
@@ -19,7 +24,7 @@ def tf_train_val_test(
     train_data: Tuple[np.ndarray, ...],
     valid_data: Tuple[np.ndarray, ...],
     test_data: Optional[Tuple[np.ndarray, ...]] = None,
-    data_fn: DataFunction = create_tf_dataset,
+    data_fn: Union[DataFunction, str] = None,
     scoring: Union[
         str, List[str], Dict[str, ScoreFunction], Callable[..., float]
     ] = "accuracy",
@@ -44,10 +49,11 @@ def tf_train_val_test(
     scoring: str, or callable, or list of str, or dict of str to callable
         The scoring to use. Same requirements as for sklearn
         cross_validate().
-    data_fn: callable
-        A callable that returns a tensorflow.data.Dataset instance which
-        yields data batches. The call signature of data_fn should be
-        data_fn(x, y, shuffle=True, **kwargs).
+    data_fn: str or callable
+        A string, or callable that returns a tensorflow.data.Dataset
+        instance which yields data batches. The call signature of
+        data_fn should be data_fn(x, y, shuffle=True, **kwargs). Valid
+        string values are: {"ragged"}.
     fit_params: dict, optional
         Any keyword arguments to supply to the Keras fit() method.
         Default is no keyword arguments.
@@ -59,6 +65,10 @@ def tf_train_val_test(
     """
     if test_data is None:
         test_data = valid_data
+    if data_fn is None:
+        data_fn = create_tf_dataset
+    elif data_fn == "ragged":
+        data_fn = create_tf_dataset_ragged
 
     tf.keras.backend.clear_session()
 

@@ -112,7 +112,6 @@ def within_corpus_cross_validation(
     dataset: LabelledDataset,
     clf_lib: Optional[str] = None,
     partition: Optional[str] = None,
-    sample_weight: np.ndarray = None,
     cv: Union[BaseCrossValidator, int] = 10,
     verbose: int = 0,
     n_jobs: int = 1,
@@ -133,7 +132,7 @@ def within_corpus_cross_validation(
     partition: str, optional
         The name of the partition to cross-validate over. If None, then
         don't use group cross-validation.
-    splitter: int or BaseCrossValidator
+    cv: int or BaseCrossValidator
         A splitter used for cross-validation. Default is KFold(10) for
         10 fold cross-validation.
     verbose: bool
@@ -152,7 +151,6 @@ def within_corpus_cross_validation(
     scoring = standard_class_scoring(dataset.classes)
 
     if clf_lib == "sk":
-        fit_params.update({"sample_weight": sample_weight, "groups": groups})
         cross_validate_fn = sk_cross_validate
     elif clf_lib == "tf":
         n_jobs = 1

@@ -64,6 +64,7 @@ def sk_cross_validate(
     verbose: int = 0,
     fit_params: Dict[str, Any] = {},
 ):
+    fit_params["groups"] = groups
     if isinstance(clf, Pipeline):
         fit_params = _get_pipeline_params(fit_params, clf)
     else:
