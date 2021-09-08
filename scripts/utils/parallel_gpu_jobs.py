@@ -38,8 +38,8 @@ def worker(gpu: int):
 
 @click.command()
 @click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
-@click.option("--gpus", type=int, default=1, help="Number of GPUs", show_default=True)
-def main(input: Path, gpus: int):
+@click.option("--gpus", default="0", help="GPUs to run on.", show_default=True)
+def main(input: Path, gpus: str):
     """Runs all commands specified in the INPUT file, splitting the work
     across multiple GPUs such that each command runs solely on whichever
     GPU is next available.
@@ -57,7 +57,12 @@ def main(input: Path, gpus: int):
             q.put(line)
             print(f"Command {line}")
 
-    threads = [Thread(target=worker, args=(i,)) for i in range(gpus)]
+    try:
+        _gpus = [int(gpus)]
+    except ValueError:
+        _gpus = list(map(int, gpus.split(",")))
+
+    threads = [Thread(target=worker, args=(i,)) for i in _gpus]
     for t in threads:
         t.start()
     for t in threads:
