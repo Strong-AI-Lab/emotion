@@ -53,6 +53,13 @@ from ertk.utils import PathlibPath, get_arg_mapping, get_cv_splitter
     default=True,
     help="Whether to use group-based inner CV (e.g. GroupKFold, LeaveOneGroupOut).",
 )
+@optgroup.group("Training options")
+@optgroup.option("--learning_rate", type=float, default=1e-4, show_default=True)
+@optgroup.option("--batch_size", type=int, default=64, show_default=True)
+@optgroup.option("--epochs", type=int, default=50, show_default=True)
+@optgroup.option(
+    "--balanced/--imbalanced", default=True, help="Balances sample weights."
+)
 @optgroup.option(
     "--reps",
     type=int,
@@ -74,7 +81,7 @@ from ertk.utils import PathlibPath, get_arg_mapping, get_cv_splitter
     help="Transformation class.",
 )
 @optgroup.option(
-    "--balanced/--imbalanced", default=True, help="Balances sample weights."
+    "--n_jobs", type=int, default=-1, help="Number of parallel executions."
 )
 @optgroup.group("Misc. options")
 @optgroup.option("--verbose/--noverbose", default=False, help="Verbose training.")
@@ -91,9 +98,6 @@ from ertk.utils import PathlibPath, get_arg_mapping, get_cv_splitter
     type=PathlibPath(exists=True),
     help="File with parameter grid data.",
 )
-@optgroup.option("--learning_rate", type=float, default=1e-4, show_default=True)
-@optgroup.option("--batch_size", type=int, default=64, show_default=True)
-@optgroup.option("--epochs", type=int, default=50, show_default=True)
 @optgroup.group(
     "Deprecated options", help="These options are deprecated, don't use them."
 )
@@ -130,6 +134,7 @@ def main(
     batch_size: int,
     epochs: int,
     use_inner_cv: bool,
+    n_jobs: int,
 ):
     """Runs cross-validation on the given INPUT datasets. Metrics are
     optionally written to a results file.
@@ -186,6 +191,7 @@ def main(
     if balanced:
         class_weight = dataset.n_instances / (dataset.n_classes * dataset.class_counts)
         sample_weight = class_weight[dataset.y]
+    fit_params = {"sample_weight": sample_weight}
 
     model_args = {}
     if clf_args_file:
@@ -194,7 +200,6 @@ def main(
     if param_grid_file:
         param_grid = get_arg_mapping(param_grid_file)
 
-    n_jobs = -1
     clf_lib, clf_type = clf_type.split("/", maxsplit=1)
     if clf_lib == "sk":
         from sklearn.model_selection import GridSearchCV
@@ -208,10 +213,9 @@ def main(
             scoring="balanced_accuracy",
             cv=inner_cv,
             verbose=verbose,
-            n_jobs=1 if use_inner_cv else -1,
+            n_jobs=1 if use_inner_cv else n_jobs,
         )
         params = param_grid
-        fit_params = {}
         if not use_inner_cv:
             # Get best params then pass best to main cross-validation routine
             # XXX: This exists because of mistake in our original implementation.
@@ -224,26 +228,43 @@ def main(
             params = clf.best_params_
             clf = clf.best_estimator_
     elif clf_lib == "tf":
-        from ertk.tensorflow import compile_wrap, get_tf_model_fn
+        from tensorflow.keras.optimizers import Adam
+
+        from ertk.tensorflow import get_tf_model
+        from ertk.tensorflow.classification import tf_classification_metrics
 
         # No parallel CV to avoid running out of GPU memory
         n_jobs = 1
+        data_fn = None
+        if len(dataset.x.shape) == 1 and len(dataset.x[0].shape) >= 2:
+            data_fn = "ragged"
+        fit_params.update(
+            {
+                "log_dir": logdir,
+                "epochs": epochs,
+                "batch_size": batch_size,
+                "data_fn": data_fn,
+            }
+        )
         model_args.update(
             {"n_features": dataset.n_features, "n_classes": dataset.n_classes}
         )
-        model_fn = compile_wrap(
-            get_tf_model_fn(
-                clf_type,
-                **model_args,
-            ),
-            opt_kwargs={"learning_rate": learning_rate},
-        )
-        fit_params = {
-            "log_dir": logdir,
-            "epochs": epochs,
-            "batch_size": batch_size,
+
+        def model_fn():
+            model = get_tf_model(clf_type, **model_args)
+            model.compile(
+                Adam(learning_rate=learning_rate),
+                loss="sparse_categorical_crossentropy",
+                metrics=tf_classification_metrics(),
+            )
+            return Pipeline([("transform", transformer), ("clf", model)])
+
+        params = {
+            "optimiser": "adam",
+            "learning_rate": learning_rate,
+            **model_args,
+            **fit_params,
         }
-        params = {"learning_rate": learning_rate, **fit_params}
         clf = model_fn
     else:
         raise ValueError(f"Invalid classifier type {clf_type}")
@@ -271,8 +292,8 @@ def main(
         df = within_corpus_cross_validation(
             clf,
             dataset,
+            clf_lib=clf_lib,
             partition=partition,
-            sample_weight=sample_weight,
             cv=cv,
             verbose=verbose,
             n_jobs=n_jobs,
