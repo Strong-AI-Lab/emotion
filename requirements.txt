@@ -10,6 +10,7 @@ nltk
 numpy
 Orange3
 pandas>=1.0.0
+seaborn
 scikeras
 scipy
 soundfile
