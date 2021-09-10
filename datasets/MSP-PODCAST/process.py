@@ -38,7 +38,10 @@ emotion_map = {
 
 @click.command()
 @click.argument("input_dir", type=PathlibPath(exists=True, file_okay=False))
-def main(input_dir: Path):
+@click.option(
+    "--resample/--noresample", default=False, help="Resample audio to local directory."
+)
+def main(input_dir: Path, resample: bool):
     """Process the MSP-IMPROV dataset at location INPUT_DIR."""
 
     labels_dir = input_dir / "Labels"
@@ -51,18 +54,16 @@ def main(input_dir: Path):
 
     audios_dir = input_dir / "Audios"
     paths = list(audios_dir.glob("*.wav"))
-    write_filelist(paths, "files_all.txt")
+    write_filelist(paths, "files_all")
     split_sets = labels_concensus.groupby("Split_Set").groups
     for fileset, names in split_sets.items():
         write_filelist(
-            names.map(lambda x: audios_dir / (x + ".wav")),
-            f"files_{fileset}.txt",
+            names.map(lambda x: audios_dir / (x + ".wav")), f"files_{fileset}"
         )
 
     write_annotations({n: emotion_map[labels[n]] for n in labels}, "label")
-    unk_spk = labels_concensus["SpkrID"] == "Unknown"  # Ignore unknown speakers
-    write_annotations(labels_concensus.loc[unk_spk, "Gender"].to_dict(), "gender")
-    write_annotations(labels_concensus.loc[unk_spk, "SpkrID"].to_dict(), "speaker")
+    write_annotations(labels_concensus["Gender"].to_dict(), "gender")
+    write_annotations(labels_concensus["SpkrID"].to_dict(), "speaker")
     write_annotations(labels_concensus["Split_Set"].to_dict(), "split")
     write_annotations({p.stem: "en" for p in paths}, "language")
 
