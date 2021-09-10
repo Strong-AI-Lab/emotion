@@ -69,23 +69,34 @@ def tf_train_val_test(
         data_fn = create_tf_dataset
     elif data_fn == "ragged":
         data_fn = create_tf_dataset_ragged
+    elif not callable(data_fn):
+        raise ValueError(f"Unsupported value for data_fn {data_fn}")
+
+    logging.debug(f"fit_params={fit_params}")
+    logging.debug(f"data_fn={data_fn}")
 
     tf.keras.backend.clear_session()
+
+    clf = model_fn()
+    logging.debug(clf)
+    if isinstance(clf, Pipeline):
+        new_pipeline = clf[:-1]
+        clf = clf._final_estimator
+        new_pipeline.fit(train_data[0], y=train_data[1])
+        train_data = (new_pipeline.transform(train_data[0]), *train_data[1:])
+        valid_data = (new_pipeline.transform(valid_data[0]), *valid_data[1:])
+        test_data = (new_pipeline.transform(test_data[0]), *test_data[1:])
+    if not isinstance(clf, tf.keras.models.Model):
+        raise TypeError(
+            "model_fn must return a Model or a Pipeline which ends in a Model."
+        )
 
     train_dataset = data_fn(*train_data, batch_size=batch_size)
     valid_dataset = data_fn(*valid_data, batch_size=batch_size, shuffle=False)
     test_dataset = data_fn(*test_data, batch_size=batch_size, shuffle=False)
-
     for d in [train_dataset, valid_dataset, test_dataset]:
         d = d.prefetch(2)
 
-    clf = model_fn()
-    if isinstance(clf, Pipeline):
-        train_data = (
-            clf._fit(train_data[0], train_data[1], **clf._check_fit_params()),
-            *train_data[1:],
-        )
-        clf = clf._final_estimator
     history = clf.fit(train_dataset, validation_data=valid_dataset, **fit_params)
     # Setting y_true is necessary for dataset creation routines that may
     # reorder data on creation (but without shuffling each time).
@@ -102,8 +113,8 @@ def tf_cross_validate(
     x: np.ndarray,
     y: np.ndarray,
     *,
+    cv: BaseCrossValidator,
     groups: Optional[np.ndarray] = None,
-    cv: BaseCrossValidator = None,
     verbose: int = 0,
     scoring: Union[
         str, List[str], Dict[str, ScoreFunction], Callable[..., float]
@@ -128,8 +139,7 @@ def tf_cross_validate(
         The groups to use for some cross-validation splitters (e.g.
         LeaveOneGroupOut).
     cv: BaseCrossValidator,
-        The cross-validator split generator to use. Default is
-        LeaveOneGroupOut.
+        The CV split generator to use.
     scoring: str, or callable, or list of str, or dict of str to callable
         The scoring to use. Same requirements as for sklearn
         cross_validate().
@@ -146,7 +156,13 @@ def tf_cross_validate(
 
     log_dir = fit_params.pop("log_dir", None)
     sw = fit_params.pop("sample_weight", None)
-    data_fn = fit_params.pop("data_fn", create_tf_dataset)
+    data_fn = fit_params.pop("data_fn", None)
+
+    logging.debug(f"log_dir={log_dir}")
+    logging.debug(f"sample_weight={sw}")
+    logging.debug(f"data_fn={data_fn}")
+    logging.debug(f"cv={cv}")
+    logging.debug(f"fit_params={fit_params}")
 
     n_folds = cv.get_n_splits(x, y, groups)
     scores = defaultdict(list)
