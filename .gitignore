@@ -13,6 +13,8 @@ smile.log
 .venv
 .ipynb_checkpoints
 *.egg-info
+/build
+/dist
 __pycache__
 .mypy_cache
 
