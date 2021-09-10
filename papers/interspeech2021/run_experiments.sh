@@ -26,65 +26,63 @@ run_test() {
     local grid="$1"; shift
     echo "$corpus" "$features" "$clf" "$results_clf" "$conf" "$grid"
 
-    local base_opts=(--features "$FEATURES_DIR/$corpus/$features.nc" --clf "$clf" --noinner_cv --balanced)
+    local base_opts=(--features "$FEATURES_DIR/$corpus/$features.nc" --clf "$clf" --balanced --epochs 50 --learning_rate 0.0001)
     if [ -n "$conf" ]; then
         base_opts=("${base_opts[@]}" --clf_args "$conf")
     fi
     if [ -n "$grid" ]; then
         base_opts=("${base_opts[@]}" --param_grid "$grid")
     fi
-
     local common_opts
+    local additional_opts
 
     # Experiments reported in paper
-    common_opts=("${base_opts[@]}" --results "$RESULTS_DIR/norm_offline/$corpus/$results_clf/$features.csv")
+    common_opts=("${base_opts[@]}" --noinner_cv --results "$RESULTS_DIR/norm_offline/$corpus/$results_clf/$features.csv")
     case $corpus in
         CaFE|EMO-DB|JL|Portuguese|SAVEE|TESS)
             # Leave-one-speaker-out
-            python "$EXP_SCRIPT" "$corpus_yaml" --partition speaker --kfold -1 --normalise speaker "${common_opts[@]}"
-        ;;
+            additional_opts=(--partition speaker --kfold -1 --normalise speaker);;
         CREMA-D|DEMoS|eNTERFACE|RAVDESS|ShEMO|SmartKom|VENEC)
             # Leave-one-speaker-group-out
-            python "$EXP_SCRIPT" "$corpus_yaml" --partition speaker --kfold 6 --normalise speaker "${common_opts[@]}"
-        ;;
-        IEMOCAP|MSP-IMPROV)
+            additional_opts=(--partition speaker --kfold 6 --normalise speaker);;
+        IEMOCAP)
             # Leave-one-session-out
-            python "$EXP_SCRIPT" "$corpus_yaml" --partition session --kfold -1 --normalise speaker "${common_opts[@]}"
-        ;;
+            additional_opts=(--partition session --map_groups "$CONF_DIR/mapping/iemocap_4class.yaml" --kfold -1 --normalise speaker);;
+        MSP-IMPROV)
+            # Leave-one-session-out
+            additional_opts=(--partition session --kfold -1 --normalise speaker);;
         EmoFilm)
             # Leave-one-language-out
-            python "$EXP_SCRIPT" "$corpus_yaml" --partition language --kfold -1 --normalise language "${common_opts[@]}"
-        ;;
+            additional_opts=(--partition language --kfold -1 --normalise language);;
         URDU)
             # Leave-one-speaker-out, use global normalisation
-            python "$EXP_SCRIPT" "$corpus_yaml" --partition speaker --kfold 6 --normalise all "${common_opts[@]}"
-        ;;
+            additional_opts=(--partition speaker --kfold 6 --normalise all);;
     esac
+    python "$EXP_SCRIPT" "$corpus_yaml" "${common_opts[@]}" "${additional_opts[@]}"
 
     # "Online" normalisation experiments with proper inner CV
-    common_opts=("${base_opts[@]}" --normalise online --results "$RESULTS_DIR/norm_offline/$corpus/$results_clf/$features.csv")
+    common_opts=("${base_opts[@]}" --normalise online --results "$RESULTS_DIR/norm_online/$corpus/$results_clf/$features.csv")
     case $corpus in
         CaFE|EMO-DB|JL|SAVEE)
             # Leave-one-speaker-out
-            python "$EXP_SCRIPT" "$corpus_yaml" --partition speaker --kfold -1 --inner_kfold 2 "${common_opts[@]}"
-        ;;
+            additional_opts=(--partition speaker --kfold -1 --inner_kfold 2);;
         TESS|Portuguese)
             # Leave-one-speaker-out
-            python "$EXP_SCRIPT" "$corpus_yaml" --partition speaker --kfold -1 --inner_kfold 2 --noinnergroup "${common_opts[@]}"
-        ;;
+            additional_opts=(--partition speaker --kfold -1 --inner_kfold 2 --noinner_group);;
         CREMA-D|DEMoS|eNTERFACE|RAVDESS|ShEMO|SmartKom|URDU|VENEC)
             # Leave-one-speaker-group-out
-            python "$EXP_SCRIPT" "$corpus_yaml" --partition speaker --kfold 6 --inner_kfold 2 "${common_opts[@]}"
-        ;;
-        IEMOCAP|MSP-IMPROV)
+            additional_opts=(--partition speaker --kfold 6 --inner_kfold 2);;
+        IEMOCAP)
             # Leave-one-session-out
-            python "$EXP_SCRIPT" "$corpus_yaml" --partition session --kfold -1 --inner_kfold 2 "${common_opts[@]}"
-        ;;
+            additional_opts=(--partition session --map_groups "$CONF_DIR/mapping/iemocap_4class.yaml" --kfold -1 --inner_kfold 2);;
+        MSP-IMPROV)
+            # Leave-one-session-out
+            additional_opts=(--partition session --kfold -1 --inner_kfold 2);;
         EmoFilm)
             # Leave-one-language-out
-            python "$EXP_SCRIPT" "$corpus_yaml" --partition language --kfold -1 --inner_kfold 2 "${common_opts[@]}"
-        ;;
+            additional_opts=(--partition language --kfold -1 --inner_kfold 2);;
     esac
+    python "$EXP_SCRIPT" "$corpus_yaml" "${common_opts[@]}" "${additional_opts[@]}"
 }
 
 

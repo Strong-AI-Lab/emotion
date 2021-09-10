@@ -84,7 +84,7 @@ from ertk.utils import PathlibPath, get_arg_mapping, get_cv_splitter
     "--n_jobs", type=int, default=-1, help="Number of parallel executions."
 )
 @optgroup.group("Misc. options")
-@optgroup.option("--verbose/--noverbose", default=False, help="Verbose training.")
+@optgroup.option("--verbose", count=True, help="Verbose training.")
 @optgroup.group("Model-specific options")
 @optgroup.option(
     "--clf_args",
@@ -127,7 +127,7 @@ def main(
     sel_groups: str,
     clip_seq: int,
     pad_seq: int,
-    verbose: bool,
+    verbose: int,
     clf_args_file: str,
     param_grid_file: Path,
     learning_rate: float,
@@ -140,10 +140,10 @@ def main(
     optionally written to a results file.
     """
 
-    if verbose:
+    if verbose > 0:
         import logging
 
-        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(level=logging.DEBUG if verbose > 1 else logging.INFO)
 
     dataset = load_multiple(input, features)
 
@@ -200,7 +200,7 @@ def main(
     if param_grid_file:
         param_grid = get_arg_mapping(param_grid_file)
 
-    clf_lib, clf_type = clf_type.split("/", maxsplit=1)
+    clf_lib, clf_type = clf_type.split("/")
     if clf_lib == "sk":
         from sklearn.model_selection import GridSearchCV
 
@@ -302,6 +302,9 @@ def main(
         df["params"] = [json.dumps(params, default=str)] * len(df)
         dfs.append(df)
     df = pd.concat(dfs, keys=list(range(1, reps + 1)), names=["rep"])
+    df["clf"] = f"{clf_lib}/{clf_type}"
+    df["corpus"] = dataset.corpus
+    df["features"] = Path(features).stem
     if results:
         results.parent.mkdir(parents=True, exist_ok=True)
         df.to_csv(results)

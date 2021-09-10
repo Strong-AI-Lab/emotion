@@ -33,7 +33,7 @@ audeep t-rae train \
 for corpus in CaFE CREMA-D DEMoS EMO-DB EmoFilm eNTERFACE IEMOCAP JL MSP-IMPROV Portuguese RAVDESS SAVEE ShEMO SmartKom TESS URDU VENEC; do
     echo "Generating auDeep features for $corpus"
     audeep t-rae generate \
-        --model-dir logs/audeep/2x256_u_b/all-5-0.025-0.010-240-60_b128_l0.001/logs \
+        --model-dir logs/audeep/logs \
         --batch-size $batch_size \
         --input features/$corpus/spectrograms_audeep-5sec-0.025-0.010-240-60.nc \
         --output features/$corpus/audeep.nc

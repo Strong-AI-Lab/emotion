@@ -1,0 +1,3 @@
+# Standard class mapping for 4-class classification with IEMOCAP
+label:
+  excitement: happiness
