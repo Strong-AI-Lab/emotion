@@ -1,0 +1,14 @@
+AESDD:
+  description: "Acted Emotional Speech Dynamic Database v1.0"
+  annotations:
+  partitions:
+    - gender
+    - label
+    - language
+    - speaker
+  subsets:
+    default: all
+    all:
+      clips: file_all
+      description: All files
+  features_dir: ../../features/AESDD
