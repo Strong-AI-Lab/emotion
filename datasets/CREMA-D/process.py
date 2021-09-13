@@ -9,14 +9,12 @@ This assumes the file structure from the original compressed file:
     ...
 """
 
-import shutil
 from pathlib import Path
 
 import click
 import pandas as pd
-from tqdm import tqdm
 
-from ertk.dataset import write_annotations, write_filelist
+from ertk.dataset import resample_audio, write_annotations, write_filelist
 from ertk.stats import alpha
 from ertk.utils import PathlibPath
 
@@ -38,18 +36,18 @@ emotion_map = {
 def main(input_dir: Path, resample: bool):
     """Process CREMA-D dataset at location INPUT_DIR."""
 
-    paths = list(input_dir.glob("AudioWAV/*.wav"))
+    paths = list(input_dir.glob("AudioMP3/*.mp3"))
     write_annotations({p.stem: emotion_map[p.stem[9]] for p in paths}, "label")
     write_annotations({p.stem: p.stem[:4] for p in paths}, "speaker")
     write_annotations({p.stem: "en" for p in paths}, "language")
     write_annotations({p.stem: "us" for p in paths}, "country")
-    # 1076_MTI_SAD_XX has no signal, 1040_ITH_SAD_X is incorrectly named
-    paths = [p for p in paths if p.stem not in {"1076_MTI_SAD_XX", "1040_ITH_SAD_X"}]
+    # 1076_MTI_SAD_XX has no signal
+    paths = [p for p in paths if p.stem != "1076_MTI_SAD_XX"]
+    resample_dir = Path("resampled")
     if resample:
-        Path("resampled").mkdir(exist_ok=True)
-        for p in tqdm(paths, desc="Copying audio"):
-            shutil.copyfile(p, Path("resampled", p.name))
-    write_filelist(Path("resampled").glob("*.wav"), "files_all")
+        resample_dir.mkdir(exist_ok=True)
+        resample_audio(paths, resample_dir)
+    write_filelist(resample_dir.glob("*.wav"), "files_all")
 
     summaryTable = pd.read_csv(
         input_dir / "processedResults" / "summaryTable.csv",
