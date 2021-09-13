@@ -43,8 +43,8 @@ def main(input_dir: Path, resample: bool):
     write_annotations({p.stem: p.stem[:4] for p in paths}, "speaker")
     write_annotations({p.stem: "en" for p in paths}, "language")
     write_annotations({p.stem: "us" for p in paths}, "country")
-    # 1076_MTI_SAD_XX has no audio signal
-    paths = [p for p in paths if p.stem != "1076_MTI_SAD_XX"]
+    # 1076_MTI_SAD_XX has no signal, 1040_ITH_SAD_X is incorrectly named
+    paths = [p for p in paths if p.stem not in {"1076_MTI_SAD_XX", "1040_ITH_SAD_X"}]
     if resample:
         Path("resampled").mkdir(exist_ok=True)
         for p in tqdm(paths, desc="Copying audio"):

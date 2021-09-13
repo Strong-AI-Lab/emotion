@@ -77,7 +77,7 @@ def main(input_dir: Path, resample: bool):
     paths = [
         x
         for x in input_dir.glob("NoNameProsody/*.mp3")
-        if x.stem not in ["1528", "0191", "2080", "0723"]
+        if x.stem not in {"1528", "0191", "2080", "0723"}  # No signal
     ]
     if resample:
         resample_dir = Path("resampled")
