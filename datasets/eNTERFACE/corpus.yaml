@@ -5,7 +5,6 @@ eNTERFACE:
     - label
     - speaker
     - language
-    - country
   subsets:
     default: no_s6
     all:
