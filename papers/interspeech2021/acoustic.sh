@@ -3,10 +3,6 @@
 # This script extracts all acoustic feature sets for all corpora.
 
 for corpus in CaFE CREMA-D DEMoS EMO-DB EmoFilm eNTERFACE IEMOCAP JL MSP-IMPROV Portuguese RAVDESS SAVEE ShEMO SmartKom TESS URDU VENEC; do
-    case $corpus in
-
-    esac
-
     for features in IS09 IS13 eGeMAPS GeMAPS; do
         python scripts/preprocessing/opensmile.py \
             --config third_party/opensmile/conf/$features.conf \

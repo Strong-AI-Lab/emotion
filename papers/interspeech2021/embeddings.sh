@@ -12,7 +12,7 @@ wav2vec_models_dir=${wav2vec_models_dir:=$HOME/src/fairseq/examples/wav2vec}
 
 for corpus in CaFE CREMA-D DEMoS EMO-DB EmoFilm eNTERFACE IEMOCAP JL MSP-IMPROV Portuguese RAVDESS SAVEE ShEMO SmartKom TESS URDU VENEC; do
     # auDeep dataset conversion
-    if [ -f "output/$corpus/audeep.nc" ]; then
+    if [ -f "features/$corpus/audeep.nc" ]; then
         python scripts/utils/convert_audeep_dataset.py \
             features/$corpus/audeep.nc \
             $corpus
