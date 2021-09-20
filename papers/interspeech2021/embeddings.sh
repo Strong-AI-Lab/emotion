@@ -14,7 +14,7 @@ for corpus in CaFE CREMA-D DEMoS EMO-DB EmoFilm eNTERFACE IEMOCAP JL MSP-IMPROV 
     # auDeep dataset conversion
     if [ -f "output/$corpus/audeep.nc" ]; then
         python scripts/utils/convert_audeep_dataset.py \
-            output/$corpus/audeep.nc \
+            features/$corpus/audeep.nc \
             $corpus
     else
         echo "auDeep file not found for $corpus"
