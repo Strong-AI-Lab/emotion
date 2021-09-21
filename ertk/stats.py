@@ -19,21 +19,36 @@ def _get_dist_func(metric: Union[Callable, str], **kwargs):
 
 
 def bhattacharyya_dist(
-    mus: Tuple[np.ndarray, np.ndarray], covs: Tuple[np.ndarray, np.ndarray]
+    mus: Tuple[np.ndarray, np.ndarray],
+    covs: Tuple[np.ndarray, np.ndarray],
+    pinv: bool = False,
 ):
+    """Calculate Bhattacharyya distance between multivariate Gaussian
+    distributions.
+
+    Args:
+    -----
+    mus: tuple
+        A pair (mu1, mu2) of multivariate means.
+    covs: tuple
+        A pair (cov1, cov2) of covariance matrices.
+    pinv: bool
+        Use pseudoinverse instead of inverse. This is useful if the
+        covariance matrices don't have full rank or otherwise aren't
+        invertible.
+    """
     mu1 = np.expand_dims(mus[0], 1)
     mu2 = np.expand_dims(mus[1], 1)
     cov1 = np.array(covs[0])
     cov2 = np.array(covs[1])
     cov = (cov1 + cov2) / 2
-    sign1, ldet1 = np.linalg.slogdet(cov1)
-    sign2, ldet2 = np.linalg.slogdet(cov2)
+    _, ldet1 = np.linalg.slogdet(cov1)
+    _, ldet2 = np.linalg.slogdet(cov2)
     _, ldet = np.linalg.slogdet(cov)
-    if sign1 <= 0:
-        raise ValueError("cov1 is not positive-definite.")
-    if sign2 <= 0:
-        raise ValueError("cov2 is not positive-definite.")
-    covinv = np.linalg.inv(cov)
+    if pinv:
+        covinv = np.linalg.pinv(cov, hermitian=True, rcond=1e-8)
+    else:
+        covinv = np.linalg.inv(cov)
     db = (mu1 - mu2).T.dot(covinv).dot(mu1 - mu2) / 8 + ldet / 2 - ldet1 / 4 - ldet2 / 4
 
     return db.item()
