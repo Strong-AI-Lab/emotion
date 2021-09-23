@@ -163,12 +163,12 @@ def get_arg_mapping(s: Union[Path, str]) -> Dict[str, Any]:
     """
     if isinstance(s, Path) or Path(s).exists():
         with open(s) as fid:
-            return yaml.safe_load(fid)
+            return yaml.safe_load(fid) or {}
     return {k: v[0] if len(v) == 1 else v for k, v in get_arg_mapping_multi(s).items()}
 
 
 def flat_to_inst(x: np.ndarray, slices: np.ndarray) -> np.ndarray:
-    """Takes a flattened 2D data array and converts it to either a
+    """Takes a concatenated 2D data array and converts it to either a
     contiguous 2D/3D array or a variable-length 3D array, with one
     feature vector/matrix per instance.
     """
@@ -183,9 +183,8 @@ def flat_to_inst(x: np.ndarray, slices: np.ndarray) -> np.ndarray:
         return np.reshape(x, (len(slices), seq_len, x[0].shape[-1]))
     else:
         # 3-D variable length array
-        indices = np.cumsum(slices)
-        arrs = np.split(x, indices[:-1], axis=0)
-        return np.array(arrs, dtype=object)
+        start_idx = np.cumsum(slices)[:-1]
+        return np.array(np.split(x, start_idx, axis=0), dtype=object)
 
 
 def inst_to_flat(x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -261,16 +260,19 @@ def pad_arrays(arrays: Union[List[np.ndarray], np.ndarray], pad: int = 32):
     return new_arrays
 
 
-def clip_arrays(arrays: Union[List[np.ndarray], np.ndarray], length: int):
+def clip_arrays(
+    arrays: Union[List[np.ndarray], np.ndarray], length: int, copy: bool = True
+):
     """Clips each array to the specified maximum length."""
     if isinstance(arrays, np.ndarray):
         if len(arrays.shape) > 1:
-            return arrays[:, :length, ...]
-        new_arrays = [x[:length].copy() for x in arrays]
+            return arrays[:, :length, ...].copy() if copy else arrays[:, :length, ...]
+        new_arrays = [x[:length].copy() if copy else x[:length] for x in arrays]
         if all(x.shape == new_arrays[0].shape for x in new_arrays):
-            return np.array(new_arrays)
+            # Return contiguous array
+            return np.stack(new_arrays)
         return np.array(new_arrays, dtype=object)
-    return [x[:length].copy() for x in arrays]
+    return [x[:length].copy() if copy else x[:length] for x in arrays]
 
 
 def transpose_time(arrays: Union[List[np.ndarray], np.ndarray]):
@@ -454,6 +456,12 @@ def group_transform(
     for g_id in unique_groups:
         flat, slices = inst_to_flat(x[groups == g_id])
         flat = transform.fit_transform(flat, y=None, **fit_params)
+        if len(x.shape) == 1 and len(slices) == 1:
+            # Special case to avoid issues for vlen arrays
+            _arr = np.empty(1, dtype=object)
+            _arr[0] = flat
+            x[groups == g_id] = _arr
+            continue
         x[groups == g_id] = flat_to_inst(flat, slices)
     return x
 
@@ -541,7 +549,7 @@ class GroupTransformWrapper(TransformerMixin, BaseEstimator):
     def fit(self, X, y=None, **fit_params):
         return self
 
-    def transform(self, X, y=None, groups=None, **fit_params):
+    def transform(self, X, groups=None, **fit_params):
         return group_transform(X, groups, self.transformer, inplace=False, **fit_params)
 
 
@@ -556,7 +564,7 @@ class InstanceTransformWrapper(TransformerMixin, BaseEstimator):
     def fit(self, X, y=None, **fit_params):
         return self
 
-    def transform(self, X, y=None, **fit_params):
+    def transform(self, X, **fit_params):
         raise instance_transform(X, self.transformer, inplace=False, **fit_params)
 
 
@@ -598,13 +606,13 @@ class SequenceTransformWrapper(SequenceTransform):
             self.transformer.fit(flat_x.reshape((-1, 1)), y=y, **fit_params)
         return self
 
-    def transform(self, X, y=None, **fit_params):
+    def transform(self, X, **fit_params):
         flat_x, slices = inst_to_flat(X)
         if self.method == "feature":
-            flat_x = self.transformer.transform(flat_x, y=y, **fit_params)
+            flat_x = self.transformer.transform(flat_x, **fit_params)
         elif self.method == "global":
             flat_shape = flat_x.shape
             flat_x = self.transformer.transform(
-                flat_x.reshape((-1, 1)), y=y, **fit_params
+                flat_x.reshape((-1, 1)), **fit_params
             ).reshape(flat_shape)
         return flat_to_inst(flat_x, slices)
