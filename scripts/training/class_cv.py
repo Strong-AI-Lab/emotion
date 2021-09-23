@@ -11,7 +11,13 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 from ertk.classification import within_corpus_cross_validation
 from ertk.dataset import load_multiple
-from ertk.utils import PathlibPath, get_arg_mapping, get_cv_splitter
+from ertk.utils import (
+    InstanceTransformWrapper,
+    PathlibPath,
+    SequenceTransformWrapper,
+    get_arg_mapping,
+    get_cv_splitter,
+)
 
 
 @click.command()
@@ -22,9 +28,11 @@ from ertk.utils import PathlibPath, get_arg_mapping, get_cv_splitter
 @optgroup.option("--results", type=Path, help="Results directory.")
 @optgroup.option("--logdir", type=Path, help="TF/PyTorch logs directory.")
 @optgroup.group("Data options")
-@optgroup.option("--map_groups", help="Group mapping.")
+@optgroup.option("--map_groups", multiple=True, help="Group mapping.")
 @optgroup.option(
-    "--sel_groups", help="Group selection. This is a map from partition to group."
+    "--sel_groups",
+    multiple=True,
+    help="Group selection. This is a map from partition to group.",
 )
 @optgroup.option(
     "--clip_seq", type=int, help="Clip sequences to this length (before pad)."
@@ -90,12 +98,14 @@ from ertk.utils import PathlibPath, get_arg_mapping, get_cv_splitter
     "--clf_args",
     "clf_args_file",
     type=PathlibPath(exists=True, dir_okay=False),
+    multiple=True,
     help="File containing keyword arguments to give to model initialisation.",
 )
 @optgroup.option(
     "--param_grid",
     "param_grid_file",
     type=PathlibPath(exists=True),
+    multiple=True,
     help="File with parameter grid data.",
 )
 @optgroup.group(
@@ -123,13 +133,13 @@ def main(
     normalise: str,
     transform: str,
     balanced: bool,
-    map_groups: str,
-    sel_groups: str,
+    map_groups: Tuple[str],
+    sel_groups: Tuple[str],
     clip_seq: int,
     pad_seq: int,
     verbose: int,
-    clf_args_file: str,
-    param_grid_file: Path,
+    clf_args_file: Tuple[Path],
+    param_grid_file: Tuple[Path],
     learning_rate: float,
     batch_size: int,
     epochs: int,
@@ -147,12 +157,12 @@ def main(
 
     dataset = load_multiple(input, features)
 
-    if map_groups:
-        mapping = get_arg_mapping(map_groups)
+    for m in map_groups:
+        mapping = get_arg_mapping(m)
         for part in mapping:
             dataset.map_groups(part, mapping[part])
-    if sel_groups:
-        mapping = get_arg_mapping(sel_groups)
+    for m in sel_groups:
+        mapping = get_arg_mapping(m)
         for part in mapping:
             keep = mapping[part]
             if isinstance(keep, str):
@@ -167,16 +177,11 @@ def main(
     transformer = {"std": StandardScaler, "minmax": MinMaxScaler}[transform]()
     if normalise == "none":
         transformer = None
-    elif normalise != "online":
+    elif normalise == "online" and len(dataset.x[0].shape) > 1:
+        transformer = SequenceTransformWrapper(transformer, "feature")
+    else:
         dataset.normalise(normaliser=transformer, partition=normalise)
         transformer = None
-
-    if partition:
-        n_groups = len(dataset.get_group_names(partition))
-        kfold = min(kfold, n_groups)
-        if inner_kfold > 1 and kfold > 1:
-            inner_kfold = min(inner_kfold, n_groups // kfold)
-            inner_kfold = -1 if inner_kfold == 1 else inner_kfold
 
     cv = get_cv_splitter(bool(partition), kfold, test_size=test_size)
     if not use_inner_cv:
@@ -194,11 +199,11 @@ def main(
     fit_params = {"sample_weight": sample_weight}
 
     model_args = {}
-    if clf_args_file:
-        model_args = get_arg_mapping(clf_args_file)
+    for file in clf_args_file:
+        model_args.update(get_arg_mapping(file))
     param_grid = {}
-    if param_grid_file:
-        param_grid = get_arg_mapping(param_grid_file)
+    for file in param_grid_file:
+        param_grid.update(get_arg_mapping(file))
 
     clf_lib, clf_type = clf_type.split("/")
     if clf_lib == "sk":
@@ -235,15 +240,12 @@ def main(
 
         # No parallel CV to avoid running out of GPU memory
         n_jobs = 1
-        data_fn = None
-        if len(dataset.x.shape) == 1 and len(dataset.x[0].shape) >= 2:
-            data_fn = "ragged"
         fit_params.update(
             {
                 "log_dir": logdir,
                 "epochs": epochs,
                 "batch_size": batch_size,
-                "data_fn": data_fn,
+                "data_fn": None,
             }
         )
         model_args.update(
