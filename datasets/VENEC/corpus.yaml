@@ -1,5 +1,5 @@
 VENEC:
-  description: VENEC dataset
+  description: VENEC dataset (Cowen paper subset)
   annotations:
   partitions:
     - label

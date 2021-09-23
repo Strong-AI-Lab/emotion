@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from ertk.dataset import write_features, Dataset
+from ertk.dataset import write_features, read_features
 from ertk.utils import PathlibPath, PathOrStr
 
 DEVICE = torch.device("cuda")
@@ -150,8 +150,8 @@ def save_model(
 
 def get_data(path: PathOrStr, shuffle: bool = False):
     """Get data and metadata from netCDF dataset. Optionally shuffle x."""
-    dataset = Dataset(path)
-    x = dataset.x
+    dataset = read_features(path)
+    x = dataset.features
     names = np.array(dataset.names)
 
     if shuffle:

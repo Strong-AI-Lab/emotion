@@ -26,7 +26,10 @@ from tensorflow.keras.models import Model
 __all__ = ["model"]
 
 
-def model(n_classes: int):
+def model(n_classes: int, n_features: int = 1):
+    if n_features != 1:
+        raise ValueError("This model can only accept waveform input.")
+
     inputs = Input((None, 1), name="input")
 
     # 3x 1D convs and maxpool over time

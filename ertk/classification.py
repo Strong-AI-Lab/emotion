@@ -115,6 +115,7 @@ def within_corpus_cross_validation(
     cv: Union[BaseCrossValidator, int] = 10,
     verbose: int = 0,
     n_jobs: int = 1,
+    scoring=None,
     fit_params: Dict[str, Any] = {},
 ) -> pd.DataFrame:
     """Cross validates a `Classifier` instance on a single dataset.
@@ -148,7 +149,8 @@ def within_corpus_cross_validation(
     groups = None if partition is None else dataset.get_group_indices(partition)
     if isinstance(cv, int):
         cv = get_cv_splitter(bool(partition), cv)
-    scoring = standard_class_scoring(dataset.classes)
+    if scoring is None:
+        scoring = standard_class_scoring(dataset.classes)
 
     if clf_lib == "sk":
         cross_validate_fn = sk_cross_validate

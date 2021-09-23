@@ -11,7 +11,7 @@ from sklearn.pipeline import Pipeline
 from ..utils import ScoreFunction
 
 
-def _filter_params(params: Dict[str, Any], method: Callable) -> Dict[str, Any]:
+def _filter_kwargs(kwargs: Dict[str, Any], method: Callable) -> Dict[str, Any]:
     """Removes incompatible keyword arguments.
 
     Args:
@@ -28,16 +28,16 @@ def _filter_params(params: Dict[str, Any], method: Callable) -> Dict[str, Any]:
     """
     import inspect
 
-    sig = inspect.signature(method)
-    params = params.copy()
-    for key in set(params.keys()):
+    meth_params = inspect.signature(method).parameters
+    kwargs = kwargs.copy()
+    for key in set(kwargs.keys()):
         # Can't use kwargs detection because scikit doesn't support kwargs in general
         if (
-            key not in sig.parameters
-            or sig.parameters[key].kind == inspect.Parameter.POSITIONAL_ONLY
+            key not in meth_params
+            or meth_params[key].kind == inspect.Parameter.POSITIONAL_ONLY
         ):
-            del params[key]
-    return params
+            del kwargs[key]
+    return kwargs
 
 
 def _get_pipeline_params(params: Dict[str, Any], pipeline: Pipeline) -> Dict[str, Any]:
@@ -46,7 +46,7 @@ def _get_pipeline_params(params: Dict[str, Any], pipeline: Pipeline) -> Dict[str
     for name, est in pipeline.named_steps.items():
         if est is None or est == "passthrough":
             continue
-        filt_params = _filter_params(params, est.fit)
+        filt_params = _filter_kwargs(params, est.fit)
         new_params.update({name + "__" + k: v for k, v in filt_params.items()})
     return new_params
 
@@ -68,7 +68,7 @@ def sk_cross_validate(
     if isinstance(clf, Pipeline):
         fit_params = _get_pipeline_params(fit_params, clf)
     else:
-        fit_params = _filter_params(fit_params, clf.fit)
+        fit_params = _filter_kwargs(fit_params, clf.fit)
 
     return cross_validate(
         clf,

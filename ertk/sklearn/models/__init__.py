@@ -7,10 +7,7 @@ from sklearn.ensemble import RandomForestClassifier
 
 from .svm import PrecomputedSVC
 
-CLASSIFIER_MAP = {
-    "svm": PrecomputedSVC,
-    "rf": RandomForestClassifier
-}
+CLASSIFIER_MAP = {"svm": PrecomputedSVC, "rf": RandomForestClassifier}
 
 
 def get_sk_model_fn(name: str) -> Callable[..., BaseEstimator]:

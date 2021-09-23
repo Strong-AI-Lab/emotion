@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 
 from ertk.dataset import Dataset, write_features
-from ertk.tensorflow.models import BBRBM, DecayType
+from ertk.tensorflow.models.rbm import BBRBM, DecayType
 from ertk.utils import PathlibPath
 
 

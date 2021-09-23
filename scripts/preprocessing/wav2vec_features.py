@@ -61,7 +61,7 @@ def main(
     _embeddings = []
     filepaths = get_audio_paths(input)
     names = [x.stem for x in filepaths]
-    for filepath in tqdm(filepaths):
+    for filepath in tqdm(filepaths, disable=None):
         wav, _ = librosa.load(filepath, sr=16000, mono=True, res_type="kaiser_fast")
         tensor = torch.tensor(wav, device="cuda").unsqueeze(0)
         if tp == 1:  # Original wav2vec
@@ -93,8 +93,12 @@ def main(
     ft = "context" if context else "encoder"
     feature_names = [f"wav2vec_{ft}_{i}" for i in range(embeddings.shape[-1])]
     write_features(
-        output, names=names, features=embeddings, slices=slices, corpus=corpus,
-        feature_names=feature_names
+        output,
+        names=names,
+        features=embeddings,
+        slices=slices,
+        corpus=corpus,
+        feature_names=feature_names,
     )
     print(f"Wrote netCDF4 dataset to {output}")
 

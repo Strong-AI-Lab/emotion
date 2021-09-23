@@ -72,7 +72,7 @@ def main(input_dir: Path, resample: bool):
     df["gender"] = df.index.map(lambda x: x[0])
     df["language"] = df.index.map(lambda x: x[-2:])
     df["film"] = df["film"].str.lower().replace(film_map)
-    df["speaker"] = df["speaker"].str.lower().replace(r'^\?+$', pd.NA, regex=True)
+    df["speaker"] = df["speaker"].str.lower().replace(r"^\?+$", pd.NA, regex=True)
     df.loc[df["speaker"].isna(), "speaker"] = [
         f"unknown{x}" for x in range(df["speaker"].isna().sum())
     ]

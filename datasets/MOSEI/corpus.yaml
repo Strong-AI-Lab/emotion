@@ -1,0 +1,11 @@
+MOSEI:
+  description: The CMU-MOSEI dataset
+  annotations:
+  partitions:
+    - label
+  subsets:
+    default: all
+    all:
+      clips: files_all
+      description: All files (manually extracted audio segments)
+  features_dir: ../../MOSEI/

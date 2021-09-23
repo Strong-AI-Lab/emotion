@@ -79,10 +79,10 @@ def main(input_dir: Path, resample: bool):
         for x in input_dir.glob("NoNameProsody/*.mp3")
         if x.stem not in {"1528", "0191", "2080", "0723"}  # No signal
     ]
+    resample_dir = Path("resampled")
     if resample:
-        resample_dir = Path("resampled")
         resample_audio(paths, resample_dir)
-        write_filelist(resample_dir.glob("*.wav"), "files_all")
+    write_filelist(resample_dir.glob("*.wav"), "files_all")
 
     clip_info = pd.read_csv(
         input_dir / "veneccountryinfo.csv",
