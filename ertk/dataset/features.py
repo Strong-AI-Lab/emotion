@@ -63,7 +63,7 @@ def read_netcdf(path: PathOrStr):
         return FeaturesData(
             corpus=dataset.corpus,
             names=list(dataset.variables["name"]),
-            features=np.array(dataset.variables["features"]),
+            features=np.array(dataset.variables["features"], copy=False),
             slices=np.array(dataset.variables["slices"]),
             feature_names=list(dataset.variables["feature_names"]),
         )
@@ -99,13 +99,13 @@ class FeaturesData:
 
     Args:
     -----
-    corpus: str
-        Corpus for this dataset.
-    names: list of str
-        List of instance names.
     features: ndarray
         Features matrix. May be "flat" or per-instance. If flat,
         `slices` must also be present.
+    names: list of str
+        List of instance names.
+    corpus: str
+        Corpus for this dataset.
     feature_names: list of str
         List of feature names.
     slices: list or ndarray:
@@ -117,34 +117,32 @@ class FeaturesData:
 
     def __init__(
         self,
+        features: np.ndarray,
+        names: List[str],
         corpus: str = "",
-        names: List[str] = [],
-        features: np.ndarray = np.empty(0),
         feature_names: List[str] = [],
-        slices: Union[np.ndarray, List[int]] = [],
+        slices: Union[np.ndarray, List[int], None] = None,
     ):
         self._corpus = corpus
         self._names = names
         self._features = features
         self._feature_names = feature_names
-        self._slices = np.array(slices, copy=False)
 
-        if len(self.features) > 0:
-            if len(slices) > 0:
-                self._slices = slices
-                self._flat = self.features
-                self._features = flat_to_inst(self.features, slices)
-            else:
-                self._flat, self._slices = inst_to_flat(self.features)
+        if slices is not None:
+            self._slices = slices
+            self._flat = self.features
+            self._features = flat_to_inst(self.features, slices)
+        else:
+            self._flat, self._slices = inst_to_flat(self.features)
 
-            n_features = self.features[0].shape[-1]
-            if len(self.feature_names) == 0:
-                self._feature_names = [f"feature{i + 1}" for i in range(n_features)]
-            elif len(self.feature_names) != n_features:
-                raise ValueError(
-                    f"feature_names has {len(self.feature_names)} entries but there "
-                    f"are {n_features} features"
-                )
+        n_features = self.features[0].shape[-1]
+        if len(self.feature_names) == 0:
+            self._feature_names = [f"feature{i + 1}" for i in range(n_features)]
+        elif len(self.feature_names) != n_features:
+            raise ValueError(
+                f"feature_names has {len(self.feature_names)} entries but there "
+                f"are {n_features} features"
+            )
 
     def write(self, path: PathOrStr, **kwargs):
         """Write features to any file format."""
@@ -292,9 +290,9 @@ def read_features(path: PathOrStr, **kwargs) -> FeaturesData:
 
 def write_features(
     path: PathOrStr,
+    features: np.ndarray,
+    names: List[str],
     corpus: str = "",
-    names: List[str] = [],
-    features: np.ndarray = np.empty(0),
     feature_names: List[str] = [],
     slices: Union[np.ndarray, List[int]] = [],
     **kwargs,
@@ -304,9 +302,5 @@ def write_features(
     """
 
     FeaturesData(
-        corpus=corpus,
-        names=names,
-        features=features,
-        slices=slices,
-        feature_names=feature_names,
+        features, names, corpus=corpus, slices=slices, feature_names=feature_names
     ).write(path, **kwargs)
