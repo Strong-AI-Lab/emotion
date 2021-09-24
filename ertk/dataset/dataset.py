@@ -1,3 +1,4 @@
+import copy
 import logging
 import os
 from itertools import chain
@@ -61,40 +62,67 @@ class Dataset:
         The subset of instances to use.
     """
 
-    _partitions: Set[str]
     _annotations: Dict[str, Dict[str, Any]]
     _corpus: str = ""
-    _names: List[str]
-    _features: str = ""
     _feature_names: List[str]
-    _x: np.ndarray
+    _names: List[str]
+    _partitions: Set[str]
     _subset: str = ""
     _subsets: Dict[str, Set[str]]
-    _subset_path: Dict[str, Path]
+    _x: np.ndarray
 
+    # "Private" vars
     _default_subset: str = ""
+    _features: str = ""
     _features_path: Path
     _features_dir: Path
+    _subset_paths: Dict[str, Path]
 
     def __init__(
         self,
-        corpus_info: Optional[PathOrStr] = None,
+        corpus_info: PathOrStr,
         features: Optional[PathOrStr] = None,
         subset: str = "default",
     ):
-        self._partitions = set()
-        self._annotations = {}
-        self._subsets = {}
-        self._subset_path = {}
-        self._names = []
-        self._feature_names = []
-        self._x = np.empty((0, 0), dtype=np.float32)
-
-        if corpus_info is not None:
-            self.init_corpus_info(corpus_info)
-            self.use_subset(subset)
+        self._init()
+        self.init_corpus_info(corpus_info)
+        self.use_subset(subset)
         if features is not None:
             self.update_features(features)
+
+    def _init(self):
+        self._annotations = {}
+        self._feature_names = []
+        self._names = []
+        self._partitions = set()
+        self._subsets = {}
+        self._subset_paths = {}
+        self._x = np.empty((0, 0), dtype=np.float32)
+
+    @classmethod
+    def _copy(cls, inst: "Dataset"):
+        new_dataset = object.__new__(cls)
+        new_dataset._copy_from_dataset(inst)
+        return new_dataset
+
+    def _copy_from_dataset(self, other: "Dataset"):
+        self._annotations = copy.deepcopy(other._annotations)
+        self._corpus = other._corpus
+        self._default_subset = other._default_subset
+        self._feature_names = other._feature_names.copy()
+        self._features = other._features
+        self._features_path = other._features_path
+        self._features_dir = other._features_dir
+        self._names = other._names.copy()
+        self._partitions = other._partitions.copy()
+        self._subset = other._subset
+        self._subset_paths = other._subset_paths.copy()
+        self._subsets = copy.deepcopy(other._subsets)
+        self._x = other._x.copy()
+        if len(self._x.shape) == 1:
+            # Non-contiguous array, so copy each contiguous sub-array
+            for i in range(len(self._x)):
+                self._x[i] = self._x[i].copy()
 
     def init_corpus_info(self, path: PathOrStr):
         """Initialise corpus metadata from YAML.
@@ -107,22 +135,18 @@ class Dataset:
         path = Path(path)
         with open(path) as fid:
             doc = yaml.safe_load(fid)
-
-        if self.corpus == "":
-            self._corpus = next(iter(doc))
+        self._corpus = next(iter(doc))
         corpus_info = doc[self.corpus]
 
         self._features_dir = path.parent / corpus_info["features_dir"]
-
+        self._default_subset = corpus_info["subsets"]["default"]
         for subset, subset_info in corpus_info["subsets"].items():
-            subset_info = corpus_info["subsets"][subset]
             if subset == "default":
-                self._default_subset = subset_info
                 continue
             clips_file = path.parent / f"{subset_info['clips']}.txt"
-            self._subset_path[subset] = clips_file
+            self._subset_paths[subset] = clips_file
             self.subsets[subset] = {x.stem for x in get_audio_paths(clips_file)}
-        self._names = sorted(self.subsets[self._default_subset])  # TODO
+        # self._names = sorted(self.subsets[self._default_subset])  # TODO
 
         if corpus_info["partitions"]:
             for partition in corpus_info["partitions"]:
@@ -150,8 +174,7 @@ class Dataset:
             verify_annotation(annot_name)
 
     def update_features(self, features: PathOrStr):
-        """Update the features matrix, instance names and feature names
-        for this dataset.
+        """Update the features matrix and feature names for this dataset.
 
         Args:
         -----
@@ -163,16 +186,15 @@ class Dataset:
         """
         if features == "raw_audio":
             self._features = "raw_audio"
-            features = self._subset_path[self.subset or "all"]
+            features = self._subset_paths[self.subset or "all"]
         else:
             features = Path(features)
             if len(features.suffix) == 0:
                 features = find_features_file(self._features_dir.glob(f"{features}.*"))
             self._features = features.stem
+        self._features_path = features
         data = read_features(features)
         self._feature_names = data.feature_names
-        if not self.corpus:
-            self._corpus = data.corpus
         if len(self.names) > 0:
             names = set(self.names)
             self._x = data.features[[i for i, n in enumerate(data.names) if n in names]]
@@ -189,13 +211,11 @@ class Dataset:
             Name of subset to use. Default is "default" which uses the
             default subset specified in corpus_info.
         """
-        if len(self.subsets) == 0:
-            self._subset = "all"
-        else:
-            if subset == "default":
-                subset = self._default_subset
-            self._subset = subset
-            self.remove_instances(keep=self.subsets[subset])
+        if subset == "default":
+            subset = self._default_subset
+        self._subset = subset
+        # self.remove_instances(keep=self.subsets[subset])
+        self._names = sorted(self.subsets[subset])
         self._verify_annotations()
 
     def update_annotation(
@@ -280,8 +300,24 @@ class Dataset:
         annotation = self.annotations[part_name]
         self.remove_instances(keep=[x for x in self.names if annotation[x] in keep])
 
+    def rename_annotation(self, old_name: str, new_name: str):
+        """Renames an annotation. This is useful for example if you want
+        to select a different labelling to use. If an annotation already
+        exists with the given new_name, then it is replaced
+        destructively.
+
+        Args:
+        -----
+        old_name: str
+            The name of the annotation to rename.
+        new_name: str
+            The new name of the annotation.
+        """
+        self.annotations[new_name] = self.annotations[old_name]
+        del self.annotations[old_name]
+
     def remove_annotation(self, annot_name: str):
-        """Removes a set of annotations from the dataset. This doe not
+        """Removes a set of annotations from the dataset. This does not
         remove any instances.
 
         Args:
@@ -398,17 +434,8 @@ class Dataset:
                 "Incomplete annotations after removing instances."
             ) from e
 
-    def copy(self: _D) -> _D:
-        import copy
-
-        new_dataset = type(self)()
-        new_dataset._annotations = copy.deepcopy(self._annotations)
-        new_dataset._corpus = self._corpus
-        new_dataset._feature_names = self._feature_names.copy()
-        new_dataset._names = self._names.copy()
-        new_dataset._partitions = copy.deepcopy(self._partitions)
-        new_dataset._x = self._x.copy()
-        return new_dataset
+    def clone(self):
+        return self._copy(self)
 
     def normalise(
         self, partition: str, normaliser: TransformerMixin = StandardScaler()
@@ -422,12 +449,13 @@ class Dataset:
             The transform to apply. Must implement fit_transform().
         partition: str
             The partition to apply in a per-group fashion. If "all",
-            then perform global normalisation on all the data. Default
-            is "speaker" to do per-speaker normalisation.
+            then perform global normalisation on all the data.
         """
 
         if partition == "all":
             groups = np.zeros(len(self.x), dtype=int)
+        elif partition == "instance":
+            groups = np.arange(len(self.x))
         else:
             groups = self.get_group_indices(partition)
         group_transform(self.x, groups, normaliser, inplace=True)
@@ -442,7 +470,7 @@ class Dataset:
     def clip_arrays(self, length: int):
         """Clips each array to the specified maximum length."""
         logging.info(f"Clipping arrays to max length {length}.")
-        self._x = clip_arrays(self.x, length=length)
+        self._x = clip_arrays(self.x, length=length, copy=False)
 
     def frame_arrays(
         self,
@@ -593,7 +621,7 @@ class LabelledDataset(Dataset):
         keep = set(keep)
         keep_inst = [n for n, l in zip(self.names, self.labels) if l in keep]
         self.remove_instances(keep=keep_inst)
-        self.remove_groups("label", drop)
+        self.remove_groups("label", drop=drop)
 
     @property
     def classes(self) -> List[str]:
@@ -627,10 +655,13 @@ class CombinedDataset(LabelledDataset):
     """
 
     def __init__(self, *datasets: LabelledDataset):
-        super().__init__()
-
+        if len(datasets) == 0:
+            raise ValueError("No datasets provided.")
         if len(datasets) == 1:
-            dataset = datasets[0]
+            self._copy_from_dataset(datasets[0])
+            return
+
+        self._init()
 
         logging.info("Combining " + ", ".join(d.corpus for d in datasets))
         self._corpus = "combined"
@@ -694,8 +725,7 @@ def load_multiple(corpus_files: Iterable[PathOrStr], features: str) -> CombinedD
         raise RuntimeError("No corpus metadata files given.")
     datasets = []
     for file in corpus_files:
-        dataset = LabelledDataset(file)
-        logging.info(f"Loading {dataset.corpus}")
-        dataset.update_features(features)
+        logging.info(f"Loading {file}")
+        dataset = LabelledDataset(file, features=features)
         datasets.append(dataset)
     return CombinedDataset(*datasets)
