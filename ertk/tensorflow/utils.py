@@ -111,14 +111,16 @@ def test_fit(
     model.fit(train_data, validation_data=valid_data, epochs=2, verbose=1)
 
 
-def create_tf_dataset(
+def tf_dataset_gen(
     x: np.ndarray,
     y: np.ndarray,
     sample_weight: Optional[np.ndarray] = None,
+    *,
     batch_size: int = 64,
     shuffle: bool = True,
-) -> tf.data.Dataset:
-    """Returns a TensorFlow Dataset instance with the given x and y.
+):
+    """Returns a TensorFlow generator Dataset instance with the given
+    data.
 
     Args:
     -----
@@ -137,24 +139,76 @@ def create_tf_dataset(
         Whether or not to shuffle the dataset. Note that shuffling is
         done *before* batching, unlike in `create_tf_dataset_ragged()`.
     """
-    if sample_weight is None:
-        data = tf.data.Dataset.from_tensor_slices((x, y))
-    else:
-        data = tf.data.Dataset.from_tensor_slices((x, y, sample_weight))
 
+    def gen_inst():
+        if sample_weight is None:
+            for i in range(len(x)):
+                yield x[i], y[i]
+        else:
+            for i in range(len(x)):
+                yield x[i], y[i], sample_weight[i]
+
+    sig: Tuple[tf.TensorSpec, ...] = (
+        tf.TensorSpec(shape=x[0].shape, dtype=tf.float32),
+        tf.TensorSpec(shape=(), dtype=tf.int64),
+    )
+    if sample_weight is not None:
+        sig += (tf.TensorSpec(shape=(), dtype=tf.float32),)
+    data = tf.data.Dataset.from_generator(gen_inst, output_signature=sig)
     if shuffle:
         data = data.shuffle(len(x))
-    return data.batch(batch_size)
+    return data.batch(batch_size).prefetch(2)
 
 
-def create_tf_dataset_ragged(
+def tf_dataset_mem(
     x: np.ndarray,
     y: np.ndarray,
     sample_weight: Optional[np.ndarray] = None,
+    *,
     batch_size: int = 64,
     shuffle: bool = True,
 ) -> tf.data.Dataset:
-    """Returns a TensorFlow Dataset instance from the ragged x and y.
+    """Returns a TensorFlow in-memory Dataset instance with the given
+    data.
+
+    Args:
+    -----
+    x: numpy.ndarray
+        A 2- or 3-D data matrix of shape (n_instances, n_features) or
+        (n_instances, seq_len, n_features).
+    y: numpy.ndarray
+        A 1-D array of length n_instances containing numeric class
+        labels.
+    sample_weight: numpy.ndarray, optional
+        A 1-D array of length n_instances containing sample weights.
+        Added as third item in dataset if present.
+    batch_size: int
+        The batch size to use.
+    shuffle: boolean
+        Whether or not to shuffle the dataset. Note that shuffling is
+        done *before* batching, unlike in `create_tf_dataset_ragged()`.
+    """
+    with tf.device("CPU"):
+        if sample_weight is None:
+            data = tf.data.Dataset.from_tensor_slices((x, y))
+        else:
+            data = tf.data.Dataset.from_tensor_slices((x, y, sample_weight))
+
+    if shuffle:
+        data = data.shuffle(len(x))
+    return data.batch(batch_size).prefetch(2)
+
+
+def tf_dataset_mem_ragged(
+    x: np.ndarray,
+    y: np.ndarray,
+    sample_weight: Optional[np.ndarray] = None,
+    *,
+    batch_size: int = 64,
+    shuffle: bool = True,
+) -> tf.data.Dataset:
+    """Returns a TensorFlow in-memory Dataset instance from
+    variable-length features.
 
     Args:
     -----
@@ -191,10 +245,11 @@ def create_tf_dataset_ragged(
     ragged = tf.RaggedTensor.from_row_lengths(
         np.concatenate(list(x)), [len(a) for a in x]
     )
-    if sample_weight is None:
-        data = tf.data.Dataset.from_tensor_slices((ragged, y))
-    else:
-        data = tf.data.Dataset.from_tensor_slices((ragged, y, sample_weight))
+    with tf.device("CPU"):
+        if sample_weight is None:
+            data = tf.data.Dataset.from_tensor_slices((ragged, y))
+        else:
+            data = tf.data.Dataset.from_tensor_slices((ragged, y, sample_weight))
 
     # Group similar lengths in batches, then shuffle batches
     data = data.batch(batch_size)
@@ -205,7 +260,7 @@ def create_tf_dataset_ragged(
         data = data.map(ragged_to_dense)
     else:
         data = data.map(ragged_to_dense_weighted)
-    return data
+    return data.prefetch(2)
 
 
 class BatchedFrameSequence(Sequence):
@@ -312,3 +367,11 @@ def print_linear_model_structure(model: Model):
                 print_inner(layer.layer, depth + 1)
 
     print_inner(model)
+
+
+def init_gpu_memory_growth():
+    """Sets TensorFlow to allocate memory on GPU as needed instead of
+    all at once.
+    """
+    for gpu in tf.config.list_physical_devices("GPU"):
+        tf.config.experimental.set_memory_growth(gpu, True)

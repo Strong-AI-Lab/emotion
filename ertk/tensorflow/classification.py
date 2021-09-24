@@ -14,8 +14,9 @@ from ..utils import get_scores, ScoreFunction
 from .utils import (
     DataFunction,
     TFModelFunction,
-    create_tf_dataset,
-    create_tf_dataset_ragged,
+    tf_dataset_mem,
+    tf_dataset_mem_ragged,
+    tf_dataset_gen,
 )
 
 
@@ -51,9 +52,12 @@ def tf_train_val_test(
         cross_validate().
     data_fn: str or callable
         A string, or callable that returns a tensorflow.data.Dataset
-        instance which yields data batches. The call signature of
-        data_fn should be data_fn(x, y, shuffle=True, **kwargs). Valid
-        string values are: {"ragged"}.
+        instance which yields data batches. The callable should take x,
+        y and sample_weight parameters, as well as shuffle and
+        batch_size keyword arguments. Valid string values are: {"mem",
+        "gen", "mem_ragged"}. "mem" indicates an in-memory Dataset.
+        "gen" indicates a generator dataset, and "ragged" indicates
+        taking variable-length input.
     fit_params: dict, optional
         Any keyword arguments to supply to the Keras fit() method.
         Default is no keyword arguments.
@@ -65,10 +69,21 @@ def tf_train_val_test(
     """
     if test_data is None:
         test_data = valid_data
+
+    data_fns = {
+        "mem": tf_dataset_mem,
+        "gen": tf_dataset_gen,
+        "mem_ragged": tf_dataset_mem_ragged,
+    }
     if data_fn is None:
-        data_fn = create_tf_dataset
-    elif data_fn == "ragged":
-        data_fn = create_tf_dataset_ragged
+        if len(train_data[0].shape) == 3:
+            data_fn = tf_dataset_gen
+        elif len(train_data[0].shape) == 1:
+            data_fn = tf_dataset_mem_ragged
+        else:
+            data_fn = tf_dataset_mem
+    elif isinstance(data_fn, str):
+        data_fn = data_fns[data_fn]
     elif not callable(data_fn):
         raise ValueError(f"Unsupported value for data_fn {data_fn}")
 
