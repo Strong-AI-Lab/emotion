@@ -12,7 +12,6 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from ertk.classification import within_corpus_cross_validation
 from ertk.dataset import load_multiple
 from ertk.utils import (
-    InstanceTransformWrapper,
     PathlibPath,
     SequenceTransformWrapper,
     get_arg_mapping,
@@ -179,7 +178,7 @@ def main(
         transformer = None
     elif normalise == "online" and len(dataset.x[0].shape) > 1:
         transformer = SequenceTransformWrapper(transformer, "feature")
-    else:
+    elif normalise != "online":
         dataset.normalise(normaliser=transformer, partition=normalise)
         transformer = None
 
