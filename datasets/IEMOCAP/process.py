@@ -96,8 +96,7 @@ def main(input_dir: Path, resample: bool):
     write_annotations({k: v[-1] for k, v in speaker_dict.items()}, "gender")
     write_annotations({k: v[:2] for k, v in speaker_dict.items()}, "session")
     write_annotations(
-        {p.stem: p.stem[p.stem.find("_") + 1 : p.stem.rfind("_") - 2] for p in paths},
-        "sess_type",
+        {p.stem: "impro" if "impro" in p.stem else "script" for p in paths}, "sess_type"
     )
     write_annotations({p.stem: "en" for p in paths}, "language")
     write_annotations({p.stem: "us" for p in paths}, "country")
@@ -109,7 +108,6 @@ def main(input_dir: Path, resample: bool):
     df.index.name = "name"
     for dim in ["valence", "activation", "dominance"]:
         df[dim].to_csv(dim + ".csv", index=True, header=True)
-        print(f"Wrote CSV to {dim}.csv")
 
     # Ratings analysis
     ratings = pd.DataFrame(sorted(_ratings), columns=["name", "rater", "label"])
