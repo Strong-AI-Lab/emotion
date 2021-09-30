@@ -2,9 +2,56 @@ from functools import partial
 from typing import Callable, List, Tuple, Union
 
 import numpy as np
+import pandas as pd
+from scipy.stats import friedmanchisquare, rankdata
 from sklearn.metrics.pairwise import pairwise_distances
+from statsmodels.stats.libqsturng import qsturng
 
 Matrix = List[List[float]]
+
+
+def friedman_nemenyi(table: pd.DataFrame):
+    """Runs Friedman test on given table and optionally graphs a
+    critical-difference diagram.
+
+    Args:
+    -----
+    table: DataFrame
+        The data table, with subjects as rows and independent variable
+        (condition) as columns.
+
+    Returns:
+    --------
+    pval: float
+        The p-value for the Friedman test.
+    cd: float
+        The critical difference from the Nemenyi post-hoc test.
+    df: pd.DataFrame
+        A table containing statistics relating to ranking and average
+        values of the condiions.
+    """
+    _, pval = friedmanchisquare(*table.transpose().to_numpy())
+    names = list(table.columns)
+    avgrank = rankdata(-table.to_numpy(), axis=1).mean(0)
+    df = pd.DataFrame(
+        {
+            "mean_rank": avgrank,
+            "mean": table.mean(),
+            "std. dev.": table.std(),
+            "median": table.median(),
+            "mad": table.mad(),
+        },
+        index=names,
+    ).sort_values("mean_rank")
+
+    topclf = df.index[0]
+    n, k = table.shape
+    # Effect size is calculated in terms of differences in MAD
+    df["Effect size"] = (df.loc[topclf, "median"] - df["median"]) / np.sqrt(
+        ((n - 1) * df.loc[topclf, "mad"] ** 2 + (n - 1) * df["mad"] ** 2) / (2 * n - 2)
+    )
+    cd = qsturng(0.95, k, np.inf) * np.sqrt((k * (k + 1)) / (12 * n))
+    return pval, cd, df
 
 
 def _get_dist_func(metric: Union[Callable, str], **kwargs):
