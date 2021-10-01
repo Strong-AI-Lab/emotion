@@ -60,6 +60,7 @@ def main(input: Tuple[Path], n_threads: int, failed: Path):
             if proc.wait() != 0:
                 with file_lock:
                     fail_file.write(cmd + "\n")
+                    fail_file.flush()
             q.task_done()
 
     for file in input:
