@@ -1,11 +1,8 @@
-from typing import Any, Callable, Dict, Optional, List, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import numpy as np
 from sklearn.base import ClassifierMixin
-from sklearn.model_selection import (
-    BaseCrossValidator,
-    cross_validate,
-)
+from sklearn.model_selection import BaseCrossValidator, cross_validate
 from sklearn.pipeline import Pipeline
 
 from ..utils import ScoreFunction
@@ -64,7 +61,6 @@ def sk_cross_validate(
     verbose: int = 0,
     fit_params: Dict[str, Any] = {},
 ):
-    fit_params["groups"] = groups
     if isinstance(clf, Pipeline):
         fit_params = _get_pipeline_params(fit_params, clf)
     else:
@@ -80,4 +76,5 @@ def sk_cross_validate(
         n_jobs=None,
         verbose=verbose,
         fit_params=fit_params,
+        error_score="raise",
     )
