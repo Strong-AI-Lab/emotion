@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Tuple
 
 import click
+import numpy as np
 import pandas as pd
 from click_option_group import optgroup
 from sklearn.pipeline import Pipeline
@@ -51,14 +52,12 @@ from ertk.utils import (
     "--inner_kfold",
     type=int,
     default=2,
-    help="k for inner k-fold CV (where relevant). If None then LOGO is used. "
-    "If 1 then a random split is used.",
+    help="k for inner k-fold CV (where relevant). If -1 then LOGO is used. If 1 then a "
+    "random split is used.",
 )
 @optgroup.option("--test_size", type=float, help="Test size when kfold=1.")
 @optgroup.option(
-    "--inner_group/--noinner_group",
-    default=True,
-    help="Whether to use group-based inner CV (e.g. GroupKFold, LeaveOneGroupOut).",
+    "--inner_part", help="Which partition to use for group-based inner CV."
 )
 @optgroup.group("Training options")
 @optgroup.option("--learning_rate", type=float, default=1e-4, show_default=True)
@@ -91,7 +90,12 @@ from ertk.utils import (
     "--n_jobs", type=int, default=-1, help="Number of parallel executions."
 )
 @optgroup.group("Misc. options")
-@optgroup.option("--verbose", count=True, help="Verbose training.")
+@optgroup.option(
+    "--verbose",
+    type=int,
+    default=0,
+    help="Verbosity. -1=nothing, 0=dataset+results, 1=INFO, 2=DEBUG",
+)
 @optgroup.group("Model-specific options")
 @optgroup.option(
     "--clf_args",
@@ -125,7 +129,7 @@ def main(
     kfold: int,
     inner_kfold: int,
     test_size: float,
-    inner_group: bool,
+    inner_part: str,
     results: Path,
     logdir: Path,
     reps: int,
@@ -149,20 +153,32 @@ def main(
     optionally written to a results file.
     """
 
+    np.set_printoptions(precision=4, threshold=10)
     if verbose > 0:
         import logging
 
         logging.basicConfig(level=logging.DEBUG if verbose > 1 else logging.INFO)
+        np.set_printoptions()
 
     dataset = load_multiple(input, features)
 
     for m in map_groups:
         mapping = get_arg_mapping(m)
         for part in mapping:
+            if part not in dataset.partitions:
+                warnings.warn(
+                    f"Partition {part} cannot be mapped as it is not in the dataset."
+                )
+                continue
             dataset.map_groups(part, mapping[part])
     for m in sel_groups:
         mapping = get_arg_mapping(m)
         for part in mapping:
+            if part not in dataset.partitions:
+                warnings.warn(
+                    f"Partition {part} cannot be selected as it is not in the dataset."
+                )
+                continue
             keep = mapping[part]
             if isinstance(keep, str):
                 keep = [keep]
@@ -189,7 +205,7 @@ def main(
         )
         inner_cv = cv
     else:
-        inner_cv = get_cv_splitter(inner_group, inner_kfold)
+        inner_cv = get_cv_splitter(bool(inner_part), inner_kfold)
 
     sample_weight = None
     if balanced:
@@ -216,9 +232,11 @@ def main(
             {"clf__" + k: v for k, v in param_grid.items()},
             scoring="balanced_accuracy",
             cv=inner_cv,
-            verbose=verbose,
+            verbose=max(verbose, 0),
             n_jobs=1 if use_inner_cv else n_jobs,
         )
+        if inner_part:
+            fit_params["groups"] = dataset.get_group_indices(inner_part)
         params = param_grid
         if not use_inner_cv:
             # Get best params then pass best to main cross-validation routine
@@ -270,33 +288,37 @@ def main(
     else:
         raise ValueError(f"Invalid classifier type {clf_type}")
 
-    print("== Dataset ==")
-    print(dataset)
-    print("== Cross-validation settings ==")
-    print(f"Using {dataset.n_classes}-class classification.")
-    print(f"Using classifier {clf}.")
-    print(f"Using {kfold} k-fold CV.")
-    if partition:
-        print(f"Using {partition} as split partition.")
-    if use_inner_cv:
-        print(f"Using {inner_cv} as inner CV splitter.")
-    if balanced:
-        print("Using balanced sample weights.")
-    if normalise == "online":
-        print("Using 'online' normalisation.")
-    else:
-        print(f"Normalising globally using {normalise} partition.")
+    if verbose > -1:
+        print("== Dataset ==")
+        print(dataset)
+        print("== Cross-validation settings ==")
+        print(f"Using {dataset.n_classes}-class classification.")
+        print(f"Using {n_jobs} parallel jobs.")
+        print(f"Using classifier {clf}.")
+        print(f"Using fit_params={fit_params}")
+        print(f"Using {kfold} k-fold CV.")
+        if partition:
+            print(f"Using {partition} as split partition.")
+        if use_inner_cv:
+            print(f"Using {inner_cv} as inner CV splitter.")
+        if balanced:
+            print("Using balanced sample weights.")
+        if normalise == "online":
+            print("Using 'online' normalisation.")
+        else:
+            print(f"Normalising globally using {normalise} partition.")
 
     dfs = []
     for rep in range(1, reps + 1):
-        print(f"Rep {rep}/{reps}")
+        if verbose > -1:
+            print(f"Rep {rep}/{reps}")
         df = within_corpus_cross_validation(
             clf,
             dataset,
             clf_lib=clf_lib,
             partition=partition,
             cv=cv,
-            verbose=verbose,
+            verbose=max(verbose, 0),
             n_jobs=n_jobs,
             fit_params=fit_params,
         )
@@ -312,7 +334,8 @@ def main(
         print(f"Wrote CSV to {results}")
     else:
         print(df)
-    print(df.mean(numeric_only=True))
+    if verbose > -1:
+        print(df.mean(numeric_only=True))
 
 
 if __name__ == "__main__":
