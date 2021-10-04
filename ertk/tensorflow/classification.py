@@ -112,6 +112,8 @@ def tf_train_val_test(
     for d in [train_dataset, valid_dataset, test_dataset]:
         d = d.prefetch(2)
 
+    clf.summary(print_fn=logging.info)
+
     history = clf.fit(train_dataset, validation_data=valid_dataset, **fit_params)
     # Setting y_true is necessary for dataset creation routines that may
     # reorder data on creation (but without shuffling each time).
