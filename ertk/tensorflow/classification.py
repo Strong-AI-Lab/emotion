@@ -109,8 +109,6 @@ def tf_train_val_test(
     train_dataset = data_fn(*train_data, batch_size=batch_size)
     valid_dataset = data_fn(*valid_data, batch_size=batch_size, shuffle=False)
     test_dataset = data_fn(*test_data, batch_size=batch_size, shuffle=False)
-    for d in [train_dataset, valid_dataset, test_dataset]:
-        d = d.prefetch(2)
 
     clf.summary(print_fn=logging.info)
 
