@@ -10,7 +10,7 @@ from statsmodels.stats.libqsturng import qsturng
 Matrix = List[List[float]]
 
 
-def friedman_nemenyi(table: pd.DataFrame):
+def friedman_nemenyi(table: pd.DataFrame, alpha: float = 0.05):
     """Runs Friedman test on given table and optionally graphs a
     critical-difference diagram.
 
@@ -19,6 +19,9 @@ def friedman_nemenyi(table: pd.DataFrame):
     table: DataFrame
         The data table, with subjects as rows and independent variable
         (condition) as columns.
+    alpha: float
+        Significance level, must be in the range (0, 1), default is
+        0.05.
 
     Returns:
     --------
@@ -50,7 +53,7 @@ def friedman_nemenyi(table: pd.DataFrame):
     df["Effect size"] = (df.loc[topclf, "median"] - df["median"]) / np.sqrt(
         ((n - 1) * df.loc[topclf, "mad"] ** 2 + (n - 1) * df["mad"] ** 2) / (2 * n - 2)
     )
-    cd = qsturng(0.95, k, np.inf) * np.sqrt((k * (k + 1)) / (12 * n))
+    cd = qsturng(1 - alpha, k, np.inf) * np.sqrt((k * (k + 1)) / (12 * n))
     return pval, cd, df
 
 
