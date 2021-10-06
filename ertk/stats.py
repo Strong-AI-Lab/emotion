@@ -31,7 +31,8 @@ def friedman_nemenyi(table: pd.DataFrame, alpha: float = 0.05):
         The critical difference from the Nemenyi post-hoc test.
     df: pd.DataFrame
         A table containing statistics relating to ranking and average
-        values of the condiions.
+        values of the condiions. The dataframe has these columns:
+        "mean_rank", "mean", "std", "median", "mad", "effect_size".
     """
     _, pval = friedmanchisquare(*table.transpose().to_numpy())
     names = list(table.columns)
@@ -40,7 +41,7 @@ def friedman_nemenyi(table: pd.DataFrame, alpha: float = 0.05):
         {
             "mean_rank": avgrank,
             "mean": table.mean(),
-            "std. dev.": table.std(),
+            "std": table.std(),
             "median": table.median(),
             "mad": table.mad(),
         },
@@ -50,7 +51,7 @@ def friedman_nemenyi(table: pd.DataFrame, alpha: float = 0.05):
     topclf = df.index[0]
     n, k = table.shape
     # Effect size is calculated in terms of differences in MAD
-    df["Effect size"] = (df.loc[topclf, "median"] - df["median"]) / np.sqrt(
+    df["effect_size"] = (df.loc[topclf, "median"] - df["median"]) / np.sqrt(
         ((n - 1) * df.loc[topclf, "mad"] ** 2 + (n - 1) * df["mad"] ** 2) / (2 * n - 2)
     )
     cd = qsturng(1 - alpha, k, np.inf) * np.sqrt((k * (k + 1)) / (12 * n))
