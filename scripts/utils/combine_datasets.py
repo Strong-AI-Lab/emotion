@@ -13,8 +13,8 @@ from ertk.utils import PathlibPath
 @click.argument("input", type=PathlibPath(exists=True, dir_okay=False), nargs=-1)
 @click.argument("output", type=Path)
 def main(input: Tuple[Path], output: Path):
-    """Combines multiple INPUT datasets of spectrograms into a larger
-    dataset saved to OUTPUT.
+    """Combines multiple INPUT netCDF datasets into a larger dataset
+    and writes to OUTPUT.
     """
 
     if len(input) == 0:
@@ -25,7 +25,7 @@ def main(input: Tuple[Path], output: Path):
     num_features = 0
     feature_names = []
     for filename in input:
-        data = netCDF4.Dataset(str(filename))
+        data = netCDF4.Dataset(filename)
         if num_features == 0:
             num_features = len(data.dimensions["features"])
         elif len(data.dimensions["features"]) != num_features:
@@ -43,12 +43,12 @@ def main(input: Tuple[Path], output: Path):
     i_idx = 0
     for filename in input:
         print(f"Opened netCDF4 dataset {filename}")
-        data = netCDF4.Dataset(str(filename))
+        data = netCDF4.Dataset(filename)
         length = len(data.dimensions["concat"])
         instances = len(data.dimensions["instance"])
-        features[l_idx : l_idx + length, :] = np.array(data.variables["features"])
-        names[i_idx : i_idx + instances] = np.array(data.variables["name"])
-        slices[i_idx : i_idx + instances] = np.array(data.variables["slices"])
+        features[l_idx : l_idx + length, :] = data.variables["features"][:]
+        names[i_idx : i_idx + instances] = data.variables["name"][:]
+        slices[i_idx : i_idx + instances] = data.variables["slices"][:]
         l_idx += length
         i_idx += instances
         data.close()

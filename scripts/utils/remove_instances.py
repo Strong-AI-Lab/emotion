@@ -1,53 +1,36 @@
 from pathlib import Path
 
 import click
-import netCDF4
 import numpy as np
 
-from ertk.dataset import write_features
+from ertk.dataset import read_features, write_features
 from ertk.utils import PathlibPath
 
 
 @click.command()
 @click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
-@click.argument("names", type=PathlibPath(exists=True, dir_okay=False))
-def main(input: Path, names: Path):
-    """Removes instances from INPUT dataset that aren't in the NAMES
-    file. INPUT is modified in-place.
-
-    This script is mainly useful if a feature generation script
-    generates features for all audio files instead of just the ones in
-    a file list.
+@click.argument("output", type=Path, required=False)
+@click.option("--names", type=PathlibPath(exists=True, dir_okay=False))
+def main(input: Path, output: Path, names: Path):
+    """Remove instances from INPUT features that aren't in the NAMES
+    file, and write to OUTPUT. If OUTPUT is not given, overwrites INPUT
+    in-place.
     """
-
-    data = netCDF4.Dataset(str(input))
-    slices = np.array(data.variables["slices"])
-    _names = np.array(data.variables["name"])
-    features = np.array(data.variables["features"])
-    feature_names = list(data.variables["feature_names"])
-    corpus = data.corpus
-    data.close()
-
     with open(names) as fid:
         keep_names = {Path(x.strip()).stem for x in fid}
-    idx = np.array([i for i, n in enumerate(_names) if n in keep_names])
-    new_slices = slices[idx]
-    new_names = _names[idx]
-    cum_slices = np.r_[0, np.cumsum(slices)]
-    feat_idx = np.concatenate(
-        [np.arange(cum_slices[i], cum_slices[i + 1]) for i in idx]
-    )
-    new_features = features[feat_idx]
+    data = read_features(input)
+    idx = np.array([i for i, n in enumerate(data.names) if n in keep_names])
 
+    if not output:
+        output = input
     write_features(
-        input,
-        corpus=corpus,
-        names=new_names,
-        slices=new_slices,
-        features=new_features,
-        feature_names=feature_names,
+        output,
+        corpus=data.corpus,
+        names=data.names[idx],
+        features=data.features[idx],
+        feature_names=data.feature_names,
     )
-    print(f"Wrote netCDF4 dataset to {input}")
+    print(f"Wrote features to {input}")
 
 
 if __name__ == "__main__":

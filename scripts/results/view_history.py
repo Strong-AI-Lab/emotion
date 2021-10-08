@@ -1,28 +1,19 @@
-"""Displays plot of training epochs for cross-validation rounds."""
-
-import argparse
 from pathlib import Path
 
+import click
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from ertk.utils import PathlibPath
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--input",
-        type=Path,
-        help="CSV file containing cross-validation training history.",
-    )
-    parser.add_argument(
-        "--individual",
-        action="store_true",
-        help="Plot individual folds for each metric.",
-    )
-    args = parser.parse_args()
 
-    df = pd.read_csv(args.input, header=[0, 1], index_col=0)
+@click.command()
+@click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
+@click.option("--individual", help="Plot individual folds for each metric.")
+def main(input: Path, individual: bool):
+    """Displays plot of training epochs for cross-validation rounds."""
+    df = pd.read_csv(input, header=[0, 1], index_col=0)
 
     metrics = df.columns.get_level_values(1).unique()
     n_folds = len(df.columns.get_level_values(0).unique())
@@ -44,7 +35,7 @@ def main():
             ax.fill_between(x, y - 2 * err, y + 2 * err, alpha=0.2)
         ax.legend()
 
-    if args.individual:
+    if individual:
         metric_dfs = {}
         for key in df.columns.get_level_values(1).unique():
             metric_dfs[key] = df.xs(key, axis=1, level=1)
