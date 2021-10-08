@@ -45,7 +45,7 @@ def main(input: Tuple[Path], cpus: int, gpus: str, failed: Path):
             cmd = q.get()
             print(
                 datetime.now().isoformat(),
-                f"Executing command on thread {t_id}: {cmd}",
+                f"Executing command on thread {t_id or gpu}: {cmd}",
                 flush=True,
             )
             proc = subprocess.Popen(
