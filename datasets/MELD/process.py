@@ -17,7 +17,7 @@ from pathlib import Path
 import click
 import pandas as pd
 
-from ertk.dataset import write_annotations, write_filelist, resample_audio
+from ertk.dataset import resample_rename_clips, write_annotations, write_filelist
 from ertk.utils import PathlibPath
 
 
@@ -32,17 +32,17 @@ def main(input_dir: Path, resample: bool):
     split_dirs = ["train_splits", "dev_splits_complete", "output_repeated_splits_test"]
     csvs = ["train_sent_emo.csv", "dev_sent_emo.csv", "test_sent_emo.csv"]
 
+    resample_dir = Path("resampled")
+
     name_map = {}
     all_paths = []
     for split, x in zip(splits, split_dirs):
         paths = list(input_dir.glob(f"{x}/dia*.mp4"))
         all_paths.extend(paths)
-        name_map.update({x: f"{split}_{x.stem}" for x in paths})
+        name_map.update({x: resample_dir / f"{split}_{x.stem}.wav" for x in paths})
 
-    resample_dir = Path("resampled")
     if resample:
-        resample_dir.mkdir(parents=True, exist_ok=True)
-        resample_audio(all_paths, resample_dir, mapping=name_map)
+        resample_rename_clips(mapping=name_map)
 
     dfs = []
     for split, x in zip(splits, csvs):
@@ -50,6 +50,8 @@ def main(input_dir: Path, resample: bool):
         df.index = df.apply(
             lambda x: f"{split}_dia{x['Dialogue_ID']}_utt{x['Utterance_ID']}", axis=1
         )
+        df["split"] = split
+        write_filelist({resample_dir / f"{x}.wav" for x in df.index}, f"files_{split}")
         dfs.append(df)
     df = pd.concat(dfs)
     df = df.drop(index={"dev_dia110_utt7"})
@@ -57,6 +59,7 @@ def main(input_dir: Path, resample: bool):
     write_filelist({resample_dir / f"{x}.wav" for x in df.index}, "files_all")
     write_annotations(df["Emotion"].to_dict(), "label")
     write_annotations(df["Speaker"].to_dict(), "speaker")
+    write_annotations(df["split"].to_dict(), "split")
     write_annotations({x: "us" for x in df.index}, "country")
     write_annotations({x: "en" for x in df.index}, "language")
 

@@ -1,7 +1,7 @@
 import logging
 import subprocess
 from pathlib import Path
-from typing import Iterable, List
+from typing import Iterable, List, Mapping, Optional
 
 from joblib import delayed
 
@@ -39,6 +39,31 @@ def get_audio_paths(path: PathOrStr, absolute: bool = True) -> List[Path]:
     return paths
 
 
+def resample_rename_clips(mapping: Mapping[Path, Path]):
+    """Resample given audio clips to 16 kHz 16-bit WAV.
+
+    Args:
+    -----
+    mapping: mapping
+        Mapping from source files to destination files.
+    """
+    dst_dirs = {x.parent for x in mapping.values()}
+    for dir in dst_dirs:
+        dir.parent.mkdir(exist_ok=True, parents=True)
+
+    opts = ["-nostdin", "-ar", "16000", "-sample_fmt", "s16", "-ac", "1", "-y"]
+    logging.info(f"Resampling {len(mapping)} audio files")
+    logging.info(f"Using FFmpeg options: {' '.join(opts)}")
+    TqdmParallel(desc="Resampling audio", total=len(mapping), unit="file", n_jobs=-1)(
+        delayed(subprocess.run)(
+            ["ffmpeg", "-i", str(src), *opts, str(dst)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
+        for src, dst in mapping.items()
+    )
+
+
 def resample_audio(paths: Iterable[Path], dir: PathOrStr):
     """Resample given audio clips to 16 kHz 16-bit WAV, and place in
     direcotory given by `dir`.
@@ -54,20 +79,7 @@ def resample_audio(paths: Iterable[Path], dir: PathOrStr):
     if len(paths) == 0:
         raise FileNotFoundError("No audio files found.")
 
-    dir = Path(dir)
-    dir.mkdir(exist_ok=True, parents=True)
-    logging.info(f"Resampling {len(paths)} audio files to {dir}")
-
-    opts = ["-nostdin", "-ar", "16000", "-sample_fmt", "s16", "-ac", "1", "-y"]
-    logging.info(f"Using FFmpeg options: {' '.join(opts)}")
-    TqdmParallel(desc="Resampling audio", total=len(paths), unit="file", n_jobs=-1)(
-        delayed(subprocess.run)(
-            ["ffmpeg", "-i", str(path), *opts, str(dir / (path.stem + ".wav"))],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
-        )
-        for path in paths
-    )
+    resample_rename_clips({x: Path(dir, f"{x.stem}.wav") for x in paths})
 
 
 def write_filelist(paths: Iterable[Path], name: str):

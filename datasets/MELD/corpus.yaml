@@ -6,9 +6,19 @@ MELD:
     - language
     - country
     - speaker
+    - split
   subsets:
-    default: all
+    default: train
     all:
       clips: files_all
       description: All files
+    train:
+      clips: files_train
+      description: Files in the train split
+    dev:
+      clips: files_dev
+      description: Files in the dev split
+    test:
+      clips: files_test
+      description: Files in the test split
   features_dir: ../../features/MELD
