@@ -1,0 +1,15 @@
+EMOVO:
+  description: EMOVO dataset
+  annotations:
+  partitions:
+    - label
+    - speaker
+    - language
+    - gender
+    - sentence
+  subsets:
+    default: all
+    all:
+      clips: files_all
+      description: All files
+  features_dir: ../../features/EMOVO
