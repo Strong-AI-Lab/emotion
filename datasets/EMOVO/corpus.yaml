@@ -7,6 +7,7 @@ EMOVO:
     - language
     - gender
     - sentence
+    - country
   subsets:
     default: all
     all:

@@ -35,16 +35,17 @@ def main(input_dir: Path, resample: bool):
     audio to 16 kHz 16-bit WAV audio.
     """
     paths = list(input_dir.glob("**/*.wav"))
+    resample_dir = Path("resampled")
     if resample:
-        resample_dir = Path("resampled")
         resample_audio(paths, resample_dir)
-        write_filelist(resample_dir.glob("*.wav"), "files_all")
+    write_filelist(resample_dir.glob("*.wav"), "files_all")
 
     write_annotations({p.stem: emotion_map[p.stem[0:3]] for p in paths}, "label")
     write_annotations({p.stem: p.stem[4:6] for p in paths}, "speaker")
-    write_annotations({p.stem: p.stem[4] for p in paths}, "gender")
+    write_annotations({p.stem: p.stem[4].upper() for p in paths}, "gender")
     write_annotations({p.stem: p.stem[7:9] for p in paths}, "sentence")
     write_annotations({p.stem: "it" for p in paths}, "language")
+    write_annotations({p.stem: "it" for p in paths}, "country")
 
 
 if __name__ == "__main__":
