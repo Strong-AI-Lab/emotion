@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Callable, List, Tuple, Union
+from typing import Callable, List, Union
 
 import numpy as np
 import pandas as pd
@@ -69,29 +69,27 @@ def _get_dist_func(metric: Union[Callable, str], **kwargs):
         return partial(pairwise_distances, metric=metric, **kwargs)
 
 
-def bhattacharyya_dist(
-    mus: Tuple[np.ndarray, np.ndarray],
-    covs: Tuple[np.ndarray, np.ndarray],
-    pinv: bool = False,
-):
+def bhattacharyya_dist(x: np.ndarray, y: np.ndarray, pinv: bool = False):
     """Calculate Bhattacharyya distance between multivariate Gaussian
     distributions.
 
     Args:
     -----
-    mus: tuple
-        A pair (mu1, mu2) of multivariate means.
-    covs: tuple
-        A pair (cov1, cov2) of covariance matrices.
+    x: array-like
+        Data matrix of shape (n1_samples, n_features) corresponding to
+        the first group.
+    y: array-like
+        Data matrix of shape (n2_samples, n_features) corresponding to
+        the second group.
     pinv: bool
         Use pseudoinverse instead of inverse. This is useful if the
         covariance matrices don't have full rank or otherwise aren't
         invertible.
     """
-    mu1 = np.expand_dims(mus[0], 1)
-    mu2 = np.expand_dims(mus[1], 1)
-    cov1 = np.array(covs[0])
-    cov2 = np.array(covs[1])
+    mu1 = np.expand_dims(np.mean(x, axis=0), 1)
+    mu2 = np.expand_dims(np.mean(y, axis=0), 1)
+    cov1 = np.cov(x, rowvar=False)
+    cov2 = np.cov(y, rowvar=False)
     cov = (cov1 + cov2) / 2
     _, ldet1 = np.linalg.slogdet(cov1)
     _, ldet2 = np.linalg.slogdet(cov2)
