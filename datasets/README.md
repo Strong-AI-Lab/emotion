@@ -4,14 +4,19 @@ speech datasets into the format required by the scripts in this
 repository.
 
 Currently the following datasets have processing scripts:
+- [AESDD](http://m3c.web.auth.gr/research/aesdd-speech-emotion-recognition/)
 - [CaFE](https://zenodo.org/record/1478765)
+- [CMU-MOSEI](http://multicomp.cs.cmu.edu/resources/cmu-mosei-dataset/)
 - [CREMA-D](https://github.com/CheyneyComputerScience/CREMA-D)
 - [DEMoS](https://zenodo.org/record/2544829)
 - [EMO-DB](http://emodb.bilderbar.info/)
 - [EmoFilm](https://zenodo.org/record/1326428)
+- [EmoV-DB](https://github.com/numediart/EmoV-DB)
+- [EMOVO](http://voice.fub.it/activities/corpora/emovo/index.html)
 - [eNTERFACE](http://www.enterface.net/results/)
 - [IEMOCAP](https://sail.usc.edu/iemocap/)
 - [JL-corpus](https://www.kaggle.com/tli725/jl-corpus)
+- [MELD](https://github.com/declare-lab/MELD/)
 - [MSP-IMPROV](https://ecs.utdallas.edu/research/researchlabs/msp-lab/MSP-Improv.html)
 - [MSP-PODCAST](https://ecs.utdallas.edu/research/researchlabs/msp-lab/MSP-Podcast.html)
 - [Portuguese](https://link.springer.com/article/10.3758/BRM.42.1.74)
