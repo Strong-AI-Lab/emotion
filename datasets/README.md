@@ -26,6 +26,7 @@ Currently the following datasets have processing scripts:
 - [SEMAINE](https://semaine-db.eu/)
 - [ShEMO](https://github.com/mansourehk/ShEMO)
 - [SmartKom](https://clarin.phonetik.uni-muenchen.de/BASRepository/index.php)
+- [SUBESCO](https://zenodo.org/record/4526477)
 - [TESS](https://tspace.library.utoronto.ca/handle/1807/24487/)
 - [URDU](https://github.com/siddiquelatif/URDU-Dataset/)
 - [VENEC](https://www.nature.com/articles/s41562-019-0533-6)
