@@ -1,7 +1,7 @@
 import logging
 import subprocess
 from pathlib import Path
-from typing import Iterable, List, Mapping, Optional
+from typing import Iterable, List, Mapping
 
 from joblib import delayed
 
@@ -49,7 +49,7 @@ def resample_rename_clips(mapping: Mapping[Path, Path]):
     """
     dst_dirs = {x.parent for x in mapping.values()}
     for dir in dst_dirs:
-        dir.parent.mkdir(exist_ok=True, parents=True)
+        dir.mkdir(exist_ok=True, parents=True)
 
     opts = ["-nostdin", "-ar", "16000", "-sample_fmt", "s16", "-ac", "1", "-y"]
     logging.info(f"Resampling {len(mapping)} audio files")
