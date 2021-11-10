@@ -141,11 +141,16 @@ def tf_dataset_gen(
     """
 
     def gen_inst():
+        if shuffle:
+            perm = np.random.permutation(len(x))
+        else:
+            perm = np.arange(len(x))
+
         if sample_weight is None:
-            for i in range(len(x)):
+            for i in perm:
                 yield x[i], y[i]
         else:
-            for i in range(len(x)):
+            for i in perm:
                 yield x[i], y[i], sample_weight[i]
 
     sig: Tuple[tf.TensorSpec, ...] = (
@@ -155,8 +160,6 @@ def tf_dataset_gen(
     if sample_weight is not None:
         sig += (tf.TensorSpec(shape=(), dtype=tf.float32),)
     data = tf.data.Dataset.from_generator(gen_inst, output_signature=sig)
-    if shuffle:
-        data = data.shuffle(len(x))
     return data.batch(batch_size).prefetch(2)
 
 
