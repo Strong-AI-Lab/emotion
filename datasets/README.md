@@ -11,6 +11,7 @@ Currently the following datasets have processing scripts:
 - [DEMoS](https://zenodo.org/record/2544829)
 - [EMO-DB](http://emodb.bilderbar.info/)
 - [EmoFilm](https://zenodo.org/record/1326428)
+- [EmoryNLP](https://github.com/declare-lab/MELD/)
 - [EmoV-DB](https://github.com/numediart/EmoV-DB)
 - [EMOVO](http://voice.fub.it/activities/corpora/emovo/index.html)
 - [eNTERFACE](http://www.enterface.net/results/)
