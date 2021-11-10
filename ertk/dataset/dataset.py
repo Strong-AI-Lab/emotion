@@ -14,7 +14,6 @@ from typing import (
     Sequence,
     Set,
     Type,
-    TypeVar,
     Union,
 )
 
@@ -28,14 +27,13 @@ from ..utils import (
     clip_arrays,
     frame_arrays,
     group_transform,
+    ordered_intersect,
     pad_arrays,
     transpose_time,
 )
 from .annotation import read_annotations
 from .features import find_features_file, read_features
 from .utils import get_audio_paths
-
-_D = TypeVar("_D", bound="Dataset")
 
 
 class Dataset:
@@ -101,7 +99,7 @@ class Dataset:
 
     @classmethod
     def _copy(cls, inst: "Dataset"):
-        new_dataset = object.__new__(cls)
+        new_dataset = Dataset.__new__(cls)
         new_dataset._copy_from_dataset(inst)
         return new_dataset
 
@@ -135,6 +133,8 @@ class Dataset:
         path = Path(path)
         with open(path) as fid:
             doc = yaml.safe_load(fid)
+        if not isinstance(doc, dict):
+            raise RuntimeError("Corpus info invalid.")
         self._corpus = next(iter(doc))
         corpus_info = doc[self.corpus]
 
@@ -181,8 +181,6 @@ class Dataset:
         features: os.PathLike or str
             Path to a set of features or unique name of features in
             corpus features dir.
-        subset: str, optional
-            The subset to select.
         """
         if features == "raw_audio":
             self._features = "raw_audio"
@@ -197,7 +195,13 @@ class Dataset:
         self._feature_names = data.feature_names
         if len(self.names) > 0:
             names = set(self.names)
+            if len(names - set(data.names)) > 0:
+                raise ValueError(
+                    f"Features at {features} don't contain all instances for subset "
+                    f"{self.subset}."
+                )
             self._x = data.features[[i for i, n in enumerate(data.names) if n in names]]
+            self._names = ordered_intersect(data.names, names)
         else:
             self._x = data.features
             self._names = data.names
@@ -435,6 +439,9 @@ class Dataset:
             ) from e
 
     def clone(self):
+        return self.copy()
+
+    def copy(self):
         return self._copy(self)
 
     def normalise(
@@ -578,7 +585,7 @@ class Dataset:
         s = f"Corpus: {self.corpus}\n"
         for part in sorted(self.partitions):
             group_names = self.get_group_names(part)
-            s += f"partition '{part}'' ({len(group_names)} groups):\n"
+            s += f"partition '{part}' ({len(group_names)} groups):\n"
             s += f"\t{dict(zip(group_names, self.get_group_counts(part)))}\n"
         s += f"{self.n_instances} instances\n"
         s += f"subset: {self.subset}\n"
@@ -611,17 +618,7 @@ class LabelledDataset(Dataset):
         self, *, drop: Collection[str] = None, keep: Collection[str] = None
     ):
         """Remove instances with labels not in `keep`."""
-        if drop is not None:
-            if keep is not None:
-                raise ValueError("Exactly one of drop and keep must be non-empty.")
-            keep = set(self.classes) - set(drop)
-        elif keep is None:
-            raise ValueError("Exactly one of drop and keep must be non-empty.")
-
-        keep = set(keep)
-        keep_inst = [n for n, l in zip(self.names, self.labels) if l in keep]
-        self.remove_instances(keep=keep_inst)
-        self.remove_groups("label", drop=drop)
+        self.remove_groups("label", drop=drop, keep=keep)
 
     @property
     def classes(self) -> List[str]:
@@ -705,11 +702,15 @@ class CombinedDataset(LabelledDataset):
         return self.get_group_indices("corpus")
 
     @property
-    def corpus_counts(self) -> List[int]:
+    def corpus_counts(self) -> np.ndarray:
         return self.get_group_counts("corpus")
 
 
-def load_multiple(corpus_files: Iterable[PathOrStr], features: str) -> CombinedDataset:
+def load_multiple(
+    corpus_files: Iterable[PathOrStr],
+    features: str,
+    subsets: Union[str, Mapping[str, str]] = "default",
+) -> CombinedDataset:
     """Load one or more datasets with the given features.
 
     Args:
@@ -719,6 +720,9 @@ def load_multiple(corpus_files: Iterable[PathOrStr], features: str) -> CombinedD
     features: str
         A common set of features to load. This will be found in the
         features directory corresponding to each corpus.
+    subsets: str or dict
+        A subset name common to all datasets (e.g. "all", "default") or
+        a mapping from dataset name to subset name.
     """
     corpus_files = list(corpus_files)
     if len(corpus_files) == 0:
@@ -726,6 +730,11 @@ def load_multiple(corpus_files: Iterable[PathOrStr], features: str) -> CombinedD
     datasets = []
     for file in corpus_files:
         logging.info(f"Loading {file}")
-        dataset = LabelledDataset(file, features=features)
+        dataset = LabelledDataset(file, subset="all")
+        if isinstance(subsets, str):
+            dataset.use_subset(subsets)
+        else:
+            dataset.use_subset(subsets.get(dataset.corpus, "default"))
+        dataset.update_features(features)
         datasets.append(dataset)
     return CombinedDataset(*datasets)
