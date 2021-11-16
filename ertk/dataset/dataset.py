@@ -146,7 +146,6 @@ class Dataset:
             clips_file = path.parent / f"{subset_info['clips']}.txt"
             self._subset_paths[subset] = clips_file
             self.subsets[subset] = {x.stem for x in get_audio_paths(clips_file)}
-        # self._names = sorted(self.subsets[self._default_subset])  # TODO
 
         if corpus_info["partitions"]:
             for partition in corpus_info["partitions"]:

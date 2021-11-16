@@ -88,6 +88,7 @@ def tf_train_val_test(
         raise ValueError(f"Unsupported value for data_fn {data_fn}")
 
     logging.debug(f"fit_params={fit_params}")
+    logging.debug(f"batch_size={batch_size}")
     logging.debug(f"data_fn={data_fn}")
 
     tf.keras.backend.clear_session()
@@ -119,6 +120,7 @@ def tf_train_val_test(
     y_pred = tf.argmax(clf.predict(test_dataset), axis=-1)
 
     scores = get_scores(scoring, y_pred, y_true)
+    scores = {f"test_{k}": v for k, v in scores.items()}
     scores["history"] = history
     return scores
 

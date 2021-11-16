@@ -2,7 +2,6 @@
 
 import importlib
 from functools import partial
-from typing import Optional
 
 from tensorflow.keras.models import Model
 
