@@ -41,6 +41,11 @@ except FileNotFoundError:
 @click.option(
     "--debug", is_flag=True, help="Disable multiprocessing to highlight errors."
 )
+@click.option(
+    "--fast/--nofast",
+    default=True,
+    help="Fast processing (more memory usage), or use less memory at the cost of being slow.",  # noqa: E501
+)
 @click.argument("smileargs", nargs=-1)
 def main(
     corpus: str,
@@ -48,6 +53,7 @@ def main(
     output: Path,
     config: Path,
     debug: bool,
+    fast: bool,
     smileargs: Tuple[str],
 ):
     """Process a list of files in INPUT using the openSMILE
@@ -89,12 +95,29 @@ def main(
             "Not all audio files were processed properly. These names are "
             "missing:\n" + "\n\t".join(missing)
         )
-    df_list = TqdmParallel(total=len(tmp_files), desc="Processing CSVs", n_jobs=n_jobs)(
-        delayed(pd.read_csv)(path, quotechar="'", header=0, index_col=0)
-        for path in tmp_files
-    )
+
+    tmp_df = pd.read_csv(tmp_files[0], quotechar="'", header=0, index_col=0)
+    if len(tmp_df.index) == 1 and not fast:
+        feats = np.empty((len(tmp_files), len(tmp_df.columns)), dtype=np.float32)
+        slices = np.ones(len(tmp_files), dtype=int)
+
+        def read_into_arr(path: Path, i: int) -> None:
+            df = pd.read_csv(path, quotechar="'", header=0, index_col=0)
+            feats[i, :] = df.to_numpy()
+
+        TqdmParallel(total=len(tmp_files), desc="Processing CSVs", n_jobs=1)(
+            delayed(read_into_arr)(path, i) for i, path in enumerate(tmp_files)
+        )
+    else:
+        df_list = TqdmParallel(
+            total=len(tmp_files), desc="Processing CSVs", n_jobs=n_jobs
+        )(
+            delayed(pd.read_csv)(path, quotechar="'", header=0, index_col=0)
+            for path in tmp_files
+        )
+        feats = np.concatenate(df_list, axis=0)
+        slices = np.array([len(x) for x in df_list])
     shutil.rmtree(tmp, ignore_errors=True)
-    feats = np.concatenate(df_list, axis=0)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     write_features(
@@ -102,8 +125,8 @@ def main(
         corpus=corpus,
         names=[x.stem for x in input_list],
         features=feats,
-        feature_names=list(df_list[0].columns),
-        slices=[len(x) for x in df_list],
+        feature_names=tmp_df.columns.tolist(),
+        slices=slices,
     )
     print(f"Wrote dataset to {output}")
 
