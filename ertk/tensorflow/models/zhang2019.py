@@ -25,7 +25,7 @@ from tensorflow.keras.layers import (
 )
 from tensorflow.keras.models import Model, Sequential
 
-from ..utils import create_tf_dataset
+from ..utils import tf_dataset_mem
 from .layers import Attention1D
 
 __all__ = ["model", "create_windowed_dataset"]
@@ -50,12 +50,12 @@ def create_windowed_dataset(
         arrs.append(arr)
     arrs = np.array(arrs)
     assert tuple(arrs.shape) == (len(x), 500, 640)
-    return create_tf_dataset(
+    return tf_dataset_mem(
         arrs, y, sample_weight=sample_weight, batch_size=batch_size, shuffle=shuffle
     )
 
 
-def model(n_classes: int):
+def model(n_classes: int, n_features: int = 1):
     # Input dimensionality is 640 'features' which are actually 640
     # samples per 40ms segment. Each subsequent vector is shifted 10ms
     # from the previous. We assume the sequences are zero-padded to a
@@ -82,9 +82,3 @@ def model(n_classes: int):
 
     x = Dense(n_classes, activation="softmax")(att)
     return Model(inputs=inputs, outputs=x)
-
-
-if __name__ == "__main__":
-    from ..utils import test_fit
-
-    test_fit(model, (500, 640), batch_size=16)

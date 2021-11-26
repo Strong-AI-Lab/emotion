@@ -66,9 +66,3 @@ def model(n_features: int, n_classes: int, steps: int = 512):
     x = Dense(128, activation="relu")(concat)
     x = Dense(n_classes, activation="softmax")(x)
     return Model(inputs=inputs, outputs=x)
-
-
-if __name__ == "__main__":
-    from ..utils import test_fit
-
-    test_fit(zhao2019_model, (500, 40), n_features=40, steps=500)
