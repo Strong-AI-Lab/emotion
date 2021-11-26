@@ -109,14 +109,15 @@ def main(
             delayed(read_into_arr)(path, i) for i, path in enumerate(tmp_files)
         )
     else:
-        df_list = TqdmParallel(
+
+        def read_arr(path: Path) -> np.ndarray:
+            return pd.read_csv(path, quotechar="'", header=0, index_col=0).to_numpy()
+
+        arr_list = TqdmParallel(
             total=len(tmp_files), desc="Processing CSVs", n_jobs=n_jobs
-        )(
-            delayed(pd.read_csv)(path, quotechar="'", header=0, index_col=0)
-            for path in tmp_files
-        )
-        feats = np.concatenate(df_list, axis=0)
-        slices = np.array([len(x) for x in df_list])
+        )(delayed(read_arr)(path) for path in tmp_files)
+        feats = np.concatenate(arr_list, axis=0)
+        slices = np.array([len(x) for x in arr_list])
     shutil.rmtree(tmp, ignore_errors=True)
 
     output.parent.mkdir(parents=True, exist_ok=True)
