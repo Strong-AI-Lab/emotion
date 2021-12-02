@@ -202,7 +202,7 @@ def get_arg_mapping(s: Union[Path, str]) -> Dict[str, Any]:
     return {k: v[0] if len(v) == 1 else v for k, v in get_arg_mapping_multi(s).items()}
 
 
-def flat_to_inst(x: np.ndarray, slices: np.ndarray) -> np.ndarray:
+def flat_to_inst(x: np.ndarray, slices: Union[np.ndarray, List[int]]) -> np.ndarray:
     """Takes a concatenated 2D data array and converts it to either a
     contiguous 2D/3D array or a variable-length 3D array, with one
     feature vector/matrix per instance.
@@ -214,8 +214,7 @@ def flat_to_inst(x: np.ndarray, slices: np.ndarray) -> np.ndarray:
     elif all(x == slices[0] for x in slices):
         # 3-D contiguous array
         assert len(x) % len(slices) == 0
-        seq_len = len(x) // len(slices)
-        return np.reshape(x, (len(slices), seq_len, x[0].shape[-1]))
+        return x.reshape(len(slices), len(x) // len(slices), x[0].shape[-1])
     else:
         # 3-D variable length array
         start_idx = np.cumsum(slices)[:-1]
@@ -230,7 +229,10 @@ def inst_to_flat(x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     slices = np.ones(len(x), dtype=int)
     if len(x.shape) != 2:
         slices = np.array([len(_x) for _x in x])
-        x = np.concatenate(x)
+        if len(x.shape) == 3:
+            x = x.reshape(sum(slices), x.shape[2])
+        else:
+            x = np.concatenate(x)
     assert sum(slices) == len(x)
     return x, slices
 
