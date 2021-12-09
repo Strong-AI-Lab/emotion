@@ -4,6 +4,7 @@ from pathlib import Path
 import click
 import numpy as np
 import tensorflow.compat.v1 as tf
+from tqdm import trange
 
 from ertk.dataset import read_features, write_features
 from ertk.utils import PathlibPath
@@ -57,7 +58,7 @@ def main(input: Path, output: Path, batch_size: int, vggish_dir: Path):
 
         print("Processing frames")
         outputs = []
-        for i in range(0, len(frames), batch_size):
+        for i in trange(0, len(frames), batch_size):
             batch = frames[i : i + batch_size]
             [embeddings] = sess.run(
                 [embedding_tensor], feed_dict={features_tensor: batch}
@@ -70,11 +71,10 @@ def main(input: Path, output: Path, batch_size: int, vggish_dir: Path):
     processor = Postprocessor(pca_params)
     embeddings = processor.postprocess(outputs)
     slices = np.cumsum(slices)[:-1]
-    embeddings = [np.mean(x, 0) for x in np.split(embeddings, slices)]
-    embeddings = np.stack(embeddings, 0)
+    embeddings = [np.mean(x, 0, keepdims=True) for x in np.split(embeddings, slices)]
 
     output.parent.mkdir(parents=True, exist_ok=True)
-    feature_names = [f"vggish{i + 1}" for i in range(embeddings.shape[-1])]
+    feature_names = [f"vggish{i + 1}" for i in range(embeddings[0].shape[-1])]
     write_features(
         output,
         names=dataset.names,

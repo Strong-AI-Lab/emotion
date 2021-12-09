@@ -146,22 +146,22 @@ def main(
     """
 
     paths = get_audio_paths(input)
+    kwargs = dict(
+        channels=channels,
+        skip=skip,
+        length=length,
+        window_size=window_size,
+        pre_emphasis=pre_emphasis,
+        window_shift=window_shift,
+        n_mels=mel_bands,
+        clip=clip,
+        fmin=fmin,
+        fmax=fmax,
+    )
 
     if preview is not None:
         idx = preview if preview > -1 else np.random.default_rng().integers(len(paths))
-        spectrogram = calculate_spectrogram(
-            paths[idx],
-            channels=channels,
-            skip=skip,
-            length=length,
-            window_size=window_size,
-            pre_emphasis=pre_emphasis,
-            window_shift=window_shift,
-            n_mels=mel_bands,
-            clip=clip,
-            fmin=fmin,
-            fmax=fmax,
-        )
+        spectrogram = calculate_spectrogram(paths[idx], **kwargs)
         plt.figure()
         plt.title(f"Spectrogram for {paths[idx]}.")
         plt.imshow(spectrogram)
@@ -171,35 +171,17 @@ def main(
     if not output:
         raise ValueError("Must specify either --preview or --output options.")
 
-    specs = TqdmParallel(
-        total=len(paths), desc="Generating spectrograms", n_jobs=-1, verbose=1
-    )(
-        joblib.delayed(calculate_spectrogram)(
-            path,
-            channels=channels,
-            skip=skip,
-            length=length,
-            window_size=window_size,
-            pre_emphasis=pre_emphasis,
-            window_shift=window_shift,
-            n_mels=mel_bands,
-            clip=clip,
-            fmin=fmin,
-            fmax=fmax,
-        )
-        for path in paths
+    specs = TqdmParallel(len(paths), "Generating spectrograms", n_jobs=-1)(
+        joblib.delayed(calculate_spectrogram)(path, **kwargs) for path in paths
     )
 
     filenames = [x.stem for x in paths]
-    if output is not None:
-        slices = [len(x) for x in specs]
-        specs = np.concatenate(specs)
+    if output:
         feature_names = [f"meldB{i + 1}" for i in range(mel_bands)]
         write_features(
             output,
             corpus=corpus,
             names=filenames,
-            slices=slices,
             features=specs,
             feature_names=feature_names,
         )

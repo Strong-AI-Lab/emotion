@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import click
-import numpy as np
 import librosa
 import torch
 from fairseq.models.wav2vec import Wav2Vec2Model, Wav2VecModel
@@ -58,7 +57,7 @@ def main(
     model.eval()
     torch.set_grad_enabled(False)
 
-    _embeddings = []
+    embeddings = []
     filepaths = get_audio_paths(input)
     names = [x.stem for x in filepaths]
     for filepath in tqdm(filepaths, disable=None):
@@ -78,27 +77,19 @@ def main(
                 feats = model.feature_extractor(tensor)
 
         if aggregate == "none":
-            _embeddings.append(feats[0].transpose(1, 0).cpu().numpy())
+            embeddings.append(feats[0].transpose(1, 0).cpu().numpy())
         elif aggregate == "mean":
-            _embeddings.append(feats[0].mean(-1).cpu().numpy())
+            embeddings.append(feats[0].mean(-1).cpu().numpy())
         elif aggregate == "max":
-            _embeddings.append(feats[0].max(-1).cpu().numpy())
-    if aggregate == "none":
-        slices = [len(x) for x in _embeddings]
-        embeddings = np.concatenate(_embeddings)
-    else:
-        embeddings = np.stack(_embeddings)
-        slices = np.ones(len(embeddings))
+            embeddings.append(feats[0].max(-1).cpu().numpy())
 
     ft = "context" if context else "encoder"
-    feature_names = [f"wav2vec_{ft}_{i}" for i in range(embeddings.shape[-1])]
     write_features(
         output,
         names=names,
         features=embeddings,
-        slices=slices,
         corpus=corpus,
-        feature_names=feature_names,
+        feature_names=[f"wav2vec_{ft}_{i}" for i in range(embeddings[0].shape[-1])],
     )
     print(f"Wrote netCDF4 dataset to {output}")
 

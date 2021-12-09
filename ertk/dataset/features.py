@@ -1,4 +1,3 @@
-import inspect
 import typing
 import warnings
 from collections import Counter
@@ -13,18 +12,15 @@ import pandas as pd
 import soundfile
 from joblib import delayed
 
-from ..utils import PathOrStr, TqdmParallel, flat_to_inst, inst_to_flat
+from ..utils import PathOrStr, TqdmParallel, filter_kwargs, flat_to_inst, inst_to_flat
 from .utils import get_audio_paths
 
 
-def _filter_kwargs(meth: Callable, **kwargs) -> Dict[str, Any]:
-    params = inspect.signature(meth).parameters
-    if not next(
-        (p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()),
-        False,
-    ):
-        kwargs = {k: v for k, v in kwargs.items() if k in params}
-    return kwargs
+def _make_array_array(x: List[np.ndarray]) -> np.ndarray:
+    arr = np.empty(len(x), dtype=object)
+    for i, a in enumerate(x):
+        arr[i] = a
+    return arr
 
 
 def read_arff(path: PathOrStr, label: bool = False):
@@ -117,23 +113,27 @@ class FeaturesData:
 
     def __init__(
         self,
-        features: np.ndarray,
+        features: Union[List[np.ndarray], np.ndarray],
         names: List[str],
         corpus: str = "",
-        feature_names: List[str] = [],
+        feature_names: List[str] = None,
         slices: Union[np.ndarray, List[int], None] = None,
     ):
         self._corpus = corpus
         self._names = names
+        if isinstance(features, list):
+            features = _make_array_array(features)
         self._features = features
-        self._feature_names = feature_names
+        self._feature_names = feature_names or []
 
         if slices is not None:
-            self._slices = slices
-            self._flat = self.features
-            self._features = flat_to_inst(self.features, slices)
+            self._slices = np.array(slices)
+            self._flat = features
+            self._features = flat_to_inst(self.flat, slices)
         else:
-            self._flat, self._slices = inst_to_flat(self.features)
+            self._slices = np.ones(len(features), dtype=int)
+            if len(features.shape) != 2 and features[0].ndim > 1:
+                self._slices = np.array([len(x) for x in features])
 
         n_features = self.features[0].shape[-1]
         if len(self.feature_names) == 0:
@@ -144,6 +144,13 @@ class FeaturesData:
                 f"are {n_features} features"
             )
 
+    def make_contiguous(self):
+        """Makes `self.features` a contiguous array that represents
+        views of `self.flat`.
+        """
+        self._flat, self._slices = inst_to_flat(self.features)
+        self._features = flat_to_inst(self.flat, self.slices)
+
     def write(self, path: PathOrStr, **kwargs):
         """Write features to any file format."""
 
@@ -152,7 +159,7 @@ class FeaturesData:
         meth = FeaturesData._write_backends.get(path.suffix)
         if meth is None:
             raise ValueError(f"File format {path.suffix} not supported.")
-        meth(self, path, **_filter_kwargs(meth, **kwargs))
+        meth(self, path, **filter_kwargs(kwargs, meth))
 
     def write_arff(self, path: PathOrStr):
         data: Dict[str, Any] = {"relation": self.corpus}
@@ -174,8 +181,8 @@ class FeaturesData:
     def write_netcdf(self, path: PathOrStr):
         dataset = netCDF4.Dataset(path, "w")
         dataset.createDimension("instance", len(self.names))
-        dataset.createDimension("concat", self.flat.shape[0])
-        dataset.createDimension("features", self.flat.shape[1])
+        dataset.createDimension("concat", sum(self.slices))
+        dataset.createDimension("features", self.features[0].shape[-1])
 
         _slices = dataset.createVariable("slices", int, ("instance",))
         _slices[:] = np.array(self.slices)
@@ -186,7 +193,11 @@ class FeaturesData:
         _features = dataset.createVariable(
             "features", np.float32, ("concat", "features")
         )
-        _features[:, :] = self.flat
+        idx = np.cumsum(self.slices)
+        for i, x in enumerate(self.features):
+            end = idx[i]
+            start = end - self.slices[i]
+            _features[start:end, :] = x
 
         _feature_names = dataset.createVariable("feature_names", str, ("features",))
         _feature_names[:] = np.array(self.feature_names)
@@ -246,7 +257,7 @@ class FeaturesData:
     }
 
 
-_READ_BACKENDS: Dict[str, Callable] = {
+_READ_BACKENDS: Dict[str, Callable[..., FeaturesData]] = {
     ".nc": read_netcdf,
     ".arff": read_arff,
     ".csv": read_csv,
@@ -285,20 +296,20 @@ def read_features(path: PathOrStr, **kwargs) -> FeaturesData:
     meth = _READ_BACKENDS.get(path.suffix)
     if meth is None:
         raise ValueError(f"File format {path.suffix} not supported.")
-    return meth(path, **_filter_kwargs(meth, **kwargs))
+    return meth(path, **filter_kwargs(kwargs, meth))
 
 
 def write_features(
     path: PathOrStr,
-    features: np.ndarray,
+    features: Union[List[np.ndarray], np.ndarray],
     names: List[str],
     corpus: str = "",
-    feature_names: List[str] = [],
-    slices: Union[np.ndarray, List[int]] = [],
+    feature_names: List[str] = None,
+    slices: Union[np.ndarray, List[int]] = None,
     **kwargs,
 ):
     """Convenience function to write features to given path. Arguments
-    are the same as those passed to FeaturesBackend.
+    are the same as those passed to FeaturesData.
     """
 
     FeaturesData(
