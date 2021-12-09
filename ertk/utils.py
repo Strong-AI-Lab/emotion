@@ -206,33 +206,73 @@ def flat_to_inst(x: np.ndarray, slices: Union[np.ndarray, List[int]]) -> np.ndar
     """Takes a concatenated 2D data array and converts it to either a
     contiguous 2D/3D array or a variable-length 3D array, with one
     feature vector/matrix per instance.
+
+    Parameters:
+    -----------
+    x: numpy.ndarray
+        Contiguous 2D array containing concatenated instance data.
+    slices: list or numpy.ndarray
+        Array containing lengths of sequences in x corresponding to
+        instance data.
+
+    Returns:
+    --------
+    inst: numpy.ndarray
+        Instance array, which is either contiguous 2D, contiguous 3D or
+        an array of 2D arrays with varying lengths. It should be the
+        case that `inst[i] == x[s : s + slices[i]]`, where `s =
+        sum(slices[:i])`.
     """
 
     if len(x) == len(slices):
-        # 2-D contiguous array
+        # 2D contiguous array
         return x
     elif all(x == slices[0] for x in slices):
-        # 3-D contiguous array
+        # 3D contiguous array
         assert len(x) % len(slices) == 0
         return x.reshape(len(slices), len(x) // len(slices), x[0].shape[-1])
     else:
-        # 3-D variable length array
+        # 3D variable length array
         start_idx = np.cumsum(slices)[:-1]
         return np.array(np.split(x, start_idx, axis=0), dtype=object)
 
 
 def inst_to_flat(x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    """The inverse of flat_to_inst(). Takes an instance matrix and
+    """The inverse of flat_to_inst(). Takes an instance 'matrix' and
     converts to a "flattened" 2D matrix.
+
+    Parameters:
+    -----------
+    x: numpy.ndarray
+        The instance matrix, which is either a contiguous 2D or 3D
+        array, or an array of 1D or 2D arrays.
+
+    Returns:
+    --------
+    flat: numpy.ndarray
+        The contiguous 2D matrix containing data for all instances.
+    slices: numpy.ndarray
+        Array of slices (sequence lengths) in `flat`. It should be the
+        case that `x[i] == flat[s : s + slices[i]]`, where `s =
+        sum(slices[:i])`.
     """
 
     slices = np.ones(len(x), dtype=int)
     if len(x.shape) != 2:
-        slices = np.array([len(_x) for _x in x])
-        if len(x.shape) == 3:
-            x = x.reshape(sum(slices), x.shape[2])
+        if x[0].ndim == 1:
+            # Array of 1D arrays
+            x = np.stack(x)  # type: ignore
         else:
-            x = np.concatenate(x)
+            slices = np.array([len(_x) for _x in x])
+            if len(x.shape) == 3:
+                # Contiguous 3D array
+                x = x.reshape(sum(slices), x.shape[2])
+            elif x[0].base is not None and all(_x.base is x[0].base for _x in x):
+                # Array of views into contiguous array
+                x = x[0].base
+            else:
+                # Array of separate arrays
+                x = np.concatenate(x)
     assert sum(slices) == len(x)
     return x, slices
 
