@@ -2,6 +2,7 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import Tuple
 
 import click
 import numpy as np
@@ -10,36 +11,24 @@ import pandas as pd
 from ertk.dataset import read_features, write_features
 from ertk.utils import PathlibPath
 
+OPENXBOW = Path(__file__).parent / "../../third_party/openxbow/openXBOW.jar"
+
 
 @click.command()
 @click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
 @click.argument("output", type=Path)
 @click.option(
-    "--codebook",
-    type=int,
-    default=500,
-    help="Size of codebook (number of outptut features).",
-)
-@click.option(
-    "--closest",
-    type=int,
-    default=200,
-    help="Number of closest codes to increment per vector. This acts as a "
-    "smoothing parameter.",
-)
-@click.option(
     "--jar",
     type=PathlibPath(exists=True),
-    default=Path("third_party/openxbow/openXBOW.jar"),
+    default=OPENXBOW.resolve(),
     help="Path to openXBOW.jar",
     show_default=True,
 )
-@click.option("--log/--nolog", default=True, help="Use log(1 + x) scaling.")
-def main(input: Path, output: Path, codebook: int, closest: int, jar: Path, log: bool):
+@click.argument("xbowargs", nargs=-1)
+def main(input: Path, output: Path, jar: Path, xbowargs: Tuple[str]):
     """Process sequences of LLD vectors using the openXBOW software.
-    INPUT should be a dataset containing the feature vectors, one per
-    instance. The vector-quantized features are written to a new dataset
-    in OUTPUT.
+    INPUT should be the frame-level feature vectors. The BoAW from
+    vector-quantised features are written to OUTPUT.
     """
 
     _, tmpin = tempfile.mkstemp(prefix="openxbow_", suffix=".csv")
@@ -62,15 +51,9 @@ def main(input: Path, output: Path, codebook: int, closest: int, jar: Path, log:
         ",",
         "-writeName",
         "-noLabels",
-        "-size",
-        str(codebook),
-        "-a",
-        str(closest),
-        "-norm",
-        "1",
+        *xbowargs,
     ]
-    if log:
-        xbow_args.append("-log")
+    print(f"Using SMILExtract at {jar} with extra options:\n\t{' '.join(xbowargs)}")
     subprocess.call(xbow_args)
     os.remove(tmpin)
     data = pd.read_csv(tmpout, header=None, quotechar="'", dtype={0: str})

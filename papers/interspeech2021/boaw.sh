@@ -10,18 +10,24 @@ for corpus in CaFE CREMA-D DEMoS EMO-DB EmoFilm eNTERFACE IEMOCAP JL MSP-IMPROV 
         datasets/$corpus/files_all.txt \
         features/$corpus/mfcc_log_energy.nc || { exit 1; }
     python scripts/preprocessing/openxbow.py \
-        --closest 20 \
-        --codebook 500 \
         features/$corpus/mfcc_log_energy.nc \
-        features/$corpus/boaw_20_500.nc
+        features/$corpus/boaw_20_500.nc \
+        -- \
+        -a 20 \
+        -size 500 \
+        -norm 1
     python scripts/preprocessing/openxbow.py \
-        --closest 50 \
-        --codebook 1000 \
         features/$corpus/mfcc_log_energy.nc \
-        features/$corpus/boaw_50_1000.nc
+        features/$corpus/boaw_50_1000.nc \
+        -- \
+        -a 50 \
+        -size 1000 \
+        -norm 1
     python scripts/preprocessing/openxbow.py \
-        --closest 100 \
-        --codebook 5000 \
         features/$corpus/mfcc_log_energy.nc \
-        features/$corpus/boaw_100_5000.nc
+        features/$corpus/boaw_100_5000.nc \
+        -- \
+        -a 100 \
+        -size 5000 \
+        -norm 1
 done
