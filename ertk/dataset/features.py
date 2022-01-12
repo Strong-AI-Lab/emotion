@@ -12,15 +12,15 @@ import pandas as pd
 import soundfile
 from joblib import delayed
 
-from ..utils import PathOrStr, TqdmParallel, filter_kwargs, flat_to_inst, inst_to_flat
+from ..utils import (
+    PathOrStr,
+    TqdmParallel,
+    _make_array_array,
+    filter_kwargs,
+    flat_to_inst,
+    inst_to_flat,
+)
 from .utils import get_audio_paths
-
-
-def _make_array_array(x: List[np.ndarray]) -> np.ndarray:
-    arr = np.empty(len(x), dtype=object)
-    for i, a in enumerate(x):
-        arr[i] = a
-    return arr
 
 
 def read_arff(path: PathOrStr, label: bool = False):

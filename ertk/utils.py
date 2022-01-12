@@ -202,6 +202,16 @@ def get_arg_mapping(s: Union[Path, str]) -> Dict[str, Any]:
     return {k: v[0] if len(v) == 1 else v for k, v in get_arg_mapping_multi(s).items()}
 
 
+def _make_array_array(x: List[np.ndarray]) -> np.ndarray:
+    """Helper function to make an array of arrays. The returned array
+    has `shape==(len(x),)` and `dtype==object`.
+    """
+    arr = np.empty(len(x), dtype=object)
+    for i, a in enumerate(x):
+        arr[i] = a
+    return arr
+
+
 def flat_to_inst(x: np.ndarray, slices: Union[np.ndarray, List[int]]) -> np.ndarray:
     """Takes a concatenated 2D data array and converts it to either a
     contiguous 2D/3D array or a variable-length 3D array, with one
@@ -234,7 +244,7 @@ def flat_to_inst(x: np.ndarray, slices: Union[np.ndarray, List[int]]) -> np.ndar
     else:
         # 3D variable length array
         start_idx = np.cumsum(slices)[:-1]
-        return np.array(np.split(x, start_idx, axis=0), dtype=object)
+        return _make_array_array(np.split(x, start_idx, axis=0))
 
 
 def inst_to_flat(x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -277,7 +287,7 @@ def inst_to_flat(x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     return x, slices
 
 
-def check_3d(arrays: Union[Sequence[np.ndarray], np.ndarray]):
+def check_3d(arrays: Union[Sequence[np.ndarray], np.ndarray]) -> None:
     """Checks if an array is 3D or each array in a list is 2D. Raises an
     exception if this isn't the case.
     """
@@ -290,7 +300,7 @@ def frame_arrays(
     frame_size: int = 640,
     frame_shift: int = 160,
     num_frames: Optional[int] = None,
-):
+) -> np.ndarray:
     """Creates sequences of frames from the given arrays. Each input
     array is a 1-D or L x 1 time domain signal. Each corresponding
     output array is a 2-D array of frames of shape (num_frames,
@@ -317,24 +327,49 @@ def frame_arrays(
     return arrs
 
 
+@overload
+def pad_arrays(arrays: List[np.ndarray], pad: int) -> List[np.ndarray]:
+    pass
+
+
+@overload
+def pad_arrays(arrays: np.ndarray, pad: int) -> np.ndarray:
+    pass
+
+
 def pad_arrays(arrays: Union[List[np.ndarray], np.ndarray], pad: int = 32):
     """Pads each array to the nearest multiple of `pad` greater than the
     array size. Assumes axis 0 of each sub-array, or axis 1 of x, is
     the time axis.
     """
     if isinstance(arrays, np.ndarray) and len(arrays.shape) > 1:
+        # Contiguous 2D/3D
         padding = int(np.ceil(arrays.shape[1] / pad)) * pad - arrays.shape[1]
         extra_dims = tuple((0, 0) for _ in arrays.shape[2:])
         return np.pad(arrays, ((0, 0), (0, padding)) + extra_dims)
     new_arrays = []
     for x in arrays:
+        # List or array of arrays
         padding = int(np.ceil(x.shape[0] / pad)) * pad - x.shape[0]
         new_arrays.append(np.pad(x, ((0, padding), (0, 0))))
     if isinstance(arrays, np.ndarray):
         if all(x.shape == new_arrays[0].shape for x in new_arrays):
+            # Contiguous array
             return np.array(new_arrays)
-        return np.array(new_arrays, dtype=object)
+        # Array of variable-length arrays
+        return _make_array_array(new_arrays)
+    # List
     return new_arrays
+
+
+@overload
+def clip_arrays(arrays: List[np.ndarray], length: int, copy: bool) -> List[np.ndarray]:
+    pass
+
+
+@overload
+def clip_arrays(arrays: np.ndarray, length: int, copy: bool) -> np.ndarray:
+    pass
 
 
 def clip_arrays(
@@ -348,15 +383,25 @@ def clip_arrays(
         if all(x.shape == new_arrays[0].shape for x in new_arrays):
             # Return contiguous array
             return np.stack(new_arrays)
-        return np.array(new_arrays, dtype=object)
+        return _make_array_array(new_arrays)
     return [x[:length].copy() if copy else x[:length] for x in arrays]
+
+
+@overload
+def transpose_time(arrays: List[np.ndarray]) -> List[np.ndarray]:
+    pass
+
+
+@overload
+def transpose_time(arrays: np.ndarray) -> np.ndarray:
+    pass
 
 
 def transpose_time(arrays: Union[List[np.ndarray], np.ndarray]):
     """Transpose the time and feature axis of each array. Requires each
     array be 2-D.
 
-    NOTE: This function modifies the arrays in-place.
+    Note: This function modifies the arrays in-place.
     """
     check_3d(arrays)
     if isinstance(arrays, np.ndarray) and len(arrays.shape) == 3:
@@ -462,7 +507,7 @@ def batch_arrays(
                 _x[i, ...] = arrays_x[j]
             xlist.append(_x)
             ylist.append(_y)
-    x_batch = np.array(xlist, dtype=object)
+    x_batch = _make_array_array(xlist)
     y_batch = np.array(ylist, dtype=y_dtype if uniform_batch_size else object)
     return x_batch, y_batch
 
