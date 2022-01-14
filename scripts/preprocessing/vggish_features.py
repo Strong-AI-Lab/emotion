@@ -1,19 +1,39 @@
 import sys
+from itertools import zip_longest
 from pathlib import Path
 
 import click
 import numpy as np
 import tensorflow.compat.v1 as tf
-from tqdm import trange
+from tqdm import tqdm
 
 from ertk.dataset import read_features, write_features
-from ertk.utils import PathlibPath
+from ertk.extraction import spectrogram
+from ertk.utils import PathlibPath, frame_array
+
+
+def get_spec_generator(dataset):
+    if dataset.features[0].shape[-1] == 1:
+        # Raw audio input
+        return (
+            spectrogram(
+                audio,
+                sr=16000,
+                pre_emphasis=0.97,
+                window_size=0.025,
+                window_shift=0.01,
+                n_mels=64,
+            )
+            for audio in dataset.features
+        )
+    else:
+        return (x for x in dataset.features)
 
 
 @click.command()
 @click.argument("input", type=Path)
 @click.argument("output", type=Path)
-@click.option("--batch_size", type=int, default=256)
+@click.option("--batch_size", type=int, default=8)
 @click.option(
     "--vggish",
     "vggish_dir",
@@ -39,15 +59,15 @@ def main(input: Path, output: Path, batch_size: int, vggish_dir: Path):
 
     print("Loading dataset")
     dataset = read_features(input)
-    frames_list = [
-        tf.signal.frame(x, 96, 96, pad_end=True, axis=0) for x in dataset.features
-    ]
-    slices = tf.constant([len(x) for x in frames_list])
-    frames = tf.concat(frames_list, 0)
-    frames *= tf.math.log(10.0) / 20  # Rescale dB power to ln(abs(X))
-    frames = frames.numpy()
 
     print("Loading VGGish model")
+    pca_params = str(vggish_dir / "vggish_pca_params.npz")
+    processor = Postprocessor(pca_params)
+
+    features = []
+    # From the itertools recipes, to batch an iterator
+    batches = zip_longest(*[get_spec_generator(dataset)] * batch_size)
+    pbar = tqdm(total=len(dataset), desc="Processing frames")
     with tf.Graph().as_default(), tf.Session() as sess:
         define_vggish_slim()
         ckpt = str(vggish_dir / "vggish_model.ckpt")
@@ -56,29 +76,28 @@ def main(input: Path, output: Path, batch_size: int, vggish_dir: Path):
         features_tensor = sess.graph.get_tensor_by_name("vggish/input_features:0")
         embedding_tensor = sess.graph.get_tensor_by_name("vggish/embedding:0")
 
-        print("Processing frames")
-        outputs = []
-        for i in trange(0, len(frames), batch_size):
-            batch = frames[i : i + batch_size]
-            [embeddings] = sess.run(
-                [embedding_tensor], feed_dict={features_tensor: batch}
-            )
-            outputs.append(embeddings)
-        outputs = np.concatenate(outputs, 0)
+        for batch in batches:
+            batch = [x for x in batch if x is not None]
 
-    print("Postprocessing")
-    pca_params = str(vggish_dir / "vggish_pca_params.npz")
-    processor = Postprocessor(pca_params)
-    embeddings = processor.postprocess(outputs)
-    slices = np.cumsum(slices)[:-1]
-    embeddings = [np.mean(x, 0, keepdims=True) for x in np.split(embeddings, slices)]
+            frames = [frame_array(spec, 96, 96, pad=True, axis=0) for spec in batch]
+            slices = np.cumsum([len(x) for x in frames])[:-1]
+            frames = np.concatenate(frames)
+            frames *= np.log(10.0) / 20  # Rescale dB power to ln(abs(X))
+            [embeddings] = sess.run(
+                [embedding_tensor], feed_dict={features_tensor: frames}
+            )
+            embeddings = processor.postprocess(embeddings)
+            features.extend(np.mean(x, 0) for x in np.split(embeddings, slices))
+
+            pbar.update(len(batch))
+        pbar.close()
 
     output.parent.mkdir(parents=True, exist_ok=True)
     feature_names = [f"vggish{i + 1}" for i in range(embeddings[0].shape[-1])]
     write_features(
         output,
         names=dataset.names,
-        features=embeddings,
+        features=features,
         corpus=dataset.corpus,
         feature_names=feature_names,
     )

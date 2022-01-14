@@ -249,6 +249,9 @@ class FeaturesData:
         """Corpus ID."""
         return self._corpus
 
+    def __len__(self) -> int:
+        return len(self.names)
+
     _write_backends: Dict[str, Callable] = {
         ".arff": write_arff,
         ".csv": write_csv,

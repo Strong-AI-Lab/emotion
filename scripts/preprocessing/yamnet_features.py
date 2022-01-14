@@ -1,14 +1,39 @@
 import sys
+from itertools import zip_longest
 from pathlib import Path
 
 import click
+import numpy as np
 import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Input
-from tqdm import trange
+from tqdm import tqdm
 
 from ertk.dataset import read_features, write_features
-from ertk.utils import PathlibPath
+from ertk.extraction import spectrogram
+from ertk.utils import PathlibPath, frame_array
+
+
+def get_spec_generator(dataset):
+    if dataset.features[0].shape[-1] == 1:
+        # Raw audio input
+        return (
+            spectrogram(
+                audio,
+                sr=16000,
+                pre_emphasis=0.97,
+                window_size=0.025,
+                window_shift=0.01,
+                n_mels=64,
+            )
+            for audio in dataset.features
+        )
+    else:
+        return (x for x in dataset.features)
+
+
+def process_spec():
+    pass
 
 
 @click.command()
@@ -40,35 +65,39 @@ def main(input: Path, output: Path, batch_size: int, yamnet_dir: Path):
 
     model_path = yamnet_dir / "yamnet.h5"
     print(f"Loading yamnet model {model_path}")
-    features = Input((96, 64))
-    predictions, embeddings = yamnet(features, Params())
-    model = Model(inputs=features, outputs=[predictions, embeddings])
+    input_layer = Input((96, 64))
+    predictions, embeddings = yamnet(input_layer, Params())
+    model = Model(inputs=input_layer, outputs=[predictions, embeddings])
     model.load_weights(model_path)
     model(tf.zeros((1, 96, 64)))
 
-    print(f"Loading dataset {input}")
+    print("Loading dataset")
     dataset = read_features(input)
-    frames_list = [
-        tf.signal.frame(x, 96, 48, pad_end=True, axis=0) for x in dataset.features
-    ]
-    slices = tf.constant([len(x) for x in frames_list])
-    frames = tf.concat(frames_list, 0)
-    frames *= tf.math.log(10.0) / 20  # Rescale dB power to ln(abs(X))
 
-    print(f"Processing {len(frames)} frames")
-    outputs = []
-    for i in trange(0, len(frames), batch_size):
-        _, embeddings = model(frames[i : i + batch_size])
-        outputs.append(embeddings)
-    embeddings = tf.concat(outputs, 0)
-    embeddings = [tf.reduce_mean(x, 0).numpy() for x in tf.split(embeddings, slices)]
+    features = []
+    # From the itertools recipes, to batch an iterator
+    batches = zip_longest(*[get_spec_generator(dataset)] * batch_size)
+    pbar = tqdm(total=len(dataset), desc="Processing frames")
+    for batch in batches:
+        batch = [x for x in batch if x is not None]
+
+        frames = [frame_array(spec, 96, 48, pad=True, axis=0) for spec in batch]
+        slices = np.cumsum([len(x) for x in frames])[:-1]
+        frames = np.concatenate(frames)
+        frames *= np.log(10.0) / 20  # Rescale dB power to ln(abs(X))
+
+        _, embeddings = model(frames)
+        features.extend(np.mean(x, 0) for x in np.split(embeddings, slices))
+
+        pbar.update(len(batch))
+    pbar.close()
 
     output.parent.mkdir(parents=True, exist_ok=True)
-    feature_names = [f"yamnet{i + 1}" for i in range(embeddings[0].shape[-1])]
+    feature_names = [f"yamnet{i + 1}" for i in range(features[0].shape[-1])]
     write_features(
         output,
         names=dataset.names,
-        features=embeddings,
+        features=features,
         corpus=dataset.corpus,
         feature_names=feature_names,
     )

@@ -295,6 +295,79 @@ def check_3d(arrays: Union[Sequence[np.ndarray], np.ndarray]) -> None:
         raise ValueError("arrays must be 3D (contiguous or vlen).")
 
 
+def frame_array(
+    x: np.ndarray,
+    frame_size: int,
+    frame_shift: int,
+    pad: bool = False,
+    axis: int = 0,
+) -> np.ndarray:
+    """Frames an array over a given axis with optional padding.
+
+    Parameters:
+    -----------
+    x: np.ndarray
+        Array to frame.
+    frame_size: int
+        Width of frame.
+    frame_shift: int
+        Amount each window is moved for subsequent frames.
+    pad: bool
+        If the frames don't neatly fit the axis length, this indicated
+        whether to pad or cut the remaining length. Default is `False`
+        which means any remaining length is cut. If `pad=True` then any
+        remaining length is padded with zeros and an additional frame is
+        produced. If frames neatly fit into the axis length then this
+        option has no effect.
+    axis: int
+        Axis to frame over. Default is 0.
+    copy: bool
+        Whether to copy and return a contiguous array (more memory
+        usage). Default is `False` so that a read-only view is retured.
+
+    Returns:
+    --------
+    frames: np.ndarray
+        The resulting frames. If `copy=False` then these are read-only
+        views into x, otherwise a contiguous array is returned.
+    """
+    idx_slice = tuple(slice(None) for _ in range(axis))
+
+    num_frames = (x.shape[axis] - frame_size) // frame_shift + 1
+    remainder = (x.shape[axis] - frame_size) % frame_shift
+    if remainder != 0:
+        num_frames += 1 if pad else 0
+    new_shape = x.shape[:axis] + (num_frames, frame_size) + x.shape[axis + 1 :]
+
+    # TODO: Implement using stride_tricks if possible
+    # if remainder != 0:
+    #     if pad:
+    #         padding = frame_shift - remainder
+    #         before_dims = tuple((0, 0) for _ in x.shape[:axis])
+    #         after_dims = tuple((0, 0) for _ in x.shape[axis + 1 :])
+    #         x = np.pad(x, before_dims + ((0, padding),) + after_dims)
+    #     else:
+    #         x = x[idx_slice + (slice(0, x.shape[axis] - remainder),)]
+    # new_strides = x.strides[:axis] + (frame_shift * x.strides[axis],) + x.strides[axis:]
+    # return np.lib.stride_tricks.as_strided(x, new_shape, new_strides, writeable=False)
+
+    out = np.zeros(new_shape, dtype=x.dtype)
+    for i in range(0, x.shape[axis] - frame_size + 1, frame_shift):
+        out[idx_slice + (i // frame_shift,)] = x[
+            idx_slice + (slice(i, i + frame_size),)
+        ]
+
+    # for i in range(num_frames):
+    #     start = i * frame_shift
+    #     out[idx_slice + (i,)] = x[idx_slice + (slice(start, start + frame_size),)]
+
+    if remainder != 0 and pad:
+        out[idx_slice + (-1, slice(0, remainder))] = x[
+            idx_slice + (slice(-remainder, None),)
+        ]
+    return out
+
+
 def frame_arrays(
     arrays: Union[List[np.ndarray], np.ndarray],
     frame_size: int = 640,
