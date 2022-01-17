@@ -376,34 +376,54 @@ def frame_array(
 
 def frame_arrays(
     arrays: Union[List[np.ndarray], np.ndarray],
-    frame_size: int = 640,
-    frame_shift: int = 160,
-    num_frames: Optional[int] = None,
+    frame_size: int,
+    frame_shift: int,
+    max_frames: Optional[int] = None,
+    vlen: bool = False,
 ) -> np.ndarray:
-    """Creates sequences of frames from the given arrays. Each input
-    array is a 1-D or L x 1 time domain signal. Each corresponding
-    output array is a 2-D array of frames of shape (num_frames,
-    frame_size).
-    """
-    # TODO: Make option for vlen output
-    if num_frames is None:
-        max_len = max(len(x) for x in arrays)
-        num_frames = (max_len - frame_size) // frame_shift + 1
+    """Creates sequences of frames from the given arrays. This is mainly
+    a convenience wrapper around `frame_array()` for instance arrays.
 
-    _arrs = []
-    for seq in arrays:
-        seq = np.squeeze(seq)
-        arr = np.zeros((num_frames, frame_size), dtype=np.float32)
-        for i in range(0, len(seq), frame_shift):
-            idx = i // frame_shift
-            if idx >= num_frames:
-                break
-            maxl = min(len(seq) - i, frame_size)
-            arr[idx, :maxl] = seq[i : i + frame_size]
-        _arrs.append(arr)
-    arrs = np.array(_arrs)
-    assert tuple(arrs.shape) == (len(arrays), num_frames, frame_size)
-    return arrs
+    Parameters:
+    -----------
+    arrays: list of np.ndarray
+        The arrays to process.
+    frame_size: int
+        Length of each frame.
+    frame_shift: int
+        Amount each frame is shifted.
+    max_frames: int, optional
+        If given, only the first max_frames are returned for each array.
+    vlen: bool
+        Whether to return a contiguous array if `vlen=False` (default)
+        or an array of variable length arrays.
+
+    Returns:
+    --------
+    framed_arrays:
+        Framed arrays.
+    """
+    if max_frames is None:
+        max_len = max(len(x) for x in arrays)
+        max_frames = (max_len - frame_size) // frame_shift + 1
+
+    # Generator
+    arrs = (
+        frame_array(x, frame_size, frame_shift, axis=0, pad=True, copy=True)[
+            :max_frames
+        ]
+        for x in arrays
+    )
+    if vlen:
+        return _make_array_array(list(arrs))
+
+    n_features = arrays[0].shape[1]
+    framed_arrays = np.zeros(
+        (len(arrays), max_frames, frame_size, n_features), dtype=arrays[0].dtype
+    )
+    for i, arr in enumerate(arrs):
+        framed_arrays[i, : len(arr)] = arr
+    return framed_arrays
 
 
 @overload

@@ -480,9 +480,9 @@ class Dataset:
 
     def frame_arrays(
         self,
-        frame_size: int = 640,
-        frame_shift: int = 160,
-        num_frames: Optional[int] = None,
+        frame_size: int,
+        frame_shift: int,
+        max_frames: Optional[int] = None,
     ):
         """Create a sequence of frames from the raw signal."""
         logging.info(f"Framing arrays with size {frame_size} and shift {frame_shift}.")
@@ -490,7 +490,7 @@ class Dataset:
             self._x,
             frame_size=frame_size,
             frame_shift=frame_shift,
-            num_frames=num_frames,
+            max_frames=max_frames,
         )
 
     def transpose_time(self):
