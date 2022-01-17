@@ -301,8 +301,10 @@ def frame_array(
     frame_shift: int,
     pad: bool = False,
     axis: int = 0,
+    copy: bool = True,
 ) -> np.ndarray:
-    """Frames an array over a given axis with optional padding.
+    """Frames an array over a given axis with optional padding and
+    copying.
 
     Parameters:
     -----------
@@ -323,7 +325,10 @@ def frame_array(
         Axis to frame over. Default is 0.
     copy: bool
         Whether to copy and return a contiguous array (more memory
-        usage). Default is `False` so that a read-only view is retured.
+        usage). Default is `True` so that a contiguous copy is retured.
+        Note: if `copy=False` it is assumed that the input array is
+        contiguous so that a view with modified strides can be properly
+        created.
 
     Returns:
     --------
@@ -337,35 +342,36 @@ def frame_array(
     remainder = (x.shape[axis] - frame_size) % frame_shift
     if remainder != 0:
         num_frames += 1 if pad else 0
+    # Insert new dim before axis with num_frames, and axis is replaced
+    # with the size of each frame.
     new_shape = x.shape[:axis] + (num_frames, frame_size) + x.shape[axis + 1 :]
 
-    # TODO: Implement using stride_tricks if possible
-    # if remainder != 0:
-    #     if pad:
-    #         padding = frame_shift - remainder
-    #         before_dims = tuple((0, 0) for _ in x.shape[:axis])
-    #         after_dims = tuple((0, 0) for _ in x.shape[axis + 1 :])
-    #         x = np.pad(x, before_dims + ((0, padding),) + after_dims)
-    #     else:
-    #         x = x[idx_slice + (slice(0, x.shape[axis] - remainder),)]
-    # new_strides = x.strides[:axis] + (frame_shift * x.strides[axis],) + x.strides[axis:]
-    # return np.lib.stride_tricks.as_strided(x, new_shape, new_strides, writeable=False)
+    if copy:
+        out = np.zeros(new_shape, dtype=x.dtype)
+        for i in range(0, x.shape[axis] - frame_size + 1, frame_shift):
+            out[idx_slice + (i // frame_shift,)] = x[
+                idx_slice + (slice(i, i + frame_size),)
+            ]
+        if remainder != 0 and pad:
+            out[idx_slice + (-1, slice(0, remainder))] = x[
+                idx_slice + (slice(-remainder, None),)
+            ]
 
-    out = np.zeros(new_shape, dtype=x.dtype)
-    for i in range(0, x.shape[axis] - frame_size + 1, frame_shift):
-        out[idx_slice + (i // frame_shift,)] = x[
-            idx_slice + (slice(i, i + frame_size),)
-        ]
+        return out
 
-    # for i in range(num_frames):
-    #     start = i * frame_shift
-    #     out[idx_slice + (i,)] = x[idx_slice + (slice(start, start + frame_size),)]
+    from numpy.lib.stride_tricks import as_strided
 
-    if remainder != 0 and pad:
-        out[idx_slice + (-1, slice(0, remainder))] = x[
-            idx_slice + (slice(-remainder, None),)
-        ]
-    return out
+    if remainder != 0:
+        if pad:
+            # Padding creates a new array copy
+            raise ValueError("pad must be False when copy=False")
+        # x[:, :, ..., 0:N-r, :, ...]
+        x = x[idx_slice + (slice(0, x.shape[axis] - remainder),)]
+    # Add a new stride for the num_frames part of shape which moves by
+    # frame_shift for each frame. The stride within each frame is the
+    # same as for the original axis.
+    new_strides = x.strides[:axis] + (frame_shift * x.strides[axis],) + x.strides[axis:]
+    return as_strided(x, new_shape, new_strides, writeable=False)
 
 
 def frame_arrays(
