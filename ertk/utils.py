@@ -339,6 +339,13 @@ def frame_array(
     idx_slice = tuple(slice(None) for _ in range(axis))
 
     num_frames = (x.shape[axis] - frame_size) // frame_shift + 1
+    if num_frames < 0:
+        if not pad:
+            raise ValueError(
+                "The length of the sequence is shorter than frame_size, but pad=False, "
+                "so no frames will be generated."
+            )
+        num_frames = 0
     remainder = (x.shape[axis] - frame_size) % frame_shift
     if remainder != 0:
         num_frames += 1 if pad else 0
