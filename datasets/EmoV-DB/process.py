@@ -1,11 +1,17 @@
-"""Process the raw EMOVO dataset.
+"""Process the raw EmoV-DB dataset.
 
-This assumes the file structure from the original compressed file:
+This assumes the file structure from the original sorted data:
 /.../
-    f1/
-        *.wav
-    m1/
-        *.wav
+    bea/
+        Angry/
+            *.wav
+        Amused/
+            *.wav
+        ...
+    josh/
+        Angry/
+            *.wav
+        ...
     ...
 """
 
@@ -31,7 +37,7 @@ gender_map = {"bea": "F", "jenie": "F", "josh": "M", "sam": "M"}
 @click.argument("input_dir", type=PathlibPath(exists=True, file_okay=False))
 @click.option("--resample/--noresample", default=True)
 def main(input_dir: Path, resample: bool):
-    """Process the EMOVO dataset at location INPUT_DIR and resample
+    """Process the EmoV-DB dataset at location INPUT_DIR and resample
     audio to 16 kHz 16-bit WAV audio.
     """
     paths = list(input_dir.glob("**/*.wav"))
