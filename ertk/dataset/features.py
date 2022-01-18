@@ -51,7 +51,7 @@ def read_csv(path: PathOrStr, header: bool = True, label: bool = False):
         names=list(counts.keys()),
         features=np.array(df.iloc[:, idx]),
         slices=np.array(list(counts.values())),
-        feature_names=df.columns[idx],
+        feature_names=list(df.columns[idx]),
     )
 
 
