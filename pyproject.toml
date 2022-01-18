@@ -10,7 +10,14 @@ extend_skip = ["papers", "third_party"]
 target-version = ["py37"]
 
 [tool.pyright]
-include = ["src", "scripts", "datasets/*"]
+include = ["src", "scripts", "datasets/*", "tests"]
 exclude = ["**/__pycache__", "third_party", ".git"]
 ignore = ["papers"]
 pythonVersion = "3.7"
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+testpaths = ["tests"]
+filterwarnings = [
+    'ignore:`np.complex` is a deprecated:DeprecationWarning'  # librosa
+]

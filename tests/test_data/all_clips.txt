@@ -1,0 +1,12 @@
+resampled/1001_DFA_ANG_XX.wav
+resampled/1001_DFA_DIS_XX.wav
+resampled/1001_DFA_FEA_XX.wav
+resampled/1001_DFA_HAP_XX.wav
+resampled/1001_DFA_NEU_XX.wav
+resampled/1001_DFA_SAD_XX.wav
+resampled/1002_DFA_ANG_XX.wav
+resampled/1002_DFA_DIS_XX.wav
+resampled/1002_DFA_FEA_XX.wav
+resampled/1002_DFA_HAP_XX.wav
+resampled/1002_DFA_NEU_XX.wav
+resampled/1002_DFA_SAD_XX.wav

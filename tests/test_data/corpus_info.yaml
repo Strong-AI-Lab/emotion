@@ -1,0 +1,15 @@
+test_corpus:
+  description: Test dataset
+  annotations:
+    - annot1
+  partitions:
+    - speaker
+    - label
+  subsets:
+    default: all
+    all:
+      clips: all_clips
+      description: All files
+    subset1:
+      clips: subset
+  features_dir: features
