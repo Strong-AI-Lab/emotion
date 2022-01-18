@@ -1,3 +1,4 @@
+import csv
 import typing
 import warnings
 from collections import Counter
@@ -167,6 +168,8 @@ class FeaturesData:
             (x, "NUMERIC") for x in self.feature_names
         ]
         data["data"] = []
+        # The liac-arff library can only dump all at once
+        self.make_contiguous()
         for name, row in zip(np.repeat(self.names, self.slices), self.flat):
             data["data"].append([name] + list(row))
 
@@ -174,9 +177,16 @@ class FeaturesData:
             arff.dump(data, fid)
 
     def write_csv(self, path, header: bool = True):
-        df = pd.DataFrame(self.flat, columns=self.feature_names)
-        df.index = pd.Index(np.repeat(self.names, self.slices), name="name")
-        df.to_csv(path, header=header)
+        with open(path, "w") as fid:
+            writer = csv.writer(fid)
+            if header:
+                writer.writerow(["name"] + self.feature_names)
+            for name, inst in zip(self.names, self.features):
+                if len(inst.shape) == 2:
+                    for row in inst:
+                        writer.writerow([name] + list(row))
+                else:
+                    writer.writerow([name] + list(inst))
 
     def write_netcdf(self, path: PathOrStr):
         dataset = netCDF4.Dataset(path, "w")
