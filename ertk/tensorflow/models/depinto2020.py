@@ -9,14 +9,23 @@ doi: 10.1109/EAIS48028.2020.9122698.
 
 
 from tensorflow.keras import Model
-from tensorflow.keras.layers import Conv1D, Dense, Dropout, Flatten, Input, Reshape
-
-__all__ = ["model"]
+from tensorflow.keras.layers import (
+    Conv1D,
+    Dense,
+    Dropout,
+    Flatten,
+    Input,
+    MaxPool1D,
+    Reshape,
+)
 
 
 def model(n_features: int, n_classes: int) -> Model:
     inputs = Input((n_features,))
     x = Reshape((n_features, 1))(inputs)
+    # x = Conv1D(128, 40, activation="relu", padding="same")(x)
+    # x = Dropout(0.2)(x)
+    # x = MaxPool1D(8)(x)
     x = Conv1D(64, 5, activation="relu", padding="same")(x)
     x = Dropout(0.2)(x)
     x = Flatten()(x)
