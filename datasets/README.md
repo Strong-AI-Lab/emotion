@@ -15,6 +15,7 @@ Currently the following datasets have processing scripts:
 - [EmoryNLP](https://github.com/declare-lab/MELD/)
 - [EmoV-DB](https://github.com/numediart/EmoV-DB)
 - [EMOVO](http://voice.fub.it/activities/corpora/emovo/index.html)
+- [ESD](https://github.com/HLTSingapore/Emotional-Speech-Data)
 - [eNTERFACE](http://www.enterface.net/results/)
 - [IEMOCAP](https://sail.usc.edu/iemocap/)
 - [JL-corpus](https://www.kaggle.com/tli725/jl-corpus)
