@@ -7,6 +7,9 @@ from joblib import delayed
 
 from ..utils import PathOrStr, TqdmParallel
 
+# The below is because mypy does not yet support type narrowing upon redefinition
+# mypy: allow-redefinition
+
 
 def get_audio_paths(path: PathOrStr, absolute: bool = True) -> List[Path]:
     """Given a path to a dir or list of audio files, return a sequence
@@ -64,7 +67,7 @@ def resample_rename_clips(mapping: Mapping[Path, Path]):
     )
 
 
-def resample_audio(paths: Iterable[Path], dir: PathOrStr):
+def resample_audio(paths: Iterable[PathOrStr], dir: PathOrStr):
     """Resample given audio clips to 16 kHz 16-bit WAV, and place in
     direcotory given by `dir`.
 
@@ -75,14 +78,14 @@ def resample_audio(paths: Iterable[Path], dir: PathOrStr):
     dir: Pathlike or str
         Output directory.
     """
-    paths = list(paths)
+    paths = list(map(Path, paths))
     if len(paths) == 0:
         raise FileNotFoundError("No audio files found.")
 
     resample_rename_clips({x: Path(dir, f"{x.stem}.wav") for x in paths})
 
 
-def write_filelist(paths: Iterable[Path], name: str):
+def write_filelist(paths: Iterable[PathOrStr], path: PathOrStr):
     """Write sorted file list.
 
     Args:
@@ -92,6 +95,9 @@ def write_filelist(paths: Iterable[Path], name: str):
     name: str
         Name of resulting file list.
     """
-    paths = sorted(paths, key=lambda p: p.stem)
-    with open(f"{name}.txt", "w") as fid:
+    paths = sorted(map(Path, paths), key=lambda p: p.stem)
+    path = Path(path)
+    if path.suffix == "":
+        path = path.with_suffix(".txt")
+    with open(path, "w") as fid:
         fid.write("\n".join(list(map(str, paths))) + "\n")
