@@ -103,8 +103,9 @@ class FeaturesData:
         List of instance names.
     corpus: str
         Corpus for this dataset.
-    feature_names: list of str
-        List of feature names.
+    feature_names: list of str, optional
+        List of feature names. If not given, the features will me named
+        feature1, feature2, etc.
     slices: list or ndarray:
         Slices corresponding to "flat" `features` matrix.
     dataset: DatasetBackend
@@ -117,15 +118,17 @@ class FeaturesData:
         features: Union[List[np.ndarray], np.ndarray],
         names: List[str],
         corpus: str = "",
-        feature_names: List[str] = None,
+        feature_names: Optional[List[str]] = None,
         slices: Union[np.ndarray, List[int], None] = None,
     ):
         self._corpus = corpus
-        self._names = names
+        self._names = list(names)
         if isinstance(features, list):
             features = _make_array_array(features)
         self._features = features
-        self._feature_names = feature_names or []
+        if feature_names is None:
+            feature_names = []
+        self._feature_names = list(feature_names)
 
         if slices is not None:
             self._slices = np.array(slices)
