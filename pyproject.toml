@@ -21,3 +21,8 @@ testpaths = ["tests"]
 filterwarnings = [
     'ignore:`np.complex` is a deprecated:DeprecationWarning'  # librosa
 ]
+
+[tool.mypy]
+follow_imports = "silent"
+ignore_missing_imports = true
+files = ["ertk", "scripts", "tests"]
