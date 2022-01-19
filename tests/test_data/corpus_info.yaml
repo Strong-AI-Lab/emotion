@@ -10,6 +10,9 @@ test_corpus:
     all:
       clips: all_clips
       description: All files
+    all_unsorted:
+      clips: all_clips_unsorted
+      description: All files, but unsorted, for testing purposes.
     subset1:
       clips: subset
   features_dir: features
