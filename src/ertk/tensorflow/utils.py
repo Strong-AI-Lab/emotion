@@ -11,7 +11,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam, Optimizer
 from tensorflow.keras.utils import Sequence
 
-from ertk.utils import batch_arrays, shuffle_multiple
+from ertk.utils import batch_arrays_by_length, shuffle_multiple
 
 TFModelFunction = Callable[..., Union[Model, Pipeline]]
 DataFunction = Callable[..., tf.data.Dataset]
@@ -294,7 +294,7 @@ class BatchedFrameSequence(Sequence):
         self.x = x
         self.y = y
         if not prebatched:
-            self.x, self.y = batch_arrays(
+            self.x, self.y = batch_arrays_by_length(
                 self.x, self.y, batch_size=batch_size, shuffle=shuffle
             )
         if shuffle:

@@ -1,5 +1,5 @@
 from .array import (
-    batch_arrays,
+    batch_arrays_by_length,
     clip_arrays,
     flat_to_inst,
     frame_array,

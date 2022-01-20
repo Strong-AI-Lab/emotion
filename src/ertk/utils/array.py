@@ -159,6 +159,52 @@ def frame_arrays(
     return framed_arrays
 
 
+def pad_array(
+    x: np.ndarray, to_multiple: int = None, to_size: int = None, axis: int = 0
+):
+    """Pads an array either to a multiple of `to_multiple` or to the
+    exact length `to_size` along `axis`.
+
+
+    Parameters:
+    -----------
+    x: np.ndarray
+        The array to pad.
+    to_multiple: int, optional
+        If given, `x` is padded so that it's length is the nearest
+        larger multiple of `to_multiple`.
+    to_size: int, optional
+        If given, `x` is padded so that it's length is exactly
+        `to_size`. Default is None, and instead `to_multiple` is used.
+        Exactly one of `to_size` and `to_multiple` must be given.
+    axis: int
+        The axis along which to pad. Default is axis 0.
+
+    Returns:
+    --------
+    padded: np.ndarray
+        The padded array.
+    """
+    if to_multiple is not None and to_size is not None:
+        raise ValueError("Only one of `to_multiple` and `to_size` should be given.")
+
+    if to_size is not None:
+        to_pad = to_size - x.shape[axis]
+        if to_pad < 0:
+            raise ValueError("The length of `x` is already greater than `to_size`.")
+    elif to_multiple is not None:
+        to_pad = int(np.ceil(x.shape[axis] / to_multiple)) * to_multiple - x.shape[axis]
+    else:
+        raise ValueError("One of `to_multiple` and `to_size` must be given.")
+
+    if to_pad == 0:
+        return x.copy()  # A copy is expected when padding
+
+    pad = [(0, 0) for _ in x.shape]
+    pad[axis] = (0, to_pad)
+    return np.pad(x, pad)
+
+
 @overload
 def pad_arrays(arrays: List[np.ndarray], pad: int) -> List[np.ndarray]:
     pass
@@ -172,18 +218,13 @@ def pad_arrays(arrays: np.ndarray, pad: int) -> np.ndarray:
 def pad_arrays(arrays: Union[List[np.ndarray], np.ndarray], pad: int = 32):
     """Pads each array to the nearest multiple of `pad` greater than the
     array size. Assumes axis 0 of each sub-array, or axis 1 of x, is
-    the time axis.
+    the time axis. This is mainly a wrapper around `pad_array()` for
+    instance arrays.
     """
     if isinstance(arrays, np.ndarray) and len(arrays.shape) > 1:
         # Contiguous 2D/3D
-        padding = int(np.ceil(arrays.shape[1] / pad)) * pad - arrays.shape[1]
-        extra_dims = tuple((0, 0) for _ in arrays.shape[2:])
-        return np.pad(arrays, ((0, 0), (0, padding)) + extra_dims)
-    new_arrays = []
-    for x in arrays:
-        # List or array of arrays
-        padding = int(np.ceil(x.shape[0] / pad)) * pad - x.shape[0]
-        new_arrays.append(np.pad(x, ((0, padding), (0, 0))))
+        return pad_array(arrays, to_multiple=pad, axis=1)
+    new_arrays = [pad_array(x, to_multiple=pad, axis=0) for x in arrays]
     if isinstance(arrays, np.ndarray):
         if all(x.shape == new_arrays[0].shape for x in new_arrays):
             # Contiguous array
@@ -245,7 +286,11 @@ def transpose_time(arrays: Union[List[np.ndarray], np.ndarray]):
     return arrays
 
 
-def shuffle_multiple(*arrays: Union[np.ndarray, Sequence], numpy_indexing: bool = True):
+def shuffle_multiple(
+    *arrays: Union[np.ndarray, Sequence],
+    numpy_indexing: bool = True,
+    seed: Optional[int] = None,
+):
     """Shuffles multiple arrays or lists in sync. Useful for shuffling the data
     and labels in a dataset separately while keeping them synchronised.
 
@@ -264,14 +309,14 @@ def shuffle_multiple(*arrays: Union[np.ndarray, Sequence], numpy_indexing: bool 
     if any(len(arrays[0]) != len(x) for x in arrays):
         raise ValueError("Not all arrays have equal first dimension.")
 
-    perm = np.random.default_rng().permutation(len(arrays[0]))
+    perm = np.random.default_rng(seed).permutation(len(arrays[0]))
     new_arrays = [
         array[perm] if numpy_indexing else [array[i] for i in perm] for array in arrays
     ]
     return new_arrays
 
 
-def batch_arrays(
+def batch_arrays_by_length(
     arrays_x: Union[np.ndarray, List[np.ndarray]],
     y: np.ndarray,
     batch_size: int = 32,
