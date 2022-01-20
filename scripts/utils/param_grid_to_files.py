@@ -4,7 +4,8 @@ import click
 import yaml
 from sklearn.model_selection import ParameterGrid
 
-from ertk.utils import PathlibPath, get_arg_mapping
+from ertk.config import get_arg_mapping
+from ertk.utils import PathlibPath
 
 
 @click.command()

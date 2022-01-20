@@ -5,7 +5,7 @@ from typing import Iterable, List, Mapping
 
 from joblib import delayed
 
-from ..utils import PathOrStr, TqdmParallel
+from ertk.utils import PathOrStr, TqdmParallel
 
 # The below is because mypy does not yet support type narrowing upon redefinition
 # mypy: allow-redefinition

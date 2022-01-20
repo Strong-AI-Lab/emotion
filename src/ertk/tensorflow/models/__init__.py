@@ -5,7 +5,7 @@ from functools import partial
 
 from tensorflow.keras.models import Model
 
-from ..utils import TFModelFunction
+from ertk.tensorflow.utils import TFModelFunction
 
 
 def get_tf_model_fn(name: str, **kwargs) -> TFModelFunction:

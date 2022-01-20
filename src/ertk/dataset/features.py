@@ -13,15 +13,15 @@ import pandas as pd
 import soundfile
 from joblib import delayed
 
-from ..utils import (
+from ertk.dataset.utils import get_audio_paths
+from ertk.utils import (
     PathOrStr,
     TqdmParallel,
-    _make_array_array,
     filter_kwargs,
     flat_to_inst,
     inst_to_flat,
+    make_array_array,
 )
-from .utils import get_audio_paths
 
 
 def read_arff(path: PathOrStr, label: bool = False):
@@ -124,7 +124,7 @@ class FeaturesData:
         self._corpus = corpus
         self._names = list(names)
         if isinstance(features, list):
-            features = _make_array_array(features)
+            features = make_array_array(features)
         self._features = features
         if feature_names is None:
             feature_names = []

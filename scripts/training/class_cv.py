@@ -11,13 +11,11 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 from ertk.classification import dataset_cross_validation
+from ertk.config import get_arg_mapping
 from ertk.dataset import load_multiple
-from ertk.utils import (
-    PathlibPath,
-    SequenceTransformWrapper,
-    get_arg_mapping,
-    get_cv_splitter,
-)
+from ertk.train import get_cv_splitter
+from ertk.transform import SequenceTransformWrapper
+from ertk.utils import PathlibPath
 
 
 @click.command()

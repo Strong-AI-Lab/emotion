@@ -1,7 +1,17 @@
 import logging
 import time
 from functools import partial
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import numpy as np
 import pandas as pd
@@ -16,12 +26,14 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import BaseCrossValidator, LeaveOneGroupOut
 from sklearn.utils.multiclass import unique_labels
-from tensorflow.keras.models import Model
 
-from .dataset import LabelledDataset
-from .sklearn.classification import sk_cross_validate, sk_train_val_test
-from .tensorflow.classification import tf_cross_validate, tf_train_val_test
-from .utils import get_cv_splitter
+if TYPE_CHECKING:
+    from tensorflow.keras.models import Model
+
+from ertk.dataset import LabelledDataset
+from ertk.sklearn.classification import sk_cross_validate, sk_train_val_test
+from ertk.tensorflow.classification import tf_cross_validate, tf_train_val_test
+from ertk.train import get_cv_splitter
 
 
 def binary_accuracy_score(

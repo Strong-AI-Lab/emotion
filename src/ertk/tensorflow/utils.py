@@ -11,7 +11,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam, Optimizer
 from tensorflow.keras.utils import Sequence
 
-from ..utils import batch_arrays, shuffle_multiple
+from ertk.utils import batch_arrays, shuffle_multiple
 
 TFModelFunction = Callable[..., Union[Model, Pipeline]]
 DataFunction = Callable[..., tf.data.Dataset]

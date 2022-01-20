@@ -22,18 +22,18 @@ import yaml
 from sklearn.base import TransformerMixin
 from sklearn.preprocessing import StandardScaler
 
-from ..utils import (
+from ertk.dataset.annotation import read_annotations
+from ertk.dataset.features import find_features_file, read_features
+from ertk.dataset.utils import get_audio_paths
+from ertk.transform import group_transform
+from ertk.utils import (
     PathOrStr,
     clip_arrays,
     frame_arrays,
-    group_transform,
     ordered_intersect,
     pad_arrays,
     transpose_time,
 )
-from .annotation import read_annotations
-from .features import find_features_file, read_features
-from .utils import get_audio_paths
 
 
 class Dataset:

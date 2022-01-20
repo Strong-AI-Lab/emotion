@@ -2,7 +2,7 @@ from typing import Dict, Mapping, Optional, Type, TypeVar
 
 import pandas as pd
 
-from ..utils import PathOrStr
+from ertk.utils import PathOrStr
 
 AT = TypeVar("AT", str, int, float)
 

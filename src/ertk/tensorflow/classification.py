@@ -10,14 +10,15 @@ from sklearn.pipeline import Pipeline
 from tensorflow.keras.callbacks import History, TensorBoard
 from tensorflow.keras.metrics import SparseCategoricalAccuracy
 
-from ..utils import get_scores, ScoreFunction
-from .utils import (
+from ertk.tensorflow.utils import (
     DataFunction,
     TFModelFunction,
+    tf_dataset_gen,
     tf_dataset_mem,
     tf_dataset_mem_ragged,
-    tf_dataset_gen,
 )
+from ertk.train import get_scores
+from ertk.utils import ScoreFunction
 
 
 def tf_train_val_test(

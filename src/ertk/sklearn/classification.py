@@ -5,7 +5,8 @@ from sklearn.base import ClassifierMixin
 from sklearn.model_selection import BaseCrossValidator, cross_validate
 from sklearn.pipeline import Pipeline
 
-from ..utils import ScoreFunction, filter_kwargs, get_pipeline_params, get_scores
+from ertk.train import get_pipeline_params, get_scores
+from ertk.utils import ScoreFunction, filter_kwargs
 
 
 def sk_cross_validate(

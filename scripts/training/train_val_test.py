@@ -10,13 +10,11 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 from ertk.classification import train_val_test
+from ertk.config import get_arg_mapping
 from ertk.dataset import load_multiple
-from ertk.utils import (
-    PathlibPath,
-    SequenceTransformWrapper,
-    ValidationSplit,
-    get_arg_mapping,
-)
+from ertk.train import ValidationSplit
+from ertk.transform import SequenceTransformWrapper
+from ertk.utils import PathlibPath
 
 
 @click.command()

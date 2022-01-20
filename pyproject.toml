@@ -10,7 +10,7 @@ extend_skip = ["papers", "third_party"]
 target-version = ["py37"]
 
 [tool.pyright]
-include = ["ertk", "scripts", "datasets/*"]
+include = ["src", "scripts", "datasets/*"]
 exclude = ["**/__pycache__", "third_party", ".git"]
 ignore = ["papers"]
 pythonVersion = "3.7"
