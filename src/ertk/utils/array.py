@@ -86,9 +86,8 @@ def frame_array(
                 idx_slice + (slice(i, i + frame_size),)
             ]
         if remainder != 0 and pad:
-            out[idx_slice + (-1, slice(0, remainder))] = x[
-                idx_slice + (slice(-remainder, None),)
-            ]
+            left = frame_size + remainder - frame_shift
+            out[idx_slice + (-1, slice(0, left))] = x[idx_slice + (slice(-left, None),)]
 
         return out
 
@@ -136,6 +135,8 @@ def frame_arrays(
     framed_arrays:
         Framed arrays.
     """
+    check_3d(arrays)
+
     if max_frames is None:
         max_len = max(len(x) for x in arrays)
         max_frames = (max_len - frame_size) // frame_shift + 1
@@ -228,7 +229,7 @@ def pad_arrays(arrays: Union[List[np.ndarray], np.ndarray], pad: int = 32):
     if isinstance(arrays, np.ndarray):
         if all(x.shape == new_arrays[0].shape for x in new_arrays):
             # Contiguous array
-            return np.array(new_arrays)
+            return np.stack(new_arrays)
         # Array of variable-length arrays
         return make_array_array(new_arrays)
     # List
@@ -359,10 +360,10 @@ def batch_arrays_by_length(
         The batched labels corresponding to sequences in x_list.
         y_list[i] has the same length as x_list[i].
     """
-    if isinstance(arrays_x, list):
-        arrays_x = np.array(arrays_x, dtype=object)
     if shuffle:
         arrays_x, y = shuffle_multiple(arrays_x, y, numpy_indexing=False)
+
+    # TODO: implement batch generator
 
     fixed_shape = arrays_x[0].shape[1:]
     lengths = [x.shape[0] for x in arrays_x]
@@ -385,7 +386,10 @@ def batch_arrays_by_length(
             xlist.append(_x)
             ylist.append(_y)
     x_batch = make_array_array(xlist)
-    y_batch = np.array(ylist, dtype=y_dtype if uniform_batch_size else object)
+    if uniform_batch_size:
+        y_batch = np.array(ylist, dtype=y_dtype)
+    else:
+        y_batch = make_array_array(ylist)
     return x_batch, y_batch
 
 

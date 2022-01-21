@@ -318,6 +318,9 @@ class Dataset:
         """
         self.annotations[new_name] = self.annotations[old_name]
         del self.annotations[old_name]
+        if old_name in self.partitions:
+            self.partitions.add(new_name)
+            self.partitions.remove(old_name)
 
     def remove_annotation(self, annot_name: str):
         """Removes a set of annotations from the dataset. This does not
@@ -425,7 +428,7 @@ class Dataset:
             raise ValueError("Exactly one of drop and keep should be given.")
 
         if len(keep) == 0:
-            keep = set(self.names) - set(drop)
+            keep = set(self.names) - drop
 
         idx = [i for i, x in enumerate(self.names) if x in keep]
         self._names = [self.names[i] for i in idx]
@@ -500,7 +503,7 @@ class Dataset:
 
     @property
     def corpus(self) -> str:
-        """The corpus this LabelledDataset represents."""
+        """The corpus this dataset represents."""
         return self._corpus
 
     @property
@@ -519,7 +522,7 @@ class Dataset:
         return len(self.feature_names)
 
     @property
-    def speaker_names(self) -> Sequence[str]:
+    def speaker_names(self) -> List[str]:
         """List of unique speakers in this dataset."""
         return self.get_group_names("speaker")
 
@@ -545,12 +548,8 @@ class Dataset:
 
     @property
     def partitions(self) -> Set[str]:
-        """Mapping of instance partitions."""
+        """Partitions in this dataset."""
         return self._partitions
-
-    @property
-    def part_names(self) -> List[str]:
-        return list(self.partitions)
 
     @property
     def annotations(self) -> Dict[str, Dict[str, Any]]:
@@ -661,7 +660,7 @@ class CombinedDataset(LabelledDataset):
 
         logging.info("Combining " + ", ".join(d.corpus for d in datasets))
         self._corpus = "combined"
-        self._names = [d.corpus + "_" + n for d in datasets for n in d.names]
+        self._names = [f"{d.corpus}_{n}" for d in datasets for n in d.names]
         self._feature_names = datasets[0].feature_names
         self._features = datasets[0]._features
         self._x = np.concatenate([d.x for d in datasets])
@@ -669,7 +668,7 @@ class CombinedDataset(LabelledDataset):
         self.update_annotation(
             "corpus", [d.corpus for d in datasets for _ in d.names], dtype=str
         )
-        self.update_speakers([d.corpus + "_" + s for d in datasets for s in d.speakers])
+        self.update_speakers([f"{d.corpus}_{s}" for d in datasets for s in d.speakers])
 
         # TODO: handle case when only some datasets have a given annotation?
         all_annotations = set(chain(*(d.annotations for d in datasets)))
@@ -699,10 +698,6 @@ class CombinedDataset(LabelledDataset):
         instance.
         """
         return self.get_group_indices("corpus")
-
-    @property
-    def corpus_counts(self) -> np.ndarray:
-        return self.get_group_counts("corpus")
 
 
 def load_multiple(
