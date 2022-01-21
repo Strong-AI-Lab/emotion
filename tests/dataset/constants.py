@@ -18,3 +18,9 @@ with open(Path(__file__).parent / "test_data" / "all_clips_unsorted.txt") as fid
     all_clips_unsorted_names = [Path(x.strip()).stem for x in fid]
 with open(Path(__file__).parent / "test_data" / "subset.txt") as fid:
     subset_names = [Path(x.strip()).stem for x in fid]
+
+test_data_dir = Path(__file__).parent / "test_data"
+audio_dir = test_data_dir / "data"
+resample_dir = test_data_dir / "resampled"
+features_dir = test_data_dir / "features"
+resample_paths = list(audio_dir.glob("*.mp3")) + list(audio_dir.glob("*.flv"))
