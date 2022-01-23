@@ -3,7 +3,7 @@ from pathlib import Path
 import click
 import librosa
 import torch
-from fairseq.models.wav2vec import Wav2Vec2Model, Wav2VecModel
+from fairseq.checkpoint_utils import load_model_ensemble
 from tqdm import tqdm
 
 from ertk.dataset import write_features, get_audio_paths
@@ -47,12 +47,7 @@ def main(
     over time to produce an aggregated vector.
     """
     print(f"Loading model from {checkpoint}")
-    cp = torch.load(checkpoint)
-    if tp == 1:
-        model = Wav2VecModel.build_model(cp["args"], task=None)
-    else:
-        model = Wav2Vec2Model.build_model(cp["args"], task=None)
-    model.load_state_dict(cp["model"])
+    [model], _ = load_model_ensemble([str(checkpoint)])
     model.cuda()
     model.eval()
     torch.set_grad_enabled(False)
@@ -70,7 +65,7 @@ def main(
             feats = model.feature_aggregator(z) if context else z
         else:  # wav2vec 2.0
             if context:
-                c, _ = model.extract_features(tensor, None)
+                c = model.extract_features(tensor, None)["x"]
                 # Transpose to (batch, feats, steps)
                 feats = c.transpose(-2, -1)
             else:

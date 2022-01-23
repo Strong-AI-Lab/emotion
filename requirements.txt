@@ -1,6 +1,6 @@
 click
 click-option-group
-fairseq==0.10.2
+git+https://github.com/pytorch/fairseq.git#5fd38e3d5b1e5163aeace2a43d4a481fbbf1d83e
 joblib
 liac-arff
 librosa
