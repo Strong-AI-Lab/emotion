@@ -10,5 +10,8 @@ repos:
     rev: 21.9b0
     hooks:
       - id: black
-        language_version: python
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.9.3
+    hooks:
+      - id: isort
 exclude: "^third_party/.*$"
