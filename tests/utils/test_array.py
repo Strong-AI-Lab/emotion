@@ -52,6 +52,9 @@ def test_check_3d():
         ((47, 10), 13, 5, True, 0, (8, 13, 10)),
         ((20, 100, 10), 30, 10, False, 1, (20, 8, 30, 10)),
         ((20, 100, 10), 30, 10, True, 1, (20, 8, 30, 10)),
+        ((1, 37, 10), 50, 50, True, 1, (1, 1, 50, 10)),
+        ((37, 10), 50, 50, True, 0, (1, 50, 10)),
+        ((37, 10), 50, 10, True, 0, (1, 50, 10)),
     ],
 )
 def test_frame_array_shape(
@@ -64,8 +67,45 @@ def test_frame_array_shape(
 ):
     rng = np.random.default_rng()
     x = rng.random(size=shape)
-    framed = frame_array(x, frame_size, frame_shift, pad=pad, axis=axis)
+    framed = frame_array(x, frame_size, frame_shift, pad=pad, axis=axis, copy=True)
     assert framed.shape == expected_shape
+    if not pad:
+        framed = frame_array(x, frame_size, frame_shift, pad=pad, axis=axis, copy=False)
+        assert framed.shape == expected_shape
+
+
+@pytest.mark.parametrize(
+    ["shape", "frame_size", "frame_shift", "axis"],
+    [
+        ((1, 37, 10), 50, 50, 1),
+        ((37, 10), 50, 50, 0),
+        ((37, 10), 50, 10, 0),
+    ],
+)
+def test_frame_array_small_nopad(
+    shape: Tuple[int], frame_size: int, frame_shift: int, axis: int
+):
+    rng = np.random.default_rng()
+    x = rng.random(size=shape)
+    with pytest.raises(ValueError, match="sequence is shorter than frame_size"):
+        frame_array(x, frame_size, frame_shift, pad=False, axis=axis)
+
+
+@pytest.mark.parametrize(
+    ["shape", "frame_size", "frame_shift", "axis"],
+    [
+        ((107,), 30, 10, 0),
+        ((47, 10), 13, 5, 0),
+        ((47, 10), 13, 5, 0),
+    ],
+)
+def test_frame_array_pad_nocopy(
+    shape: Tuple[int], frame_size: int, frame_shift: int, axis: int
+):
+    rng = np.random.default_rng()
+    x = rng.random(size=shape)
+    with pytest.raises(ValueError, match="pad must be False"):
+        frame_array(x, frame_size, frame_shift, pad=True, axis=axis, copy=False)
 
 
 def test_frame_array_content_no_pad():
