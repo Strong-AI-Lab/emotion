@@ -20,17 +20,25 @@ from ertk.utils import PathlibPath
     required=True,
     help="Path to checkpoint.",
 )
-@click.option("--type", "tp", type=int, default=1, help="Wav2Vec version, 1 or 2.")
+@click.option(
+    "--type",
+    "tp",
+    type=click.Choice(["wav2vec", "wav2vec2", "hubert"]),
+    required=True,
+    help="Wav2Vec version, 1 or 2.",
+)
 @click.option(
     "--aggregate",
     type=click.Choice(["mean", "max", "none"]),
     default="mean",
+    show_default=True,
     help="Whether and how to pool embeddings across time.",
 )
 @click.option(
     "--context/--encoder",
     default=True,
-    help="Use context embeddings or encoder embeddings (default: context).",
+    show_default=True,
+    help="Use context embeddings or encoder embeddings.",
 )
 def main(
     corpus: str,
@@ -58,14 +66,21 @@ def main(
     for filepath in tqdm(filepaths, disable=None):
         wav, _ = librosa.load(filepath, sr=16000, mono=True, res_type="kaiser_fast")
         tensor = torch.tensor(wav, device="cuda").unsqueeze(0)
-        if tp == 1:  # Original wav2vec
+        if tp == "wav2vec":
             z = model.feature_extractor(tensor)
             if model.vector_quantizer is not None:
                 z, _ = model.vector_quantizer.forward_idx(z)
             feats = model.feature_aggregator(z) if context else z
-        else:  # wav2vec 2.0
+        elif tp == "wav2vec2":
             if context:
                 c = model.extract_features(tensor, None)["x"]
+                # Transpose to (batch, feats, steps)
+                feats = c.transpose(-2, -1)
+            else:
+                feats = model.feature_extractor(tensor)
+        else:  # HuBERT
+            if context:
+                c, _ = model.extract_features(tensor)
                 # Transpose to (batch, feats, steps)
                 feats = c.transpose(-2, -1)
             else:
