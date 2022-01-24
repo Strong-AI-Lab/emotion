@@ -1,6 +1,6 @@
 import sys
-from itertools import zip_longest
 from pathlib import Path
+from typing import List
 
 import click
 import numpy as np
@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from ertk.dataset import read_features, write_features
 from ertk.extraction import spectrogram
-from ertk.utils import PathlibPath, frame_array
+from ertk.utils import PathlibPath, batch_iterable, frame_array
 
 
 def get_spec_generator(dataset):
@@ -74,9 +74,8 @@ def main(input: Path, output: Path, batch_size: int, yamnet_dir: Path):
     print("Loading dataset")
     dataset = read_features(input)
 
-    features = []
-    # From the itertools recipes, to batch an iterator
-    batches = zip_longest(*[get_spec_generator(dataset)] * batch_size)
+    features: List[np.ndarray] = []
+    batches = batch_iterable(get_spec_generator(dataset), batch_size)
     pbar = tqdm(total=len(dataset), desc="Processing frames")
     for batch in batches:
         batch = [x for x in batch if x is not None]

@@ -1,3 +1,4 @@
+from itertools import zip_longest
 from typing import (
     Any,
     Callable,
@@ -10,6 +11,7 @@ from typing import (
     overload,
 )
 
+T = TypeVar("T")
 T1 = TypeVar("T1")
 T2 = TypeVar("T2")
 
@@ -76,3 +78,28 @@ def filter_kwargs(kwargs: Dict[str, Any], method: Callable) -> Dict[str, Any]:
         ):
             del kwargs[key]
     return kwargs
+
+
+def batch_iterable(
+    it: Iterable[T], batch_size: int, fillvalue: Any = None
+) -> Iterable[Tuple[T, ...]]:
+    """Batches an iterable into chunks of size `batch_size`.
+
+    Parameters:
+    -----------
+    it: iterable
+        The iterable to batch.
+    batch_size: int
+        The size of each batch/chunk.
+    fillvalue:
+        An optional fill value if the final batch isn't full (i.e.
+        `batch_size` doesn't divide the iterable length.)
+
+    Returns:
+    --------
+    batched: iterable
+        A generator that yields tuples of length `batch_size` with
+        successive elements from the original iterable.
+    """
+    # From the itertools recipes, to chunk an iterator
+    yield from zip_longest(*[iter(it)] * batch_size, fillvalue=fillvalue)

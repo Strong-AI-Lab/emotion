@@ -10,6 +10,6 @@ from .array import (
     shuffle_multiple,
     transpose_time,
 )
-from .generic import filter_kwargs, itmap, ordered_intersect
+from .generic import batch_iterable, filter_kwargs, itmap, ordered_intersect
 from .misc import PathlibPath, TqdmParallel
-from .types import ScoreFunction, PathOrStr
+from .types import PathOrStr, ScoreFunction
