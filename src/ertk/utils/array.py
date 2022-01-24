@@ -65,7 +65,7 @@ def frame_array(
     idx_slice = tuple(slice(None) for _ in range(axis))
 
     num_frames = (x.shape[axis] - frame_size) // frame_shift + 1
-    if num_frames < 0:
+    if num_frames <= 0:
         if not pad:
             raise ValueError(
                 "The length of the sequence is shorter than frame_size, but pad=False, "
@@ -86,7 +86,11 @@ def frame_array(
                 idx_slice + (slice(i, i + frame_size),)
             ]
         if remainder != 0 and pad:
-            left = frame_size + remainder - frame_shift
+            if num_frames == 1:
+                left = x.shape[axis]
+            else:
+                left = frame_size + remainder - frame_shift
+            # out[..., -1, 0:left, ...] = x[..., -left:, ...]
             out[idx_slice + (-1, slice(0, left))] = x[idx_slice + (slice(-left, None),)]
 
         return out
