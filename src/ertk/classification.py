@@ -1,21 +1,10 @@
 import logging
 import time
 from functools import partial
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
-from sklearn.base import BaseEstimator
 from sklearn.metrics import (
     accuracy_score,
     f1_score,
@@ -26,9 +15,6 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import BaseCrossValidator, LeaveOneGroupOut
 from sklearn.utils.multiclass import unique_labels
-
-if TYPE_CHECKING:
-    from tensorflow.keras.models import Model
 
 from ertk.dataset import LabelledDataset
 from ertk.sklearn.classification import sk_cross_validate, sk_train_val_test
@@ -141,7 +127,7 @@ def standard_class_scoring(classes: Sequence[str]):
 
 
 def dataset_cross_validation(
-    clf: Union[BaseEstimator, Callable[..., Model]],
+    clf,
     dataset: LabelledDataset,
     clf_lib: Optional[str] = None,
     partition: Optional[str] = None,
@@ -195,6 +181,7 @@ def dataset_cross_validation(
     if scoring is None:
         scoring = standard_class_scoring(dataset.classes)
 
+    cross_validate_fn: Callable[..., Dict[str, Any]]
     if clf_lib == "sk":
         # We have to set n_jobs here because using a
         # `with joblib.Parallel...` clause doesn't work properly
@@ -230,7 +217,7 @@ def dataset_cross_validation(
 
 
 def train_val_test(
-    clf: Union[BaseEstimator, Callable[..., Model]],
+    clf,
     dataset: LabelledDataset,
     train_idx: Union[Sequence[int], np.ndarray],
     valid_idx: Union[Sequence[int], np.ndarray],
@@ -273,6 +260,7 @@ def train_val_test(
     if scoring is None:
         scoring = standard_class_scoring(dataset.classes)
 
+    train_val_test_fn: Callable[..., Dict[str, Any]]
     if clf_lib == "sk":
         train_val_test_fn = sk_train_val_test
     elif clf_lib == "tf":

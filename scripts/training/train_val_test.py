@@ -176,27 +176,9 @@ def main(
     for file in param_grid_file:
         param_grid.update(get_arg_mapping(file))
 
-    def _get_indices(split: str):
-        if ":" not in split and not Path(split).exists():  # is a subset
-            indices = np.array(
-                [i for i, x in enumerate(dataset.names) if x in dataset.subsets[split]]
-            )
-            return indices
-        mapping = get_arg_mapping(split)
-        part_name = next(iter(mapping))
-        group_names = dataset.get_group_names(part_name)
-        group_indices = dataset.get_group_indices(part_name)
-        sel = mapping[part_name]
-        if isinstance(sel, str):
-            indices = group_indices == group_names.index(sel)
-        else:
-            sel_idx = [group_names.index(x) for x in sel]
-            indices = np.isin(group_indices, sel_idx)
-        return indices
-
-    train_indices = _get_indices(train)
-    valid_indices = _get_indices(valid)
-    test_indices = _get_indices(test)
+    train_indices = dataset.get_idx_for_split(train)
+    valid_indices = dataset.get_idx_for_split(valid)
+    test_indices = dataset.get_idx_for_split(test)
 
     clf_lib, clf_type = clf_type.split("/", maxsplit=1)
     if clf_lib == "sk":

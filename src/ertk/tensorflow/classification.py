@@ -18,7 +18,7 @@ from ertk.tensorflow.utils import (
     tf_dataset_mem_ragged,
 )
 from ertk.train import get_scores
-from ertk.utils import ScoreFunction
+from ertk.utils import ScoreFunction, filter_kwargs
 
 
 def tf_train_val_test(
@@ -26,12 +26,13 @@ def tf_train_val_test(
     train_data: Tuple[np.ndarray, ...],
     valid_data: Tuple[np.ndarray, ...],
     test_data: Optional[Tuple[np.ndarray, ...]] = None,
-    data_fn: Union[DataFunction, str] = None,
     scoring: Union[
         str, List[str], Dict[str, ScoreFunction], Callable[..., float]
     ] = "accuracy",
+    data_fn: Union[DataFunction, str] = None,
     batch_size: int = 32,
-    **fit_params,
+    verbose: int = 0,
+    fit_params: Dict[str, Any] = {},
 ) -> Dict[str, Union[float, History]]:
     """Trains on given data, using given validation data, and tests on
     given test data.
@@ -70,6 +71,11 @@ def tf_train_val_test(
     """
     if test_data is None:
         test_data = valid_data
+
+    data_fn = fit_params.pop("data_fn", data_fn)
+    batch_size = fit_params.pop("batch_size", batch_size)
+    if "sample_weight" in fit_params:
+        del fit_params["sample_weight"]  # Part of *_data
 
     data_fns = {
         "mem": tf_dataset_mem,
@@ -114,7 +120,10 @@ def tf_train_val_test(
 
     clf.summary(print_fn=logging.info)
 
-    history = clf.fit(train_dataset, validation_data=valid_dataset, **fit_params)
+    fit_params = filter_kwargs(fit_params, clf.fit)
+    history = clf.fit(
+        train_dataset, validation_data=valid_dataset, verbose=verbose, **fit_params
+    )
     # Setting y_true is necessary for dataset creation routines that may
     # reorder data on creation (but without shuffling each time).
     y_true = np.concatenate([x[1] for x in test_dataset.as_numpy_iterator()])
@@ -215,7 +224,7 @@ def tf_cross_validate(
             data_fn=data_fn,
             scoring=scoring,
             verbose=verbose,
-            **fit_params,
+            fit_params=fit_params,
         )
 
         for k in _scores:

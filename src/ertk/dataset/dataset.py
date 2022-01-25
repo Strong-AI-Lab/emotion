@@ -22,6 +22,7 @@ import yaml
 from sklearn.base import TransformerMixin
 from sklearn.preprocessing import StandardScaler
 
+from ertk.config import get_arg_mapping
 from ertk.dataset.annotation import read_annotations
 from ertk.dataset.features import find_features_file, read_features
 from ertk.dataset.utils import get_audio_paths
@@ -217,9 +218,56 @@ class Dataset:
         if subset == "default":
             subset = self._default_subset
         self._subset = subset
-        # self.remove_instances(keep=self.subsets[subset])
         self._names = sorted(self.subsets[subset])
         self._verify_annotations()
+
+    def get_idx_for_names(self, names: Collection[str]) -> np.ndarray:
+        """Gets indices of instances corresponding to `names`.
+
+        Parameters:
+        -----------
+        names: collection of str
+            The names to get indices for.
+
+        Returns:
+        --------
+        idx: np.ndarray
+            The indices corresponding to `names`, in order.
+        """
+        names = set(names)
+        return np.array([i for i, x in enumerate(self.names) if x in names])
+
+    def get_idx_for_split(self, split: Union[str, Dict[str, str]]) -> np.ndarray:
+        """Gets indices of instances corresponding to the selection
+        given by `split`.
+
+        Parameters:
+        -----------
+        split: str or dict
+            Either a string containing the subset to select, groups to
+            select, a path to such a config file, or a mapping
+            containing the groups to select.
+
+        Returns:
+        --------
+        idx: np.ndarray
+            The corresponding indices.
+        """
+        if isinstance(split, str):
+            if ":" not in split and not Path(split).exists():  # is a subset
+                return self.get_idx_for_names(self.subsets[split])
+            mapping = get_arg_mapping(split)
+        else:
+            mapping = split
+        indices = []
+        for part_name in mapping:
+            group_names = self.get_group_names(part_name)
+            group_indices = self.get_group_indices(part_name)
+            sel = mapping[part_name]
+            sel = [sel] if isinstance(sel, str) else sel
+            sel_idx = [group_names.index(x) for x in sel]
+            indices += list(np.flatnonzero(np.isin(group_indices, sel_idx)))
+        return np.array(sorted(indices))
 
     def update_annotation(
         self,
@@ -430,7 +478,7 @@ class Dataset:
         if len(keep) == 0:
             keep = set(self.names) - drop
 
-        idx = [i for i, x in enumerate(self.names) if x in keep]
+        idx = self.get_idx_for_names(keep)
         self._names = [self.names[i] for i in idx]
         self._x = self.x[idx]
         try:
