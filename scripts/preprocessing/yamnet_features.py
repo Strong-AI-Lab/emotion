@@ -10,7 +10,7 @@ from tensorflow.keras.layers import Input
 from tqdm import tqdm
 
 from ertk.dataset import read_features, write_features
-from ertk.extraction import spectrogram
+from ertk.preprocessing import spectrogram
 from ertk.utils import PathlibPath, batch_iterable, frame_array
 
 
