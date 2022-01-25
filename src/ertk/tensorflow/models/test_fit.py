@@ -3,9 +3,9 @@ from pathlib import Path
 import click
 import numpy as np
 
-from . import get_tf_model
-from ..utils import tf_dataset_mem, tf_dataset_gen, init_gpu_memory_growth
-from ...utils import get_arg_mapping
+from ertk.config import get_arg_mapping
+from ertk.tensorflow import get_tf_model
+from ertk.tensorflow.utils import init_gpu_memory_growth, tf_dataset_gen, tf_dataset_mem
 
 
 @click.command()

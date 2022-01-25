@@ -25,7 +25,8 @@ from tensorflow.keras.layers import (
 )
 from tensorflow.keras.models import Model, Sequential
 
-from ..utils import tf_dataset_mem
+from ertk.tensorflow.utils import tf_dataset_mem
+
 from .layers import Attention1D
 
 __all__ = ["model", "create_windowed_dataset"]

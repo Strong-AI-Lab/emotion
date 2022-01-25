@@ -5,7 +5,7 @@ from typing import Optional, Sequence, Tuple
 
 import tensorflow as tf
 
-from ...utils import PathOrStr
+from ertk.utils import PathOrStr
 
 __all__ = ["BBRBM", "GBRBM"]
 
