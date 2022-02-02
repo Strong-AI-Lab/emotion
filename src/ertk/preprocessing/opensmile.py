@@ -30,12 +30,12 @@ class OpenSMILEExtractor(
         super().__init__(config)
 
         if not Path(config.opensmile_config).exists():
-            config.opensmile_config = opensmile.FeatureSet[config.opensmile_config]
+            opensmile_config = opensmile.FeatureSet[config.opensmile_config]
 
         self.levels = config.levels
         self.smiles = [
             opensmile.Smile(
-                config.opensmile_config, level, options=dict(config.opensmile_opts)
+                opensmile_config, level, options=dict(config.opensmile_opts)
             )
             for level in config.levels
         ]
