@@ -1,7 +1,30 @@
+from abc import ABC
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Type, TypeVar, Union, cast
 
 import yaml
+from omegaconf import DictConfig, OmegaConf
+
+from ertk.utils import PathOrStr
+
+T = TypeVar("T", bound="ERTKConfig")
+
+
+@dataclass
+class ERTKConfig(ABC):
+    def to_dictconfig(self) -> DictConfig:
+        return DictConfig(self)
+
+    @classmethod
+    def from_config(cls: Type[T], config: Any) -> T:
+        schema = OmegaConf.structured(cls)
+        return cast(T, OmegaConf.merge(schema, config))
+
+    @classmethod
+    def from_yaml_file(cls: Type[T], path: PathOrStr) -> T:
+        config = OmegaConf.load(Path(path))
+        return cls.from_config(config)
 
 
 def get_arg_mapping_multi(s: str) -> Dict[str, List[Any]]:

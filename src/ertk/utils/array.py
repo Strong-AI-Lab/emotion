@@ -21,6 +21,16 @@ def check_3d(arrays: Union[Sequence[np.ndarray], np.ndarray]) -> None:
         raise ValueError("arrays must be 3D (contiguous or vlen).")
 
 
+def is_mono_audio(x: np.ndarray) -> bool:
+    """Checks if an array represents mono audio data. The conditions for
+    this are that x can be squeezed to 1D.
+
+    Note that this method will also return True for '2D' sequences of
+    length 1, so care should be taken for edge cases.
+    """
+    return np.squeeze(x).ndim == 1
+
+
 def frame_array(
     x: np.ndarray,
     frame_size: int,

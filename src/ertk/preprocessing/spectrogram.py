@@ -1,27 +1,35 @@
 import warnings
+from dataclasses import dataclass
 from typing import Optional
 
 import librosa
 import numpy as np
 
+from ertk.config import ERTKConfig
+
+from .base import AudioClipProcessor, FeatureExtractor
+
 
 def spectrogram(
     audio: np.ndarray,
-    sr: int,
+    sr: float,
     kind: str = "mel",
     pre_emphasis: float = 0,
     window_size: float = 0.025,
     window_shift: float = 0.01,
+    n_fft: Optional[int] = None,
     n_mels: int = 128,
+    htk_mel: bool = False,
+    n_chroma: int = 12,
     clip_db: Optional[float] = None,
     fmin: float = 0,
-    fmax: float = 8000,
+    fmax: Optional[float] = 8000,
     power: int = 2,
     to_db: bool = True,
 ):
     """General purpose spectrogram pipeline. Calculates spectrogram with
-    optional pre-emphasis, clipping, mel transform, power and conversion
-    to dB.
+    optional pre-emphasis, clipping, mel/chroma transform, power and
+    conversion to dB.
 
     Parameters:
     -----------
@@ -40,15 +48,22 @@ def spectrogram(
     window_shift: float
         Amount window moves each frame, in seconds. Default is 0.01 (10
         ms).
+    n_fft: int, optional
+        Number of FFT bins. Default is to use the next power of 2
+        greater than `window_size * sr`.
     n_mels: int
         Number of mel bands.
+    htk_mel: bool,
+        Use HTK formula for mel calculation.
+    n_chroma: int
+        Number of chroma bands.
     clip_db: float, optional
         Whether to clip noise floor at a given level in dB below
         maximum. Default is `None` which does no clipping. This is only
         used if `to_db` is `True`.
     fmin: float
         Minimum frequency for mel bands. Default is 0.
-    fmax: float
+    fmax: float, optional
         Maximum frequency for mel bands. Default is 8000.
     power: int
         Raise spectrogram magnitudes to this power. Default is 2 which
@@ -66,7 +81,7 @@ def spectrogram(
     """
     audio = np.squeeze(audio)
     if audio.ndim != 1:
-        raise ValueError("Audio should be in mono format.")
+        raise ValueError(f"Audio should be in mono format, got shape {audio.shape}")
 
     window_samples = int(window_size * sr)
     stride_samples = int(window_shift * sr)
@@ -76,32 +91,66 @@ def spectrogram(
         audio = librosa.effects.preemphasis(audio, pre_emphasis)
 
     # Spectrogram
+    if not n_fft:
+        n_fft = 2 ** int(np.ceil(np.log2(window_samples)))
     warnings.simplefilter("ignore", UserWarning)
-    n_fft = 2 ** int(np.ceil(np.log2(window_samples)))
+    spec = librosa.stft(
+        audio,
+        n_fft=n_fft,
+        hop_length=stride_samples,
+        win_length=window_samples,
+        center=True,
+        window="hann",
+        pad_mode="reflect",
+    )
+    spec = np.abs(spec) ** power
     if kind == "mel":
         spec = librosa.feature.melspectrogram(
-            audio,
-            n_fft=n_fft,
-            hop_length=stride_samples,
-            win_length=window_samples,
-            n_mels=n_mels,
-            sr=sr,
-            fmin=fmin,
-            fmax=fmax,
-            power=power,
+            S=spec, n_mels=n_mels, fmin=fmin, fmax=fmax, htk=htk_mel
         )
-    else:
-        spec = librosa.core.stft(
-            audio,
-            n_fft=n_fft,
-            hop_length=stride_samples,
-            win_length=window_samples,
-        )
-        spec = np.abs(spec) ** power
+    elif kind == "chroma":
+        spec = librosa.feature.chroma_stft(S=spec, n_chroma=n_chroma)
     warnings.simplefilter("default", UserWarning)
 
     # Optional dB calculation
     if to_db:
-        spec = librosa.core.power_to_db(spec, ref=np.max, top_db=clip_db)
+        spec = librosa.power_to_db(spec, ref=np.max, top_db=clip_db)
 
     return spec.T
+
+
+@dataclass
+class SpectrogramExtractorConfig(ERTKConfig):
+    kind: str = "mel"
+    pre_emphasis: float = 0
+    window_size: float = 0.025
+    window_shift: float = 0.01
+    n_mels: int = 128
+    htk_mel: bool = False
+    n_fft: Optional[int] = None
+    n_chroma: int = 12
+    clip_db: Optional[float] = None
+    fmin: float = 0
+    fmax: Optional[float] = 8000
+    power: int = 2
+    to_db: bool = True
+
+
+class SpectrogramExtractor(
+    FeatureExtractor,
+    AudioClipProcessor,
+    fname="spectrogram",
+    config=SpectrogramExtractorConfig,
+):
+    config: SpectrogramExtractorConfig
+
+    def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
+        return spectrogram(x, sr=kwargs.pop("sr"), **self.config)  # type: ignore
+
+    @property
+    def dim(self) -> int:
+        return self.config.n_mels
+
+    @property
+    def is_sequence(self) -> bool:
+        return True

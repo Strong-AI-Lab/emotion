@@ -5,6 +5,7 @@ from .array import (
     frame_array,
     frame_arrays,
     inst_to_flat,
+    is_mono_audio,
     make_array_array,
     pad_arrays,
     shuffle_multiple,

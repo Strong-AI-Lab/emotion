@@ -13,7 +13,7 @@ import pandas as pd
 import soundfile
 from joblib import delayed
 
-from ertk.dataset.utils import get_audio_paths
+from ertk.dataset.utils import get_audio_paths, write_filelist
 from ertk.utils import (
     PathOrStr,
     TqdmParallel,
@@ -218,12 +218,13 @@ class FeaturesData:
         dataset.setncattr_string("corpus", self.corpus)
         dataset.close()
 
-    def write_raw(self, path: PathOrStr):
-        output_dir = Path(path) / "audio"
+    def write_raw(self, path: PathOrStr, sr: int = 16000):
+        output_dir = Path(path).with_suffix("")
         output_dir.mkdir(exist_ok=True, parents=True)
         for name, audio in zip(self.names, self.features):
-            output_path = output_dir / (name + ".wav")
-            soundfile.write(output_path, audio, subtype="PCM_16", samplerate=16000)
+            output_path = output_dir / f"{name}.wav"
+            soundfile.write(output_path, audio, subtype="PCM_16", samplerate=sr)
+        write_filelist(output_dir.glob("*.wav"), path)
 
     @property
     def features(self) -> np.ndarray:
