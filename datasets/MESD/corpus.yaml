@@ -6,6 +6,7 @@ MESD:
     - language
     - voice
     - word
+    - country
   subsets:
     default: all
     all:

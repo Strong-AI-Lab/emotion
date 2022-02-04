@@ -50,6 +50,7 @@ def main(input_dir: Path, resample: bool):
     write_annotations(speaker_dict, "speaker")
     write_annotations({k: v[0] for k, v in speaker_dict.items()}, "gender")
     write_annotations({p.stem: "ar" for p in paths}, "language")
+    write_annotations({p.stem: "ir" for p in paths}, "country")
 
 
 if __name__ == "__main__":

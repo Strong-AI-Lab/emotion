@@ -36,6 +36,7 @@ def main(input_dir: Path, resample: bool):
     write_annotations({p.stem: p.stem[p.stem.find("_") + 1] for p in paths}, "voice")
     write_annotations({p.stem: p.stem[p.stem.rfind("_") - 1] for p in paths}, "corpus")
     write_annotations({p.stem: "es" for p in paths}, "language")
+    write_annotations({p.stem: "mx" for p in paths}, "country")
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ DEMoS:
     - speaker
     - language
     - gender
+    - country
   subsets:
     default: PR
     all:

@@ -6,6 +6,7 @@ CaFE:
     - language
     - speaker
     - gender
+    - country
   subsets:
     default: all
     all:

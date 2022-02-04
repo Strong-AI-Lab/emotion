@@ -6,6 +6,7 @@ ShEMO:
     - speaker
     - gender
     - language
+    - country
   subsets:
     default: 5class
     all:
