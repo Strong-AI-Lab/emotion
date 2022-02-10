@@ -17,8 +17,6 @@ from sklearn.model_selection import BaseCrossValidator, LeaveOneGroupOut
 from sklearn.utils.multiclass import unique_labels
 
 from ertk.dataset import LabelledDataset
-from ertk.sklearn.classification import sk_cross_validate, sk_train_val_test
-from ertk.tensorflow.classification import tf_cross_validate, tf_train_val_test
 from ertk.train import get_cv_splitter
 
 
@@ -183,10 +181,14 @@ def dataset_cross_validation(
 
     cross_validate_fn: Callable[..., Dict[str, Any]]
     if clf_lib == "sk":
+        from ertk.sklearn.classification import sk_cross_validate
+
         # We have to set n_jobs here because using a
         # `with joblib.Parallel...` clause doesn't work properly
         cross_validate_fn = partial(sk_cross_validate, n_jobs=n_jobs)
     elif clf_lib == "tf":
+        from ertk.tensorflow.classification import tf_cross_validate
+
         n_jobs = 1
         cross_validate_fn = tf_cross_validate
 
@@ -262,8 +264,12 @@ def train_val_test(
 
     train_val_test_fn: Callable[..., Dict[str, Any]]
     if clf_lib == "sk":
+        from ertk.sklearn.classification import sk_train_val_test
+
         train_val_test_fn = sk_train_val_test
     elif clf_lib == "tf":
+        from ertk.tensorflow.classification import tf_train_val_test
+
         train_val_test_fn = tf_train_val_test
 
     train_idx = np.array(train_idx, copy=False)
