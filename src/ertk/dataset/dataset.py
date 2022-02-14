@@ -399,6 +399,9 @@ class Dataset:
         """
         return [self.annotations[annot_name][x] for x in self.names]
 
+    def annotation_type(self, annot_name: str) -> Type:
+        return type(next(iter(self.annotations[annot_name].values())))
+
     def get_group_indices(self, annot_name: str) -> np.ndarray:
         """Gets the group indices (i.e. indices into the groups array)
         for a given partition.
@@ -716,23 +719,52 @@ class CombinedDataset(LabelledDataset):
         self.update_annotation(
             "corpus", [d.corpus for d in datasets for _ in d.names], dtype=str
         )
-        self.update_speakers([f"{d.corpus}_{s}" for d in datasets for s in d.speakers])
+
+        all_speakers = {}
+        for d in datasets:
+            if "speaker" not in d.annotations:
+                all_speakers.update(
+                    {f"{d.corpus}_{k}": f"{d.corpus}_unknown" for k in d.names}
+                )
+            else:
+                speakers = d.annotations["speaker"]
+                all_speakers.update(
+                    {f"{d.corpus}_{k}": f"{d.corpus}_{v}" for k, v in speakers.items()}
+                )
+        self.update_speakers(all_speakers)
 
         # TODO: handle case when only some datasets have a given annotation?
         all_annotations = set(chain(*(d.annotations for d in datasets)))
+        all_annotations -= {"speaker"}  # assumed to be per-dataset
         common_annotations = {
             x for x in all_annotations if all(x in d.annotations for d in datasets)
         }
         logging.info(f"All annotations: {all_annotations}")
         logging.info(f"Common annotations: {common_annotations}")
-        common_annotations -= {"speaker"}  # assumed to be per-dataset
         for annot_name in common_annotations:
             combined_annot = {}
             for dataset in datasets:
-                annotations = dataset.annotations.get(annot_name, {})
+                annotations = dataset.annotations[annot_name]
                 combined_annot.update(
-                    {dataset.corpus + "_" + k: v for k, v in annotations.items()}
+                    {f"{dataset.corpus}_{k}": v for k, v in annotations.items()}
                 )
+            self.update_annotation(annot_name, combined_annot)
+
+        # Not common categorical annotations
+        for annot_name in all_annotations - common_annotations:
+            if not any(annot_name in d.partitions for d in datasets):
+                continue
+            combined_annot = {}
+            for d in datasets:
+                if annot_name not in d.annotations:
+                    combined_annot.update(
+                        {f"{d.corpus}_{k}": "unknown" for k in d.names}
+                    )
+                else:
+                    annotations = d.annotations[annot_name]
+                    combined_annot.update(
+                        {f"{d.corpus}_{k}": v for k, v in annotations.items()}
+                    )
             self.update_annotation(annot_name, combined_annot)
 
     @property
