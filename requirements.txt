@@ -1,4 +1,4 @@
-click
+click>=8.0.0
 click-option-group
 git+https://github.com/pytorch/fairseq.git@16ebfa752cd653dc28ac0a1b9f6f60a041881ad0
 joblib

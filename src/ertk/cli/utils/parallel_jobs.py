@@ -8,13 +8,13 @@ from threading import Lock, Thread
 from typing import Tuple
 
 import click
-from click_option_group import optgroup, RequiredMutuallyExclusiveOptionGroup
-
-from ertk.utils import PathlibPath
+from click_option_group import RequiredMutuallyExclusiveOptionGroup, optgroup
 
 
 @click.command()
-@click.argument("input", type=PathlibPath(exists=True, dir_okay=False), nargs=-1)
+@click.argument(
+    "input", type=click.Path(exists=True, dir_okay=False, path_type=Path), nargs=-1
+)
 @click.option("--failed", type=Path, help="Where to log failed commands.")
 @optgroup.group("Parallel method", cls=RequiredMutuallyExclusiveOptionGroup)
 @optgroup.option("--cpus", type=int, help="Number of CPU threads to use")

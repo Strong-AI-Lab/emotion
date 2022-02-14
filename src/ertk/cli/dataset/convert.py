@@ -3,11 +3,10 @@ from pathlib import Path
 import click
 
 from ertk.dataset import read_features
-from ertk.utils import PathlibPath
 
 
 @click.command()
-@click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
+@click.argument("input", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.argument("output", type=Path)
 @click.option("--corpus", type=str, help="Corpus attribute to set, if required.")
 @click.option(

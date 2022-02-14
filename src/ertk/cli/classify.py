@@ -5,17 +5,15 @@ import click
 import numpy as np
 import pandas as pd
 
-from ertk.dataset import Dataset
-from ertk.utils import PathlibPath
+from ertk.dataset import read_features
 
 
 @click.command()
-@click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
+@click.argument("input", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.argument("output", type=Path)
-@click.option("--features", required=True, help="Features to use.")
 @click.option(
     "--model",
-    type=PathlibPath(exists=True, dir_okay=False),
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
     required=True,
     help="Pickled model.",
 )
@@ -26,28 +24,29 @@ from ertk.utils import PathlibPath
     show_default=True,
     help="Normalisation scheme.",
 )
-def main(input: Path, output: Path, features: str, model: Path, norm: str):
-    """Perform inference on a given INPUT dataset using a pre-trained
+def main(input: Path, output: Path, model: Path, norm: str):
+    """Perform inference on given INPUT features using a pre-trained
     model. Gives the predicted class and confidence and writes CSV to
     OUTPUT.
     """
 
-    dataset = Dataset(input, features=features)
-    print(dataset)
+    dataset = read_features(input)
     names = np.array(dataset.names)
-    dataset.normalise(partition=norm)
     with open(model, "rb") as fid:
         print(f"Loading model from {model}")
         clf = pickle.load(fid)
 
     print(f"Running inference on {len(dataset)} clips")
-    pred = clf.predict_proba(dataset.x)
-    sort = np.argsort(pred[:, 0])[::-1]
-    names = names[sort]
-    prob = pred[sort, 0]
+    if hasattr(clf, "predict_proba"):
+        pred = clf.predict_proba(dataset.features)
+        labels = np.argmax(pred, axis=-1)
+        scores = pred[np.arange(pred.shape[0]), labels]
+    else:
+        labels = clf.predict(dataset.features)
+        scores = np.zeros(len(names))
 
     output.parent.mkdir(exist_ok=True, parents=True)
-    df = pd.DataFrame({"Clip": names, "Score": prob})
+    df = pd.DataFrame({"Clip": names, "Label": labels, "Score": scores})
     df.to_csv(output, header=True, index=False)
     print(f"Wrote CSV to {output}")
 

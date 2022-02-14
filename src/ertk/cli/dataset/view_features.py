@@ -5,11 +5,10 @@ import click
 import matplotlib.pyplot as plt
 
 from ertk.dataset import read_features
-from ertk.utils import PathlibPath
 
 
 @click.command()
-@click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
+@click.argument("input", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.argument("instance", type=str, default="2")
 def main(input: Path, instance: str):
     """Displays plot of INSTANCE in INPUT. INSTANCE can either be a

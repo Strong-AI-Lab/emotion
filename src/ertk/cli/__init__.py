@@ -1,14 +1,16 @@
 import click
 
-from ertk import __version__
-
-from .process import process_main
+from .class_cv import main as class_cv_main
+from .class_tvt import main as tvt_main
+from .classify import main as classify_main
 
 
 @click.group(invoke_without_command=True)
-def main():
-    """ERTK CLI"""
-    click.echo(f"ERTK CLI version {__version__}")
+def cli():
+    """ERTK command-line scripts."""
+    click.echo("ERTK CLI")
 
 
-main.add_command(process_main, "process")
+cli.add_command(classify_main, "classify")
+cli.add_command(class_cv_main, "class_cv")
+cli.add_command(tvt_main, "class_tvt")

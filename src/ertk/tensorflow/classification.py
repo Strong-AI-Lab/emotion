@@ -13,6 +13,7 @@ from tensorflow.keras.metrics import SparseCategoricalAccuracy
 from ertk.tensorflow.utils import (
     DataFunction,
     TFModelFunction,
+    init_gpu_memory_growth,
     tf_dataset_gen,
     tf_dataset_mem,
     tf_dataset_mem_ragged,
@@ -69,6 +70,8 @@ def tf_train_val_test(
     scores: dict
         A dictionary with scorer names as keys and scores as values.
     """
+    init_gpu_memory_growth()
+
     if test_data is None:
         test_data = valid_data
 
@@ -178,8 +181,7 @@ def tf_cross_validate(
         Any keyword arguments to supply to the Keras fit() method.
         Default is no keyword arguments.
     """
-    for gpu in tf.config.list_physical_devices("GPU"):
-        tf.config.experimental.set_memory_growth(gpu, True)
+    init_gpu_memory_growth()
 
     log_dir = fit_params.pop("log_dir", None)
     sw = fit_params.pop("sample_weight", None)

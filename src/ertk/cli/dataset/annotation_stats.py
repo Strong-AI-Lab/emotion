@@ -6,15 +6,16 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from ertk.dataset import get_audio_paths
-from ertk.utils import PathlibPath
 
 
 @click.command()
-@click.argument("input", type=PathlibPath(exists=True, dir_okay=False), nargs=-1)
+@click.argument(
+    "input", type=click.Path(exists=True, dir_okay=False, path_type=Path), nargs=-1
+)
 @click.option("--plot", is_flag=True, help="Plot histogram/bar chart.")
 @click.option(
     "--files",
-    type=PathlibPath(exists=True, dir_okay=False),
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
     help="File with names to include for statistics.",
 )
 def main(input: Tuple[Path], plot: bool, files: Path):

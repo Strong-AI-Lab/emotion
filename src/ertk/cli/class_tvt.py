@@ -9,16 +9,17 @@ from click_option_group import optgroup
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
-from ertk.classification import train_val_test
+from ertk.classification import get_balanced_sample_weights, train_val_test
 from ertk.config import get_arg_mapping
 from ertk.dataset import load_multiple
 from ertk.train import ValidationSplit
 from ertk.transform import SequenceTransformWrapper
-from ertk.utils import PathlibPath
 
 
 @click.command()
-@click.argument("input", type=PathlibPath(exists=True, dir_okay=False), nargs=-1)
+@click.argument(
+    "input", type=click.Path(exists=True, dir_okay=False, path_type=Path), nargs=-1
+)
 @click.option("--features", required=True, help="Features to load.")
 @click.option("--clf", "clf_type", required=True, help="Classifier to use.")
 @click.option("--train", required=True, help="Train data.")
@@ -28,6 +29,10 @@ from ertk.utils import PathlibPath
 @optgroup.option("--results", type=Path, help="Results directory.")
 @optgroup.option("--logdir", type=Path, help="TF/PyTorch logs directory.")
 @optgroup.group("Data options")
+@optgroup.option("--label", default="label", help="Label annotation to use.")
+@optgroup.option(
+    "--subset", multiple=True, default=["default"], help="Subset selection."
+)
 @optgroup.option("--map_groups", multiple=True, help="Group mapping.")
 @optgroup.option(
     "--sel_groups",
@@ -75,14 +80,14 @@ from ertk.utils import PathlibPath
 @optgroup.option(
     "--clf_args",
     "clf_args_file",
-    type=PathlibPath(exists=True, dir_okay=False),
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
     multiple=True,
     help="File containing keyword arguments to give to model initialisation.",
 )
 @optgroup.option(
     "--param_grid",
     "param_grid_file",
-    type=PathlibPath(exists=True),
+    type=click.Path(exists=True, path_type=Path),
     multiple=True,
     help="File with parameter grid data.",
 )
@@ -96,6 +101,7 @@ def main(
     train: str,
     valid: str,
     test: str,
+    label: str,
     param_grid_file: Tuple[Path],
     results: Path,
     logdir: Path,
@@ -103,6 +109,7 @@ def main(
     normalise: str,
     transform: str,
     balanced: bool,
+    subset: Tuple[str],
     map_groups: Tuple[str],
     sel_groups: Tuple[str],
     clip_seq: int,
@@ -125,7 +132,13 @@ def main(
         logging.basicConfig(level=logging.DEBUG if verbose > 1 else logging.INFO)
         np.set_printoptions()
 
-    dataset = load_multiple(input, features, subsets="all")
+    if len(subset) == 1:
+        dataset = load_multiple(input, features, subsets=subset[0])
+    else:
+        subset_map = {}
+        for m in subset:
+            subset_map.update(get_arg_mapping(m))
+        dataset = load_multiple(input, features, subsets=subset_map)
 
     for m in map_groups:
         mapping = get_arg_mapping(m)
@@ -165,8 +178,7 @@ def main(
 
     sample_weight = None
     if balanced:
-        class_weight = dataset.n_instances / (dataset.n_classes * dataset.class_counts)
-        sample_weight = class_weight[dataset.y]
+        sample_weight = get_balanced_sample_weights(dataset.get_annotations(label))
     fit_params = {"sample_weight": sample_weight}
 
     model_args = {}
@@ -188,6 +200,8 @@ def main(
         from ertk.sklearn.models import get_sk_model
 
         class GridSearchWrapper(GridSearchCV):
+            """Simple hack to avoid retraining on train + val data."""
+
             def fit(self, X, y=None, *, groups=None, **fit_params):
                 self.refit = False
                 super().fit(X, y=y, groups=groups, **fit_params)
@@ -217,10 +231,8 @@ def main(
         from tensorflow.keras.callbacks import TensorBoard
         from tensorflow.keras.optimizers import Adam
 
-        from ertk.tensorflow import get_tf_model, init_gpu_memory_growth
+        from ertk.tensorflow import get_tf_model
         from ertk.tensorflow.classification import tf_classification_metrics
-
-        init_gpu_memory_growth()
 
         callbacks = []
         if logdir is not None:
@@ -285,6 +297,7 @@ def main(
         train_idx=train_indices,
         valid_idx=valid_indices,
         test_idx=test_indices,
+        label=label,
         clf_lib=clf_lib,
         sample_weight=sample_weight,
         verbose=verbose,

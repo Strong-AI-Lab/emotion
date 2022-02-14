@@ -5,11 +5,12 @@ import yaml
 from sklearn.model_selection import ParameterGrid
 
 from ertk.config import get_arg_mapping
-from ertk.utils import PathlibPath
 
 
 @click.command()
-@click.argument("param_grid", type=PathlibPath(exists=True, dir_okay=False))
+@click.argument(
+    "param_grid", type=click.Path(exists=True, dir_okay=False, path_type=Path)
+)
 @click.argument("output", type=Path)
 @click.option("--format", help="Format string.")
 def main(param_grid: Path, output: Path, format: str):

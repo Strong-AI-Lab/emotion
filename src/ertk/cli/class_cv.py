@@ -10,23 +10,27 @@ from click_option_group import optgroup
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
-from ertk.classification import dataset_cross_validation
+from ertk.classification import dataset_cross_validation, get_balanced_sample_weights
 from ertk.config import get_arg_mapping
 from ertk.dataset import load_multiple
 from ertk.train import get_cv_splitter
 from ertk.transform import SequenceTransformWrapper
-from ertk.utils import PathlibPath
 
 
 @click.command()
-@click.argument("input", type=PathlibPath(exists=True, dir_okay=False), nargs=-1)
+@click.argument(
+    "input", type=click.Path(exists=True, dir_okay=False, path_type=Path), nargs=-1
+)
 @click.option("--features", required=True, help="Features to load.")
 @click.option("--clf", "clf_type", required=True, help="Classifier to use.")
 @optgroup.group("Results options")
 @optgroup.option("--results", type=Path, help="Results directory.")
 @optgroup.option("--logdir", type=Path, help="TF/PyTorch logs directory.")
 @optgroup.group("Data options")
-@optgroup.option("--subset", multiple=True, help="Subset selection.")
+@optgroup.option("--label", default="label", help="Label annotation to use.")
+@optgroup.option(
+    "--subset", multiple=True, default=["default"], help="Subset selection."
+)
 @optgroup.option("--map_groups", multiple=True, help="Group name mapping.")
 @optgroup.option(
     "--sel_groups",
@@ -99,14 +103,14 @@ from ertk.utils import PathlibPath
 @optgroup.option(
     "--clf_args",
     "clf_args_file",
-    type=PathlibPath(exists=True, dir_okay=False),
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
     multiple=True,
     help="File containing keyword arguments to give to model initialisation.",
 )
 @optgroup.option(
     "--param_grid",
     "param_grid_file",
-    type=PathlibPath(exists=True),
+    type=click.Path(exists=True, path_type=Path),
     multiple=True,
     help="File with parameter grid data.",
 )
@@ -125,6 +129,7 @@ def main(
     input: Tuple[Path],
     features: str,
     partition: str,
+    label: str,
     kfold: int,
     inner_kfold: int,
     test_size: float,
@@ -160,9 +165,7 @@ def main(
         logging.basicConfig(level=logging.DEBUG if verbose > 1 else logging.INFO)
         np.set_printoptions()
 
-    if len(subset) == 0:
-        dataset = load_multiple(input, features)
-    elif len(subset) == 1:
+    if len(subset) == 1:
         dataset = load_multiple(input, features, subsets=subset[0])
     else:
         subset_map = {}
@@ -206,19 +209,9 @@ def main(
         dataset.normalise(normaliser=transformer, partition=normalise)
         transformer = None
 
-    cv = get_cv_splitter(bool(partition), kfold, test_size=test_size)
-    if not use_inner_cv:
-        warnings.warn(
-            "--noinner_cv is deprecated and only exists for backwards compatibility."
-        )
-        inner_cv = cv
-    else:
-        inner_cv = get_cv_splitter(bool(inner_part), inner_kfold)
-
     sample_weight = None
     if balanced:
-        class_weight = dataset.n_instances / (dataset.n_classes * dataset.class_counts)
-        sample_weight = class_weight[dataset.y]
+        sample_weight = get_balanced_sample_weights(dataset.get_annotations(label))
     fit_params = {"sample_weight": sample_weight}
 
     model_args = {}
@@ -227,6 +220,15 @@ def main(
     param_grid = {}
     for file in param_grid_file:
         param_grid.update(get_arg_mapping(file))
+
+    cv = get_cv_splitter(bool(partition), kfold, test_size=test_size)
+    if not use_inner_cv:
+        warnings.warn(
+            "--noinner_cv is deprecated and only exists for backwards compatibility."
+        )
+        inner_cv = cv
+    else:
+        inner_cv = get_cv_splitter(bool(inner_part), inner_kfold)
 
     clf_lib, clf_type = clf_type.split("/")
     if clf_lib == "sk":
@@ -327,7 +329,7 @@ def main(
             dataset,
             clf_lib=clf_lib,
             partition=partition,
-            label="label",
+            label=label,
             cv=cv,
             verbose=max(verbose, 0),
             n_jobs=n_jobs,

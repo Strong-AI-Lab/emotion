@@ -1,6 +1,7 @@
 import logging
 import pprint
 from dataclasses import asdict
+from io import StringIO
 from pathlib import Path
 from typing import Tuple
 
@@ -10,40 +11,40 @@ from omegaconf import OmegaConf
 from tqdm import tqdm
 
 from ertk.dataset import get_audio_paths, read_features, write_features
-from ertk.preprocessing import InstanceProcessor
 from ertk.utils import TqdmParallel
 
-_help_text = f"""Process data or audio files in INPUT, write features to
-OUTPUT. The available feature extractors are:
 
-{InstanceProcessor.valid_preprocessors()}
-"""
+def list_processors(ctx, param, val):
+    from ertk.preprocessing import InstanceProcessor
 
-
-def print_features_help(ctx, param, val):
     if not val or ctx.resilient_parsing:
         return
+
+    print(f"\nAvailable processors:\n{InstanceProcessor.valid_preprocessors()}\n")
     print(
-        "Default configurations for registered feature extractors. Items with '???' "
-        "are required to be specified manually.\n"
+        "Below are the default configurations for registered feature extractors. Items "
+        "with '???' are required to be specified manually.\n"
     )
     for key in InstanceProcessor.valid_preprocessors():
-        print(f"Args for '{key}':")
-        config_cls = InstanceProcessor.get_processor_class(key).get_config_type()
+        print(f"[{key}]: ", end="")
+        proc_cls = InstanceProcessor.get_processor_class(key)
+        print(", ".join([b.__name__ for b in proc_cls.__bases__]))
+        config_cls = proc_cls.get_config_type()
         for k, v in asdict(config_cls()).items():
             print(f"  {k} = {v}")
         print()
+
     ctx.exit()
 
 
-@click.command(help=_help_text)
+@click.command()
 @click.argument("input", type=click.Path(exists=True, path_type=Path))
 @click.argument("output", type=Path)
 @click.option("--features", required=True, help="Features to extract.")
 @click.option(
-    "--features_help",
+    "--list_processors",
     is_flag=True,
-    callback=print_features_help,
+    callback=list_processors,
     expose_value=False,
     is_eager=True,
     help="Show options for registered feature extractors.",
@@ -67,7 +68,7 @@ def print_features_help(ctx, param, val):
 @click.option("--n_jobs", type=int, default=-1, help="Number of parallel jobs to run.")
 @click.option("--verbose", is_flag=True)
 @click.argument("restargs", nargs=-1)
-def process_main(
+def main(
     input: Path,
     output: Path,
     features: str,
@@ -79,6 +80,12 @@ def process_main(
     verbose: bool,
     restargs: Tuple[str],
 ):
+    """Process features or audio files in INPUT, write features to
+    OUTPUT.
+    """
+
+    from ertk.preprocessing import InstanceProcessor
+
     if verbose:
         logging.basicConfig(level=logging.INFO)
 

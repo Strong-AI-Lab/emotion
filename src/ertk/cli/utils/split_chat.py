@@ -1,5 +1,3 @@
-"""Splits a CHAT file into respective turns designated by timecodes."""
-
 import re
 import warnings
 from pathlib import Path
@@ -10,7 +8,7 @@ import librosa
 import soundfile
 from joblib import delayed
 
-from ertk.utils import PathlibPath, TqdmParallel
+from ertk.utils import TqdmParallel
 
 REGEX = re.compile(
     r"^\*([A-Z]{3}):\t.*(?:\n\t.*)*[.?!](?: .*\x15(\d+)_(\d+)\x15)?$", re.MULTILINE
@@ -18,7 +16,7 @@ REGEX = re.compile(
 
 
 @click.command()
-@click.argument("input", type=PathlibPath(exists=True), nargs=-1)
+@click.argument("input", type=click.Path(exists=True, path_type=Path), nargs=-1)
 @click.argument("output", type=Path)
 @click.option("--prefix", type=str, default="")
 def main(input: Tuple[Path], output: Path, prefix: str):
@@ -49,7 +47,7 @@ def main(input: Tuple[Path], output: Path, prefix: str):
     output.mkdir(parents=True, exist_ok=True)
     all_files = [p for path in input for p in path.glob("**/*.mp3")]
     TqdmParallel(total=len(all_files), desc="Processing CHAT files", n_jobs=-1)(
-        delayed(process)(p) for p in all_files
+        map(delayed(process), all_files)
     )
 
 
