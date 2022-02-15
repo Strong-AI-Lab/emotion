@@ -1,24 +1,9 @@
 ![License: MIT](https://img.shields.io/github/license/Strong-AI-Lab/emotion)
 
-This repository contains scripts for processing emotional speech
-datasets, and training machine learning models on the datasets. The code
-was developed mainly to facilitate my PhD research, but I have tried to
-make the Python library more generally useful and full of utilities for
-processing datasets and training/testing models.
-
-# Papers
-See [`papers/README.md`](papers/README.md) for more information about
-scripts for individual publications.
-
-# Datasets
-See [`datsets/README.md`](datasets/README.md) for more information about
-the supported datasets and the required processing.
-
 # ERTK: Emotion Recognition ToolKit
-
-This is a Python library with utilities for processing (emotional)
-speech datasets and training/testing models. There are also associated
-scripts for individual tasks.
+This is a Python library with utilities for processing emotional
+speech datasets and training/testing models. There are also command-line
+tools for common tasks.
 
 ## Installation
 This project requires Python 3.7+. It is advised to run the scripts in a
@@ -31,32 +16,35 @@ Then you can use this virtual environment:
 . .venv/bin/activate
 ```
 
-### Dependencies
-This project has a number of Python dependencies, including NumPy,
-TensorFlow, PyTorch, scikit-learn and Pandas. You should run
+### Install from PyPI
+You can install ERTK from [PyPI](https://pypi.org/project/ertk/) using
+```
+pip install ertk
+```
+
+### Install from repository
+Alternatively you can clone this repository and install using the latest
+commit:
 ```
 pip install -r requirements.txt
-```
-to install all the Python dependencies.
-
-### Install ERTK
-To install the `ertk` library:
-```
-python setup.py install
+pip install .
 ```
 Or, if you want to develop continuously:
 ```
-python setup.py develop
+pip install -e .
 ```
 
-Note that this will not install the [scripts](#Scripts).
+## Using CLI tools
+Upon installation, you should be able to use common tools using the CLI
+applications `ertk_cli`, `ertk_dataset` and `ertk_utils`. Use the
+`--help` option on each one to see what commands are available.
 
-### Third-party tools
-Some third-party tools are included in this repository, under the
-`third_party` directory. See the [README](third_party/README.md) for
-more details.
 
-## Scripts
-Scripts are contained in the [`scripts/`](scripts/) directory, in a
-subdirectory roughly corresponding to their function. Each script should
-have usage info if you give `--help` as an argument.
+# Datasets
+See [`datsets/README.md`](datasets/README.md) for more information about
+the supported datasets and the required processing.
+
+# Papers
+Papers that we have published will have associated code in the `papers`
+directory. See [`papers/README.md`](papers/README.md) for more
+information about scripts for individual publications.
