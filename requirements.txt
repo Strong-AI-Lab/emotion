@@ -12,6 +12,7 @@ Orange3
 pandas>=1.0.0
 seaborn
 scikeras
+scikit-learn
 scipy
 soundfile
 statsmodels
