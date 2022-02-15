@@ -15,6 +15,7 @@ smile.log
 *.egg-info
 /build
 /dist
+/docs/_build
 __pycache__
 .mypy_cache
 
