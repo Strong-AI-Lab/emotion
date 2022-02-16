@@ -28,6 +28,9 @@ from ertk.utils import PathlibPath
 REGEX = re.compile(
     r"^\[(\d+\.\d+) - (\d+\.\d+)\]\t(\w+)\t(\w+)\t\[(\d+\.\d+), (\d+\.\d+), (\d+\.\d+)\]$"  # noqa
 )
+TRN_REGEX = re.compile(
+    r"^(Ses0[1-5][MF]_(?:impro|script)0[1-9][ab]?(?:_\db?)?_[MF][X\d]{2}\d) \[\d+\.\d+-\d+\.\d+\]:(.*)$"  # noqa
+)
 
 emotion_map = {
     "ang": "anger",
@@ -42,6 +45,14 @@ emotion_map = {
     "oth": "other",
     "xxx": "unknown",
 }
+
+
+def _clean(words: str):
+    words = " ".join(re.split(r"\[\w+\]", words))
+    words = " ".join(words.split("..."))
+    words = " ".join(words.split(".."))
+    words = " ".join(words.split("-"))
+    return " ".join([x.strip() for x in words.split()])
 
 
 @click.command()
@@ -130,6 +141,17 @@ def main(input_dir: Path, resample: bool):
     data[data.isna()] = 0
     data = data.astype(int).to_numpy()
     print(f"Krippendorf's alpha (categorical): {alpha(data):.3f}")
+
+    utts = {}
+    for p in input_dir.glob("Session?/dialog/transcriptions/*.txt"):
+        with open(p) as fid:
+            for line in map(str.strip, fid):
+                match = TRN_REGEX.match(line)
+                if match:
+                    utts[match.group(1)] = match.group(2).strip()
+    utts = {u: _clean(x) for u, x in utts.items()}
+    df = pd.DataFrame({"Name": utts.keys(), "Transcript": utts.values()})
+    df.sort_values("Name").to_csv("transcripts.csv", index=False, header=True)
 
 
 if __name__ == "__main__":

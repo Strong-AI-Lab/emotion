@@ -13,6 +13,7 @@ import shutil
 from pathlib import Path
 
 import click
+import pandas as pd
 from tqdm import tqdm
 
 from ertk.dataset import write_annotations, write_filelist
@@ -31,7 +32,8 @@ emotion_map = {
 
 @click.command()
 @click.argument("input_dir", type=PathlibPath(exists=True, file_okay=False))
-def main(input_dir: Path):
+@click.option("--resample/--noresample", default=True)
+def main(input_dir: Path, resample: bool):
     """Process the EMO-DB dataset at location INPUT_DIR."""
     paths = list(input_dir.glob("wav_corpus/*.wav"))
     write_annotations({p.stem: emotion_map[p.stem[5]] for p in paths}, "label")
@@ -43,10 +45,28 @@ def main(input_dir: Path):
     }
     write_annotations(gender_dict, "gender")
     write_annotations({p.stem: "de" for p in paths}, "language")
-    Path("resampled").mkdir(exist_ok=True)
-    for p in tqdm(paths, desc="Copying audio"):
-        shutil.copyfile(p, Path("resampled", p.name))
-    write_filelist(Path("resampled").glob("*.wav"), "files_all")
+    resample_dir = Path("resampled")
+    if resample:
+        resample_dir.mkdir(exist_ok=True)
+        for p in tqdm(paths, desc="Copying audio"):
+            shutil.copyfile(p, resample_dir / p.name)
+    write_filelist(resample_dir.glob("*.wav"), "files_all")
+
+    utt = {}
+    for p in input_dir.glob("silb/*.silb"):
+        with open(p, encoding="latin_1") as fid:
+            words = []
+            for line in fid:
+                line = line.strip()
+                _, word = line.split()
+                if word in [".", "("]:
+                    continue
+                words.append(word.strip())
+            utt[p.stem] = " ".join(words)
+
+    df = pd.DataFrame({"Name": utt.keys(), "Transcript": utt.values()})
+    df.sort_values("Name").to_csv("transcripts.csv", index=False, header=True)
+    print("Wrote CSV to transcripts.csv")
 
 
 if __name__ == "__main__":
