@@ -17,7 +17,6 @@ import click
 import pandas as pd
 
 from ertk.dataset import resample_audio, write_annotations, write_filelist
-from ertk.utils import PathlibPath
 
 NAME_FMT = "sea{0.Season}_ep{0.Episode}_sc{0.Scene_ID}_utt{0.Utterance_ID}"
 
@@ -33,7 +32,9 @@ emotion_map = {
 
 
 @click.command()
-@click.argument("input_dir", type=PathlibPath(exists=True, file_okay=False))
+@click.argument(
+    "input_dir", type=click.Path(exists=True, file_okay=False, path_type=Path)
+)
 @click.option("--resample/--noresample", default=True)
 def main(input_dir: Path, resample: bool):
     """Process the EmoryNLP dataset at location INPUT_DIR and resample

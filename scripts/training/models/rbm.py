@@ -6,11 +6,10 @@ import tensorflow as tf
 
 from ertk.dataset import Dataset, write_features
 from ertk.tensorflow.models.rbm import BBRBM, DecayType
-from ertk.utils import PathlibPath
 
 
 @click.command()
-@click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
+@click.argument("input", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.option("--logdir", type=str, default="logs/tf/rbm")
 @click.option("--batch_size", type=int, default=16)
 @click.option("--valid_fraction", type=float, default=0.1)

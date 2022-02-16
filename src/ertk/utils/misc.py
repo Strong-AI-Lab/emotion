@@ -1,6 +1,3 @@
-from pathlib import Path
-
-import click
 import joblib
 import tqdm
 
@@ -33,12 +30,3 @@ class TqdmParallel(joblib.Parallel):
     def print_progress(self):
         self.pbar.n = self.n_completed_tasks
         self.pbar.refresh()
-
-
-class PathlibPath(click.Path):
-    """Convenience class that acts identically to `click.Path` except it
-    converts the value to a `pathlib.Path` object.
-    """
-
-    def convert(self, value, param, ctx) -> Path:
-        return Path(super().convert(value, param, ctx))

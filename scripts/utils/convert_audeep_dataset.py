@@ -5,11 +5,10 @@ import netCDF4
 import numpy as np
 
 from ertk.dataset import write_features
-from ertk.utils import PathlibPath
 
 
 @click.command()
-@click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
+@click.argument("input", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.argument("corpus", type=str)
 def main(input: Path, corpus: str):
     """Converts auDeep dataset INPUT to our format. Also sets corpus

@@ -24,11 +24,12 @@ from sklearn.model_selection import (
 
 from ertk.dataset import load_multiple
 from ertk.sklearn.models import PrecomputedSVC
-from ertk.utils import PathlibPath
 
 
 @click.command()
-@click.argument("input", type=PathlibPath(exists=True, dir_okay=False), nargs=-1)
+@click.argument(
+    "input", type=click.Path(exists=True, dir_okay=False, path_type=Path), nargs=-1
+)
 @click.option("--features", required=True, help="Features to load.")
 @click.option("--save", type=Path, help="Location to save the model.")
 @click.option(

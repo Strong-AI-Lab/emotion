@@ -4,12 +4,11 @@ import click
 import pandas as pd
 
 from ertk.dataset import get_audio_paths
-from ertk.utils import PathlibPath
 
 
 @click.command()
-@click.argument("clips", type=PathlibPath(exists=True))
-@click.argument("filelist", type=PathlibPath(exists=True))
+@click.argument("clips", type=click.Path(exists=True, path_type=Path))
+@click.argument("filelist", type=click.Path(exists=True, path_type=Path))
 def main(clips: Path, filelist: Path):
     """Convert names in CLIPS to filepaths from FILELIST. Write to
     stdout.

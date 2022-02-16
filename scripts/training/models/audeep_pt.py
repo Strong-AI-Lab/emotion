@@ -12,8 +12,8 @@ from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from ertk.dataset import write_features, read_features
-from ertk.utils import PathlibPath, PathOrStr
+from ertk.dataset import read_features, write_features
+from ertk.utils import PathOrStr
 
 DEVICE = torch.device("cuda")
 
@@ -170,7 +170,7 @@ def scale(x, low: float = -1, high: float = 1):
 
 
 @click.command()
-@click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
+@click.argument("input", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.option("--logs", type=Path, required=True)
 @click.option("--layers", type=int, default=2)
 @click.option("--units", type=int, default=256)
@@ -329,13 +329,13 @@ def train(
 
 
 @click.command()
-@click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
+@click.argument("input", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.argument("output", type=Path)
 @click.option(
     "--model",
     "model_path",
     required=True,
-    type=PathlibPath(exists=True, dir_okay=False),
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
 )
 @click.option("--batch_size", type=int, default=128)
 def generate(input: Path, output: Path, model_path: Path, batch_size: int):

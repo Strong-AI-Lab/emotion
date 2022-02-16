@@ -14,7 +14,6 @@ from pathlib import Path
 import click
 
 from ertk.dataset import resample_audio, write_annotations, write_filelist
-from ertk.utils import PathlibPath
 
 emotion_map = {
     "dis": "disgust",
@@ -28,7 +27,9 @@ emotion_map = {
 
 
 @click.command()
-@click.argument("input_dir", type=PathlibPath(exists=True, file_okay=False))
+@click.argument(
+    "input_dir", type=click.Path(exists=True, file_okay=False, path_type=Path)
+)
 @click.option("--resample/--noresample", default=True)
 def main(input_dir: Path, resample: bool):
     """Process the EMOVO dataset at location INPUT_DIR and resample

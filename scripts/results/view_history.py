@@ -5,11 +5,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from ertk.utils import PathlibPath
-
 
 @click.command()
-@click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
+@click.argument("input", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.option("--individual", help="Plot individual folds for each metric.")
 def main(input: Path, individual: bool):
     """Displays plot of training epochs for cross-validation rounds."""

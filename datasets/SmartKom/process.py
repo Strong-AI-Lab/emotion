@@ -23,7 +23,7 @@ from nltk.corpus import stopwords
 from tqdm import tqdm
 
 from ertk.dataset import write_annotations, write_filelist
-from ertk.utils import PathlibPath, TqdmParallel
+from ertk.utils import TqdmParallel
 
 emotion_map = {
     "Neutral": "neutral",
@@ -122,7 +122,9 @@ def process_sess(sess_dir: Path):
 
 
 @click.command()
-@click.argument("input_dir", type=PathlibPath(exists=True, file_okay=False))
+@click.argument(
+    "input_dir", type=click.Path(exists=True, file_okay=False, path_type=Path)
+)
 def main(input_dir: Path):
     """Process the SmartKom dataset at location INPUT_DIR. Split audio
     into turns and select majority emotion as label.

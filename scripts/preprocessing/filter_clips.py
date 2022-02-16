@@ -5,11 +5,10 @@ import soundfile
 from tqdm import tqdm
 
 from ertk.dataset import get_audio_paths
-from ertk.utils import PathlibPath
 
 
 @click.command()
-@click.argument("input", type=PathlibPath(exists=True))
+@click.argument("input", type=click.Path(exists=True, path_type=Path))
 @click.argument("output", type=Path)
 @click.option(
     "--minlength",

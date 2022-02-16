@@ -20,11 +20,12 @@ from sklearn.random_projection import GaussianRandomProjection
 
 from ertk.dataset import load_multiple
 from ertk.stats import corr_ratio, dunn
-from ertk.utils import PathlibPath
 
 
 @click.command()
-@click.argument("input", type=PathlibPath(exists=True, dir_okay=False), nargs=-1)
+@click.argument(
+    "input", type=click.Path(exists=True, dir_okay=False, path_type=Path), nargs=-1
+)
 @click.argument("--features", required=True, help="Features to load.")
 @click.option(
     "--transform",

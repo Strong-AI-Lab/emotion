@@ -5,13 +5,14 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from ertk.dataset import read_annotations
-from ertk.utils import PathlibPath
 
 
 @click.command()
-@click.argument("input", type=PathlibPath(exists=True, dir_okay=False))
-@click.argument("speaker_info", type=PathlibPath(exists=True, dir_okay=False))
-@click.argument("output", type=PathlibPath(dir_okay=False))
+@click.argument("input", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument(
+    "speaker_info", type=click.Path(exists=True, dir_okay=False, path_type=Path)
+)
+@click.argument("output", type=click.Path(dir_okay=False, path_type=Path))
 @click.option("--speakers", help="Speakers to select (comma-separated).")
 @click.option(
     "--num_clips",
