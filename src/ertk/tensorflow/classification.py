@@ -38,8 +38,8 @@ def tf_train_val_test(
     """Trains on given data, using given validation data, and tests on
     given test data.
 
-    Args:
-    -----
+    Parameters
+    ----------
     model_fn: callable
         The function used to create a compiled Model.
     train_data: tuple
@@ -65,8 +65,8 @@ def tf_train_val_test(
         Any keyword arguments to supply to the Keras fit() method.
         Default is no keyword arguments.
 
-    Returns:
-    --------
+    Returns
+    -------
     scores: dict
         A dictionary with scorer names as keys and scores as values.
     """
@@ -154,8 +154,8 @@ def tf_cross_validate(
     """Performs cross-validation on a TensorFlow model. This works with
     both sequence models and single vector models.
 
-    Args:
-    -----
+    Parameters
+    ----------
     model_fn: callable,
         The function used to create a compiled Keras model. This is
         called repeatedly on each iteration of cross-validation.
@@ -237,8 +237,8 @@ def tf_cross_validate(
 class TFClassifierWrapper(ClassifierMixin, BaseEstimator):
     """Class wrapper for a TensorFlow Keras classifier model.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     model_fn: callable
         A callable that returns a compiled Model that can be trained.
     n_epochs: int, optional, default = 50

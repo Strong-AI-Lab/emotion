@@ -29,8 +29,8 @@ def compile_wrap(
     function which returns a compiled model with the given compile
     parameters.
 
-    Args:
-    -----
+    Parameters
+    ----------
     model_fn: callable, optional
         A method that returns an uncompiled model.
     opt_cls: type
@@ -76,8 +76,8 @@ def test_fit(
     """Tests the given model architecture/structure by training it on
     dummy data.
 
-    Args:
-    -----
+    Parameters
+    ----------
     model_fn: callable
         Function that returns a Keras model. Called as model_fn(*args,
         **kwargs).
@@ -122,8 +122,8 @@ def tf_dataset_gen(
     """Returns a TensorFlow generator Dataset instance with the given
     data.
 
-    Args:
-    -----
+    Parameters
+    ----------
     x: numpy.ndarray
         A 2- or 3-D data matrix of shape (n_instances, n_features) or
         (n_instances, seq_len, n_features).
@@ -174,8 +174,8 @@ def tf_dataset_mem(
     """Returns a TensorFlow in-memory Dataset instance with the given
     data.
 
-    Args:
-    -----
+    Parameters
+    ----------
     x: numpy.ndarray
         A 2- or 3-D data matrix of shape (n_instances, n_features) or
         (n_instances, seq_len, n_features).
@@ -213,8 +213,8 @@ def tf_dataset_mem_ragged(
     """Returns a TensorFlow in-memory Dataset instance from
     variable-length features.
 
-    Args:
-    -----
+    Parameters
+    ----------
     x: numpy.ndarray
         A 3-D data matrix of shape (n_instances, length[i], n_features)
         with variable length axis 1.
@@ -269,8 +269,8 @@ def tf_dataset_mem_ragged(
 class BatchedFrameSequence(Sequence):
     """Creates a sequence of batches of frames to process.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     x: ndarray or list of ndarray
         Sequences of vectors.
     y: ndarray
@@ -310,8 +310,8 @@ class BatchedFrameSequence(Sequence):
 class BatchedSequence(Sequence):
     """Creates a sequence of batches to process.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     x: ndarray or list of ndarray
         Instance feature vectors. Each vector is assumed to be for a different
         instance.
@@ -346,8 +346,8 @@ def print_linear_model_structure(model: Model):
     """Prints the structure of a "sequential" model by listing the layer
     types and shapes in order.
 
-    Args:
-    -----
+    Parameters
+    ----------
     model: Model
         The model to describe.
     """

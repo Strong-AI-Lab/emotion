@@ -55,15 +55,15 @@ def filter_kwargs(kwargs: Dict[str, Any], method: Callable) -> Dict[str, Any]:
     present as keyhwords in the method signature which are also not
     positional only.
 
-    Args:
-    -----
+    Parameters
+    ----------
     params: dict
         Keyword arguments to pass to method.
     method: callable
         The method for which to check valid parameters.
 
-    Returns:
-    --------
+    Returns
+    -------
     params: dict
         Filtered keyword arguments.
     """
@@ -85,8 +85,8 @@ def batch_iterable(
 ) -> Iterable[Tuple[T, ...]]:
     """Batches an iterable into chunks of size `batch_size`.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     it: iterable
         The iterable to batch.
     batch_size: int
@@ -95,8 +95,8 @@ def batch_iterable(
         An optional fill value if the final batch isn't full (i.e.
         `batch_size` doesn't divide the iterable length.)
 
-    Returns:
-    --------
+    Returns
+    -------
     batched: iterable
         A generator that yields tuples of length `batch_size` with
         successive elements from the original iterable.

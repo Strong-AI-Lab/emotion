@@ -23,8 +23,8 @@ def write_annotations(
 ):
     """Write sorted annotations CSV.
 
-    Args:
-    -----
+    Parameters
+    ----------
     annotations: mapping
         A mapping of the form {name: annotation}.
     name: str

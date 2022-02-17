@@ -31,18 +31,19 @@ def get_arg_mapping_multi(s: str) -> Dict[str, List[Any]]:
     """Given a string mapping from the command-line, returns a dict
     representing that mapping.
 
-    The string form of the mapping is:
+    The string form of the mapping is::
         key:value[,key:value]+
+
     Duplicate keys will be mapped to a list of values.
 
-    Args:
-    -----
+    Parameters
+    ----------
     s: str
         String representing the mapping. It cannot contain spaces or
         shell symbols (unless escaped).
 
-    Returns:
-    --------
+    Returns
+    -------
     mapping: dict
         A dictionary mapping keys to lists of values from the string.
     """
@@ -63,15 +64,15 @@ def get_arg_mapping(s: Union[Path, str]) -> Dict[str, Any]:
     The string form of the mapping is:
         key:value[,key:value]+
 
-    Args:
-    -----
+    Parameters
+    ----------
     s: PathLike or str
         String representing the mapping or path to YAML containing
         mapping. If a string, it cannot contain spaces or shell symbols
         (unless escaped).
 
-    Returns:
-    --------
+    Returns
+    -------
     mapping: dict
         A dictionary mapping keys to values from the string.
     """

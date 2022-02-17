@@ -11,16 +11,16 @@ from ertk.tensorflow.utils import TFModelFunction
 def get_tf_model_fn(name: str, **kwargs) -> TFModelFunction:
     """Get a TensorFlow model creation function.
 
-    Args:
-    -----
+    Parameters
+    ----------
     name: str
         The model name. This should be the name of the module that
         implements the model.
     **kwargs:
         Keyword arguments to provide to the model creation function.
 
-    Returns:
-    --------
+    Returns
+    -------
     model_fn: callable
         A method that takes arguments and returns a Model instance.
     """
@@ -37,16 +37,16 @@ def get_tf_model_fn(name: str, **kwargs) -> TFModelFunction:
 def get_tf_model(name: str, **kwargs) -> Model:
     """Get a TensorFlow model by name.
 
-    Args:
-    -----
+    Parameters
+    ----------
     name: str
         The model name. This should be the name of the module that
         implements the model.
     **kwargs:
         Keyword arguments to provide to the model creation function.
 
-    Returns:
-    --------
+    Returns
+    -------
     model: Model
         The uncompiled TensorFlow model.
     """

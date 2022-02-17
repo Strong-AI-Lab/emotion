@@ -33,16 +33,16 @@ class RBM:
     This implementation is designed around the work of Hinton et. al.
     [1], [2].
 
-    References:
-    -----------
+    References
+    ----------
     [1] G. E. Hinton and R. R. Salakhutdinov, 'Reducing the
     Dimensionality of Data with Neural Networks', Science, vol. 313, no.
-    5786, pp. 504–507, Jul. 2006, doi: 10.1126/science.1127647.
+    5786, pp. 504-507, Jul. 2006, doi: 10.1126/science.1127647.
 
     [2] G. E. Hinton, 'A Practical Guide to Training Restricted
     Boltzmann Machines', in Neural Networks: Tricks of the Trade: Second
     Edition, G. Montavon, G. B. Orr, and K.-R. Müller, Eds. Berlin,
-    Heidelberg: Springer Berlin Heidelberg, 2012, pp. 599–619.
+    Heidelberg: Springer Berlin Heidelberg, 2012, pp. 599-619.
     """
 
     def __init__(
@@ -53,8 +53,8 @@ class RBM:
         output_histograms: bool = False,
     ):
         """
-        Args:
-        -----
+        Parameters
+        ----------
         n_hidden: int, default = 128
             Number of hidden units
         input_shape: tuple
@@ -119,13 +119,13 @@ class RBM:
     def forward(self, batch: tf.Tensor):
         """Samples hidden units from input batch.
 
-        Args:
-        -----
+        Parameters
+        ----------
         batch: tensor of shape (batch, n_visible)
             Batch of tensors to process.
 
-        Returns:
-        --------
+        Returns
+        -------
         Sample hidden units.
         """
         p_h = self.hidden_prob(batch)
@@ -141,13 +141,13 @@ class RBM:
         """Runs one step of Gibbs sampling and gradient ascent with the given
         batch.
 
-        Args:
-        -----
+        Parameters
+        ----------
         batch: tensor of shape (batch, n_visible)
             Batch of tensors to train on.
 
-        Returns:
-        --------
+        Returns
+        -------
         Mean square error (MSE) for this batch.
         """
         p_h = self.hidden_prob(batch)
@@ -198,8 +198,8 @@ class RBM:
     ):
         """Train this RBM.
 
-        Args:
-        -----
+        Parameters
+        ----------
         train_data: tf.data.Dataset
             Training data to use.
         valid_data: tf.data.Dataset, optional
@@ -375,13 +375,13 @@ class RBM:
     def reconstruct_batch(self, batch):
         """Reconstruct a single batch of input.
 
-        Args:
-        -----
+        Parameters
+        ----------
         batch: tensor of shape (batch, n_visible)
             The batch of tensor to reconstruct.
 
-        Returns:
-        --------
+        Returns
+        -------
         Reconstructed batch.
         """
         p_h = self.hidden_prob(batch)
@@ -392,13 +392,13 @@ class RBM:
     def reconstruct(self, data: tf.data.Dataset):
         """Reconstruct all input data.
 
-        Args:
-        -----
+        Parameters
+        ----------
         data: tf.data.Dataset
             Data to reconstruct.
 
-        Returns:
-        --------
+        Returns
+        -------
         The reconstructed data as a mapped tf.data.Dataset.
         """
         return data.map(self.reconstruct_batch)
@@ -462,8 +462,8 @@ class DBN:
     ):
         """Initialise this DBN.
 
-        Args:
-        -----
+        Parameters
+        ----------
         input_shape: tuple
             Shape of the input tensors to the first layer
         n_layers: int
@@ -514,8 +514,8 @@ class DBN:
         """Train each layer in this DBN in sequence, using the reconstructed
         output from previous layers as input.
 
-        Args:
-        -----
+        Parameters
+        ----------
         train_data: tf.data.Dataset
             Training data to use.
         valid_data: tf.data.Dataset, optional
@@ -571,13 +571,13 @@ class DBN:
     def reconstruct_batch(self, batch: tf.Tensor):
         """Reconstruct a single batch of input.
 
-        Args:
-        -----
+        Parameters
+        ----------
         batch: tensor of shape (batch, n_visible)
             The batch of tensor to reconstruct.
 
-        Returns:
-        --------
+        Returns
+        -------
         Reconstructed batch.
         """
         for i in range(len(self.layers)):
@@ -589,13 +589,13 @@ class DBN:
     def reconstruct(self, data: tf.data.Dataset):
         """Reconstruct all input data.
 
-        Args:
-        -----
+        Parameters
+        ----------
         data: tf.data.Dataset
             Data to reconstruct.
 
-        Returns:
-        --------
+        Returns
+        -------
         The reconstructed data as a mapped tf.data.Dataset.
         """
         return data.map(self.reconstruct_batch)

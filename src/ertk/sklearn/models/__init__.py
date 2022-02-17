@@ -13,13 +13,13 @@ CLASSIFIER_MAP = {"svm": PrecomputedSVC, "rf": RandomForestClassifier}
 def get_sk_model_fn(name: str) -> Callable[..., BaseEstimator]:
     """Get a scikit-learn model class.
 
-    Args:
-    -----
+    Parameters
+    ----------
     name: str
         The model name.
 
-    Returns:
-    --------
+    Returns
+    -------
     model_fn: callable
         A method that takes arguments and returns a Model instance.
     """
@@ -29,13 +29,13 @@ def get_sk_model_fn(name: str) -> Callable[..., BaseEstimator]:
 def get_sk_model(name: str, **kwargs) -> BaseEstimator:
     """Get a scikit-learn model by name.
 
-    Args:
-    -----
+    Parameters
+    ----------
     name: str
         The model name.
 
-    Returns:
-    --------
+    Returns
+    -------
     model: BaseEstimator
         The unfit scikit-learn classifier.
     """

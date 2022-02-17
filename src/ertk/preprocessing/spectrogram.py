@@ -31,8 +31,8 @@ def spectrogram(
     optional pre-emphasis, clipping, mel/chroma transform, power and
     conversion to dB.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     audio: np.ndarray
         Audio data. This should be a 1D array, or a 2D array with shape
         (1, n_samples).
@@ -72,8 +72,8 @@ def spectrogram(
         Whether to convert spectrogram to dB units. Default is `True`.
         Note that this is mainly only useful if `power == 2`.
 
-    Returns:
-    --------
+    Returns
+    -------
     melspec: np.ndarray
         An array of shape (n_frames, n_mels) containing mel spectrogram.
         If power=2 this is the power spectrogram, and if to_db is `True`

@@ -14,8 +14,8 @@ def group_transform(
 ):
     """Per-group (offline) transformation (e.g. standardisation).
 
-    Args:
-    -----
+    Parameters
+    ----------
     x: np.ndarray
         The data matrix to transform. Each x[i] must be an instance.
     groups: np.ndarray
@@ -29,8 +29,8 @@ def group_transform(
     **fit_params:
         Other keyword arguments to pass to the transform.fit() method.
 
-    Returns:
-    --------
+    Returns
+    -------
     x: np.ndarray
         The modified data matrix with transformations applied to each
         group individually.
@@ -56,8 +56,8 @@ def instance_transform(
 ):
     """Per-instance transformation (e.g. standardisation).
 
-    Args:
-    -----
+    Parameters
+    ----------
     x: np.ndarray
         The data matrix to transform. Each x[i] must be a 2D instance.
     transform:
@@ -68,8 +68,8 @@ def instance_transform(
     **fit_params:
         Other keyword arguments to pass to the transform.fit() method.
 
-    Returns:
-    --------
+    Returns
+    -------
     x: np.ndarray
         The modified data matrix with transformations applied to each
         instance individually.
@@ -119,8 +119,8 @@ class SequenceTransformWrapper(SequenceTransform):
     """Wrapper around a scikit-learn transform that can process
     sequences of vectors.
 
-    Args:
-    -----
+    Parameters
+    ----------
     transformer:
         An object which implements the fit_transform() method on a
         collection of 1D vectors.

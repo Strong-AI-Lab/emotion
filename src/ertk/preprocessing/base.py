@@ -14,8 +14,8 @@ from ertk.utils import PathOrStr, batch_iterable
 class InstanceProcessor(ABC):
     """An instance processor.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     config: ERTKConfig
         The configuration for this AudioClipProcessor.
     """
@@ -74,13 +74,13 @@ class InstanceProcessor(ABC):
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
         """Process a single audio clip.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         x: np.ndarray
             The audio data to process.
 
-        Returns:
-        --------
+        Returns
+        -------
         result: np.ndarray
             The processed instance.
         """
@@ -92,13 +92,13 @@ class InstanceProcessor(ABC):
         """Process a batch of instances. By default this simply calls
         `process_instance()` on each instance in the batch.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         batch: np.ndarray or iterable of arrays
             The batch of instances to process.
 
-        Returns:
-        --------
+        Returns
+        -------
         processed: list of np.ndarray
             A list of processed instances.
         """
@@ -109,15 +109,15 @@ class InstanceProcessor(ABC):
     ) -> Iterable[np.ndarray]:
         """Process all instances in batches.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         xs: iterable of np.ndarray
             The data from instances to process.
         batch_size: int
             Batch size.
 
-        Returns:
-        --------
+        Returns
+        -------
         processed: iterable of np.ndarray
             A generator that yields each processed instance in order.
         """
@@ -141,8 +141,8 @@ class AudioClipProcessor(InstanceProcessor):
     def process_file(self, path: PathOrStr, sr: Optional[float] = None) -> np.ndarray:
         """Process individual audio file.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         path: pathlike or str
             The path to an audio file.
         sr: float, optional
@@ -150,8 +150,8 @@ class AudioClipProcessor(InstanceProcessor):
             loaded with its native sample rate. Otherwise audio data is
             resampled to this sample rate.
 
-        Returns:
-        --------
+        Returns
+        -------
         processed: np.ndarray
             Processed instance.
         """
@@ -163,8 +163,8 @@ class AudioClipProcessor(InstanceProcessor):
     ) -> Iterable[np.ndarray]:
         """Process a set of files.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         paths: iterables of path or iterable of str
             Paths to audio files.
         batch_size: int
@@ -176,8 +176,8 @@ class AudioClipProcessor(InstanceProcessor):
             loaded with its native sample rate. Otherwise audio data is
             resampled to this sample rate.
 
-        Returns:
-        --------
+        Returns
+        -------
         processed: iterable of np.ndarray
             Iterable of processed instances.
         """

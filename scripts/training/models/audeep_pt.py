@@ -109,8 +109,8 @@ def get_latest_save(directory: Union[str, Path]) -> Path:
     """Gets the path to the latest model checkpoint, assuming it was saved with
     the format 'model-XXXX.pt'
 
-    Args:
-    -----
+    Parameters
+    ----------
     directory: Path or str
         The path to a directory containing the model save files.
 

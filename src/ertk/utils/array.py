@@ -42,8 +42,8 @@ def frame_array(
     """Frames an array over a given axis with optional padding and
     copying.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     x: np.ndarray
         Array to frame.
     frame_size: int
@@ -66,8 +66,8 @@ def frame_array(
         contiguous so that a view with modified strides can be properly
         created.
 
-    Returns:
-    --------
+    Returns
+    -------
     frames: np.ndarray
         The resulting frames. If `copy=False` then these are read-only
         views into x, otherwise a contiguous array is returned.
@@ -130,8 +130,8 @@ def frame_arrays(
     """Creates sequences of frames from the given arrays. This is mainly
     a convenience wrapper around `frame_array()` for instance arrays.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     arrays: list of np.ndarray
         The arrays to process.
     frame_size: int
@@ -144,8 +144,8 @@ def frame_arrays(
         Whether to return a contiguous array if `vlen=False` (default)
         or an array of variable length arrays.
 
-    Returns:
-    --------
+    Returns
+    -------
     framed_arrays:
         Framed arrays.
     """
@@ -181,8 +181,8 @@ def pad_array(
     exact length `to_size` along `axis`.
 
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     x: np.ndarray
         The array to pad.
     to_multiple: int, optional
@@ -195,8 +195,8 @@ def pad_array(
     axis: int
         The axis along which to pad. Default is axis 0.
 
-    Returns:
-    --------
+    Returns
+    -------
     padded: np.ndarray
         The padded array.
     """
@@ -309,8 +309,8 @@ def shuffle_multiple(
     """Shuffles multiple arrays or lists in sync. Useful for shuffling the data
     and labels in a dataset separately while keeping them synchronised.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     arrays, iterable of array-like
         The arrays to shuffle. They must all have the same size of first
         dimension.
@@ -345,8 +345,8 @@ def batch_arrays_by_length(
     the pad_arrays() method of the LabelledDataset instance before using
     this function, in order to quantise the lengths.
 
-    Parameters:
-    -----
+    Parameters
+    ----------
     arrays_x: list of ndarray
         A list of N-D arrays, possibly of different lengths, to batch.
         The assumption is that all the arrays have the same rank and
@@ -364,8 +364,8 @@ def batch_arrays_by_length(
         with zeros if necessary, or have batches of different sizes if
         there aren't enough sequences to group together.
 
-    Returns:
-    --------
+    Returns
+    -------
     x_list: ndarray,
         The batched arrays. x_list[i] is the i'th
         batch, having between 1 and batch_size items, each of length
@@ -412,16 +412,16 @@ def flat_to_inst(x: np.ndarray, slices: Union[np.ndarray, List[int]]) -> np.ndar
     contiguous 2D/3D array or a variable-length 3D array, with one
     feature vector/matrix per instance.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     x: numpy.ndarray
         Contiguous 2D array containing concatenated instance data.
     slices: list or numpy.ndarray
         Array containing lengths of sequences in x corresponding to
         instance data.
 
-    Returns:
-    --------
+    Returns
+    -------
     inst: numpy.ndarray
         Instance array, which is either contiguous 2D, contiguous 3D or
         an array of 2D arrays with varying lengths. It should be the
@@ -446,14 +446,14 @@ def inst_to_flat(x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """The inverse of flat_to_inst(). Takes an instance 'matrix' and
     converts to a "flattened" 2D matrix.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     x: numpy.ndarray
         The instance matrix, which is either a contiguous 2D or 3D
         array, or an array of 1D or 2D arrays.
 
-    Returns:
-    --------
+    Returns
+    -------
     flat: numpy.ndarray
         The contiguous 2D matrix containing data for all instances.
     slices: numpy.ndarray

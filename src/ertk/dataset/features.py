@@ -94,8 +94,8 @@ def read_raw(path: PathOrStr, sample_rate: int = 16000):
 class FeaturesData:
     """Dataset features backend.
 
-    Args:
-    -----
+    Parameters
+    ----------
     features: ndarray
         Features matrix. May be "flat" or per-instance. If flat,
         `slices` must also be present.

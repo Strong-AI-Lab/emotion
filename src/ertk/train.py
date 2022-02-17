@@ -12,11 +12,11 @@ from sklearn.model_selection import (
     StratifiedShuffleSplit,
 )
 from sklearn.model_selection._split import _BaseKFold
+from sklearn.model_selection._validation import _score
 from sklearn.pipeline import Pipeline
 from sklearn.utils import check_array
-from sklearn.model_selection._validation import _score
 
-from ertk.utils import filter_kwargs, ScoreFunction
+from ertk.utils import ScoreFunction, filter_kwargs
 
 
 class TrainValidation(BaseCrossValidator):
@@ -104,8 +104,8 @@ def get_cv_splitter(
     """Gets an appropriate cross-validation splitter for the given
     number of folds and groups, or a single random split.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     group: bool
         Whether to split over pre-defined groups of instances.
     k: int
@@ -119,8 +119,8 @@ def get_cv_splitter(
     random_state: int, optional
         The random state to set for splitters with shuffling behaviour.
 
-    Returns:
-    --------
+    Returns
+    -------
     splitter: BaseCrossValidator
         Cross-validation splitter that has `split()` and
         `get_n_splits()` methods.
@@ -147,16 +147,16 @@ def get_pipeline_params(params: Dict[str, Any], pipeline: Pipeline):
     """Modifies parameter names to pass to a Pipeline instance's `fit()`
     method.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     params: dict
         Parameters to pass to Pipeline.fit(). All parameters are passed
         to all estimators in the pipeline so long as they are valid.
     pipeline: Pipeline
         The pipeline instance.
 
-    Returns:
-    --------
+    Returns
+    -------
     new_params: dict
         Parameters filtered and prepended with pipeline step names and
         double underscore (e.g. groups -> clf__groups).
@@ -177,8 +177,8 @@ def get_scores(
 ) -> Dict[str, Any]:
     """Get dictionary of scores for predictions.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     scoring: str, list, dict or callable
         Score(s) to calculate. This takes the same for as for
         scikit-learn's cross_val_* methods.
@@ -187,8 +187,8 @@ def get_scores(
     y_true: array-like
         Ground truth.
 
-    Returns:
-    --------
+    Returns
+    -------
     scores: dict
         A dictionary mapping score names to corresponding score(s).
     """

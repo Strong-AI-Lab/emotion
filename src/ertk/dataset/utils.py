@@ -17,8 +17,8 @@ def get_audio_paths(path: PathOrStr, absolute: bool = True) -> List[Path]:
     relative paths but returns absolute paths, and doesn't resolve
     canonical paths (i.e. it doesn't follow symlinks.)
 
-    Args:
-    -----
+    Parameters
+    ----------
     file: pathlike or str
         Path to a directory containing audio clips, or a file containing
         a list of paths to audio clips.
@@ -26,8 +26,8 @@ def get_audio_paths(path: PathOrStr, absolute: bool = True) -> List[Path]:
         If `True`, return absolute paths, otherwise return the paths
         already in the file/directory. Default is `True`.
 
-    Returns:
-    --------
+    Returns
+    -------
     List of paths to audio files. Paths will be absolute paths if
     `absolute=True`.
     """
@@ -45,8 +45,8 @@ def get_audio_paths(path: PathOrStr, absolute: bool = True) -> List[Path]:
 def resample_rename_clips(mapping: Mapping[Path, Path]):
     """Resample given audio clips to 16 kHz 16-bit WAV.
 
-    Args:
-    -----
+    Parameters
+    ----------
     mapping: mapping
         Mapping from source files to destination files.
     """
@@ -71,8 +71,8 @@ def resample_audio(paths: Iterable[PathOrStr], dir: PathOrStr):
     """Resample given audio clips to 16 kHz 16-bit WAV, and place in
     direcotory given by `dir`.
 
-    Args:
-    -----
+    Parameters
+    ----------
     paths: iterable of Path
         A collection of paths to audio files to resample.
     dir: Pathlike or str
@@ -88,8 +88,8 @@ def resample_audio(paths: Iterable[PathOrStr], dir: PathOrStr):
 def write_filelist(paths: Iterable[PathOrStr], path: PathOrStr):
     """Write sorted file list.
 
-    Args:
-    -----
+    Parameters
+    ----------
     paths: iterable of Path
         Paths to audio clips.
     name: str

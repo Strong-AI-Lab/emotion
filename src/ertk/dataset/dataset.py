@@ -50,8 +50,8 @@ class Dataset:
     corresponding annotation with the same name, using the group names
     as categorical annotations.
 
-    Args:
-    -----
+    Parameters
+    ----------
     corpus_info: Pathlike or str, optional
         Path to corpus info in YAML format.
     features: Pathlike or str, optional
@@ -126,8 +126,8 @@ class Dataset:
     def init_corpus_info(self, path: PathOrStr):
         """Initialise corpus metadata from YAML.
 
-        Args:
-        -----
+        Parameters
+        ----------
         path: os.Pathlike or str
             The path to a YAML file containing corpus metadata.
         """
@@ -176,8 +176,8 @@ class Dataset:
     def update_features(self, features: PathOrStr):
         """Update the features matrix and feature names for this dataset.
 
-        Args:
-        -----
+        Parameters
+        ----------
         features: os.PathLike or str
             Path to a set of features or unique name of features in
             corpus features dir.
@@ -209,8 +209,8 @@ class Dataset:
     def use_subset(self, subset: str = "default"):
         """Use a different subset of the instances.
 
-        Args:
-        -----
+        Parameters
+        ----------
         subset: str
             Name of subset to use. Default is "default" which uses the
             default subset specified in corpus_info.
@@ -224,13 +224,13 @@ class Dataset:
     def get_idx_for_names(self, names: Collection[str]) -> np.ndarray:
         """Gets indices of instances corresponding to `names`.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         names: collection of str
             The names to get indices for.
 
-        Returns:
-        --------
+        Returns
+        -------
         idx: np.ndarray
             The indices corresponding to `names`, in order.
         """
@@ -241,15 +241,15 @@ class Dataset:
         """Gets indices of instances corresponding to the selection
         given by `split`.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         split: str or dict
             Either a string containing the subset to select, groups to
             select, a path to such a config file, or a mapping
             containing the groups to select.
 
-        Returns:
-        --------
+        Returns
+        -------
         idx: np.ndarray
             The corresponding indices.
         """
@@ -277,8 +277,8 @@ class Dataset:
     ):
         """Add or update an annotation.
 
-        Args:
-        -----
+        Parameters
+        ----------
         annot_name: str
             The name of the annotation.
         annotations: PathLike, str, mapping or sequence
@@ -310,8 +310,8 @@ class Dataset:
     def map_groups(self, part_name: str, mapping: Mapping[str, str]):
         """Map group names in a partition.
 
-        Args:
-        -----
+        Parameters
+        ----------
         part_name: str
             Name of partition.
         mapping: dict
@@ -332,8 +332,8 @@ class Dataset:
         """Remove instances corresponding to groups from the given
         partition.
 
-        Args:
-        -----
+        Parameters
+        ----------
         part_name: str
             The partition name.
         groups: collection of str
@@ -357,8 +357,8 @@ class Dataset:
         exists with the given new_name, then it is replaced
         destructively.
 
-        Args:
-        -----
+        Parameters
+        ----------
         old_name: str
             The name of the annotation to rename.
         new_name: str
@@ -374,8 +374,8 @@ class Dataset:
         """Removes a set of annotations from the dataset. This does not
         remove any instances.
 
-        Args:
-        -----
+        Parameters
+        ----------
         annot_name: str
             Annotation name.
         """
@@ -387,13 +387,13 @@ class Dataset:
         """Get a list of annotations, one for each instance currently in
         the dataset.
 
-        Args:
-        -----
+        Parameters
+        ----------
         annot_name: str
             Annotation name.
 
-        Returns:
-        --------
+        Returns
+        -------
         A list of values, one for each instance in the datset, in the
         same order they appear in names and x.
         """
@@ -406,13 +406,13 @@ class Dataset:
         """Gets the group indices (i.e. indices into the groups array)
         for a given partition.
 
-        Args:
-        -----
+        Parameters
+        ----------
         annot_name: str
             The partition name.
 
-        Returns:
-        --------
+        Returns
+        -------
         A NumPy array of group indices for each instance in the dataset.
         """
         _, idx = np.unique(self.get_annotations(annot_name), return_inverse=True)
@@ -421,13 +421,13 @@ class Dataset:
     def get_group_counts(self, annot_name: str) -> np.ndarray:
         """Get group counts for a partition.
 
-        Args:
-        -----
+        Parameters
+        ----------
         annot_name: str
             The partition name.
 
-        Returns:
-        --------
+        Returns
+        -------
         A NumPy array of counts for the corresponding group in this
         partition.
         """
@@ -437,8 +437,8 @@ class Dataset:
     def get_group_names(self, annot_name: str) -> List[str]:
         """Get the names of groups in a partition.
 
-        Args:
-        -----
+        Parameters
+        ----------
         annot_name: str
             Annotation name.
         """
@@ -449,8 +449,8 @@ class Dataset:
     ):
         """Update the speakers for this dataset.
 
-        Args:
-        -----
+        Parameters
+        ----------
         speakers: Path, str, dict or list
             If Path or str, read speaker info from CSV at given path. If
             dict, use speaker dict directly. If list, each speakers[i]
@@ -464,8 +464,8 @@ class Dataset:
         """Remove instances from dataset. Recalculate annotations,
         partitions, etc.
 
-        Args:
-        -----
+        Parameters
+        ----------
         drop: collection of str
             Instances to drop.
         keep: collection of str
@@ -503,8 +503,8 @@ class Dataset:
         """Transforms the data matrix of this dataset in-place using
         some (offline) normalisation method.
 
-        Args:
-        -----
+        Parameters
+        ----------
         normaliser:
             The transform to apply. Must implement fit_transform().
         partition: str
@@ -787,8 +787,8 @@ def load_multiple(
 ) -> CombinedDataset:
     """Load one or more datasets with the given features.
 
-    Args:
-    -----
+    Parameters
+    ----------
     corpus_files: iterable
         The corpus description YAML files to load.
     features: str

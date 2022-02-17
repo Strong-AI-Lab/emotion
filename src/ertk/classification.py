@@ -26,8 +26,8 @@ def binary_accuracy_score(
     """Calculated binary accuracy. Binary accuracy is the same as
     accuracy considering only a single class.
 
-    Args:
-    -----
+    Parameters
+    ----------
     y_true:
         Ground truth labels.
     y_pred:
@@ -42,8 +42,8 @@ def binary_accuracy_score(
         support. If None then return an array of values, one for each
         label in labels.
 
-    Returns:
-    --------
+    Returns
+    -------
     label_accs: float or list
         Binary accuracies for labels in labels or average if `average`
         is not None.
@@ -138,8 +138,8 @@ def dataset_cross_validation(
 ) -> pd.DataFrame:
     """Cross validates a `Classifier` instance on a single dataset.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     clf: class that implements fit() and predict()
         The classifier to test.
     dataset: LabelledDataset
@@ -168,8 +168,8 @@ def dataset_cross_validation(
         should be used to pass any more specific parameters not covered
         here.
 
-    Returns:
-    --------
+    Returns
+    -------
     df: pandas.DataFrame
         A dataframe holding the results from all runs with this model.
     """
@@ -234,8 +234,8 @@ def train_val_test(
     """Trains a `Classifier` instance on some training data, optionally
     using validation data, and returns results on given test data.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     clf: class that implements fit() and predict()
         The classifier to test.
     dataset: LabelledDataset
@@ -254,8 +254,8 @@ def train_val_test(
         should be used to pass any more specific parameters not covered
         here.
 
-    Returns:
-    --------
+    Returns
+    -------
     df: pandas.DataFrame
         A dataframe holding the results from all runs with this model.
     """
@@ -313,13 +313,13 @@ def get_balanced_sample_weights(labels: Union[List[int], np.ndarray]):
     """Gets sample weights such that each unique label has the same
     total weight across all instances.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     labels: list or array
         Sequence of labels of length n_samples.
 
-    Returns:
-    --------
+    Returns
+    -------
     sample_weights: np.ndarray
         Array of sample weights of length n_samples.
     """

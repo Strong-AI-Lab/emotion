@@ -14,8 +14,8 @@ def friedman_nemenyi(table: pd.DataFrame, alpha: float = 0.05):
     """Runs Friedman test on given table and optionally graphs a
     critical-difference diagram.
 
-    Args:
-    -----
+    Parameters
+    ----------
     table: DataFrame
         The data table, with subjects as rows and independent variable
         (condition) as columns.
@@ -23,8 +23,8 @@ def friedman_nemenyi(table: pd.DataFrame, alpha: float = 0.05):
         Significance level, must be in the range (0, 1), default is
         0.05.
 
-    Returns:
-    --------
+    Returns
+    -------
     pval: float
         The p-value for the Friedman test.
     cd: float
@@ -73,8 +73,8 @@ def bhattacharyya_dist(x: np.ndarray, y: np.ndarray, pinv: bool = False):
     """Calculate Bhattacharyya distance between multivariate Gaussian
     distributions.
 
-    Args:
-    -----
+    Parameters
+    ----------
     x: array-like
         Data matrix of shape (n1_samples, n_features) corresponding to
         the first group.
@@ -107,8 +107,8 @@ def corr_ratio(x: np.ndarray, groups: Union[List[int], np.ndarray]):
     """Calculates correlation ratio for each feature using the given
     groups.
 
-    Args:
-    -----
+    Parameters
+    ----------
     data: numpy.ndarray
         Data matrix, with shape (n_instances, n_features).
     groups: list or numpy.ndarray
@@ -116,8 +116,8 @@ def corr_ratio(x: np.ndarray, groups: Union[List[int], np.ndarray]):
         should be labelled from 0 to G - 1 inclusive, where G is the
         number of groups.
 
-    Returns:
-    --------
+    Returns
+    -------
     eta: numpy.ndarray
         1D array of correlation coefficients of length n_features. Each
         value is in [0, 1] except if a feature takes only one value, in
@@ -148,8 +148,8 @@ def dunn(
 ):
     """Calculates the Dunn index for cluster "goodness".
 
-    Args:
-    -----
+    Parameters
+    ----------
     data: numpy.ndarray
         Data matrix, with shape (n_instances, n_features).
     clusters: list or numpy.ndarray
@@ -168,8 +168,8 @@ def dunn(
     p: int
         Value of p for p-norm when using "lp" distance metric.
 
-    Returns:
-    --------
+    Returns
+    -------
     dunn: float
         The Dunn index for this data and cluster assignment.
     """
@@ -205,8 +205,8 @@ def dunn(
 def kappa(data: np.ndarray):
     """Calculates Fleiss' kappa for inter-rater agreement.
 
-    Args:
-    -----
+    Parameters
+    ----------
     data: numpy.ndarray
         The data matrix, in the form (raters x units).
     """
@@ -245,8 +245,8 @@ def alpha(
     [1] K. Krippendorff, Content analysis: An introduction to its
     methodology. Sage publications, 2004.
 
-    Args:
-    -----
+    Parameters
+    ----------
     data: numpy.ndarray
         The data matrix, shape (n_raters, n_units). Each cell (i, j)
         represents the value assigned to unit j by rater i, or 0

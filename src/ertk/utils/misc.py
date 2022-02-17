@@ -8,6 +8,19 @@ import tqdm
 class TqdmParallel(joblib.Parallel):
     """Convenience class that acts identically to joblib.Parallel except
     it uses a tqdm progress bar.
+
+    Parameters
+    ----------
+    total: int
+        Total number of items in the iterable.
+    desc: str
+        Progress bar description.
+    unit: str
+        Progress bar unit.
+    leave: bool
+        Whether to leave the progress bar after completion.
+    **kwargs: dict
+        Other keyword args passed to joblib.Parallel.
     """
 
     def __init__(
@@ -18,13 +31,18 @@ class TqdmParallel(joblib.Parallel):
         leave: bool = True,
         **kwargs,
     ):
-        self.total = total
-        self.tqdm_args = {"desc": desc, "unit": unit, "leave": leave, "disable": None}
+        self.tqdm_args = {
+            "total": total,
+            "desc": desc,
+            "unit": unit,
+            "leave": leave,
+            "disable": None,
+        }
         kwargs["verbose"] = 0
         super().__init__(**kwargs)
 
     def __call__(self, iterable):
-        with tqdm.tqdm(total=self.total, **self.tqdm_args) as self.pbar:
+        with tqdm.tqdm(**self.tqdm_args) as self.pbar:
             return super().__call__(iterable)
 
     def print_progress(self):
