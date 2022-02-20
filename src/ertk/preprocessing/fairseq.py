@@ -3,7 +3,8 @@ from enum import Enum
 
 import numpy as np
 import torch
-from fairseq.checkpoint_utils import load_model_ensemble
+import torch.nn.functional as F
+from fairseq.checkpoint_utils import load_model_ensemble_and_task
 from omegaconf import MISSING
 
 from ertk.config import ERTKConfig
@@ -35,10 +36,12 @@ class FairseqExtractor(
         super().__init__(config)
 
         print(f"Loading model from {config.checkpoint}")
-        [model], _ = load_model_ensemble([config.checkpoint])
+        [model], args, task = load_model_ensemble_and_task([config.checkpoint])
         model.to(device=config.device)
         model.eval()
         self.model = model
+        self.args = args
+        self.task = task
         torch.set_grad_enabled(False)
 
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
@@ -46,6 +49,8 @@ class FairseqExtractor(
             raise ValueError("sample rate should be 16kHz")
 
         tensor = torch.tensor(x, device=self.config.device).unsqueeze(0)
+        if hasattr(self.task, "normalize") and self.task.normalize:
+            tensor = F.layer_norm(tensor, tensor.shape)
         if self.config.model_type == "wav2vec":
             z = self.model.feature_extractor(tensor)
             if self.model.vector_quantizer is not None:
