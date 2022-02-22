@@ -226,7 +226,7 @@ def tf_cross_validate(
             data_fn=data_fn,
             scoring=scoring,
             verbose=verbose,
-            fit_params=fit_params,
+            fit_params=dict(fit_params),
         )
 
         for k in _scores:

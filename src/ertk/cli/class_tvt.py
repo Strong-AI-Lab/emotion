@@ -1,5 +1,6 @@
 import json
 import warnings
+from functools import partial
 from pathlib import Path
 from typing import Tuple
 
@@ -273,6 +274,37 @@ def main(
             **fit_params,
         }
         clf = model_fn
+    elif clf_lib == "pt":
+        import torch.optim
+
+        from ertk.pytorch import get_pt_model
+
+        optim_fn = partial(torch.optim.Adam, lr=learning_rate)
+        fit_params.update(
+            {
+                "log_dir": logdir,
+                "max_epochs": epochs,
+                "batch_size": batch_size,
+                "optim_fn": optim_fn,
+            }
+        )
+        model_args.update(
+            {"n_features": dataset.n_features, "n_classes": dataset.n_classes}
+        )
+
+        def model_fn():
+            model = get_pt_model(clf_type, **model_args)
+            return model if transformer is None else (transformer, model)
+
+        params = {
+            "optimiser": "adam",
+            "learning_rate": learning_rate,
+            **model_args,
+            **fit_params,
+        }
+        clf = model_fn
+    else:
+        raise ValueError(f"Invalid classifier type {clf_type}")
 
     if verbose > -1:
         print("== Dataset ==")

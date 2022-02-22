@@ -106,19 +106,16 @@ def standard_class_scoring(classes: Sequence[str]):
     for i, c in enumerate(classes):
         scoring.update(
             {
-                c
-                + "_rec": make_scorer(
+                f"{c}_rec": make_scorer(
                     recall_score, average=None, labels=[i], zero_division=0
                 ),
-                c
-                + "_prec": make_scorer(
+                f"{c}_prec": make_scorer(
                     precision_score, average=None, labels=[i], zero_division=0
                 ),
-                c
-                + "_f1": make_scorer(
+                f"{c}_f1": make_scorer(
                     f1_score, average=None, labels=[i], zero_division=0
                 ),
-                c + "_ba": make_scorer(binary_accuracy_score, average=None, labels=[i]),
+                f"{c}_ba": make_scorer(binary_accuracy_score, average=None, labels=[i]),
             }
         )
     return scoring
@@ -191,6 +188,11 @@ def dataset_cross_validation(
 
         n_jobs = 1
         cross_validate_fn = tf_cross_validate
+    elif clf_lib == "pt":
+        from ertk.pytorch.classification import pt_cross_validate
+
+        n_jobs = 1
+        cross_validate_fn = pt_cross_validate
 
     start_time = time.perf_counter()
     logging.info(f"Starting cross-validation with n_jobs={n_jobs}")
@@ -271,6 +273,10 @@ def train_val_test(
         from ertk.tensorflow.classification import tf_train_val_test
 
         train_val_test_fn = tf_train_val_test
+    elif clf_lib == "pt":
+        from ertk.pytorch.classification import pt_train_val_test
+
+        train_val_test_fn = pt_train_val_test
 
     train_idx = np.array(train_idx, copy=False)
     valid_idx = np.array(valid_idx, copy=False)
@@ -325,5 +331,5 @@ def get_balanced_sample_weights(labels: Union[List[int], np.ndarray]):
     """
     unique, indices, counts = np.unique(labels, return_counts=True, return_inverse=True)
     class_weight = len(labels) / (len(unique) * counts)
-    sample_weights = class_weight[indices]
+    sample_weights = class_weight[indices].astype(np.float32)
     return sample_weights
