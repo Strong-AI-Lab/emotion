@@ -1,0 +1,15 @@
+name,label
+1002_DFA_ANG_XX,anger
+extra1,none
+1002_DFA_DIS_XX,disgust
+1002_DFA_FEA_XX,fear
+1002_DFA_HAP_XX,happiness
+1002_DFA_NEU_XX,neutral
+1002_DFA_SAD_XX,sadness
+1001_DFA_ANG_XX,anger
+1001_DFA_DIS_XX,disgust
+1001_DFA_FEA_XX,fear
+1001_DFA_HAP_XX,happiness
+1001_DFA_NEU_XX,neutral
+1001_DFA_SAD_XX,sadness
+extra2,sadness
