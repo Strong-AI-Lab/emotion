@@ -25,4 +25,4 @@ filterwarnings = [
 [tool.mypy]
 follow_imports = "silent"
 ignore_missing_imports = true
-files = ["ertk", "scripts", "tests"]
+files = ["src", "scripts", "tests"]
