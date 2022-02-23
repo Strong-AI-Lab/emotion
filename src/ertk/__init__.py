@@ -1,3 +1,3 @@
 """ERTK: Emotion Recognition ToolKit"""
 
-__version__ = "2021.9.1"
+__version__ = "2022.2.1"

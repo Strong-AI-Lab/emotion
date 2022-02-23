@@ -1,4 +1,7 @@
 ![License: MIT](https://img.shields.io/github/license/Strong-AI-Lab/emotion)
+![Version](https://img.shields.io/pypi/v/ertk)
+![Python version](https://img.shields.io/pypi/pyversions/ertk)
+![Python wheel](https://img.shields.io/pypi/wheel/ertk)
 
 # ERTK: Emotion Recognition ToolKit
 This is a Python library with utilities for processing emotional
