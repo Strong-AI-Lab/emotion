@@ -68,7 +68,7 @@ from ertk.transform import SequenceTransformWrapper
     help="Transformation class.",
 )
 @optgroup.option(
-    "--balanced/--imbalanced", default=True, help="Balances sample weights."
+    "--balanced/--imbalanced", default=True, help="Balances class weights."
 )
 @optgroup.group("Misc. options")
 @optgroup.option(
@@ -320,7 +320,7 @@ def main(
             print("Using balanced sample weights.")
         if normalise == "online":
             print("Using 'online' normalisation.")
-        else:
+        elif normalise != "none":
             print(f"Normalising globally using {normalise} partition.")
 
     df = train_val_test(
