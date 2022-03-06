@@ -1,11 +1,22 @@
 CMU-MOSEI:
   description: The CMU-MOSEI dataset
   annotations:
+    - anger
+    - disgust
+    - fear
+    - happy
+    - sad
+    - surprise
+    - sentiment
   partitions:
     - label
+    - transcript
   subsets:
-    default: all
+    default: labels
     all:
       clips: files_all
       description: All files (manually extracted audio segments)
+    labels:
+      clips: files_labels
+      description: Clips with emotion and sentiment information
   features_dir: ../../CMU-MOSEI/
