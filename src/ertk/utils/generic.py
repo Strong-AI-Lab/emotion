@@ -1,4 +1,4 @@
-from itertools import zip_longest
+from itertools import chain, combinations, permutations, zip_longest
 from typing import (
     Any,
     Callable,
@@ -6,6 +6,7 @@ from typing import (
     Dict,
     Iterable,
     List,
+    Optional,
     Tuple,
     TypeVar,
     overload,
@@ -19,6 +20,17 @@ T2 = TypeVar("T2")
 def itmap(s: Callable[[T1], T2]):
     """Returns a new map function that additionally maps tuples to
     tuples and lists to lists.
+
+    Parameters
+    ----------
+    s: callable
+        A callable that converts objects of type T to type S.
+
+    Returns
+    -------
+    callable
+        A function that converts objects of type T to type S, lists of T
+        to lists of S, and tuples of T to tuples of S.
     """
 
     @overload
@@ -45,6 +57,18 @@ def itmap(s: Callable[[T1], T2]):
 def ordered_intersect(a: Iterable, b: Container) -> List:
     """Returns a list of the intersection of `a` and `b`, in the order
     elements appear in `a`.
+
+    Parameters
+    ----------
+    a: iterable
+        Iterable with the order of elements.
+    b: container
+        Container to test inclusion of elements in `a`.
+
+    Returns
+    -------
+    list
+        The resulting elements, in order.
     """
     return [x for x in a if x in b]
 
@@ -64,7 +88,7 @@ def filter_kwargs(kwargs: Dict[str, Any], method: Callable) -> Dict[str, Any]:
 
     Returns
     -------
-    params: dict
+    dict
         Filtered keyword arguments.
     """
     import inspect
@@ -95,11 +119,61 @@ def batch_iterable(
         An optional fill value if the final batch isn't full (i.e.
         `batch_size` doesn't divide the iterable length.)
 
-    Returns
+    Yields
     -------
-    batched: iterable
-        A generator that yields tuples of length `batch_size` with
-        successive elements from the original iterable.
+    tuple
+        A tuple of length `batch_size` with successive elements from the
+        original iterable.
     """
     # From the itertools recipes, to chunk an iterator
     yield from zip_longest(*[iter(it)] * batch_size, fillvalue=fillvalue)
+
+
+def subsets(it: Iterable[T], max_size: Optional[int] = None) -> Iterable[Tuple[T, ...]]:
+    """Iterate over all subsets of the iterable `it`, up to a given
+    maximum size. This will generate subsets in size order and then
+    index-sorted order (i.e. the order items appear in `it`).
+
+    Parameters
+    ----------
+    it: iterable
+        The iterable from which to generate subsets.
+    max_size: int, optional
+        The maximum size of generated subsets. If not given, the size of
+        `it` is determined by creating a list of `it`'s elements.
+
+    Yields
+    ------
+    tuple
+        The next generated subset.
+    """
+    if max_size is None:
+        it = list(it)
+        max_size = len(it)
+    yield from chain(*(combinations(it, i) for i in range(max_size + 1)))
+
+
+def ordered_subsets(
+    it: Iterable[T], max_size: Optional[int] = None
+) -> Iterable[Tuple[T, ...]]:
+    """Iterate over all ordered subsets of the iterable `it`, up to a
+    given maximum size. This will generate subsets in size order and
+    then index-sorted order (i.e. the order items appear in `it`).
+
+    Parameters
+    ----------
+    it: iterable
+        The iterable from which to generate ordered subsets.
+    max_size: int, optional
+        The maximum size of generated subsets. If not given, the size of
+        `it` is determined by creating a list of `it`'s elements.
+
+    Yields
+    ------
+    tuple
+        The next generated ordered subset.
+    """
+    if max_size is None:
+        it = list(it)
+        max_size = len(it)
+    yield from chain(*(permutations(it, i) for i in range(max_size + 1)))

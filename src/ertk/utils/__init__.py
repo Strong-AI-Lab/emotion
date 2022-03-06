@@ -11,6 +11,13 @@ from .array import (
     shuffle_multiple,
     transpose_time,
 )
-from .generic import batch_iterable, filter_kwargs, itmap, ordered_intersect
+from .generic import (
+    batch_iterable,
+    filter_kwargs,
+    itmap,
+    ordered_intersect,
+    ordered_subsets,
+    subsets,
+)
 from .misc import TqdmParallel
 from .types import PathOrStr, ScoreFunction
