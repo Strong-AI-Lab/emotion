@@ -161,8 +161,7 @@ class Dataset:
         """Make sure there is a value for each instance for each annotation."""
 
         def verify_annotation(annot_name: str):
-            annotations = self.annotations[annot_name]
-            missing = set(self.names) - annotations.keys()
+            missing = set(self.names) - self.annotations[annot_name].keys()
             if len(missing) > 0:
                 raise RuntimeError(
                     f"Incomplete annotation {annot_name}. These names are missing:"
@@ -237,7 +236,9 @@ class Dataset:
         names = set(names)
         return np.array([i for i, x in enumerate(self.names) if x in names])
 
-    def get_idx_for_split(self, split: Union[str, Dict[str, str]]) -> np.ndarray:
+    def get_idx_for_split(
+        self, split: Union[str, Dict[str, Union[str, Collection[str]]]]
+    ) -> np.ndarray:
         """Gets indices of instances corresponding to the selection
         given by `split`.
 
@@ -245,7 +246,7 @@ class Dataset:
         ----------
         split: str or dict
             Either a string containing the subset to select, groups to
-            select, a path to such a config file, or a mapping
+            select, a path to such a config file, or a mapping object
             containing the groups to select.
 
         Returns
@@ -634,8 +635,16 @@ class Dataset:
         s = f"Corpus: {self.corpus}\n"
         for part in sorted(self.partitions):
             group_names = self.get_group_names(part)
-            s += f"partition '{part}' ({len(group_names)} groups):\n"
-            s += f"\t{dict(zip(group_names, self.get_group_counts(part)))}\n"
+            s += f"partition '{part}' ({len(group_names)} groups)\n"
+            if len(group_names) <= 20:
+                s += f"\t{dict(zip(group_names, self.get_group_counts(part)))}\n"
+        for annot in sorted(self.annotations):
+            if annot in self.partitions:
+                continue
+            s += f"annotation '{annot}'\n"
+            annotations = np.array(self.get_annotations(annot))
+            s += f"\tmin: {annotations.min():.3f}, max: {annotations.max():.3f}, "
+            s += f"mean: {annotations.mean():.3f}\n"
         s += f"{self.n_instances} instances\n"
         s += f"subset: {self.subset}\n"
         s += f"using {self._features} ({self.n_features} features)\n"
