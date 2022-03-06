@@ -3,9 +3,13 @@ These directories contain metadata and scripts for processing emotional
 speech datasets into the format required by the scripts in this
 repository.
 
+Please see also https://github.com/SuperKogito/SER-datasets for another
+list of emotional speech datasets.
+
 Currently the following datasets have processing scripts:
 - [AESDD](http://m3c.web.auth.gr/research/aesdd-speech-emotion-recognition/)
 - [ASED](https://github.com/wgwangang/ASED_V1)
+- [BAVED](https://www.kaggle.com/a13x10/basic-arabic-vocal-emotions-dataset)
 - [CaFE](https://zenodo.org/record/1478765)
 - [CMU-MOSEI](http://multicomp.cs.cmu.edu/resources/cmu-mosei-dataset/)
 - [CREMA-D](https://github.com/CheyneyComputerScience/CREMA-D)
@@ -33,6 +37,7 @@ Currently the following datasets have processing scripts:
 - [TESS](https://tspace.library.utoronto.ca/handle/1807/24487/)
 - [URDU](https://github.com/siddiquelatif/URDU-Dataset/)
 - [VENEC](https://www.nature.com/articles/s41562-019-0533-6)
+- [VIVAE](https://zenodo.org/record/4066235)
 
 ## Processing
 Each dataset has a `process.py` script that can be used to process the
