@@ -71,6 +71,9 @@ from ertk.transform import SequenceTransformWrapper
     "--balanced/--imbalanced", default=True, help="Balances sample weights."
 )
 @optgroup.option(
+    "--n_gpus", type=int, default=1, show_default=True, help="Number of GPUs to use."
+)
+@optgroup.option(
     "--reps",
     type=int,
     default=1,
@@ -154,6 +157,7 @@ def main(
     epochs: int,
     use_inner_cv: bool,
     n_jobs: int,
+    n_gpus: int,
 ):
     """Runs cross-validation on the given INPUT datasets. Metrics are
     optionally written to a results file.
@@ -274,6 +278,7 @@ def main(
                 "epochs": epochs,
                 "batch_size": batch_size,
                 "data_fn": None,
+                "n_gpus": n_gpus,
             }
         )
         model_args.update(
@@ -309,6 +314,7 @@ def main(
                 "max_epochs": epochs,
                 "batch_size": batch_size,
                 "optim_fn": optim_fn,
+                "n_gpus": n_gpus,
             }
         )
         model_args.update(

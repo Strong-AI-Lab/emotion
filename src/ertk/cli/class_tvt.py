@@ -48,6 +48,9 @@ from ertk.transform import SequenceTransformWrapper
 )
 @optgroup.group("Experiment options")
 @optgroup.option(
+    "--n_gpus", type=int, default=1, show_default=True, help="Number of GPUs to use."
+)
+@optgroup.option(
     "--reps",
     type=int,
     default=1,
@@ -120,6 +123,7 @@ def main(
     learning_rate: float,
     batch_size: int,
     epochs: int,
+    n_gpus: int,
 ):
     """Runs training on the given INPUT dataset, using training set.
     Validation is done on validation set and results reported on test
@@ -251,6 +255,7 @@ def main(
                 "callbacks": callbacks,
                 "batch_size": batch_size,
                 "data_fn": None,
+                "n_gpus": n_gpus,
             }
         )
         model_args.update(
@@ -286,6 +291,7 @@ def main(
                 "max_epochs": epochs,
                 "batch_size": batch_size,
                 "optim_fn": optim_fn,
+                "n_gpus": n_gpus,
             }
         )
         model_args.update(

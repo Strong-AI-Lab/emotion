@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Optional
 
 import pytorch_lightning as pl
 import torch
@@ -46,26 +46,29 @@ class LightningWrapper(pl.LightningModule):
             x = self.model.preprocess_input(x)
         return self.model.forward(x, *args, **kwargs)
 
-    def training_step(self, batch, batch_idx: int):
-        x, y, *sw = batch
-        yhat = self.forward(x)
+    def log_loss(
+        self, name: str, y: torch.Tensor, yhat: torch.Tensor, sw: Optional[torch.Tensor]
+    ):
         loss = self.loss(yhat, y)
-        if len(sw) > 0 and sw[0] is not None:
-            loss = loss.dot(sw[0])
+        if sw is not None:
+            loss = loss.dot(sw) / sw.sum()
         else:
             loss = loss.mean()
-        self.log("train_loss", loss)
+        self.log(f"{name}_loss", loss.item())
+        return loss
+
+    def training_step(self, batch, batch_idx: int):
+        x, y, *sw = batch
+        sw = sw[0] if len(sw) > 0 else None
+        yhat = self.forward(x)
+        loss = self.log_loss("train", y, yhat, sw)
         return loss
 
     def validation_step(self, batch, batch_idx: int):
         x, y, *sw = batch
+        sw = sw[0] if len(sw) > 0 else None
         yhat = self.forward(x)
-        loss = self.loss(yhat, y)
-        if len(sw) > 0 and sw[0] is not None:
-            loss = loss.dot(sw[0]).item()
-        else:
-            loss = loss.mean().item()
-        self.log("val_loss", loss)
+        self.log_loss("val", y, yhat, sw)
 
     def predict_step(self, batch, batch_idx: int):
         x, *_ = batch

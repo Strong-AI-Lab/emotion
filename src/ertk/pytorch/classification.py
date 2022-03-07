@@ -1,4 +1,5 @@
 import logging
+import warnings
 from collections import defaultdict
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -77,16 +78,21 @@ def pt_train_val_test(
     ] = "accuracy",
     verbose: int = 0,
     batch_size: int = 32,
-    fit_params: Dict[str, Any] = {},
+    fit_params: Dict[str, Any] = None,
 ):
+    fit_params = fit_params or {}
     log_dir = fit_params.pop("log_dir", None)
     batch_size = fit_params.pop("batch_size", batch_size)
+    n_gpus = fit_params.pop("n_gpus", 1)
 
     logging.debug(f"log_dir={log_dir}")
 
-    logger = False
+    logger: Union[bool, List] = False
     if log_dir is not None:
-        logger = [TensorBoardLogger(log_dir), CSVLogger(log_dir)]
+        logger = [
+            TensorBoardLogger(log_dir, name=None, version=""),
+            CSVLogger(log_dir, name=None, version=""),
+        ]
 
     if test_data is None:
         test_data = valid_data
@@ -101,7 +107,7 @@ def pt_train_val_test(
         valid_data = (transform.transform(valid_data[0]), *valid_data[1:])
         test_data = (transform.transform(test_data[0]), *test_data[1:])
 
-    if isinstance(clf, nn.Module):
+    if not isinstance(clf, pl.LightningModule):
         clf = LightningWrapper(
             clf,
             nn.CrossEntropyLoss(reduction="none"),
@@ -123,8 +129,11 @@ def pt_train_val_test(
     test_ds = TensorDataset(*test_data_pt)
     test_dl = DataLoader(test_ds, batch_size=batch_size, shuffle=False, pin_memory=True)
 
+    if verbose <= 0:
+        logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
+        warnings.simplefilter("ignore", UserWarning)
     trainer = pl.Trainer(
-        gpus=1,
+        gpus=n_gpus,
         max_epochs=fit_params.pop("max_epochs"),
         logger=logger,
         enable_progress_bar=bool(verbose),
@@ -132,8 +141,9 @@ def pt_train_val_test(
         enable_checkpointing=False,
     )
     trainer.fit(clf, train_dataloaders=train_dl, val_dataloaders=valid_dl)
-
     y_pred = torch.argmax(torch.cat(trainer.predict(clf, test_dl)), -1).cpu().numpy()
+    warnings.simplefilter("default", UserWarning)
+
     y_true = test_data[1]
     scores = get_scores(scoring, y_pred, y_true)
     scores = {f"test_{k}": v for k, v in scores.items()}
