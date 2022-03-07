@@ -36,6 +36,11 @@ from tqdm import tqdm
 from ertk.dataset import write_annotations, write_filelist
 from ertk.utils import TqdmParallel
 
+emotion_map = {
+    "happy": "happiness",
+    "sad": "sadness",
+}
+
 
 @click.command()
 @click.argument(
@@ -106,6 +111,7 @@ def main(input_dir: Path, resample: bool):
     dataset.close()
 
     write_filelist(resample_dir.glob("*.wav"), "files_all")
+    labels = {k: emotion_map.get(v, v) for k, v in labels.items()}
     write_annotations(labels, "label")
     for dim in dim_names:
         write_annotations(dim_vals[dim], dim)
