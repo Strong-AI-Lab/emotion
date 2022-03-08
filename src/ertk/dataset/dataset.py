@@ -1,6 +1,7 @@
 import copy
 import logging
 import os
+import warnings
 from itertools import chain
 from pathlib import Path
 from typing import (
@@ -67,7 +68,7 @@ class Dataset:
     _names: List[str]
     _partitions: Set[str]
     _subset: str = ""
-    _subsets: Dict[str, Set[str]]
+    _subsets: Dict[str, List[str]]
     _x: np.ndarray
 
     # "Private" vars
@@ -104,7 +105,7 @@ class Dataset:
         new_dataset._copy_from_dataset(inst)
         return new_dataset
 
-    def _copy_from_dataset(self, other: "Dataset"):
+    def _copy_from_dataset(self, other: "Dataset") -> None:
         self._annotations = copy.deepcopy(other._annotations)
         self._corpus = other._corpus
         self._default_subset = other._default_subset
@@ -146,7 +147,7 @@ class Dataset:
                 continue
             clips_file = path.parent / f"{subset_info['clips']}.txt"
             self._subset_paths[subset] = clips_file
-            self.subsets[subset] = {x.stem for x in get_audio_paths(clips_file)}
+            self.subsets[subset] = [x.stem for x in get_audio_paths(clips_file)]
 
         if corpus_info["partitions"]:
             for partition in corpus_info["partitions"]:
@@ -217,7 +218,7 @@ class Dataset:
         if subset == "default":
             subset = self._default_subset
         self._subset = subset
-        self._names = sorted(self.subsets[subset])
+        self._names = self.subsets[subset]
         self._verify_annotations()
 
     def get_idx_for_names(self, names: Collection[str]) -> np.ndarray:
@@ -484,7 +485,8 @@ class Dataset:
 
         idx = self.get_idx_for_names(keep)
         self._names = [self.names[i] for i in idx]
-        self._x = self.x[idx]
+        if len(self._x) > 0:  # To avoid NumPy DeprecationWarning
+            self._x = self.x[idx]
         try:
             self._verify_annotations()
         except RuntimeError as e:
@@ -619,7 +621,7 @@ class Dataset:
         return self._subset
 
     @property
-    def subsets(self) -> Dict[str, Set[str]]:
+    def subsets(self) -> Dict[str, List[str]]:
         """Dict from subset name to set of clip names."""
         return self._subsets
 
@@ -662,26 +664,42 @@ class LabelledDataset(Dataset):
     instance.
     """
 
+    _label_annot: str
+
+    def __init__(
+        self,
+        corpus_info: PathOrStr,
+        features: Optional[PathOrStr] = None,
+        subset: str = "default",
+        label: str = "label",
+    ):
+        super().__init__(corpus_info, features, subset)
+        self._label_annot = label
+
+    def _copy_from_dataset(self, other: "Dataset") -> None:
+        super()._copy_from_dataset(other)
+        self._label_annot = getattr(other, "_label_annot", "label")
+
     def update_labels(self, labels: Union[PathOrStr, Mapping[str, str], Sequence[str]]):
-        self.update_annotation("label", labels, dtype=str)
+        self.update_annotation(self.label_annot, labels, dtype=str)
 
     def map_classes(self, mapping: Mapping[str, str]):
         """Modifies classses based on the mapping in map. Keys not
         corresponding to classes are ignored. The new classes will be
         sorted lexicographically.
         """
-        self.map_groups("label", mapping)
+        self.map_groups(self.label_annot, mapping)
 
     def remove_classes(
         self, *, drop: Collection[str] = None, keep: Collection[str] = None
     ):
         """Remove instances with labels not in `keep`."""
-        self.remove_groups("label", drop=drop, keep=keep)
+        self.remove_groups(self.label_annot, drop=drop, keep=keep)
 
     @property
     def classes(self) -> List[str]:
         """List of unique class labels."""
-        return self.get_group_names("label")
+        return self.get_group_names(self.label_annot)
 
     @property
     def n_classes(self) -> int:
@@ -691,17 +709,31 @@ class LabelledDataset(Dataset):
     @property
     def class_counts(self) -> np.ndarray:
         """Number of instances for each class."""
-        return self.get_group_counts("label")
+        return self.get_group_counts(self.label_annot)
 
     @property
     def labels(self) -> List[str]:
         """List of labels for instances."""
-        return self.get_annotations("label")
+        return self.get_annotations(self.label_annot)
+
+    @property
+    def label_annot(self) -> str:
+        """The annotation used as target label."""
+        return self._label_annot
+
+    @label_annot.setter
+    def label_annot(self, val: str) -> None:
+        if val not in self.annotations:
+            raise ValueError(f"'{val}' not in annotations.")
+        self._label_annot = val
 
     @property
     def y(self) -> np.ndarray:
         """The class label array; one label per instance."""
-        return self.get_group_indices("label")
+        if self.label_annot in self.partitions:
+            return self.get_group_indices(self.label_annot)
+        else:
+            return np.ndarray(self.get_annotations(self.label_annot))
 
 
 class CombinedDataset(LabelledDataset):
@@ -776,6 +808,21 @@ class CombinedDataset(LabelledDataset):
                     )
             self.update_annotation(annot_name, combined_annot)
 
+        if any(d.label_annot != datasets[0].label_annot for d in datasets):
+            # Try and unify label annotations with different names
+            warnings.warn(
+                "label annotation differs between some datasets, attempting to unify."
+            )
+            self._label_annot = "_combined_labels"
+            combined_labels = {}
+            for d in datasets:
+                for name in d.names:
+                    label = d.annotations[d.label_annot][name]
+                    combined_labels[f"{d.corpus}_{name}"] = label
+            self.update_labels(combined_labels)
+        else:
+            self._label_annot = next(d.label_annot for d in datasets)
+
     @property
     def corpus_names(self) -> Sequence[str]:
         """List of corpora in this CombinedDataset."""
@@ -793,6 +840,7 @@ def load_multiple(
     corpus_files: Iterable[PathOrStr],
     features: str,
     subsets: Union[str, Mapping[str, str]] = "default",
+    label: Union[str, Mapping[str, str]] = "label",
 ) -> CombinedDataset:
     """Load one or more datasets with the given features.
 
@@ -814,6 +862,10 @@ def load_multiple(
     for file in corpus_files:
         logging.info(f"Loading {file}")
         dataset = LabelledDataset(file, subset="all")
+        if isinstance(label, str):
+            dataset.label_annot = label
+        else:
+            dataset.label_annot = label.get(dataset.corpus, "label")
         if isinstance(subsets, str):
             dataset.use_subset(subsets)
         else:
