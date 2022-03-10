@@ -1,5 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any, Dict
 
 import numpy as np
 import torch
@@ -25,6 +26,7 @@ class FairseqExtractorConfig(ERTKConfig):
     layer: str = "context"
     aggregate: _Aggregation = _Aggregation.MEAN
     device: str = "cuda"
+    arg_overrides: Dict[str, Any] = field(default_factory=dict)
 
 
 class FairseqExtractor(
@@ -36,7 +38,9 @@ class FairseqExtractor(
         super().__init__(config)
 
         print(f"Loading model from {config.checkpoint}")
-        [model], args, task = load_model_ensemble_and_task([config.checkpoint])
+        [model], args, task = load_model_ensemble_and_task(
+            [config.checkpoint], arg_overrides=config.arg_overrides
+        )
         model.to(device=config.device)
         model.eval()
         self.model = model
