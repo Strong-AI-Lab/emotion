@@ -134,6 +134,7 @@ def pt_train_val_test(
         warnings.simplefilter("ignore", UserWarning)
     trainer = pl.Trainer(
         gpus=n_gpus,
+        strategy="dp",
         max_epochs=fit_params.pop("max_epochs"),
         logger=logger,
         enable_progress_bar=bool(verbose),
