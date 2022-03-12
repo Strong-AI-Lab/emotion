@@ -29,8 +29,9 @@ class OpenSMILEExtractor(
     def __init__(self, config: OpenSMILEExtractorConfig) -> None:
         super().__init__(config)
 
-        if not Path(config.opensmile_config).exists():
-            opensmile_config = opensmile.FeatureSet[config.opensmile_config]
+        opensmile_config = config.opensmile_config
+        if not Path(opensmile_config).exists():
+            opensmile_config = opensmile.FeatureSet[opensmile_config]
 
         self.levels = config.levels
         self.smiles = [
