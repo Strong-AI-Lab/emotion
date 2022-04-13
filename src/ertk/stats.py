@@ -98,7 +98,7 @@ def bhattacharyya_dist(x: np.ndarray, y: np.ndarray, pinv: bool = False):
         covinv = np.linalg.pinv(cov, hermitian=True, rcond=1e-8)
     else:
         covinv = np.linalg.inv(cov)
-    db = (mu1 - mu2).T.dot(covinv).dot(mu1 - mu2) / 8 + ldet / 2 - ldet1 / 4 - ldet2 / 4
+    db = (mu1 - mu2).T @ covinv @ (mu1 - mu2) / 8 + ldet / 2 - ldet1 / 4 - ldet2 / 4
 
     return db.item()
 
