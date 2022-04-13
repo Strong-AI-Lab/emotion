@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -7,6 +8,8 @@ from sklearn.pipeline import Pipeline
 
 from ertk.train import get_pipeline_params, get_scores
 from ertk.utils import ScoreFunction, filter_kwargs
+
+_logger = logging.getLogger("ertk.sklearn.classification")
 
 
 def sk_cross_validate(
@@ -27,6 +30,7 @@ def sk_cross_validate(
         fit_params = get_pipeline_params(fit_params, clf)
     else:
         fit_params = filter_kwargs(fit_params, clf.fit)
+    _logger.debug(f"cross_validate(): filtered fit_params={fit_params}")
 
     return cross_validate(
         clf,
@@ -53,16 +57,20 @@ def sk_train_val_test(
     ] = "accuracy",
     fit_params: Dict[str, Any] = {},
 ):
-    fit_params["verbose"] = verbose
     if isinstance(clf, Pipeline):
         fit_params = get_pipeline_params(fit_params, clf)
     else:
         fit_params = filter_kwargs(fit_params, clf.fit)
+    _logger.debug(f"train_val_test(): filtered fit_params={fit_params}")
 
     if test_data is None:
         test_data = valid_data
 
+    if verbose > 0:
+        print(f"Fitting classifier {clf}")
     clf = clf.fit(train_data[0], train_data[1], **fit_params)
+    if verbose > 0:
+        print(f"Getting predictions from classifier {clf}")
     y_pred = clf.predict(test_data[0])
     scores = get_scores(scoring, y_pred, test_data[1])
     scores = {f"test_{k}": v for k, v in scores.items()}
