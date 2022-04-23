@@ -6,12 +6,10 @@ liac-arff
 librosa
 matplotlib>=3.0.0
 netCDF4
-nltk
 numpy
 Orange3
 pandas>=1.0.0
 seaborn
-scikeras
 scikit-learn
 scipy
 soundfile
