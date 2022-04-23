@@ -17,7 +17,7 @@ from sklearn.model_selection import BaseCrossValidator, LeaveOneGroupOut
 from sklearn.utils.multiclass import unique_labels
 
 from ertk.dataset import LabelledDataset
-from ertk.train import get_cv_splitter
+from ertk.train import get_cv_splitter, scores_to_df
 
 
 def binary_accuracy_score(
@@ -174,7 +174,7 @@ def dataset_cross_validation(
     if isinstance(cv, int):
         cv = get_cv_splitter(bool(partition), cv)
     if scoring is None:
-        scoring = standard_class_scoring(dataset.classes)
+        scoring = standard_class_scoring(dataset.get_group_names(label))
 
     cross_validate_fn: Callable[..., Dict[str, Any]]
     if clf_lib == "sk":
@@ -209,15 +209,10 @@ def dataset_cross_validation(
     total_time = time.perf_counter() - start_time
     logging.info(f"Cross-validation complete in {total_time:.2f}s")
 
-    n_folds = len(next(iter(scores.values())))
+    index = None
     if isinstance(cv, LeaveOneGroupOut) and partition is not None:
-        index = pd.Index(dataset.get_group_names(partition), name="fold")
-    else:
-        index = pd.RangeIndex(1, n_folds + 1, name="fold")
-    score_df = pd.DataFrame(
-        {k[5:]: v for k, v in scores.items() if k.startswith("test_")}, index=index
-    )
-    return score_df
+        index = dataset.get_group_names(partition)
+    return scores_to_df(scores, index=index)
 
 
 def train_val_test(
@@ -262,7 +257,7 @@ def train_val_test(
         A dataframe holding the results from all runs with this model.
     """
     if scoring is None:
-        scoring = standard_class_scoring(dataset.classes)
+        scoring = standard_class_scoring(dataset.get_group_names(label))
 
     train_val_test_fn: Callable[..., Dict[str, Any]]
     if clf_lib == "sk":
@@ -283,6 +278,9 @@ def train_val_test(
     if test_idx is None:
         test_idx = valid_idx
     test_idx = np.array(test_idx, copy=False)
+
+    if len(train_idx) == 0 or len(valid_idx) == 0 or len(test_idx) == 0:
+        raise ValueError("One of {train, val, test} indices are missing.")
 
     y = dataset.get_group_indices(label)
     train_data: Tuple = (dataset.x[train_idx], y[train_idx])
@@ -309,10 +307,7 @@ def train_val_test(
     total_time = time.perf_counter() - start_time
     logging.info(f"Train/val/test complete in {total_time:.2f}s")
 
-    score_df = pd.DataFrame(
-        {k[5:]: v for k, v in scores.items() if k.startswith("test_")}, index=[1]
-    )
-    return score_df
+    return scores_to_df(scores)
 
 
 def get_balanced_sample_weights(labels: Union[List[int], np.ndarray]):

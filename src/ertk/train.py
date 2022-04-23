@@ -1,6 +1,8 @@
-from typing import Any, Callable, Dict, List, Union
+from typing import Any, Callable, Dict, Iterable, List, Union
 
 import numpy as np
+import pandas as pd
+from sklearn.base import MetaEstimatorMixin
 from sklearn.metrics import get_scorer
 from sklearn.model_selection import (
     BaseCrossValidator,
@@ -165,7 +167,9 @@ def get_pipeline_params(params: Dict[str, Any], pipeline: Pipeline):
     for name, est in pipeline.named_steps.items():
         if est is None or est == "passthrough":
             continue
-        filt_params = filter_kwargs(params, est.fit)
+        filt_params = params
+        if not isinstance(est, MetaEstimatorMixin):  # May pass through kwargs
+            filt_params = filter_kwargs(filt_params, est.fit)
         new_params.update({name + "__" + k: v for k, v in filt_params.items()})
     return new_params
 
@@ -221,3 +225,37 @@ def get_scores(
     elif isinstance(scoring, list):
         scoring = {x: get_scorer(x) for x in scoring}
     return _score(dummy, None, y_true, scoring)
+
+
+def scores_to_df(
+    scores: Dict[str, np.ndarray], index: Union[pd.Index, Iterable, None] = None
+):
+    """Convert scikit-learn scores dictionary to pandas dataframe.
+
+    Parameters
+    ----------
+    scores: dict
+        Scores dictionary. Each key is a string and all values are
+        either scalar or arrays.
+    index: pd.Index or iterable, optional
+        Optional index to use. Must have the same length as each value
+        in `scores`. If not given a `pd.RangeIndex` is used.
+
+    Returns
+    -------
+    pd.DataFrame
+        Scores dataframe, with a column per key in `scores` and row per
+        item in each value array.
+    """
+    _val = next(iter(scores.values()))
+    if index is None:
+        if np.ndim(_val) == 0:
+            index = pd.RangeIndex(1, name="fold")
+        else:
+            index = pd.RangeIndex(len(_val), name="fold")
+    elif not isinstance(index, pd.Index):
+        index = pd.Index(index)
+    return pd.DataFrame(
+        {k[5:] if k.startswith("test_") else k: v for k, v in scores.items()},
+        index=index,
+    )
