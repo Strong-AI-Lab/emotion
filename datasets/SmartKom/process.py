@@ -19,7 +19,6 @@ import numpy as np
 import pandas as pd
 import soundfile
 from joblib import delayed
-from nltk.corpus import stopwords
 from tqdm import tqdm
 
 from ertk.dataset import write_annotations, write_filelist
@@ -35,7 +34,6 @@ emotion_map = {
     "Restklasse": "unknown",
 }
 
-stops = set(stopwords.words("german"))
 audio_dir = Path("resampled")
 
 
@@ -76,7 +74,6 @@ def process_sess(sess_dir: Path):
     for trn in trn_list:
         wordlist = [words[i] for i in trn[2]]
         wordlist = [x for x in wordlist if "<" not in x and ">" not in x]
-        wordlist = [x for x in wordlist if x.lower() not in stops]
         s = " ".join(wordlist)
         s = s.replace('"', r"\"")
         trn_text.append(s)
