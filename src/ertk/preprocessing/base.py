@@ -1,3 +1,4 @@
+import logging
 import warnings
 from abc import ABC, abstractmethod
 from itertools import chain, tee
@@ -22,6 +23,7 @@ class InstanceProcessor(ABC):
 
     config: ERTKConfig
     """The configuration for this AudioClipProcessor."""
+    logger: logging.Logger
 
     _config_type: ClassVar[Type[ERTKConfig]]
     _friendly_name: ClassVar[str]
@@ -29,6 +31,8 @@ class InstanceProcessor(ABC):
 
     def __init__(self, config: ERTKConfig) -> None:
         self.config = config
+        cls_name = f"{InstanceProcessor.__module__}.{InstanceProcessor.__name__}"
+        self.logger = logging.getLogger(cls_name)
 
     def __init_subclass__(
         cls, fname: str = None, config: Type[ERTKConfig] = None
