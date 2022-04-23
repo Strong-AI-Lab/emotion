@@ -14,14 +14,17 @@ from typing import (
     Optional,
     Sequence,
     Set,
+    Tuple,
     Type,
     Union,
+    overload,
 )
 
 import numpy as np
 import yaml
 from sklearn.base import TransformerMixin
 from sklearn.preprocessing import StandardScaler
+from typing_extensions import Literal
 
 from ertk.config import get_arg_mapping
 from ertk.dataset.annotation import read_annotations
@@ -90,7 +93,7 @@ class Dataset:
         if features is not None:
             self.update_features(features)
 
-    def _init(self):
+    def _init(self) -> None:
         self._annotations = {}
         self._feature_names = []
         self._names = []
@@ -124,7 +127,7 @@ class Dataset:
             for i in range(len(self._x)):
                 self._x[i] = self._x[i].copy()
 
-    def init_corpus_info(self, path: PathOrStr):
+    def init_corpus_info(self, path: PathOrStr) -> None:
         """Initialise corpus metadata from YAML.
 
         Parameters
@@ -173,7 +176,7 @@ class Dataset:
         for annot_name in to_verify:
             verify_annotation(annot_name)
 
-    def update_features(self, features: PathOrStr):
+    def update_features(self, features: PathOrStr) -> None:
         """Update the features matrix and feature names for this dataset.
 
         Parameters
@@ -206,7 +209,7 @@ class Dataset:
             self._x = data.features
             self._names = data.names
 
-    def use_subset(self, subset: str = "default"):
+    def use_subset(self, subset: str = "default") -> None:
         """Use a different subset of the instances.
 
         Parameters
@@ -237,9 +240,27 @@ class Dataset:
         names = set(names)
         return np.array([i for i, x in enumerate(self.names) if x in names])
 
+    @overload
     def get_idx_for_split(
-        self, split: Union[str, Dict[str, Union[str, Collection[str]]]]
+        self,
+        split: Union[str, Dict[str, Union[str, Collection[str]]]],
+        return_complement: Literal[False],
     ) -> np.ndarray:
+        ...
+
+    @overload
+    def get_idx_for_split(
+        self,
+        split: Union[str, Dict[str, Union[str, Collection[str]]]],
+        return_complement: Literal[True],
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        ...
+
+    def get_idx_for_split(
+        self,
+        split: Union[str, Dict[str, Union[str, Collection[str]]]],
+        return_complement: bool = False,
+    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """Gets indices of instances corresponding to the selection
         given by `split`.
 
@@ -249,11 +270,17 @@ class Dataset:
             Either a string containing the subset to select, groups to
             select, a path to such a config file, or a mapping object
             containing the groups to select.
+        return_complement: bool
+            If True, return a tuple of `idx`, `comp_idx` where
+            `comp_idx` contains the complement indices not in the split.
 
         Returns
         -------
         idx: np.ndarray
             The corresponding indices.
+        comp_idx: np.ndarray, optional
+            If `return_complement` is True, this is also returned and
+            contains the complement indices.
         """
         if isinstance(split, str):
             if ":" not in split and not Path(split).exists():  # is a subset
@@ -261,22 +288,26 @@ class Dataset:
             mapping = get_arg_mapping(split)
         else:
             mapping = split
-        indices = []
+        indices: Set[int] = set()
         for part_name in mapping:
             group_names = self.get_group_names(part_name)
             group_indices = self.get_group_indices(part_name)
             sel = mapping[part_name]
             sel = [sel] if isinstance(sel, str) else sel
             sel_idx = [group_names.index(x) for x in sel]
-            indices += list(np.flatnonzero(np.isin(group_indices, sel_idx)))
-        return np.array(sorted(indices))
+            indices.update(np.flatnonzero(np.isin(group_indices, sel_idx)))
+        comp_indices = set(range(len(self))) - indices
+        if return_complement:
+            return np.array(sorted(indices)), np.array(sorted(comp_indices))
+        else:
+            return np.array(sorted(indices))
 
     def update_annotation(
         self,
         annot_name: str,
         annotations: Union[PathOrStr, Mapping[str, Any], Sequence[Any]],
         dtype: Optional[Type] = None,
-    ):
+    ) -> None:
         """Add or update an annotation.
 
         Parameters
@@ -309,7 +340,7 @@ class Dataset:
             self.partitions.add(annot_name)
         self._verify_annotations(annot_name)
 
-    def map_groups(self, part_name: str, mapping: Mapping[str, str]):
+    def map_groups(self, part_name: str, mapping: Mapping[str, str]) -> None:
         """Map group names in a partition.
 
         Parameters
@@ -330,7 +361,7 @@ class Dataset:
         *,
         drop: Collection[str] = None,
         keep: Collection[str] = None,
-    ):
+    ) -> None:
         """Remove instances corresponding to groups from the given
         partition.
 
@@ -353,7 +384,7 @@ class Dataset:
         annotation = self.annotations[part_name]
         self.remove_instances(keep=[x for x in self.names if annotation[x] in keep])
 
-    def rename_annotation(self, old_name: str, new_name: str):
+    def rename_annotation(self, old_name: str, new_name: str) -> None:
         """Renames an annotation. This is useful for example if you want
         to select a different labelling to use. If an annotation already
         exists with the given new_name, then it is replaced
@@ -372,7 +403,7 @@ class Dataset:
             self.partitions.add(new_name)
             self.partitions.remove(old_name)
 
-    def remove_annotation(self, annot_name: str):
+    def remove_annotation(self, annot_name: str) -> None:
         """Removes a set of annotations from the dataset. This does not
         remove any instances.
 
