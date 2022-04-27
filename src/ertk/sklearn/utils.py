@@ -37,9 +37,7 @@ class OneVsRestClassifier(_SKOvR):
         Y = Y.tocsc()
         self.classes_ = self.label_binarizer_.classes_
         columns = (col.toarray().ravel() for col in Y.T)
-        self.estimators_ = Parallel(
-            n_jobs=self.n_jobs, backend="multiprocessing", verbose=50
-        )(
+        self.estimators_ = Parallel(n_jobs=self.n_jobs)(
             delayed(_fit_binary)(
                 self.estimator,
                 X,
