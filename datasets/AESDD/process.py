@@ -50,7 +50,7 @@ def main(input_dir: Path, resample: bool):
         {k: ["F", "M"][int(v) % 2] for k, v in speaker_dict.items()},
         "gender",
     )
-    write_annotations({x: "en" for x in names}, "language")
+    write_annotations({x: "el" for x in names}, "language")
 
 
 if __name__ == "__main__":
