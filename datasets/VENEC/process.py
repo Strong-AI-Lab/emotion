@@ -65,6 +65,10 @@ def get_emotion(s: str):
     return EMOTIONS.get(emo, emo)
 
 
+NO_SIGNAL = {"1528", "0191", "2080", "0723"}
+MISSING_LABEL = {"0731", "1370", "2370", "2505"}
+
+
 @click.command()
 @click.argument(
     "input_dir", type=click.Path(exists=True, file_okay=False, path_type=Path)
@@ -78,7 +82,7 @@ def main(input_dir: Path, resample: bool):
     paths = [
         x
         for x in input_dir.glob("NoNameProsody/*.mp3")
-        if x.stem not in {"1528", "0191", "2080", "0723"}  # No signal
+        if x.stem not in NO_SIGNAL | MISSING_LABEL
     ]
     resample_dir = Path("resampled")
     if resample:
@@ -102,60 +106,54 @@ def main(input_dir: Path, resample: bool):
         "intensity",
     )
 
-    def get_ratings(country: str = "USA") -> pd.DataFrame:
-        csvfile = input_dir / f"CategoryRatings{country}.csv"
-        ratings = pd.read_csv(csvfile, index_col=0, header=0)
-        ratings.index = ratings.index.map(lambda x: x[:-4])
+    csvfile = input_dir / "CategoryRatingsUSA.csv"
+    ratings = pd.read_csv(csvfile, index_col=0, header=0)
+    ratings.index = ratings.index.map(lambda x: x[:-4])
 
-        mode_count = ratings.apply(
-            lambda x: x.value_counts().sort_index().iloc[-1], axis=1
-        )
-        ratings["Freq"] = ratings.max(1)
-        ratings["Majority"] = ratings.columns[ratings.to_numpy().argmax(1)]
-        ratings["Num_Majority"] = mode_count == 1
+    mode_count = ratings.apply(lambda x: x.value_counts().sort_index().iloc[-1], axis=1)
+    ratings["Freq"] = ratings.max(1)
+    ratings["Majority"] = ratings.columns[ratings.to_numpy().argmax(1)]
+    ratings["Num_Majority"] = mode_count == 1
 
-        agreement = ratings["Freq"].mean()
-        print(f"Mean label agreement: {agreement:.3f}")
+    agreement = ratings["Freq"].mean()
+    print(f"Mean label agreement: {agreement:.3f}")
 
-        ratings = ratings.join(clip_info)
-        ratings["Country"] = ratings["Country"].map(str.upper)
-        # Correct the three errors where country is STR
-        ratings.loc[ratings["Country"] == "STR", "Country"] = "AUS"
-        # Intensity is High or Medium
-        ratings["Intensity"] = ratings["Original"].map(
-            lambda x: Path(x).parts[0].split("_")[0]
-        )
-        ratings["Speaker_No"] = (
-            ratings["Original"].map(lambda x: Path(x).stem).map(get_speaker).map(int)
-        )
-        ratings["Speaker_ID"] = (
-            ratings["Country"] + "_" + ratings["Speaker_No"].map("{:02d}".format)
-        )
-        ratings["Emotion"] = (
-            ratings["Original"].map(lambda x: Path(x).stem).map(get_emotion)
-        )
-        del ratings["Original"]
-        del ratings["Country"]
-        del ratings["Speaker_No"]
+    ratings = ratings.join(clip_info)
+    ratings["Country"] = ratings["Country"].map(str.upper)
+    # Correct the three errors where country is STR
+    ratings.loc[ratings["Country"] == "STR", "Country"] = "AUS"
+    # Intensity is High or Medium
+    ratings["Intensity"] = ratings["Original"].map(
+        lambda x: Path(x).parts[0].split("_")[0]
+    )
+    ratings["Speaker_ID"] = (
+        ratings["Country"]
+        + "_"
+        + ratings["Original"]
+        .map(lambda x: Path(x).stem)
+        .map(get_speaker)
+        .map(int)
+        .map("{:02d}".format)
+    )
+    ratings["Emotion"] = (
+        ratings["Original"].map(lambda x: Path(x).stem).map(get_emotion)
+    )
 
-        # Remove 'neutral' since it has only 10 clips, in medium
-        # intensity, in 3 countries.
-        ratings = ratings[ratings["Emotion"] != "neutral"]
-        keep_emotions = set(EMOTIONS.values()) - {"neutral"}
+    ratings_18class = ratings[ratings["Emotion"] != "neutral"]
 
-        # Keep only (country, speaker) pairs for which there are clips
-        # for all emotions. This gives around 2262 clips.
-        ratings = ratings.groupby("Speaker_ID").filter(
-            lambda x: set(x["Emotion"]) == keep_emotions
-        )
-        ratings = ratings.sort_values(["Speaker_ID", "Emotion"])
-        return ratings
-
-    ratings = get_ratings("USA")
+    # (country, speaker) pairs for which there are clips for all
+    # emotions. This gives around 2262 clips.
+    ratings_complete = ratings_18class.groupby("Speaker_ID").filter(
+        lambda x: set(x["Emotion"]) >= set(EMOTIONS.values()) - {"neutral"}
+    )
 
     write_filelist(
-        [p for p in resample_dir.glob("*.wav") if p.stem in ratings.index],
+        [p for p in resample_dir.glob("*.wav") if p.stem in ratings_18class.index],
         "files_18class",
+    )
+    write_filelist(
+        [p for p in resample_dir.glob("*.wav") if p.stem in ratings_complete.index],
+        "files_18class_complete",
     )
     speaker_dict = ratings["Speaker_ID"].to_dict()
     write_annotations(speaker_dict, "speaker")
