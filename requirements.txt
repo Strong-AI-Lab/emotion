@@ -1,12 +1,13 @@
 click>=8.0.0
 click-option-group
-git+https://github.com/pytorch/fairseq.git@16ebfa752cd653dc28ac0a1b9f6f60a041881ad0
+git+https://github.com/pytorch/fairseq.git@0b54d9fb2e42c2f40db3449ca34586952b8abe94
 joblib
 liac-arff
 librosa
 matplotlib>=3.0.0
 netCDF4
 numpy
+opensmile
 Orange3
 pandas>=1.0.0
 seaborn
