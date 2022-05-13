@@ -7,6 +7,7 @@ DEMoS:
     - language
     - gender
     - country
+    - prototypicality
   subsets:
     default: PR
     all:
@@ -14,5 +15,8 @@ DEMoS:
       description: All files
     PR:
       clips: files_PR
-      description: Prototypical emotions
+      description: Prototypical emotions (excludes neutral)
+    NP:
+      clips: files_NP
+      description: Non-prototypical emotions (excludes neutral)
   features_dir: ../../features/DEMoS
