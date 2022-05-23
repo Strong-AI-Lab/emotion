@@ -9,6 +9,6 @@ AESDD:
   subsets:
     default: all
     all:
-      clips: file_all
+      clips: files_all
       description: All files
   features_dir: ../../features/AESDD
