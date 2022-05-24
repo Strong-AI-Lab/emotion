@@ -14,6 +14,7 @@ Currently the following datasets have processing scripts:
 - [CMU-MOSEI](http://multicomp.cs.cmu.edu/resources/cmu-mosei-dataset/)
 - [CREMA-D](https://github.com/CheyneyComputerScience/CREMA-D)
 - [DEMoS](https://zenodo.org/record/2544829)
+- [EESC](https://metashare.ut.ee/repository/browse/estonian-emotional-speech-corpus/4d42d7a8463411e2a6e4005056b40024a19021a316b54b7fb707757d43d1a889/)
 - [EMO-DB](http://emodb.bilderbar.info/)
 - [EmoFilm](https://zenodo.org/record/1326428)
 - [EmoryNLP](https://github.com/declare-lab/MELD/)
