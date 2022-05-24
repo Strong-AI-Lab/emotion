@@ -62,7 +62,7 @@ def main(input_dir: Path, resample: bool):
 
     labels = {}
     for emo1, emo2 in emotion_map.items():
-        labels.update({x.name: emo2 for x in input_dir.glob(f"*/{emo1}/*/*.wav")})
+        labels.update({x.stem: emo2 for x in input_dir.glob(f"*/{emo1}/*/*.wav")})
     write_annotations(labels, "label")
 
     speaker_dict = {p.stem: p.stem[:4] for p in paths}
