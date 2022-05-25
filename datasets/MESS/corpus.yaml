@@ -1,0 +1,16 @@
+MESS:
+  description: Morgan Emotional Speech Set
+  annotations:
+  partitions:
+    - label
+    - language
+    - gender
+    - speaker
+    - cue
+    - country
+  subsets:
+    default: all
+    all:
+      clips: files_all
+      description: All files
+  features_dir: ../../features/MESD
