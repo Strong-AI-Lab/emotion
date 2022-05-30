@@ -19,4 +19,4 @@ CMU-MOSEI:
     labels:
       clips: files_labels
       description: Clips with emotion and sentiment information
-  features_dir: ../../CMU-MOSEI/
+  features_dir: ../../features/CMU-MOSEI

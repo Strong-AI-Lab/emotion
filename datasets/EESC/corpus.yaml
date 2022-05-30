@@ -11,4 +11,4 @@ EESC:
     all:
       clips: files_all
       description: All files
-  features_dir: ../../features/EMO-DB
+  features_dir: ../../features/EESC

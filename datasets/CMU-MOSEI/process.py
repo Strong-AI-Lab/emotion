@@ -69,12 +69,17 @@ def main(input_dir: Path, resample: bool):
                 dtypes = [str, str, float, float, str]
                 transcripts.append([f(x) for f, x in zip(dtypes, vals)])
     trn_df = pd.DataFrame(transcripts, columns=["video", "clip", "start", "end", "trn"])
+    neg_starts = trn_df[trn_df["start"] < 0]
+    if len(neg_starts) > 0:
+        print(f"WARNING: {len(neg_starts)} clips with negative start value")
     trn_df.index = trn_df["video"] + "_" + trn_df["clip"]
     write_annotations(trn_df["trn"].to_dict(), "transcript")
 
     def process(seg):
-        start = int(16000 * trn_df.loc[seg, "start"])
-        end = int(16000 * trn_df.loc[seg, "end"])
+        start = max(0, int(16000 * trn_df.loc[seg, "start"]))
+        end = max(0, int(16000 * trn_df.loc[seg, "end"]))
+        if end == start:
+            return
         base_clip = audio_dir / f"{trn_df.loc[seg, 'video']}.wav"
         audio, _ = soundfile.read(base_clip, start=start, stop=end)
         soundfile.write(resample_dir / f"{seg}.wav", audio, samplerate=16000)
@@ -83,6 +88,7 @@ def main(input_dir: Path, resample: bool):
         TqdmParallel(len(trn_df.index), "Splitting audio", prefer="threads", n_jobs=-1)(
             delayed(process)(name) for name in trn_df.index
         )
+    write_filelist(resample_dir.glob("*.wav"), "files_all")
 
     dataset = h5py.File(input_dir / "CMU_MOSEI_Labels.csd", "r")
     dim_names = json.loads(dataset["All Labels/metadata/dimension names"][0])
@@ -104,18 +110,15 @@ def main(input_dir: Path, resample: bool):
                     for d_idx, dim in enumerate(dim_names):
                         dim_vals[dim][name] = features[i][d_idx]
                     break
-        else:
-            labels[name] = ""
-            for dim in dim_names:
-                dim_vals[dim][name] = float("nan")
     dataset.close()
 
-    write_filelist(resample_dir.glob("*.wav"), "files_all")
     labels = {k: emotion_map.get(v, v) for k, v in labels.items()}
+    labels.update({k: "" for k in trn_df.index if k not in labels})
     write_annotations(labels, "label")
     for dim in dim_names:
+        dim_vals[dim].update({k: "" for k in trn_df.index if k not in dim_vals[dim]})
         write_annotations(dim_vals[dim], dim)
-    labelled_paths = [resample_dir / f"{name}.wav" for name in labels]
+    labelled_paths = [resample_dir / f"{k}.wav" for k, v in labels.items() if v]
     write_filelist(labelled_paths, "files_labels")
 
 
