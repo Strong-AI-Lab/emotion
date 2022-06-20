@@ -6,7 +6,7 @@ import numpy as np
 from omegaconf import MISSING
 
 from ertk.config import ERTKConfig
-from ertk.preprocessing.base import AudioClipProcessor, FeatureExtractor
+from ertk.preprocessing._base import AudioClipProcessor, FeatureExtractor
 from ertk.preprocessing.spectrogram import spectrogram
 from ertk.tensorflow.utils import init_gpu_memory_growth
 from ertk.utils import frame_array, is_mono_audio
@@ -83,6 +83,10 @@ class YamnetExtractor(
     def is_sequence(self) -> bool:
         return False
 
+    @property
+    def feature_names(self) -> List[str]:
+        return [f"yamnet_{i}" for i in range(self.dim)]
+
 
 @dataclass
 class VGGishExtractorConfig(ERTKConfig):
@@ -155,3 +159,7 @@ class VGGishExtractor(
     @property
     def is_sequence(self) -> bool:
         return False
+
+    @property
+    def feature_names(self) -> List[str]:
+        return [f"vggish_{i}" for i in range(self.dim)]

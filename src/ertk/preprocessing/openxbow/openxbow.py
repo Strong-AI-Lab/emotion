@@ -11,7 +11,7 @@ from omegaconf import MISSING
 
 from ertk.config import ERTKConfig
 from ertk.dataset import write_features
-from ertk.preprocessing.base import FeatureExtractor
+from ertk.preprocessing._base import FeatureExtractor
 
 
 @dataclass
@@ -23,6 +23,7 @@ class OpenXBOWExtractor(
     FeatureExtractor, fname="openxbow", config=OpenXBOWExtractorConfig
 ):
     config: OpenXBOWExtractorConfig
+    _dim = None
 
     def __init__(self, config: OpenXBOWExtractorConfig) -> None:
         super().__init__(config)
@@ -68,13 +69,27 @@ class OpenXBOWExtractor(
             tmpout, header=None, quotechar="'", dtype={0: str}
         )
         os.remove(tmpout)
+        self._dim = data.shape[1] - 1
 
         return list(data.iloc[:, 1:].to_numpy())
 
     @property
     def dim(self) -> int:
-        return super().dim
+        for i, arg in enumerate(self.config.xbowargs):
+            if arg.startswith("-size"):
+                try:
+                    _, size = arg.split("=", maxsplit=1)
+                except ValueError:
+                    size = self.config.xbowargs[i + 1]
+                return int(size)
+        if self._dim:
+            return self._dim
+        raise ValueError("Cannot determine dim.")
 
     @property
     def is_sequence(self) -> bool:
         return False
+
+    @property
+    def feature_names(self) -> List[str]:
+        return [f"bow_{i}" for i in range(self.dim)]

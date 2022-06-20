@@ -138,6 +138,11 @@ class InstanceProcessor(ABC):
         else:
             raise ValueError("Batch size cannot be 0.")
 
+    @property
+    @abstractmethod
+    def feature_names(self) -> List[str]:
+        raise NotImplementedError()
+
 
 class AudioClipProcessor(InstanceProcessor):
     """Processes raw audio data."""

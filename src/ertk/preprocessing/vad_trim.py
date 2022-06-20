@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import List
 
 import librosa
 import numpy as np
 
 from ertk.config import ERTKConfig
-from ertk.preprocessing.base import AudioClipProcessor
+from ertk.preprocessing._base import AudioClipProcessor
 
 
 class _VADMethod(Enum):
@@ -142,4 +143,8 @@ class VADTrimmer(AudioClipProcessor, fname="vad_trim", config=VADTrimmerConfig):
                 min_speech=self.config.min_speech,
                 min_silence=self.config.min_silence,
             )
-        raise NotImplementedError()
+        raise NotImplementedError(f"Method {self.config.method} not implemented.")
+
+    @property
+    def feature_names(self) -> List[str]:
+        return ["pcm"]

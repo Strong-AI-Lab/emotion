@@ -1,7 +1,6 @@
 import logging
 import pprint
 from dataclasses import asdict
-from io import StringIO
 from pathlib import Path
 from typing import Tuple
 
@@ -80,9 +79,7 @@ def main(
     verbose: bool,
     restargs: Tuple[str],
 ):
-    """Process features or audio files in INPUT, write features to
-    OUTPUT.
-    """
+    """Process features or audio files in INPUT, write to OUTPUT."""
 
     from ertk.preprocessing import InstanceProcessor
 
@@ -135,5 +132,7 @@ def main(
             feats = TqdmParallel(len(input_data), "Processing files", n_jobs=n_jobs)(
                 map(delayed(extractor.process_instance), input_data.features)
             )
-    write_features(output, feats, names=names, corpus=corpus)
+    write_features(
+        output, feats, names=names, corpus=corpus, feature_names=extractor.feature_names
+    )
     print(f"Wrote features to {output}")

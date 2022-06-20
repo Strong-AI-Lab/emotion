@@ -3,9 +3,7 @@ from types import ModuleType
 from typing import Iterable, List, Optional, Union
 
 import numpy as np
-from omegaconf import MISSING
-from scipy.ndimage import zoom
-from tensorflow.keras.applications import (
+from keras.applications import (
     densenet,
     efficientnet,
     inception_resnet_v2,
@@ -19,13 +17,15 @@ from tensorflow.keras.applications import (
     vgg19,
     xception,
 )
+from omegaconf import MISSING
+from scipy.ndimage import zoom
 
 from ertk.config import ERTKConfig
 from ertk.preprocessing.spectrogram import spectrogram
 from ertk.tensorflow.utils import init_gpu_memory_growth
 from ertk.utils import is_mono_audio
 
-from .base import AudioClipProcessor, FeatureExtractor
+from ._base import AudioClipProcessor, FeatureExtractor
 
 
 @dataclass
@@ -89,19 +89,27 @@ class KerasAppsExtractor(
 
         init_gpu_memory_growth()
 
-        args = {"include_top": False, "weights": "imagenet", "pooling": "avg"}
         model_args = MODEL_MAP[config.model]
         size = config.size or model_args.size
         self.size = size
-        args["input_shape"] = (size, size, 3)
-        func = getattr(model_args.module, model_args.funcname)
-        self.model = func(**args)
-        self.preprocess_input = getattr(model_args.module, "preprocess_input")
+        args = {
+            "include_top": False,
+            "weights": "imagenet",
+            "pooling": "avg",
+            "input_shape": (size, size, 3),
+        }
+        self.model = getattr(model_args.module, model_args.funcname)(**args)
+        self._preprocess_input = getattr(model_args.module, "preprocess_input")
+        _test = self._spectrogram(np.zeros(16000, dtype=np.float32), 16000)
+        _test = self._to_img(_test)
+        _test = self._preprocess_input(_test)
+        _test = self.model(_test).numpy()
+        self._dim = _test.shape[-1]
 
     def _spectrogram(self, x: np.ndarray, sr: float) -> np.ndarray:
         return spectrogram(
             x,
-            sr=16000,
+            sr=sr,
             kind=self.config.spec_type,
             pre_emphasis=0,
             window_size=0.025,
@@ -123,7 +131,7 @@ class KerasAppsExtractor(
         if is_mono_audio(x):
             x = self._spectrogram(x, kwargs.pop("sr"))
         x = self._to_img(x)
-        x = self.preprocess_input(x)
+        x = self._preprocess_input(x)
         return self.model(x).numpy()
 
     def process_batch(
@@ -135,13 +143,17 @@ class KerasAppsExtractor(
             batch = [self._spectrogram(x, sr) for x in batch]
         batch = [self._to_img(x) for x in batch]
         batch = np.stack(batch)
-        batch = self.preprocess_input(batch)
+        batch = self._preprocess_input(batch)
         return list(self.model(batch).numpy())
 
     @property
     def dim(self) -> int:
-        return super().dim
+        return self._dim
 
     @property
     def is_sequence(self) -> bool:
         return False
+
+    @property
+    def feature_names(self) -> List[str]:
+        return [f"{self.config.model}_{i}" for i in range(self.dim)]

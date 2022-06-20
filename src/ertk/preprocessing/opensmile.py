@@ -8,7 +8,7 @@ from omegaconf import MISSING
 
 from ertk.config import ERTKConfig
 
-from .base import AudioClipProcessor, FeatureExtractor
+from ._base import AudioClipProcessor, FeatureExtractor
 
 
 @dataclass
@@ -40,9 +40,9 @@ class OpenSMILEExtractor(
             )
             for level in config.levels
         ]
-        self.feature_names = []
+        self._feature_names = []
         for smile in self.smiles:
-            self.feature_names.extend(smile.feature_names)
+            self._feature_names.extend(smile.feature_names)
 
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
         xs = [smile(x, kwargs.pop("sr")) for smile in self.smiles]
@@ -60,3 +60,7 @@ class OpenSMILEExtractor(
     @property
     def is_sequence(self) -> bool:
         return "func" not in self.levels
+
+    @property
+    def feature_names(self) -> List[str]:
+        return self._feature_names

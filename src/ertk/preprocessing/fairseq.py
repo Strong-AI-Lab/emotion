@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
@@ -11,7 +11,7 @@ from omegaconf import MISSING, OmegaConf
 from ertk.config import ERTKConfig
 from ertk.utils import PathOrStr
 
-from .base import AudioClipProcessor, FeatureExtractor
+from ._base import AudioClipProcessor, FeatureExtractor
 
 
 class _Aggregation(Enum):
@@ -94,13 +94,15 @@ class FairseqExtractor(
                 feats = c.transpose(-2, -1)
             else:
                 feats = self.model.feature_extractor(tensor)
-        else:  # HuBERT
+        elif self.config.model_type == "hubert":
             if self.config.layer == "context":
                 c, _ = self.model.extract_features(tensor)
                 # Transpose to (batch, feats, steps)
                 feats = c.transpose(-2, -1)
             else:
                 feats = self.model.feature_extractor(tensor)
+        else:
+            raise ValueError(f"Unknown model_type: {self.config.model_type}")
 
         if self.config.aggregate == _Aggregation.NONE:
             return feats[0].transpose(1, 0).cpu().numpy()
@@ -117,8 +119,18 @@ class FairseqExtractor(
 
     @property
     def dim(self) -> int:
-        return 1024
+        if self.config.layer == "encoder":
+            return 512
+        if self.config.model_type == "wav2vec":
+            return 512
+        elif self.config.model_type in ["wav2vec2", "hubert"]:
+            return self.model.encoder.embedding_dim
+        raise ValueError("Unknown dim")
 
     @property
     def is_sequence(self) -> bool:
         return self.config.aggregate == _Aggregation.NONE
+
+    @property
+    def feature_names(self) -> List[str]:
+        return [f"{self.config.model_type}_{i}" for i in range(self.dim)]

@@ -1,13 +1,13 @@
 import warnings
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 
 import librosa
 import numpy as np
 
 from ertk.config import ERTKConfig
 
-from .base import AudioClipProcessor, FeatureExtractor
+from ._base import AudioClipProcessor, FeatureExtractor
 
 
 def spectrogram(
@@ -17,7 +17,7 @@ def spectrogram(
     pre_emphasis: float = 0,
     window_size: float = 0.025,
     window_shift: float = 0.01,
-    n_fft: Optional[int] = None,
+    n_fft: int = 2048,
     n_mels: int = 128,
     htk_mel: bool = False,
     n_chroma: int = 12,
@@ -127,7 +127,7 @@ class SpectrogramExtractorConfig(ERTKConfig):
     window_shift: float = 0.01
     n_mels: int = 128
     htk_mel: bool = False
-    n_fft: Optional[int] = None
+    n_fft: int = 2048
     n_chroma: int = 12
     clip_db: Optional[float] = None
     fmin: float = 0
@@ -149,8 +149,17 @@ class SpectrogramExtractor(
 
     @property
     def dim(self) -> int:
-        return self.config.n_mels
+        if self.config.kind == "mel":
+            return self.config.n_mels
+        elif self.config.kind == "chroma":
+            return self.config.n_chroma
+        else:
+            return 1 + self.config.n_fft // 2
 
     @property
     def is_sequence(self) -> bool:
         return True
+
+    @property
+    def feature_names(self) -> List[str]:
+        return [f"{self.config.kind}_{i}" for i in range(self.dim)]
