@@ -18,9 +18,7 @@ def main(input: Path, corpus: str):
     dataset = netCDF4.Dataset(input, "a")
     names = [Path(x).stem for x in dataset.variables["filename"]]
     dataset.variables["filename"][:] = np.array(names)
-    features = np.array(dataset.variables["features"])
-    dataset.close()
-
+    features = dataset.variables["features"]
     feature_names = [f"audeep{i + 1}" for i in range(features.shape[1])]
     write_features(
         input,
@@ -29,6 +27,7 @@ def main(input: Path, corpus: str):
         corpus=corpus,
         feature_names=feature_names,
     )
+    dataset.close()
     print(f"Wrote netCDF4 file to {input}")
 
 

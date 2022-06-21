@@ -1,5 +1,6 @@
 import click
 
+from .convert_audeep import main as convert_audeep_main
 from .create_cv_dirs import main as create_cv_dirs_main
 from .grid_to_conf import main as grid_to_conf_main
 from .names_to_filenames import main as names_to_filenames_main
@@ -14,6 +15,7 @@ def cli():
     click.echo("ERTK utility CLI")
 
 
+cli.add_command(convert_audeep_main, "convert_audeep")
 cli.add_command(create_cv_dirs_main, "create_cv_dirs")
 cli.add_command(grid_to_conf_main, "grid_to_conf")
 cli.add_command(parallel_jobs_main, "parallel_jobs")
