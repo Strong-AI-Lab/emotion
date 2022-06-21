@@ -1,0 +1,9 @@
+# Mapping to binary arousal
+label:
+  anger: pos
+  boredom: neg
+  disgust: neg
+  fear: pos
+  happiness: pos
+  neutral: neg
+  sadness: neg

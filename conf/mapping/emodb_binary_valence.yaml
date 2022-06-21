@@ -1,0 +1,9 @@
+# Mapping to binary valence
+label:
+  anger: neg
+  boredom: neg
+  disgust: neg
+  fear: neg
+  happiness: pos
+  neutral: pos
+  sadness: neg
