@@ -3,6 +3,7 @@ import warnings
 import numpy as np
 from joblib import Parallel, delayed
 from sklearn.base import MetaEstimatorMixin, clone
+from sklearn.model_selection import GridSearchCV
 from sklearn.multiclass import OneVsRestClassifier as _SKOvR
 from sklearn.multiclass import _ConstantPredictor
 from sklearn.pipeline import Pipeline
@@ -77,3 +78,46 @@ def get_base_estimator(clf):
                 return get_base_estimator(getattr(clf, attr))
         raise RuntimeError("Couldn't get base estimator from meta estimator")
     return clf
+
+
+class GridSearchVal(GridSearchCV):
+    """Grid-search but using a single validation set. Simple hack of
+    GridSearchCV to avoid retraining on train + val data.
+    """
+
+    def __init__(
+        self,
+        estimator,
+        param_grid,
+        *,
+        scoring=None,
+        n_jobs=None,
+        refit=False,
+        cv=None,
+        verbose=0,
+        pre_dispatch="2*n_jobs",
+        error_score=np.nan,
+        return_train_score=False,
+    ):
+        super().__init__(
+            estimator,
+            param_grid,
+            scoring=scoring,
+            n_jobs=n_jobs,
+            refit=False,
+            cv=cv,
+            verbose=verbose,
+            pre_dispatch=pre_dispatch,
+            error_score=error_score,
+            return_train_score=return_train_score,
+        )
+
+    def fit(self, X, y=None, *, groups=None, **fit_params):
+        self.refit = False
+        super().fit(X, y=y, groups=groups, **fit_params)
+        self.best_estimator_ = clone(
+            clone(self.estimator).set_params(**self.best_params_)
+        )
+        train, _ = next(iter(self.cv.split(X, y, groups)))
+        self.best_estimator_.fit(X[train], y[train], **fit_params)
+        return self.best_estimator_
