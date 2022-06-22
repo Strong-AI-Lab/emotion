@@ -42,19 +42,21 @@ def get_audio_paths(path: PathOrStr, absolute: bool = True) -> List[Path]:
     return paths
 
 
-def resample_rename_clips(mapping: Mapping[Path, Path]):
+def resample_rename_clips(mapping: Mapping[Path, Path], sr: int = 16000):
     """Resample given audio clips to 16 kHz 16-bit WAV.
 
     Parameters
     ----------
     mapping: mapping
         Mapping from source files to destination files.
+    sr: int
+        Sample rate.
     """
     dst_dirs = {x.parent for x in mapping.values()}
     for dir in dst_dirs:
         dir.mkdir(exist_ok=True, parents=True)
 
-    opts = ["-nostdin", "-ar", "16000", "-sample_fmt", "s16", "-ac", "1", "-y"]
+    opts = ["-nostdin", "-ar", f"{sr:d}", "-sample_fmt", "s16", "-ac", "1", "-y"]
     logging.info(f"Resampling {len(mapping)} audio files")
     logging.info(f"Using FFmpeg options: {' '.join(opts)}")
     TqdmParallel(desc="Resampling audio", total=len(mapping), unit="file", n_jobs=-1)(
@@ -67,7 +69,7 @@ def resample_rename_clips(mapping: Mapping[Path, Path]):
     )
 
 
-def resample_audio(paths: Iterable[PathOrStr], dir: PathOrStr):
+def resample_audio(paths: Iterable[PathOrStr], dir: PathOrStr, sr: int = 16000):
     """Resample given audio clips to 16 kHz 16-bit WAV, and place in
     direcotory given by `dir`.
 
@@ -77,12 +79,14 @@ def resample_audio(paths: Iterable[PathOrStr], dir: PathOrStr):
         A collection of paths to audio files to resample.
     dir: Pathlike or str
         Output directory.
+    sr: int
+        Sample rate.
     """
     paths = list(map(Path, paths))
     if len(paths) == 0:
         raise FileNotFoundError("No audio files found.")
 
-    resample_rename_clips({x: Path(dir, f"{x.stem}.wav") for x in paths})
+    resample_rename_clips({x: Path(dir, f"{x.stem}.wav") for x in paths}, sr=sr)
 
 
 def write_filelist(paths: Iterable[PathOrStr], path: PathOrStr):
@@ -92,8 +96,8 @@ def write_filelist(paths: Iterable[PathOrStr], path: PathOrStr):
     ----------
     paths: iterable of Path
         Paths to audio clips.
-    name: str
-        Name of resulting file list.
+    path: str
+        Path of resulting file list.
     """
     paths = sorted(map(Path, paths), key=lambda p: p.stem)
     path = Path(path)
