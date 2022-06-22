@@ -1,4 +1,4 @@
-from typing import Dict, Mapping, Optional, Type, TypeVar
+from typing import Dict, Mapping, Optional, Type, TypeVar, Union
 
 import pandas as pd
 
@@ -19,20 +19,39 @@ def read_annotations(
 
 
 def write_annotations(
-    annotations: Mapping[str, object], name: str, path: Optional[PathOrStr] = None
-):
+    annotations: Union[Mapping[str, object], pd.DataFrame, pd.Series],
+    name: Optional[str] = None,
+    path: Optional[PathOrStr] = None,
+) -> None:
     """Write sorted annotations CSV.
 
     Parameters
     ----------
     annotations: mapping
         A mapping of the form {name: annotation}.
-    name: str
-        Name of the annotation.
+    name: str, optional
+        Name of the annotation if passing a dict.
     path: pathlike or str, optional
         Path to write CSV. If None, filename is name.csv
     """
-    df = pd.DataFrame.from_dict(annotations, orient="index", columns=[name])
+    if isinstance(annotations, pd.DataFrame):
+        df = annotations
+        if len(df.columns) == 2:
+            try:
+                df.set_index("name", inplace=True)
+            except KeyError:
+                raise ValueError("Passed DataFrame should have 'name' as index.")
+        elif len(df.columns) > 2:
+            raise ValueError("Passed DataFrame should have 1 or 2 columns.")
+        df = df[df.columns[0]]
+    elif isinstance(annotations, pd.Series):
+        df = annotations
+    else:
+        if not name:
+            raise ValueError("`name` must be given when passing a dict.")
+        df = pd.DataFrame.from_dict(annotations, orient="index", columns=[name])
+        df = df[name]
     df.index.name = "name"
+    name = name or df.name
     path = path or f"{name}.csv"
     df.sort_index().to_csv(path, header=True, index=True)
