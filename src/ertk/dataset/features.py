@@ -1,9 +1,11 @@
 import csv
+import itertools
 import typing
 import warnings
+from abc import ABC, abstractmethod
 from collections import Counter
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Type, Union
 
 import arff
 import librosa
@@ -274,11 +276,223 @@ class FeaturesData:
     }
 
 
+class IterableReader(ABC):
+    feature_names: List[str]
+    names: List[str]
+    corpus: str = ""
+
+    def __init__(self, path: PathOrStr, **kwargs) -> None:
+        self.path = path
+        self.read_metadata()
+        self.iter = iter(self.read(**kwargs))
+
+    def __iter__(self):
+        return self.iter
+
+    def __len__(self):
+        return len(self.names)
+
+    @abstractmethod
+    def read_metadata(self) -> None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def read(self, **kwargs) -> Iterable[np.ndarray]:
+        raise NotImplementedError()
+
+
+class CSVIterableReader(IterableReader):
+    def read_metadata(self) -> None:
+        with open(self.path) as fid:
+            reader = csv.reader(fid, newline="")
+            _, *feature_names = next(reader)
+            self.feature_names = feature_names
+            _names = [row[0] for row in reader]
+            counts: typing.Counter[str] = Counter(_names)
+            self.names = list(counts.keys())
+            self.slices = list(counts.values())
+
+    def read(self, **kwargs) -> Iterable[np.ndarray]:
+        with open(self.path) as fid:
+            reader = csv.reader(fid, newline="")
+            next(reader)  # Skip header
+            for length in self.slices:
+                yield np.array([x[1:] for x in itertools.islice(reader, length)])
+
+
+class ARFFIterableReader(IterableReader):
+    def read_metadata(self) -> None:
+        self.feature_names = []
+        with open(self.path) as fid:
+            for i, line in enumerate(fid):
+                line = line.strip()
+                if len(line) == 0:
+                    continue
+                if line.lower().startswith("@relation"):
+                    self.corpus = line[10:].strip()
+                elif line.lower().startswith("@attribute"):
+                    feat_name, typ = line[11:].strip().rsplit(maxsplit=1)
+                    if feat_name.lower() == "name":
+                        continue
+                    self.feature_names.append(feat_name)
+                    if typ.lower() not in ["real", "numeric", "integer"]:
+                        raise ValueError(f"Incorrect attribute type for {feat_name}.")
+                elif line.lower().startswith("@data"):
+                    break
+            self._header = fid.tell()
+            reader = csv.reader(fid, skipinitialspace=True, newline="")
+            _names = [row[0] for row in reader]
+            counts: typing.Counter[str] = Counter(_names)
+            self.names = list(counts.keys())
+            self.slices = list(counts.values())
+
+    def read(self, **kwargs) -> Iterable[np.ndarray]:
+        self.feature_names = []
+        with open(self.path) as fid:
+            fid.seek(self._header)
+            reader = csv.reader(fid, skipinitialspace=True, newline="")
+            # rows = itertools.islice(reader, self._header, None)  # Skip header
+            for length in self.slices:
+                yield np.array([x[1:] for x in itertools.islice(reader, length)])
+
+
+class NetCDFIterableReader(IterableReader):
+    def read_metadata(self) -> None:
+        with netCDF4.Dataset(self.path) as dataset:
+            self.corpus = dataset.corpus
+            self.names = list(dataset.variables["name"])
+            self.feature_names = list(dataset.variables["feature_names"])
+            self.slices = np.array(dataset.variables["slices"])
+
+    def read(self, **kwargs) -> Iterable[np.ndarray]:
+        with netCDF4.Dataset(self.path) as dataset:
+            idx = np.r_[0, np.cumsum(self.slices)]
+            for start, end in zip(idx[:-1], idx[1:]):
+                yield np.array(dataset.variables["features"][start:end])
+
+
+class RawAudioIterableReader(IterableReader):
+    def read_metadata(self) -> None:
+        self.filepaths = get_audio_paths(self.path)
+        self.names = [x.stem for x in self.filepaths]
+        self.feature_names = ["pcm"]
+
+    def read(self, sample_rate: int = 16000, **kwargs) -> Iterable[np.ndarray]:
+        with warnings.catch_warnings():
+            for filepath in self.filepaths:
+                audio, _ = librosa.load(
+                    filepath, sr=sample_rate, mono=True, res_type="kaiser_fast"
+                )
+                yield np.expand_dims(audio, -1)
+
+
+class IterableWriter:
+    def __init__(
+        self,
+        names: List[str],
+        corpus: str = "",
+        feature_names: List[str] = [],
+    ) -> None:
+        self.names = names
+        self.corpus = corpus
+        self.feature_names = feature_names
+
+    def write(self, path: PathOrStr, features: Iterable[np.ndarray], **kwargs):
+        path = Path(path)
+        path.parent.mkdir(exist_ok=True, parents=True)
+        meth = IterableWriter._write_backends.get(path.suffix)
+        if meth is None:
+            raise ValueError(f"File format {path.suffix} not supported.")
+        meth(self, path, features, **kwargs)
+
+    def write_arff(self, path: PathOrStr, features: Iterable[np.ndarray], **kwargs):
+        with open(path, "w") as fid:
+            fid.write(f"@RELATION {self.corpus}\n\n")
+            fid.write("@ATTRIBUTE name STRING\n")
+            for feat in self.feature_names:
+                fid.write(f"@ATTRIBUTE {feat} NUMERIC\n")
+            fid.write("\n@data\n")
+            writer = csv.writer(fid)
+            for name, inst in zip(self.names, features):
+                if len(inst.shape) == 2:
+                    for row in inst:
+                        writer.writerow([name] + list(row))
+                else:
+                    writer.writerow([name] + list(inst))
+
+    def write_csv(self, path, features: Iterable[np.ndarray], **kwargs):
+        with open(path, "w") as fid:
+            writer = csv.writer(fid)
+            writer.writerow(["name"] + self.feature_names)
+            for name, inst in zip(self.names, features):
+                if len(inst.shape) == 2:
+                    for row in inst:
+                        writer.writerow([name] + list(row))
+                else:
+                    writer.writerow([name] + list(inst))
+
+    def write_netcdf(self, path: PathOrStr, features: Iterable[np.ndarray], **kwargs):
+        dataset = netCDF4.Dataset(path, "w")
+        dataset.createDimension("instance", len(self.names))
+        dataset.createDimension("concat", 0)
+
+        features, _tmp = itertools.tee(features)
+        _x0 = next(_tmp)
+        del _tmp
+        dataset.createDimension("features", _x0.shape[-1])
+
+        filename = dataset.createVariable("name", str, ("instance",))
+        filename[:] = np.array(self.names)
+
+        _features = dataset.createVariable(
+            "features", np.float32, ("concat", "features")
+        )
+        slices = []
+        idx = 0
+        for x in features:
+            _features[idx : idx + len(x), :] = x
+            slices.append(len(x))
+            idx += len(x)
+
+        _slices = dataset.createVariable("slices", int, ("instance",))
+        _slices[:] = np.array(slices)
+
+        _feature_names = dataset.createVariable("feature_names", str, ("features",))
+        _feature_names[:] = np.array(self.feature_names)
+
+        dataset.setncattr_string("corpus", self.corpus)
+        dataset.close()
+
+    def write_raw(
+        self, path: PathOrStr, features: Iterable[np.ndarray], sr: int = 16000, **kwargs
+    ):
+        output_dir = Path(path).with_suffix("")
+        output_dir.mkdir(exist_ok=True, parents=True)
+        for name, audio in zip(self.names, features):
+            output_path = output_dir / f"{name}.wav"
+            soundfile.write(output_path, audio, subtype="PCM_16", samplerate=sr)
+        write_filelist(output_dir.glob("*.wav"), path)
+
+    _write_backends: Dict[str, Callable] = {
+        ".arff": write_arff,
+        ".csv": write_csv,
+        ".nc": write_netcdf,
+        ".txt": write_raw,
+    }
+
+
 _READ_BACKENDS: Dict[str, Callable[..., FeaturesData]] = {
     ".nc": read_netcdf,
     ".arff": read_arff,
     ".csv": read_csv,
     ".txt": read_raw,
+}
+
+_READ_BACKENDS_ITERABLE: Dict[str, Type[IterableReader]] = {
+    ".nc": NetCDFIterableReader,
+    ".arff": ARFFIterableReader,
+    ".csv": CSVIterableReader,
+    ".txt": RawAudioIterableReader,
 }
 
 
@@ -295,6 +509,7 @@ def register_format(
         _READ_BACKENDS[suffix] = read
     if write is not None:
         FeaturesData._write_backends[suffix] = write
+        IterableWriter._write_backends[suffix] = write
 
 
 def find_features_file(files: Iterable[Path]) -> Path:
@@ -316,19 +531,33 @@ def read_features(path: PathOrStr, **kwargs) -> FeaturesData:
     return meth(path, **filter_kwargs(kwargs, meth))
 
 
+def read_features_iterable(path: PathOrStr, **kwargs) -> IterableReader:
+    """Read features from given path as an iterable."""
+
+    path = Path(path)
+    meth = _READ_BACKENDS_ITERABLE.get(path.suffix)
+    if meth is None:
+        raise ValueError(f"File format {path.suffix} not supported.")
+    return meth(path, **filter_kwargs(kwargs, meth.read))
+
+
 def write_features(
     path: PathOrStr,
-    features: Union[List[np.ndarray], np.ndarray],
+    features: Union[Iterable[np.ndarray], np.ndarray],
     names: List[str],
     corpus: str = "",
-    feature_names: List[str] = None,
+    feature_names: List[str] = [],
     slices: Union[np.ndarray, List[int]] = None,
     **kwargs,
-):
+) -> None:
     """Convenience function to write features to given path. Arguments
-    are the same as those passed to FeaturesData.
+    are the same as those passed to IterableWriter.
     """
+    if slices is not None:
+        if not isinstance(features, np.ndarray):
+            raise ValueError("`slices` should only be given for a 2D contiguous array.")
+        features = flat_to_inst(features, slices)
 
-    FeaturesData(
-        features, names, corpus=corpus, slices=slices, feature_names=feature_names
-    ).write(path, **kwargs)
+    IterableWriter(names=names, corpus=corpus, feature_names=feature_names).write(
+        path, features
+    )

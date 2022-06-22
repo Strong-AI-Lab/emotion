@@ -1,16 +1,16 @@
-EMOVO:
-  description: EMOVO dataset
-  annotations:
-  partitions:
-    - label
-    - speaker
-    - language
-    - gender
-    - sentence
-    - country
-  subsets:
-    default: all
-    all:
-      clips: files_all
-      description: All files
-  features_dir: ../../features/EMOVO
+name: EMOVO
+description: EMOVO dataset
+annotations: []
+partitions:
+- label
+- speaker
+- language
+- gender
+- sentence
+- country
+subsets:
+  all:
+    clips: files_all
+    description: All files
+default_subset: all
+features_dir: ../../features/EMOVO

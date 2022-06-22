@@ -1,15 +1,15 @@
-MESD:
-  description: Mexican Emotional Speech Database (MESD)
-  annotations:
-  partitions:
-    - label
-    - language
-    - voice
-    - word
-    - country
-  subsets:
-    default: all
-    all:
-      clips: files_all
-      description: All files
-  features_dir: ../../features/MESD
+name: MESD
+description: Mexican Emotional Speech Database (MESD)
+annotations: []
+partitions:
+- label
+- language
+- voice
+- word
+- country
+subsets:
+  all:
+    clips: files_all
+    description: All files
+default_subset: all
+features_dir: ../../features/MESD

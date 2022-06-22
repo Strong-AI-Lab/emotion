@@ -1,22 +1,22 @@
-JL:
-  description: JL-corpus data
-  annotations:
-  partitions:
-    - label
-    - speaker
-    - gender
-    - language
-    - country
-    - sentence
-  subsets:
-    default: primary
-    all:
-      clips: files_all
-      description: All files
-    primary:
-      clips: files_primary
-      description: Files with primary emotions
-    secondary:
-      clips: files_secondary
-      description: Files with secondary emotions
-  features_dir: ../../features/JL
+name: JL
+description: JL-corpus data
+annotations: []
+partitions:
+- label
+- speaker
+- gender
+- language
+- country
+- sentence
+subsets:
+  all:
+    clips: files_all
+    description: All files
+  primary:
+    clips: files_primary
+    description: Files with primary emotions
+  secondary:
+    clips: files_secondary
+    description: Files with secondary emotions
+default_subset: primary
+features_dir: ../../features/JL

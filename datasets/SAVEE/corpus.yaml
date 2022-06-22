@@ -1,14 +1,14 @@
-SAVEE:
-  description: SAVEE dataset
-  annotations:
-  partitions:
-    - label
-    - speaker
-    - language
-    - country
-  subsets:
-    default: all
-    all:
-      clips: files_all
-      description: All files
-  features_dir: ../../features/SAVEE
+name: SAVEE
+description: SAVEE dataset
+annotations: []
+partitions:
+- label
+- speaker
+- language
+- country
+subsets:
+  all:
+    clips: files_all
+    description: All files
+default_subset: all
+features_dir: ../../features/SAVEE

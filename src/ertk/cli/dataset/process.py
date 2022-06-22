@@ -5,12 +5,11 @@ from pathlib import Path
 from typing import Tuple
 
 import click
-from joblib import delayed
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
-from ertk.dataset import get_audio_paths, read_features, write_features
-from ertk.utils import TqdmParallel
+from ertk.dataset import read_features_iterable, write_features
+from ertk.utils import TqdmMultiprocessing
 
 
 def list_processors(ctx, param, val):
@@ -62,7 +61,10 @@ def list_processors(ctx, param, val):
     "batched together.",
 )
 @click.option(
-    "--sample_rate", type=float, help="Resample to this rate for audio input."
+    "--sample_rate",
+    type=int,
+    default=16000,
+    help="Resample to this rate for audio input.",
 )
 @click.option("--n_jobs", type=int, default=-1, help="Number of parallel jobs to run.")
 @click.option("--verbose", is_flag=True)
@@ -74,7 +76,7 @@ def main(
     config: Path,
     corpus: str,
     batch_size: int,
-    sample_rate: float,
+    sample_rate: int,
     n_jobs: int,
     verbose: bool,
     restargs: Tuple[str],
@@ -98,41 +100,24 @@ def main(
         pprint.pprint(dict(conf))
     extractor = extractor_cls(config_cls.from_config(conf))
 
-    if input.suffix == ".txt":
-        # TODO: unify with read_features()
-        paths = get_audio_paths(input)
-        names = [Path(x).stem for x in paths]
-        if batch_size != 1:
-            feats = list(
-                tqdm(
-                    extractor.process_files(
-                        paths, batch_size=batch_size, sr=sample_rate
-                    ),
-                    total=len(paths),
-                    desc="Processing files",
-                )
-            )
-        else:
-            feats = TqdmParallel(len(paths), "Processing files", n_jobs=n_jobs)(
-                delayed(extractor.process_file)(x, sr=sample_rate) for x in paths
-            )
+    input_data = read_features_iterable(input, sample_rate=sample_rate)
+    corpus = corpus or input_data.corpus
+    names = input_data.names
+    if batch_size != 1:
+        feats = tqdm(
+            extractor.process_instances(iter(input_data), batch_size, sr=sample_rate),
+            total=len(input_data),
+            desc="Processing files",
+        )
     else:
-        input_data = read_features(input)
-        corpus = corpus or input_data.corpus
-        names = input_data.names
-        if batch_size != 1:
-            feats = list(
-                tqdm(
-                    extractor.process_all(input_data.features, batch_size),
-                    total=len(input_data),
-                    desc="Processing files",
-                )
-            )
-        else:
-            feats = TqdmParallel(len(input_data), "Processing files", n_jobs=n_jobs)(
-                map(delayed(extractor.process_instance), input_data.features)
-            )
+        # TODO: Set back to joblib when https://github.com/joblib/joblib/pull/588
+        # is merged
+        pool = TqdmMultiprocessing(len(input_data), "Processing files")
+        feats = pool.imap(
+            extractor.process_instance, input_data, n_jobs=n_jobs, sr=sample_rate
+        )
     write_features(
         output, feats, names=names, corpus=corpus, feature_names=extractor.feature_names
     )
+    extractor.finish()
     print(f"Wrote features to {output}")

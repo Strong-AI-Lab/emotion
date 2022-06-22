@@ -2,6 +2,7 @@ import copy
 import logging
 import os
 import warnings
+from dataclasses import dataclass, field
 from itertools import chain
 from pathlib import Path
 from typing import (
@@ -17,16 +18,17 @@ from typing import (
     Tuple,
     Type,
     Union,
+    cast,
     overload,
 )
 
 import numpy as np
-import yaml
+import omegaconf
 from sklearn.base import TransformerMixin
 from sklearn.preprocessing import StandardScaler
 from typing_extensions import Literal
 
-from ertk.config import get_arg_mapping
+from ertk.config import ERTKConfig, get_arg_mapping
 from ertk.dataset.annotation import read_annotations
 from ertk.dataset.features import find_features_file, read_features
 from ertk.dataset.utils import get_audio_paths
@@ -39,6 +41,54 @@ from ertk.utils import (
     pad_arrays,
     transpose_time,
 )
+
+
+@dataclass
+class _MapGroups:
+    map: Dict[str, str] = omegaconf.MISSING
+
+
+@dataclass
+class _RemoveGroups:
+    drop: List[str] = field(default_factory=list)
+    keep: List[str] = field(default_factory=list)
+
+
+@dataclass
+class _SubsetConfig:
+    clips: str = omegaconf.MISSING
+    description: str = ""
+
+
+@dataclass
+class CorpusInfo(ERTKConfig):
+    name: str = omegaconf.MISSING
+    description: str = ""
+    annotations: List[str] = field(default_factory=list)
+    partitions: List[str] = field(default_factory=list)
+    subsets: Dict[str, _SubsetConfig] = field(default_factory=dict)
+    default_subset: str = "all"
+    features_dir: str = omegaconf.MISSING
+
+
+@dataclass
+class DatasetConfig(ERTKConfig):
+    path: str = omegaconf.MISSING
+    features: Optional[str] = None
+    subset: str = "default"
+    map_groups: Dict[str, _MapGroups] = field(default_factory=dict)
+    remove_groups: Dict[str, _RemoveGroups] = field(default_factory=dict)
+    rename_annotations: Dict[str, str] = field(default_factory=dict)
+    clip_seq: Optional[int] = None
+    pad_seq: Optional[int] = None
+
+
+@dataclass
+class DataLoadConfig(ERTKConfig):
+    datasets: Dict[str, DatasetConfig] = omegaconf.MISSING
+    features: Optional[str] = None
+    map_groups: Dict[str, _MapGroups] = field(default_factory=dict)
+    remove_groups: Dict[str, _RemoveGroups] = field(default_factory=dict)
 
 
 class Dataset:
@@ -77,8 +127,8 @@ class Dataset:
     # "Private" vars
     _default_subset: str = ""
     _features: str = ""
-    _features_path: Path
-    _features_dir: Path
+    _features_path: Optional[Path] = None
+    _features_dir: Path = Path()
     _subset_paths: Dict[str, Path]
 
     def __init__(
@@ -136,30 +186,20 @@ class Dataset:
             The path to a YAML file containing corpus metadata.
         """
         path = Path(path)
-        with open(path) as fid:
-            doc = yaml.safe_load(fid)
-        if not isinstance(doc, dict):
-            raise RuntimeError("Corpus info invalid.")
-        self._corpus = next(iter(doc))
-        corpus_info = doc[self.corpus]
-
-        self._features_dir = path.parent / corpus_info["features_dir"]
-        self._default_subset = corpus_info["subsets"]["default"]
-        for subset, subset_info in corpus_info["subsets"].items():
-            if subset == "default":
-                continue
-            clips_file = path.parent / f"{subset_info['clips']}.txt"
+        corpus_info = CorpusInfo.from_file(path)
+        self._corpus = corpus_info.name
+        self._features_dir = path.parent / corpus_info.features_dir
+        self._default_subset = corpus_info.default_subset
+        for subset, subset_info in corpus_info.subsets.items():
+            clips_file = path.parent / f"{subset_info.clips}.txt"
             self._subset_paths[subset] = clips_file
             self.subsets[subset] = [x.stem for x in get_audio_paths(clips_file)]
-
-        if corpus_info["partitions"]:
-            for partition in corpus_info["partitions"]:
-                self.update_annotation(
-                    partition, path.parent / f"{partition}.csv", dtype=str
-                )
-        if corpus_info["annotations"]:
-            for annotation in corpus_info["annotations"]:
-                self.update_annotation(annotation, path.parent / f"{annotation}.csv")
+        for partition in corpus_info.partitions:
+            self.update_annotation(
+                partition, path.parent / f"{partition}.csv", dtype=str
+            )
+        for annotation in corpus_info.annotations:
+            self.update_annotation(annotation, path.parent / f"{annotation}.csv")
 
     def _verify_annotations(self, annot_name: Optional[str] = None):
         """Make sure there is a value for each instance for each annotation."""
@@ -191,7 +231,15 @@ class Dataset:
         else:
             features = Path(features)
             if len(features.suffix) == 0:
-                features = find_features_file(self._features_dir.glob(f"{features}.*"))
+                try:
+                    features = find_features_file(
+                        self._features_dir.glob(f"{features}.*")
+                    )
+                except FileNotFoundError as e:
+                    raise FileNotFoundError(
+                        f"Cannot find features '{features}' in directory "
+                        f"'{self._features_dir}'"
+                    ) from e
             self._features = features.stem
         self._features_path = features
         data = read_features(features)
@@ -244,7 +292,7 @@ class Dataset:
     def get_idx_for_split(
         self,
         split: Union[str, Dict[str, Union[str, Collection[str]]]],
-        return_complement: Literal[False],
+        return_complement: Literal[False] = False,
     ) -> np.ndarray:
         ...
 
@@ -383,6 +431,44 @@ class Dataset:
 
         annotation = self.annotations[part_name]
         self.remove_instances(keep=[x for x in self.names if annotation[x] in keep])
+
+    def map_and_select(
+        self,
+        map: Mapping[str, Mapping[str, str]],
+        select: Mapping[str, Union[str, Collection[str]]],
+        remove: Mapping[str, Union[str, Collection[str]]],
+    ) -> None:
+        """Convenience function for mapping one or more partitions and
+        then selecting one or more groups.
+
+        Parameters
+        ----------
+        map: mapping
+            The groups mapping. May have one or more partitions.
+        select: mapping
+            Mapping from partitions to groups to select.
+        """
+        for part in map:
+            if part not in self.partitions:
+                warnings.warn(
+                    f"Partition {part} cannot be mapped as it is not in the dataset."
+                )
+                continue
+            self.map_groups(part, map[part])
+        for part in set(select).union(remove):
+            if part not in self.partitions:
+                warnings.warn(
+                    f"Partition {part} cannot be selected/dropped as it is not in the "
+                    "dataset."
+                )
+                continue
+            keep = select.get(part, [])
+            drop = remove.get(part, [])
+            if isinstance(keep, str):
+                keep = [keep]
+            if isinstance(drop, str):
+                drop = [drop]
+            self.remove_groups(part, keep=keep, drop=drop)
 
     def rename_annotation(self, old_name: str, new_name: str) -> None:
         """Renames an annotation. This is useful for example if you want
@@ -679,7 +765,10 @@ class Dataset:
             s += f"\tmin: {annotations.min():.3f}, max: {annotations.max():.3f}, "
             s += f"mean: {annotations.mean():.3f}\n"
         s += f"{self.n_instances} instances\n"
-        s += f"subset: {self.subset}\n"
+        s += "Subsets:\n"
+        for subset, names in self.subsets.items():
+            s += "\t*" if subset == self.subset else "\t "
+            s += f"{subset}: {len(names)} instances\n"
         s += f"using {self._features} ({self.n_features} features)\n"
         if self.x.dtype == object or len(self.x.shape) == 3:
             lengths = [len(x) for x in self.x]
@@ -772,7 +861,7 @@ class CombinedDataset(LabelledDataset):
     merges annotations.
     """
 
-    def __init__(self, *datasets: LabelledDataset):
+    def __init__(self, *datasets: Dataset):
         if len(datasets) == 0:
             raise ValueError("No datasets provided.")
         if len(datasets) == 1:
@@ -839,6 +928,10 @@ class CombinedDataset(LabelledDataset):
                     )
             self.update_annotation(annot_name, combined_annot)
 
+        if not all(isinstance(x, LabelledDataset) for x in datasets):
+            return
+        datasets = cast(Tuple[LabelledDataset, ...], datasets)  # for mypy
+
         if any(d.label_annot != datasets[0].label_annot for d in datasets):
             # Try and unify label annotations with different names
             warnings.warn(
@@ -869,7 +962,7 @@ class CombinedDataset(LabelledDataset):
 
 def load_multiple(
     corpus_files: Iterable[PathOrStr],
-    features: str,
+    features: Optional[str] = None,
     subsets: Union[str, Mapping[str, str]] = "default",
     label: Union[str, Mapping[str, str]] = "label",
 ) -> CombinedDataset:
@@ -892,15 +985,60 @@ def load_multiple(
     datasets = []
     for file in corpus_files:
         logging.info(f"Loading {file}")
-        dataset = LabelledDataset(file, subset="all")
+        dataset = Dataset(file, subset="all")
         if isinstance(label, str):
-            dataset.label_annot = label
+            setattr(dataset, "label_annot", label)
         else:
-            dataset.label_annot = label.get(dataset.corpus, "label")
+            setattr(dataset, "label_annot", label.get(dataset.corpus, "label"))
         if isinstance(subsets, str):
             dataset.use_subset(subsets)
         else:
             dataset.use_subset(subsets.get(dataset.corpus, "default"))
-        dataset.update_features(features)
+        if features is not None:
+            dataset.update_features(features)
         datasets.append(dataset)
     return CombinedDataset(*datasets)
+
+
+def load_datasets_config(config: DataLoadConfig) -> Dataset:
+    """Load one or more datasets from a DataLoadConfig.
+
+    Parameters
+    ----------
+    config: DataLoadConfig
+        The data loading config.
+
+    Returns
+    -------
+    Dataset
+        A dataset that combines one or more datasets according to the
+        given config.
+    """
+    datasets: List[LabelledDataset] = []
+    for corpus, dataset_conf in config.datasets.items():
+        logging.info(f"Loading {dataset_conf.path}")
+        dataset = LabelledDataset(dataset_conf.path, subset=dataset_conf.subset)
+        for part, mapping in dataset_conf.map_groups.items():
+            dataset.map_groups(part, mapping.map)
+        for part, remove in dataset_conf.remove_groups.items():
+            dataset.remove_groups(part, drop=remove.drop, keep=remove.keep)
+        for a1, a2 in dataset_conf.rename_annotations.items():
+            # TODO: check for collisions
+            dataset.rename_annotation(a1, a2)
+        if dataset_conf.features:
+            dataset.update_features(dataset_conf.features)
+        elif config.features:
+            dataset.update_features(config.features)
+        else:
+            raise ValueError("Features must be given either per-dataset or overall.")
+        datasets.append(dataset)
+    if len(config.datasets) > 1:
+        dataset = CombinedDataset(*datasets)
+        del datasets
+    else:
+        dataset = datasets[0]
+    for part, mapping in config.map_groups.items():
+        dataset.map_groups(part, mapping.map)
+    for part, remove in config.remove_groups.items():
+        dataset.remove_groups(part, drop=remove.drop, keep=remove.keep)
+    return dataset

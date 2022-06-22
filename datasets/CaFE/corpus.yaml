@@ -1,15 +1,15 @@
-CaFE:
-  description: CaFE dataset
-  annotations:
-  partitions:
-    - label
-    - language
-    - speaker
-    - gender
-    - country
-  subsets:
-    default: all
-    all:
-      clips: files_all
-      description: All files
-  features_dir: ../../features/CaFE
+name: CaFE
+description: CaFE dataset
+annotations: []
+partitions:
+- label
+- language
+- speaker
+- gender
+- country
+subsets:
+  all:
+    clips: files_all
+    description: All files
+default_subset: all
+features_dir: ../../features/CaFE

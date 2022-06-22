@@ -1,3 +1,5 @@
+import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Union
@@ -41,10 +43,12 @@ class YamnetExtractor(
 
         import tensorflow as tf
 
+        os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"  # Ignore INFO messages
+        tf.get_logger().setLevel(logging.WARNING)
+        init_gpu_memory_growth()
+
         from ._yamnet.params import Params
         from ._yamnet.yamnet import yamnet
-
-        init_gpu_memory_growth()
 
         input_layer = tf.keras.Input((96, 64))
         predictions, embeddings = yamnet(input_layer, Params())
@@ -75,6 +79,14 @@ class YamnetExtractor(
         _, embeddings = self.model(frames)
         return [np.mean(x, 0) for x in np.split(embeddings, slices)]
 
+    def finish(self) -> None:
+        import tensorflow as tf
+        from keras.backend import clear_session
+
+        clear_session()
+        os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"
+        tf.get_logger().setLevel(logging.INFO)
+
     @property
     def dim(self) -> int:
         return 1024
@@ -103,12 +115,14 @@ class VGGishExtractor(
 
         import tensorflow.compat.v1 as tf
 
-        from ._vggish.vggish_postprocess import Postprocessor
-        from ._vggish.vggish_slim import define_vggish_slim, load_vggish_slim_checkpoint
-
+        os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"  # Ignore INFO messages
+        tf.get_logger().setLevel(logging.WARNING)
         tf.disable_eager_execution()
         for gpu in tf.config.list_physical_devices("GPU"):
             tf.config.experimental.set_memory_growth(gpu, True)
+
+        from ._vggish.vggish_postprocess import Postprocessor
+        from ._vggish.vggish_slim import define_vggish_slim, load_vggish_slim_checkpoint
 
         pca_params = str(Path(config.model_dir, "vggish_pca_params.npz"))
         self.processor = Postprocessor(pca_params)
@@ -124,7 +138,7 @@ class VGGishExtractor(
         )
         self.embedding_tensor = self.sess.graph.get_tensor_by_name("vggish/embedding:0")
 
-    def __del__(self):
+    def finish(self) -> None:
         self.sess.close()
 
     def _process_frames(self, frames: np.ndarray) -> np.ndarray:

@@ -1,13 +1,13 @@
-URDU:
-  description: URDU dataset
-  annotations:
-  partitions:
-    - label
-    - speaker
-    - language
-  subsets:
-    default: all
-    all:
-      clips: files_all
-      description: All files
-  features_dir: ../../features/URDU
+name: URDU
+description: URDU dataset
+annotations: []
+partitions:
+- label
+- speaker
+- language
+subsets:
+  all:
+    clips: files_all
+    description: All files
+default_subset: all
+features_dir: ../../features/URDU

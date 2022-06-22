@@ -1,15 +1,15 @@
-EmoFilm:
-  description: EmoFilm dataset
-  annotations:
-  partitions:
-    - label
-    - speaker
-    - language
-    - gender
-    - film
-  subsets:
-    default: all
-    all:
-      clips: files_all
-      description: All files
-  features_dir: ../../features/EmoFilm
+name: EmoFilm
+description: EmoFilm dataset
+annotations: []
+partitions:
+- label
+- speaker
+- language
+- gender
+- film
+subsets:
+  all:
+    clips: files_all
+    description: All files
+default_subset: all
+features_dir: ../../features/EmoFilm

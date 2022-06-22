@@ -1,14 +1,14 @@
-TESS:
-  description: TESS dataset
-  annotations:
-  partitions:
-    - label
-    - speaker
-    - language
-    - country
-  subsets:
-    default: all
-    all:
-      clips: files_all
-      description: All files
-  features_dir: ../../features/TESS
+name: TESS
+description: TESS dataset
+annotations: []
+partitions:
+- label
+- speaker
+- language
+- country
+subsets:
+  all:
+    clips: files_all
+    description: All files
+default_subset: all
+features_dir: ../../features/TESS

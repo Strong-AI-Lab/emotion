@@ -1,26 +1,26 @@
-MSP-IMPROV:
-  description: MSP-IMPROV dataset
-  annotations:
-    - naturalness
-    - valence
-    - dominance
-    - activation
-  partitions:
-    - label
-    - speaker
-    - gender
-    - language
-    - country
-    - recording
-    - acted_label
-    - session
-    - sentence
-  subsets:
-    default: 4class
-    all:
-      clips: files_all
-      description: All files
-    4class:
-      clips: files_4class
-      description: Files with label one of A, H, S, N
-  features_dir: ../../features/MSP-IMPROV
+name: MSP-IMPROV
+description: MSP-IMPROV dataset
+annotations:
+- naturalness
+- valence
+- dominance
+- activation
+partitions:
+- label
+- speaker
+- gender
+- language
+- country
+- recording
+- acted_label
+- session
+- sentence
+subsets:
+  all:
+    clips: files_all
+    description: All files
+  4class:
+    clips: files_4class
+    description: Files with label one of A, H, S, N
+default_subset: 4class
+features_dir: ../../features/MSP-IMPROV

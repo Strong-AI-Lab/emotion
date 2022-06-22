@@ -11,6 +11,13 @@ from ertk.utils import PathOrStr
 T = TypeVar("T", bound="ERTKConfig")
 
 
+def resolve_files(key):
+    return key
+
+
+OmegaConf.register_resolver("file", resolve_files)
+
+
 @dataclass
 class ERTKConfig(ABC):
     def to_dictconfig(self) -> DictConfig:
@@ -22,9 +29,12 @@ class ERTKConfig(ABC):
         return cast(T, OmegaConf.merge(schema, config))
 
     @classmethod
-    def from_yaml_file(cls: Type[T], path: PathOrStr) -> T:
+    def from_file(cls: Type[T], path: PathOrStr) -> T:
         config = OmegaConf.load(Path(path))
         return cls.from_config(config)
+
+    def merge_with_cli(self: T) -> T:
+        return cast(T, OmegaConf.merge(self, OmegaConf.from_cli()))
 
 
 def get_arg_mapping_multi(s: str) -> Dict[str, List[Any]]:

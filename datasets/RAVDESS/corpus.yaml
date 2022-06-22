@@ -1,23 +1,23 @@
-RAVDESS:
-  description: RAVDESS dataset
-  annotations:
-  partitions:
-    - label
-    - speaker
-    - gender
-    - language
-    - country
-    - statement
-    - intensity
-  subsets:
-    default: speech
-    all:
-      clips: files_all
-      description: All files
-    speech:
-      clips: files_speech
-      description: Files with speech audio
-    song:
-      clips: files_song
-      description: Files with singing audio
-  features_dir: ../../features/RAVDESS
+name: RAVDESS
+description: RAVDESS dataset
+annotations: []
+partitions:
+- label
+- speaker
+- gender
+- language
+- country
+- statement
+- intensity
+subsets:
+  all:
+    clips: files_all
+    description: All files
+  speech:
+    clips: files_speech
+    description: Files with speech audio
+  song:
+    clips: files_song
+    description: Files with singing audio
+default_subset: speech
+features_dir: ../../features/RAVDESS

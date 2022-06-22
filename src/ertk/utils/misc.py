@@ -1,3 +1,8 @@
+import multiprocessing
+import os
+from functools import partial
+from typing import Iterable
+
 import joblib
 import tqdm
 
@@ -48,3 +53,34 @@ class TqdmParallel(joblib.Parallel):
     def print_progress(self):
         self.pbar.n = self.n_completed_tasks
         self.pbar.refresh()
+
+
+class TqdmMultiprocessing:
+    def __init__(
+        self,
+        total: int = 1,
+        desc: str = "",
+        unit: str = "it",
+        leave: bool = True,
+        **kwargs,
+    ) -> None:
+        self.tqdm_args = {
+            "total": total,
+            "desc": desc,
+            "unit": unit,
+            "leave": leave,
+            "disable": None,
+            **kwargs,
+        }
+
+    def imap(self, func, iterable, *args, n_jobs=1, chunksize=1, **kwargs) -> Iterable:
+        _f = partial(func, *args, **kwargs)
+        if n_jobs == -1:
+            n_jobs = os.cpu_count()
+        self.pbar = tqdm.tqdm(iterable, **self.tqdm_args)
+        if n_jobs > 1:
+            with multiprocessing.Pool(n_jobs) as pool:
+                yield from pool.imap(_f, iter(self.pbar), chunksize=chunksize)
+        else:
+            yield from map(_f, iter(self.pbar))
+        self.pbar.close()

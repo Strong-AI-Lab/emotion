@@ -19,5 +19,5 @@ from .generic import (
     ordered_subsets,
     subsets,
 )
-from .misc import TqdmParallel
+from .misc import TqdmMultiprocessing, TqdmParallel
 from .types import PathOrStr, ScoreFunction

@@ -1,14 +1,14 @@
-EMO-DB:
-  description: EMO-DB (Berlin) dataset
-  annotations:
-  partitions:
-    - label
-    - speaker
-    - language
-    - gender
-  subsets:
-    default: all
-    all:
-      clips: files_all
-      description: All files
-  features_dir: ../../features/EMO-DB
+name: EMO-DB
+description: EMO-DB (Berlin) dataset
+annotations: []
+partitions:
+- label
+- speaker
+- language
+- gender
+subsets:
+  all:
+    clips: files_all
+    description: All files
+default_subset: all
+features_dir: ../../features/EMO-DB

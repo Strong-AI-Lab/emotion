@@ -108,7 +108,7 @@ class InstanceProcessor(ABC):
         """
         return [self.process_instance(x, **kwargs) for x in batch]
 
-    def process_all(
+    def process_instances(
         self, xs: Union[Iterable[np.ndarray], np.ndarray], batch_size: int, **kwargs
     ) -> Iterable[np.ndarray]:
         """Process all instances in batches.
@@ -137,6 +137,9 @@ class InstanceProcessor(ABC):
             yield from self.process_batch(xs, **kwargs)
         else:
             raise ValueError("Batch size cannot be 0.")
+
+    def finish(self) -> None:
+        pass
 
     @property
     @abstractmethod
@@ -198,7 +201,7 @@ class AudioClipProcessor(InstanceProcessor):
             paths, tmp = tee(paths)
             _sr = librosa.load(next(tmp), sr=sr, duration=0)[1]
             audios = (librosa.load(path, sr=_sr, mono=True)[0] for path in paths)
-            yield from self.process_all(audios, batch_size=batch_size, sr=_sr)
+            yield from self.process_instances(audios, batch_size=batch_size, sr=_sr)
 
 
 class FeatureExtractor(InstanceProcessor):
