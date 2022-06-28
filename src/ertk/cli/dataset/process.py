@@ -108,6 +108,7 @@ def main(
             extractor.process_instances(iter(input_data), batch_size, sr=sample_rate),
             total=len(input_data),
             desc="Processing files",
+            disable=None,
         )
     else:
         # TODO: Set back to joblib when https://github.com/joblib/joblib/pull/588
