@@ -431,7 +431,13 @@ class IterableWriter:
                 else:
                     writer.writerow([name] + list(inst))
 
-    def write_netcdf(self, path: PathOrStr, features: Iterable[np.ndarray], **kwargs):
+    def write_netcdf(
+        self,
+        path: PathOrStr,
+        features: Iterable[np.ndarray],
+        chunksize: int = 1024,
+        **kwargs,
+    ):
         dataset = netCDF4.Dataset(path, "w")
         dataset.createDimension("instance", len(self.names))
         dataset.createDimension("concat", 0)
@@ -439,20 +445,22 @@ class IterableWriter:
         features, _tmp = itertools.tee(features)
         _x0 = next(_tmp)
         del _tmp
-        dataset.createDimension("features", _x0.shape[-1])
+        dim = _x0.shape[-1]
+        dataset.createDimension("features", dim)
 
         filename = dataset.createVariable("name", str, ("instance",))
         filename[:] = np.array(self.names)
 
         _features = dataset.createVariable(
-            "features", np.float32, ("concat", "features")
+            "features", np.float32, ("concat", "features"), chunksizes=(chunksize, dim)
         )
         slices = []
         idx = 0
         for x in features:
-            _features[idx : idx + len(x), :] = x
-            slices.append(len(x))
-            idx += len(x)
+            i = 1 if x.ndim == 1 else len(x)
+            _features[idx : idx + i, :] = x
+            slices.append(i)
+            idx += i
 
         _slices = dataset.createVariable("slices", int, ("instance",))
         _slices[:] = np.array(slices)
