@@ -157,3 +157,9 @@ class SequenceTransformWrapper(SequenceTransform):
                 flat_x.reshape((-1, 1)), **fit_params
             ).reshape(flat_shape)
         return flat_to_inst(flat_x, slices)
+
+    def __repr__(self, N_CHAR_MAX=700):
+        return (
+            f"{self.__class__.__name__}(transformer={self.transformer}, "
+            f"method={self.method})"
+        )
