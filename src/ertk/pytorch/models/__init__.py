@@ -4,6 +4,13 @@ from typing import Callable
 
 from torch.nn import Module
 
+from ._base import (
+    LightningWrapper,
+    PyTorchModelConfig,
+    SimpleClassificationModel,
+    SimpleModel,
+)
+
 
 def get_pt_model_fn(name: str, **kwargs) -> Callable[..., Module]:
     """Get a PyTorch model creation function.

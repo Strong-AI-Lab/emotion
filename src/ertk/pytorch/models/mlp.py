@@ -1,28 +1,34 @@
-from typing import Sequence
+from dataclasses import dataclass, field
+from typing import List
 
+import torch
 from torch import nn
 
+from ._base import PyTorchModelConfig, SimpleClassificationModel
 
-class Model(nn.Module):
-    def __init__(
-        self,
-        n_features: int,
-        n_classes: int,
-        units: Sequence[int] = [512],
-        dropout: float = 0.5,
-    ):
-        super().__init__()
 
-        sizes = [n_features] + list(units)
+@dataclass
+class MLPConfig(PyTorchModelConfig):
+    units: List[int] = field(default_factory=lambda: [512])
+    dropout: float = 0.5
+
+
+class Model(SimpleClassificationModel):
+    def __init__(self, config: MLPConfig):
+        super().__init__(config)
+
+        sizes = [config.n_features] + list(config.units)
         self.hidden = nn.Sequential(
             *(
                 nn.Sequential(
-                    nn.Linear(sizes[i], sizes[i + 1]), nn.ReLU(), nn.Dropout(dropout)
+                    nn.Linear(sizes[i], sizes[i + 1]),
+                    nn.ReLU(),
+                    nn.Dropout(config.dropout),
                 )
-                for i in range(len(units))
+                for i in range(len(config.units))
             )
         )
-        self.final = nn.Linear(units[-1], n_classes)
+        self.final = nn.Linear(config.units[-1], config.n_classes)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):  # type: ignore
         return self.final(self.hidden(x))

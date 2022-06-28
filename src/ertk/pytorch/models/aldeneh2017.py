@@ -1,43 +1,45 @@
+from dataclasses import dataclass, field
+from typing import List
+
 import torch
 import torch.nn.functional as F
 from torch import nn
 
+from ._base import PyTorchModelConfig, SimpleClassificationModel
 
-class Model(nn.Module):
-    def __init__(self, n_features: int, n_classes: int):
-        super().__init__()
 
-        self.conv8 = nn.Sequential(
-            nn.Conv1d(n_features, 384, kernel_size=8, padding=20), nn.ReLU(inplace=True)
-        )
-        self.conv16 = nn.Sequential(
-            nn.Conv1d(n_features, 384, kernel_size=16, padding=20),
-            nn.ReLU(inplace=True),
-        )
-        self.conv32 = nn.Sequential(
-            nn.Conv1d(n_features, 384, kernel_size=32, padding=20),
-            nn.ReLU(inplace=True),
-        )
-        self.conv64 = nn.Sequential(
-            nn.Conv1d(n_features, 384, kernel_size=64, padding=20),
-            nn.ReLU(inplace=True),
-        )
-        self.dense = nn.Sequential(
-            nn.Linear(1536, 1024),
-            nn.ReLU(inplace=True),
-            nn.Linear(1024, 1024),
-            nn.ReLU(inplace=True),
-            nn.Linear(1024, n_classes),
-        )
+@dataclass
+class Aldeneh2017Config(PyTorchModelConfig):
+    conv_dims: List[int] = field(default_factory=lambda: [384] * 4)
+    kernel_sizes: List[int] = field(default_factory=lambda: [8, 16, 32, 64])
+    dense_dims: List[int] = field(default_factory=lambda: [1024, 1024])
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # (batch, steps, features) -> (batch, features, steps)
-        x.transpose_(1, 2)
-        steps = x.size(-1)
-        c1 = F.max_pool1d(self.conv8(x), steps - 7)
-        c2 = F.max_pool1d(self.conv16(x), steps - 15)
-        c3 = F.max_pool1d(self.conv32(x), steps - 31)
-        c4 = F.max_pool1d(self.conv64(x), steps - 63)
-        x = torch.cat([c1, c2, c3, c4], -2).squeeze(-1)
+
+class Model(SimpleClassificationModel):
+    def __init__(self, config: Aldeneh2017Config):
+        super().__init__(config)
+
+        if len(config.conv_dims) != len(config.kernel_sizes):
+            raise ValueError("`conv_dims` must be the same size as `kernel_sizes`.")
+
+        self.convs = nn.ModuleList()
+        for dim, ksize in zip(config.conv_dims, config.kernel_sizes):
+            self.convs.append(nn.Conv1d(config.n_features, dim, kernel_size=ksize))
+
+        dense_in = sum(config.conv_dims)
+        dense_dims = [dense_in] + list(config.dense_dims)
+        self.dense = nn.Sequential()
+        for d1, d2 in zip(dense_dims[:-1], dense_dims[1:]):
+            self.dense.append(nn.Sequential(nn.Linear(d1, d2), nn.ReLU(inplace=True)))
+        self.dense.append(nn.Linear(dense_dims[-1], config.n_classes))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:  # type: ignore
+        # (B, T, D) -> (B, D, T)
+        x = x.transpose(1, 2)
+        cs = []
+        for conv in self.convs:
+            c, _ = torch.max(F.relu(conv(x)), 2)
+            cs.append(c)
+        x = torch.cat(cs, 1).squeeze(1)
         out = self.dense(x)
         return out
