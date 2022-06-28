@@ -21,12 +21,12 @@ def main(
 ):
     """Print info about a dataset or combination of datasets."""
     if len(subset) == 1 and ":" not in subset[0]:
-        dataset = load_multiple(corpus_info, subsets=subset[0])
+        dataset = load_multiple(corpus_info, subsets=subset[0], label="")
     else:
         subset_map = {}
         for m in subset:
             subset_map.update(get_arg_mapping(m))
-        dataset = load_multiple(corpus_info, subsets=subset_map)
+        dataset = load_multiple(corpus_info, subsets=subset_map, label="")
 
     grp_map = {}
     for m in map_groups:

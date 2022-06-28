@@ -4,7 +4,6 @@ from .dataset import (
     CorpusInfo,
     DataLoadConfig,
     Dataset,
-    LabelledDataset,
     load_datasets_config,
     load_multiple,
 )

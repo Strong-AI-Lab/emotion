@@ -18,7 +18,6 @@ from typing import (
     Tuple,
     Type,
     Union,
-    cast,
     overload,
 )
 
@@ -41,6 +40,8 @@ from ertk.utils import (
     pad_arrays,
     transpose_time,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -87,6 +88,7 @@ class DatasetConfig(ERTKConfig):
 class DataLoadConfig(ERTKConfig):
     datasets: Dict[str, DatasetConfig] = omegaconf.MISSING
     features: Optional[str] = None
+    label: Optional[str] = None
     map_groups: Dict[str, _MapGroups] = field(default_factory=dict)
     remove_groups: Dict[str, _RemoveGroups] = field(default_factory=dict)
 
@@ -123,6 +125,7 @@ class Dataset:
     _subset: str = ""
     _subsets: Dict[str, List[str]]
     _x: np.ndarray
+    _label_annot: str = ""
 
     # "Private" vars
     _default_subset: str = ""
@@ -136,12 +139,14 @@ class Dataset:
         corpus_info: PathOrStr,
         features: Optional[PathOrStr] = None,
         subset: str = "default",
+        label: str = "label",
     ):
         self._init()
         self.init_corpus_info(corpus_info)
         self.use_subset(subset)
         if features is not None:
             self.update_features(features)
+        self._label_annot = label
 
     def _init(self) -> None:
         self._annotations = {}
@@ -172,6 +177,7 @@ class Dataset:
         self._subset_paths = other._subset_paths.copy()
         self._subsets = copy.deepcopy(other._subsets)
         self._x = other._x.copy()
+        self._label_annot = other._label_annot
         if len(self._x.shape) == 1:
             # Non-contiguous array, so copy each contiguous sub-array
             for i in range(len(self._x)):
@@ -247,10 +253,7 @@ class Dataset:
         if len(self.names) > 0:
             names = set(self.names)
             if len(names - set(data.names)) > 0:
-                raise ValueError(
-                    f"Features at {features} don't contain all instances for subset "
-                    f"{self.subset}."
-                )
+                raise ValueError(f"Features at {features} don't contain all instances.")
             self._x = data.features[[i for i, n in enumerate(data.names) if n in names]]
             self._names = ordered_intersect(data.names, names)
         else:
@@ -291,7 +294,7 @@ class Dataset:
     @overload
     def get_idx_for_split(
         self,
-        split: Union[str, Dict[str, Union[str, Collection[str]]]],
+        split: Union[str, Dict[str, Collection[str]]],
         return_complement: Literal[False] = False,
     ) -> np.ndarray:
         ...
@@ -299,14 +302,14 @@ class Dataset:
     @overload
     def get_idx_for_split(
         self,
-        split: Union[str, Dict[str, Union[str, Collection[str]]]],
+        split: Union[str, Dict[str, Collection[str]]],
         return_complement: Literal[True],
     ) -> Tuple[np.ndarray, np.ndarray]:
         ...
 
     def get_idx_for_split(
         self,
-        split: Union[str, Dict[str, Union[str, Collection[str]]]],
+        split: Union[str, Dict[str, Collection[str]]],
         return_complement: bool = False,
     ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """Gets indices of instances corresponding to the selection
@@ -644,12 +647,12 @@ class Dataset:
         """Pads each array to the nearest multiple of `pad` greater than
         the array size. Assumes axis 0 of x is time.
         """
-        logging.info(f"Padding array lengths to nearest multiple of {pad}.")
+        logger.info(f"Padding array lengths to nearest multiple of {pad}.")
         self._x = pad_arrays(self.x, pad=pad)
 
     def clip_arrays(self, length: int):
         """Clips each array to the specified maximum length."""
-        logging.info(f"Clipping arrays to max length {length}.")
+        logger.info(f"Clipping arrays to max length {length}.")
         self._x = clip_arrays(self.x, length=length, copy=False)
 
     def frame_arrays(
@@ -659,7 +662,7 @@ class Dataset:
         max_frames: Optional[int] = None,
     ):
         """Create a sequence of frames from the raw signal."""
-        logging.info(f"Framing arrays with size {frame_size} and shift {frame_shift}.")
+        logger.info(f"Framing arrays with size {frame_size} and shift {frame_shift}.")
         self._x = frame_arrays(
             self._x,
             frame_size=frame_size,
@@ -669,7 +672,7 @@ class Dataset:
 
     def transpose_time(self):
         """Transpose the time and feature axis of each instance."""
-        logging.info("Transposing time and feature axis of data.")
+        logger.info("Transposing time and feature axis of data.")
         self._x = transpose_time(self._x)
 
     @property
@@ -750,56 +753,6 @@ class Dataset:
     def __len__(self) -> int:
         return self.n_instances
 
-    def __str__(self):
-        s = f"Corpus: {self.corpus}\n"
-        for part in sorted(self.partitions):
-            group_names = self.get_group_names(part)
-            s += f"partition '{part}' ({len(group_names)} groups)\n"
-            if len(group_names) <= 20:
-                s += f"\t{dict(zip(group_names, self.get_group_counts(part)))}\n"
-        for annot in sorted(self.annotations):
-            if annot in self.partitions:
-                continue
-            s += f"annotation '{annot}'\n"
-            annotations = np.array(self.get_annotations(annot))
-            s += f"\tmin: {annotations.min():.3f}, max: {annotations.max():.3f}, "
-            s += f"mean: {annotations.mean():.3f}\n"
-        s += f"{self.n_instances} instances\n"
-        s += "Subsets:\n"
-        for subset, names in self.subsets.items():
-            s += "\t*" if subset == self.subset else "\t "
-            s += f"{subset}: {len(names)} instances\n"
-        s += f"using {self._features} ({self.n_features} features)\n"
-        if self.x.dtype == object or len(self.x.shape) == 3:
-            lengths = [len(x) for x in self.x]
-            s += "Sequences:\n"
-            s += f"min length: {np.min(lengths)}\n"
-            s += f"mean length: {np.mean(lengths)}\n"
-            s += f"max length: {np.max(lengths)}\n"
-        return s
-
-
-class LabelledDataset(Dataset):
-    """Class representing a dataset containing discrete labels for each
-    instance.
-    """
-
-    _label_annot: str
-
-    def __init__(
-        self,
-        corpus_info: PathOrStr,
-        features: Optional[PathOrStr] = None,
-        subset: str = "default",
-        label: str = "label",
-    ):
-        super().__init__(corpus_info, features, subset)
-        self._label_annot = label
-
-    def _copy_from_dataset(self, other: "Dataset") -> None:
-        super()._copy_from_dataset(other)
-        self._label_annot = getattr(other, "_label_annot", "label")
-
     def update_labels(self, labels: Union[PathOrStr, Mapping[str, str], Sequence[str]]):
         self.update_annotation(self.label_annot, labels, dtype=str)
 
@@ -843,8 +796,6 @@ class LabelledDataset(Dataset):
 
     @label_annot.setter
     def label_annot(self, val: str) -> None:
-        if val not in self.annotations:
-            raise ValueError(f"'{val}' not in annotations.")
         self._label_annot = val
 
     @property
@@ -855,8 +806,36 @@ class LabelledDataset(Dataset):
         else:
             return np.ndarray(self.get_annotations(self.label_annot))
 
+    def __str__(self):
+        s = f"Corpus: {self.corpus}\n"
+        for part in sorted(self.partitions):
+            group_names = self.get_group_names(part)
+            s += f"partition '{part}' ({len(group_names)} groups)\n"
+            if len(group_names) <= 20:
+                s += f"\t{dict(zip(group_names, self.get_group_counts(part)))}\n"
+        for annot in sorted(self.annotations):
+            if annot in self.partitions:
+                continue
+            s += f"annotation '{annot}'\n"
+            annotations = np.array(self.get_annotations(annot))
+            s += f"\tmin: {annotations.min():.3f}, max: {annotations.max():.3f}, "
+            s += f"mean: {annotations.mean():.3f}\n"
+        s += f"{self.n_instances} instances\n"
+        s += "Subsets:\n"
+        for subset, names in self.subsets.items():
+            s += "\t*" if subset == self.subset else "\t "
+            s += f"{subset}: {len(names)} instances\n"
+        s += f"using {self._features} ({self.n_features} features)\n"
+        if self.x.dtype == object or len(self.x.shape) == 3:
+            lengths = [len(x) for x in self.x]
+            s += "Sequences:\n"
+            s += f"min length: {np.min(lengths)}\n"
+            s += f"mean length: {np.mean(lengths)}\n"
+            s += f"max length: {np.max(lengths)}\n"
+        return s
 
-class CombinedDataset(LabelledDataset):
+
+class CombinedDataset(Dataset):
     """A dataset that joins one or more individual datasets together and
     merges annotations.
     """
@@ -870,7 +849,7 @@ class CombinedDataset(LabelledDataset):
 
         self._init()
 
-        logging.info("Combining " + ", ".join(d.corpus for d in datasets))
+        logger.info("Combining " + ", ".join(d.corpus for d in datasets))
         self._corpus = "combined"
         self._names = [f"{d.corpus}_{n}" for d in datasets for n in d.names]
         self._feature_names = datasets[0].feature_names
@@ -900,8 +879,8 @@ class CombinedDataset(LabelledDataset):
         common_annotations = {
             x for x in all_annotations if all(x in d.annotations for d in datasets)
         }
-        logging.info(f"All annotations: {all_annotations}")
-        logging.info(f"Common annotations: {common_annotations}")
+        logger.info(f"All annotations: {all_annotations}")
+        logger.info(f"Common annotations: {common_annotations}")
         for annot_name in common_annotations:
             combined_annot = {}
             for dataset in datasets:
@@ -928,24 +907,23 @@ class CombinedDataset(LabelledDataset):
                     )
             self.update_annotation(annot_name, combined_annot)
 
-        if not all(isinstance(x, LabelledDataset) for x in datasets):
+        if any(d.label_annot == "" for d in datasets):
             return
-        datasets = cast(Tuple[LabelledDataset, ...], datasets)  # for mypy
 
         if any(d.label_annot != datasets[0].label_annot for d in datasets):
             # Try and unify label annotations with different names
             warnings.warn(
                 "label annotation differs between some datasets, attempting to unify."
             )
-            self._label_annot = "_combined_labels"
             combined_labels = {}
             for d in datasets:
                 for name in d.names:
                     label = d.annotations[d.label_annot][name]
                     combined_labels[f"{d.corpus}_{name}"] = label
-            self.update_labels(combined_labels)
+            self.update_annotation("_combined_labels", combined_labels)
+            self.label_annot = "_combined_labels"
         else:
-            self._label_annot = next(d.label_annot for d in datasets)
+            self.label_annot = next(d.label_annot for d in datasets)
 
     @property
     def corpus_names(self) -> Sequence[str]:
@@ -984,7 +962,7 @@ def load_multiple(
         raise RuntimeError("No corpus metadata files given.")
     datasets = []
     for file in corpus_files:
-        logging.info(f"Loading {file}")
+        logger.info(f"Loading {file}")
         dataset = Dataset(file, subset="all")
         if isinstance(label, str):
             setattr(dataset, "label_annot", label)
@@ -1014,10 +992,10 @@ def load_datasets_config(config: DataLoadConfig) -> Dataset:
         A dataset that combines one or more datasets according to the
         given config.
     """
-    datasets: List[LabelledDataset] = []
+    datasets: List[Dataset] = []
     for corpus, dataset_conf in config.datasets.items():
-        logging.info(f"Loading {dataset_conf.path}")
-        dataset = LabelledDataset(dataset_conf.path, subset=dataset_conf.subset)
+        logger.info(f"Loading {dataset_conf.path}")
+        dataset = Dataset(dataset_conf.path, subset=dataset_conf.subset)
         for part, mapping in dataset_conf.map_groups.items():
             dataset.map_groups(part, mapping.map)
         for part, remove in dataset_conf.remove_groups.items():
@@ -1041,4 +1019,6 @@ def load_datasets_config(config: DataLoadConfig) -> Dataset:
         dataset.map_groups(part, mapping.map)
     for part, remove in config.remove_groups.items():
         dataset.remove_groups(part, drop=remove.drop, keep=remove.keep)
+    if config.label:
+        dataset.label_annot = config.label
     return dataset

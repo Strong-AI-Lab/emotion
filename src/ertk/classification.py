@@ -16,7 +16,7 @@ from sklearn.metrics import (
 from sklearn.model_selection import BaseCrossValidator, LeaveOneGroupOut
 from sklearn.utils.multiclass import unique_labels
 
-from ertk.dataset import LabelledDataset
+from ertk.dataset import Dataset
 from ertk.train import get_cv_splitter, scores_to_df
 
 
@@ -123,7 +123,7 @@ def standard_class_scoring(classes: Sequence[str]):
 
 def dataset_cross_validation(
     clf,
-    dataset: LabelledDataset,
+    dataset: Dataset,
     clf_lib: Optional[str] = None,
     partition: Optional[str] = None,
     label: str = "label",
@@ -139,7 +139,7 @@ def dataset_cross_validation(
     ----------
     clf: class that implements fit() and predict()
         The classifier to test.
-    dataset: LabelledDataset
+    dataset: Dataset
         The dataset for within-corpus cross-validation.
     clf_lib: str
         One of {"sk", "tf", "pt"} to select which library-specific
@@ -217,7 +217,7 @@ def dataset_cross_validation(
 
 def train_val_test(
     clf,
-    dataset: LabelledDataset,
+    dataset: Dataset,
     train_idx: Union[Sequence[int], np.ndarray],
     valid_idx: Union[Sequence[int], np.ndarray],
     test_idx: Union[Sequence[int], np.ndarray, None] = None,
@@ -235,7 +235,7 @@ def train_val_test(
     ----------
     clf: class that implements fit() and predict()
         The classifier to test.
-    dataset: LabelledDataset
+    dataset: Dataset
         The dataset for within-corpus cross-validation.
     clf_lib: str
         One of {"sk", "tf", "pt"} to select which library-specific
