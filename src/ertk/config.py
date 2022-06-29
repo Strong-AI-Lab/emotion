@@ -1,7 +1,7 @@
 from abc import ABC
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Type, TypeVar, Union, cast
+from typing import Any, Dict, List, Optional, Type, TypeVar, Union, cast
 
 import yaml
 from omegaconf import DictConfig, OmegaConf
@@ -33,8 +33,8 @@ class ERTKConfig(ABC):
         config = OmegaConf.load(Path(path))
         return cls.from_config(config)
 
-    def merge_with_cli(self: T) -> T:
-        return cast(T, OmegaConf.merge(self, OmegaConf.from_cli()))
+    def merge_with_cli(self: T, args: Optional[List[str]] = None) -> T:
+        return cast(T, OmegaConf.merge(self, OmegaConf.from_cli(args)))
 
 
 def get_arg_mapping_multi(s: str) -> Dict[str, List[Any]]:
