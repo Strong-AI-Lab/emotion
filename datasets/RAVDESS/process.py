@@ -26,6 +26,11 @@ emotion_map = {
     "08": "surprise",
 }
 
+statement_map = {
+    "01": "Kids are talking by the door",
+    "02": "Dogs are sitting by the door",
+}
+
 
 @click.command()
 @click.argument(
@@ -41,10 +46,14 @@ def main(input_dir: Path, resample: bool):
     if resample:
         resample_dir = Path("resampled")
         resample_audio(paths, resample_dir)
-        write_filelist(resample_dir.glob("*.wav"), "files_all")
-        write_filelist(resample_dir.glob("03-01-*.wav"), "files_speech")
-        write_filelist(resample_dir.glob("03-02-*.wav"), "files_song")
+        paths = list(resample_dir.glob("*.wav"))
+    write_filelist(paths, "files_all")
+    write_filelist([x for x in paths if x.stem.startswith("03-01-")], "files_speech")
+    write_filelist([x for x in paths if x.stem.startswith("03-02-")], "files_song")
 
+    write_annotations(
+        {p.stem: ["song", "speech"][int(p.stem[3:5]) % 2] for p in paths}, "style"
+    )
     write_annotations({p.stem: emotion_map[p.stem[6:8]] for p in paths}, "label")
     speaker_dict = {p.stem: p.stem[-2:] for p in paths}
     write_annotations(speaker_dict, "speaker")
@@ -55,6 +64,10 @@ def main(input_dir: Path, resample: bool):
     write_annotations({p.stem: "ca" for p in paths}, "country")
     write_annotations({p.stem: p.stem[9:11] for p in paths}, "intensity")
     write_annotations({p.stem: p.stem[12:14] for p in paths}, "statement")
+    write_annotations({p.stem: p.stem[15:17] for p in paths}, "repetition")
+    write_annotations(
+        {p.stem: statement_map[p.stem[12:14]] for p in paths}, "transcript"
+    )
 
 
 if __name__ == "__main__":

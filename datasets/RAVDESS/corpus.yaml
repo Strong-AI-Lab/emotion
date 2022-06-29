@@ -9,6 +9,9 @@ partitions:
 - country
 - statement
 - intensity
+- style
+- repetition
+- transcript
 subsets:
   all:
     clips: files_all
