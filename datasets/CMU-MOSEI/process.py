@@ -28,6 +28,7 @@ from typing import Dict
 
 import click
 import h5py
+import numpy as np
 import pandas as pd
 import soundfile
 from joblib import delayed
@@ -42,6 +43,18 @@ emotion_map = {
 }
 
 
+def get_vote(vals):
+    idx = vals.argmax()
+    max = vals[idx]
+    if max > vals.sum() // 2:
+        # Majority
+        return idx, "M"
+    if np.count_nonzero(max == vals) == 1:
+        # Plurality
+        return idx, "P"
+    return -1, "X"
+
+
 @click.command()
 @click.argument(
     "input_dir", type=click.Path(exists=True, file_okay=False, path_type=Path)
@@ -49,13 +62,10 @@ emotion_map = {
 @click.option("--resample/--noresample", default=True)
 def main(input_dir: Path, resample: bool):
     """Process the CMU-MOSEI dataset at location INPUT_DIR and resample
-    audio to 16 kHz 16-bit WAV audio.
+    audio to 16 kHz 16-bit FLAC audio.
     """
 
     audio_dir = input_dir / "Raw" / "Audio" / "Full" / "WAV_16000"
-    resample_dir = Path("resampled")
-    if resample:
-        resample_dir.mkdir(exist_ok=True)
     all_videos = sorted(set(x.stem for x in audio_dir.glob("*.wav")))
 
     transcripts_dir = input_dir / "Raw" / "Transcript" / "Segmented" / "Combined"
@@ -82,8 +92,12 @@ def main(input_dir: Path, resample: bool):
             return
         base_clip = audio_dir / f"{trn_df.loc[seg, 'video']}.wav"
         audio, _ = soundfile.read(base_clip, start=start, stop=end)
-        soundfile.write(resample_dir / f"{seg}.wav", audio, samplerate=16000)
+        soundfile.write(
+            resample_dir / f"{seg}.flac", audio, samplerate=16000, subtype="PCM_16"
+        )
 
+    resample_dir = Path("resampled")
+    resample_dir.mkdir(exist_ok=True)
     if resample:
         TqdmParallel(len(trn_df.index), "Splitting audio", prefer="threads", n_jobs=-1)(
             delayed(process)(name) for name in trn_df.index
@@ -94,31 +108,42 @@ def main(input_dir: Path, resample: bool):
     dim_names = json.loads(dataset["All Labels/metadata/dimension names"][0])
     labelled_videos = set(dataset["All Labels/data"].keys())
 
-    labels = {}
+    labels_maj = {}
+    labels_plu = {}
     dim_vals: Dict[str, Dict[str, float]] = defaultdict(dict)
     for name in tqdm(trn_df.index, "Processing labels"):
         video = trn_df.loc[name, "video"]
         if video in labelled_videos:
             features = dataset[f"All Labels/data/{video}/features"]
             intervals = dataset[f"All Labels/data/{video}/intervals"]
+            # We need to match the clip IDs to the intervals
             for i, (start, end) in enumerate(intervals):
                 if (
                     start == trn_df.loc[name, "start"]
                     and end == trn_df.loc[name, "end"]
                 ):
-                    labels[name] = dim_names[1:][features[i][1:].argmax()]
+                    max_emo_idx, tp = get_vote(features[i, 1:])
+                    labels_maj[name] = (
+                        dim_names[1:][max_emo_idx] if tp == "M" else "unknown"
+                    )
+                    labels_plu[name] = (
+                        dim_names[1:][max_emo_idx] if tp in ["M", "P"] else "unknown"
+                    )
                     for d_idx, dim in enumerate(dim_names):
-                        dim_vals[dim][name] = features[i][d_idx]
+                        dim_vals[dim][name] = features[i, d_idx]
                     break
     dataset.close()
 
-    labels = {k: emotion_map.get(v, v) for k, v in labels.items()}
-    labels.update({k: "" for k in trn_df.index if k not in labels})
-    write_annotations(labels, "label")
+    labels_maj = {k: emotion_map.get(v, v) for k, v in labels_maj.items()}
+    labels_maj.update({k: "" for k in trn_df.index if k not in labels_maj})
+    write_annotations(labels_maj, "label_maj")
+    labels_plu = {k: emotion_map.get(v, v) for k, v in labels_plu.items()}
+    labels_plu.update({k: "" for k in trn_df.index if k not in labels_plu})
+    write_annotations(labels_plu, "label_plu")
     for dim in dim_names:
         dim_vals[dim].update({k: "" for k in trn_df.index if k not in dim_vals[dim]})
         write_annotations(dim_vals[dim], dim)
-    labelled_paths = [resample_dir / f"{k}.wav" for k, v in labels.items() if v]
+    labelled_paths = [resample_dir / f"{k}.wav" for k, v in labels_maj.items() if v]
     write_filelist(labelled_paths, "files_labels")
 
 

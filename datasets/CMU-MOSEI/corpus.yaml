@@ -9,7 +9,8 @@ annotations:
 - surprise
 - sentiment
 partitions:
-- label
+- label_maj
+- label_plu
 - transcript
 subsets:
   all:
