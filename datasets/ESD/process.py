@@ -19,6 +19,7 @@ This assumes the file structure from the original compressed file:
 """
 
 import shutil
+import unicodedata
 from pathlib import Path
 
 import click
@@ -33,6 +34,47 @@ emotion_map = {
     "Neutral": "neutral",
     "Sad": "sadness",
     "Surprise": "surprise",
+}
+
+encodings = {
+    1: "gb2312",
+    2: "gb2312",
+    3: "utf_16",
+    4: "gb2312",
+    5: "gb2312",
+    6: "utf_16",
+    7: "utf_16",
+    8: "utf_16",
+    9: "gb2312",
+    10: "utf_16",
+    11: "utf_8",
+    12: "utf_16",
+    13: "utf_16",
+    14: "utf_16",
+    15: "utf_8",
+    16: "latin_1",
+    17: "latin_1",
+    18: "utf_16",
+    19: "utf_16",
+    20: "utf_8",
+}
+
+error_lines = {
+    "0012_001355": "The fisherman and his wife see George every day.",
+    "0013_000431": "And I never had a whooping cough why.",
+    "0013_000914": "But what about this thing, sticky!",
+    "0015_000137": "Let the glass globe be.",
+    "0015_000138": "But one requires the explorer to furnish proofs.",
+    "0015_000175": "All this have we won by our labour.",
+    "0015_000187": "An hour out of Guildford town.",
+    "0015_000217": "You cruelty shall cost your life !",
+    "0015_000668": "The name of the song is called haddocks.",
+    "0015_000690": "So Tom saw night as it were broad daylight.",
+    "0015_000875": "All this have we won by our labour.",
+    "0015_001015": "It's to say how do you do with Tom's answer.",
+    "0015_001531": "It must come sometimes to jam a day.",
+    "0015_001578": "And vowed he'd change the pigtail's place.",
+    "0014_001590": "And they were sandy yellow brownish all over.",
 }
 
 
@@ -53,12 +95,25 @@ def main(input_dir: Path, resample: bool):
         TqdmParallel(len(paths), "Copying files")(
             delayed(shutil.copyfile)(x, resample_dir / x.name) for x in paths
         )
-    write_filelist(resample_dir.glob("*.wav"), "files_all")
+        paths = list(resample_dir.glob("*.wav"))
+    write_filelist(paths, "files_all")
     for subset in ["train", "evaluation", "test"]:
-        write_filelist(
-            (resample_dir / x.name for x in input_dir.glob(f"*/*/{subset}/*.wav")),
-            f"files_{subset}",
-        )
+        write_filelist([x for x in paths if subset in x.parts], f"files_{subset}")
+
+    transcripts = {}
+    for spk_id in range(1, 21):
+        trans_file = input_dir / f"00{spk_id:02d}" / f"00{spk_id:02d}.txt"
+        with open(trans_file, encoding=encodings[spk_id]) as fid:
+            for line in fid:
+                line = line.strip()
+                if line:
+                    try:
+                        name, transcript, _ = line.split("\t")
+                    except ValueError:
+                        continue
+                    transcripts[name] = unicodedata.normalize("NFKD", transcript)
+    transcripts.update(error_lines)
+    write_annotations(transcripts, "transcript")
 
     labels = {}
     for emo1, emo2 in emotion_map.items():
