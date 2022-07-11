@@ -4,10 +4,7 @@
 !/datasets/*/process_transcripts.py
 !/datasets/*/corpus.yaml
 
-!/datasets/SEMAINE/extract_turns.py
-
 # Misc. project related
-smile.log
 
 # Python related
 .venv
@@ -34,3 +31,4 @@ __pycache__
 .vscode
 desktop.ini
 nohup*.out
+*.log
