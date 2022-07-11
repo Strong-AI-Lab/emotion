@@ -32,13 +32,13 @@ def get_audio_paths(path: PathOrStr, absolute: bool = True) -> List[Path]:
     `absolute=True`.
     """
     path = Path(path)
+    if absolute:
+        path = path.absolute()
     if path.is_dir():
         paths = [x for x in path.glob("*") if not x.is_dir()]
     else:
         with open(path) as fid:
             paths = [path.parent / x.strip() for x in fid]
-    if absolute:
-        return [x.absolute() for x in paths]
     return paths
 
 

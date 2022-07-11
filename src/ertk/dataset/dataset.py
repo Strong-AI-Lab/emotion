@@ -3,6 +3,7 @@ import logging
 import os
 import warnings
 from dataclasses import dataclass, field
+from functools import reduce
 from itertools import chain
 from pathlib import Path
 from typing import (
@@ -76,6 +77,7 @@ class CorpusInfo(ERTKConfig):
 class DatasetConfig(ERTKConfig):
     path: str = omegaconf.MISSING
     features: Optional[str] = None
+    read_kwargs: Dict[str, Any] = field(default_factory=dict)
     subset: str = "default"
     map_groups: Dict[str, _MapGroups] = field(default_factory=dict)
     remove_groups: Dict[str, _RemoveGroups] = field(default_factory=dict)
@@ -200,6 +202,9 @@ class Dataset:
             clips_file = path.parent / f"{subset_info.clips}.txt"
             self._subset_paths[subset] = clips_file
             self.subsets[subset] = [x.stem for x in get_audio_paths(clips_file)]
+            if subset == "all":
+                name_to_path = {x.stem: str(x) for x in get_audio_paths(clips_file)}
+                self.update_annotation("_audio_path", name_to_path, dtype=str)
         for partition in corpus_info.partitions:
             self.update_annotation(
                 partition, path.parent / f"{partition}.csv", dtype=str
@@ -222,7 +227,7 @@ class Dataset:
         for annot_name in to_verify:
             verify_annotation(annot_name)
 
-    def update_features(self, features: PathOrStr) -> None:
+    def update_features(self, features: PathOrStr, **read_kwargs) -> None:
         """Update the features matrix and feature names for this dataset.
 
         Parameters
@@ -230,6 +235,8 @@ class Dataset:
         features: os.PathLike or str
             Path to a set of features or unique name of features in
             corpus features dir.
+        **read_kwargs:
+            Other arguments to pass to `read_features()`.
         """
         if features == "raw_audio":
             self._features = "raw_audio"
@@ -248,7 +255,7 @@ class Dataset:
                     ) from e
             self._features = features.stem
         self._features_path = features
-        data = read_features(features)
+        data = read_features(features, **read_kwargs)
         self._feature_names = data.feature_names
         if len(self.names) > 0:
             names = set(self.names)
@@ -339,14 +346,20 @@ class Dataset:
             mapping = get_arg_mapping(split)
         else:
             mapping = split
-        indices: Set[int] = set()
+        indices_parts: Dict[str, Set[int]] = {}
         for part_name in mapping:
             group_names = self.get_group_names(part_name)
             group_indices = self.get_group_indices(part_name)
             sel = mapping[part_name]
             sel = [sel] if isinstance(sel, str) else sel
             sel_idx = [group_names.index(x) for x in sel]
-            indices.update(np.flatnonzero(np.isin(group_indices, sel_idx)))
+            indices_parts[part_name] = set(
+                np.flatnonzero(np.isin(group_indices, sel_idx))
+            )
+        if len(indices_parts) > 1:
+            indices = reduce(set.intersection, indices_parts.values())
+        else:
+            indices = next(iter(indices_parts.values()))
         comp_indices = set(range(len(self))) - indices
         if return_complement:
             return np.array(sorted(indices)), np.array(sorted(comp_indices))
@@ -943,6 +956,7 @@ def load_multiple(
     features: Optional[str] = None,
     subsets: Union[str, Mapping[str, str]] = "default",
     label: Union[str, Mapping[str, str]] = "label",
+    **read_kwargs,
 ) -> CombinedDataset:
     """Load one or more datasets with the given features.
 
@@ -956,6 +970,8 @@ def load_multiple(
     subsets: str or dict
         A subset name common to all datasets (e.g. "all", "default") or
         a mapping from dataset name to subset name.
+    **read_kwargs:
+        Other args to pass to feature loading.
     """
     corpus_files = list(corpus_files)
     if len(corpus_files) == 0:
@@ -973,12 +989,12 @@ def load_multiple(
         else:
             dataset.use_subset(subsets.get(dataset.corpus, "default"))
         if features is not None:
-            dataset.update_features(features)
+            dataset.update_features(features, **read_kwargs)
         datasets.append(dataset)
     return CombinedDataset(*datasets)
 
 
-def load_datasets_config(config: DataLoadConfig) -> Dataset:
+def load_datasets_config(config: Union[PathOrStr, DataLoadConfig]) -> Dataset:
     """Load one or more datasets from a DataLoadConfig.
 
     Parameters
@@ -992,6 +1008,8 @@ def load_datasets_config(config: DataLoadConfig) -> Dataset:
         A dataset that combines one or more datasets according to the
         given config.
     """
+    if isinstance(config, (str, os.PathLike)):
+        config = DataLoadConfig.from_file(config)
     datasets: List[Dataset] = []
     for corpus, dataset_conf in config.datasets.items():
         logger.info(f"Loading {dataset_conf.path}")
@@ -1004,11 +1022,13 @@ def load_datasets_config(config: DataLoadConfig) -> Dataset:
             # TODO: check for collisions
             dataset.rename_annotation(a1, a2)
         if dataset_conf.features:
-            dataset.update_features(dataset_conf.features)
+            dataset.update_features(dataset_conf.features, **dataset_conf.read_kwargs)
         elif config.features:
-            dataset.update_features(config.features)
-        else:
-            raise ValueError("Features must be given either per-dataset or overall.")
+            dataset.update_features(config.features, **dataset_conf.read_kwargs)
+        if dataset_conf.clip_seq:
+            dataset.clip_arrays(dataset_conf.clip_seq)
+        if dataset_conf.pad_seq:
+            dataset.pad_arrays(dataset_conf.pad_seq)
         datasets.append(dataset)
     if len(config.datasets) > 1:
         dataset = CombinedDataset(*datasets)
