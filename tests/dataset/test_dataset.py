@@ -1,12 +1,8 @@
 import numpy as np
+import omegaconf
 import pytest
 
-from ertk.dataset.dataset import (
-    CombinedDataset,
-    Dataset,
-    LabelledDataset,
-    load_multiple,
-)
+from ertk.dataset.dataset import CombinedDataset, Dataset, load_multiple
 
 from .constants import (
     all_clips_names,
@@ -72,6 +68,10 @@ class TestDataset:
         assert data.partitions == {"label", "speaker"}
         assert data.subset == "all"
         assert data.subsets.keys() == {"all"}
+
+    def test_bad_corpus_info(self):
+        with pytest.raises(omegaconf.errors.ValidationError):
+            Dataset(test_data_dir / "corpus_fail.yaml")
 
     def test_features_2d(self):
         data = Dataset(test_data_dir / "corpus_info.yaml", features="features_2d")
@@ -207,10 +207,8 @@ class TestDataset:
         assert list(data.speaker_counts) == [6]
         assert list(data.speaker_indices) == [0] * 6
 
-
-class TestLabelledDataset:
     def test_labels(self):
-        data = LabelledDataset(test_data_dir / "corpus_info.yaml")
+        data = Dataset(test_data_dir / "corpus_info.yaml")
         assert len(data.labels) == len(all_clips_names)
         assert len(data.classes) == 6
         assert data.n_classes == len(data.classes)
@@ -230,7 +228,7 @@ class TestLabelledDataset:
         assert np.array_equal(data.y, data.get_group_indices("label"))
 
     def test_labels_subset(self):
-        data = LabelledDataset(test_data_dir / "corpus_info.yaml", subset="subset1")
+        data = Dataset(test_data_dir / "corpus_info.yaml", subset="subset1")
         assert len(data.labels) == len(subset_names)
         assert data.n_classes == 3
         assert data.classes == ["anger", "fear", "happiness"]
@@ -240,8 +238,8 @@ class TestLabelledDataset:
 
 class TestCombinedDataset:
     def test_combined(self):
-        data1 = LabelledDataset(test_data_dir / "corpus_info.yaml")
-        data2 = LabelledDataset(test_data_dir / "corpus2.yaml")
+        data1 = Dataset(test_data_dir / "corpus_info.yaml")
+        data2 = Dataset(test_data_dir / "corpus2.yaml")
         combined = CombinedDataset(data1, data2)
         assert combined.corpus == "combined"
         assert combined.corpus_names == ["test_corpus", "test_corpus2"]

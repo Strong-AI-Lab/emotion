@@ -11,7 +11,6 @@ from ertk.dataset.features import FeaturesData, read_features, write_features
 
 from .constants import (
     all_clips_names,
-    all_clips_unsorted_names,
     corpus_name,
     feature_names,
     features_2d,
@@ -20,7 +19,6 @@ from .constants import (
     features_vlen,
     resample_dir,
     slices_vlen,
-    subset_names,
 )
 
 
@@ -103,21 +101,23 @@ def test_write_features(
         assert df1.equals(df2)
     elif format == ".arff":
         with open(out_path) as fid:
-            data1 = arff.load(fid)
+            data = arff.load(fid)
         with open(ref_path) as fid:
-            data2 = arff.load(fid)
-        assert data1 == data2
+            ref_data = arff.load(fid)
+        assert data == ref_data
     elif format == ".nc":
-        with netCDF4.Dataset(out_path) as data1, netCDF4.Dataset(ref_path) as data2:
+        with netCDF4.Dataset(out_path) as data, netCDF4.Dataset(ref_path) as ref_data:
             assert np.array_equal(
-                data1.variables["features"], data2.variables["features"]
+                data.variables["features"], ref_data.variables["features"]
             )
-            assert np.array_equal(data1.variables["name"], data2.variables["name"])
+            assert np.array_equal(data.variables["name"], ref_data.variables["name"])
             assert np.array_equal(
-                data1.variables["feature_names"], data2.variables["feature_names"]
+                data.variables["feature_names"], ref_data.variables["feature_names"]
             )
-            assert np.array_equal(data1.variables["slices"], data2.variables["slices"])
-            assert data1.corpus == data2.corpus
+            assert np.array_equal(
+                data.variables["slices"], ref_data.variables["slices"]
+            )
+            assert data.corpus == ref_data.corpus
 
 
 def test_featuresdata_flat():

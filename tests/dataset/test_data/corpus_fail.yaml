@@ -1,8 +1,7 @@
 name: test_corpus2
 description: Test dataset 2
+annotations:
 partitions:
-  - speaker
-  - label
 subsets:
   all:
     clips: all_clips
