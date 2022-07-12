@@ -107,12 +107,10 @@ def test_write_features(
         assert data == ref_data
     elif format == ".nc":
         with netCDF4.Dataset(out_path) as data, netCDF4.Dataset(ref_path) as ref_data:
-            assert np.array_equal(
-                data.variables["features"], ref_data.variables["features"]
-            )
+            assert np.array_equal(data.variables["data"], ref_data.variables["data"])
             assert np.array_equal(data.variables["name"], ref_data.variables["name"])
             assert np.array_equal(
-                data.variables["feature_names"], ref_data.variables["feature_names"]
+                data.variables["feature"], ref_data.variables["feature"]
             )
             assert np.array_equal(
                 data.variables["slices"], ref_data.variables["slices"]

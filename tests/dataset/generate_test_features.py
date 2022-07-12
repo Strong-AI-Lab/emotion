@@ -21,7 +21,7 @@ def main():
 
     for format in [".arff", ".csv", ".nc"]:
         write_features(
-            base_dir / "features" / ("features_vec" + format),
+            base_dir / "features" / ("features_2d" + format),
             features_2d,
             names,
             corpus=corpus_name,
