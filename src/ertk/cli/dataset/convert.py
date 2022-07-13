@@ -2,7 +2,7 @@ from pathlib import Path
 
 import click
 
-from ertk.dataset import read_features
+from ertk.dataset import read_features_iterable, write_features
 
 
 @click.command()
@@ -30,11 +30,17 @@ def main(input: Path, output: Path, corpus: str, header: bool, label: bool):
         raise ValueError("Input format must be different to output.")
 
     print(f"Reading {input}")
-    data = read_features(input, header=header, label=label)
+    data = read_features_iterable(input)
     if corpus:
-        data._corpus = corpus
+        data.corpus = corpus
     output.parent.mkdir(parents=True, exist_ok=True)
-    data.write(output, header=header)
+    write_features(
+        output,
+        iter(data),
+        names=data.names,
+        corpus=data.corpus,
+        feature_names=data.feature_names,
+    )
     print(f"Wrote dataset to {output}")
 
 
