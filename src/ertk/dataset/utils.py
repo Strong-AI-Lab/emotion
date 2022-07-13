@@ -37,8 +37,9 @@ def get_audio_paths(path: PathOrStr, absolute: bool = True) -> List[Path]:
     if path.is_dir():
         paths = [x for x in path.glob("*") if not x.is_dir()]
     else:
+        par_dir = path.parent
         with open(path) as fid:
-            paths = [path.parent / x.strip() for x in fid]
+            paths = [par_dir / x.strip() for x in fid]
     return paths
 
 

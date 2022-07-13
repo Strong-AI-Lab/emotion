@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -28,7 +29,7 @@ def test_read_annotations_str_2() -> None:
 
 def test_read_annotations_float() -> None:
     annotations = read_annotations(test_data_dir / "annot1.csv", dtype=float)
-    assert type(annotations["extra1"]) is float
+    assert isinstance(annotations["extra1"], (float, np.floating))
     assert annotations["extra1"] == 0
     assert annotations["extra2"] == 1
     assert annotations["1001_DFA_HAP_XX"] == pytest.approx(3.8472069)

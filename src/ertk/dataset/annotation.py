@@ -1,27 +1,32 @@
-from typing import Dict, Mapping, Optional, Type, TypeVar, Union
+from typing import Mapping, Optional, Type, Union
 
 import pandas as pd
+from typing_extensions import Literal
 
 from ertk.utils import PathOrStr
 
-AT = TypeVar("AT", str, int, float)
-
 
 def read_annotations(
-    filename: PathOrStr, dtype: Optional[Type[AT]] = None
-) -> Dict[str, AT]:
-    """Returns a dict of the form {name: annotation}."""
+    filename: PathOrStr, dtype: Optional[Union[Type, Literal["category"]]] = None
+) -> pd.Series:
+    """Returns a pd.Series containing values for this annotation for
+    each instance, indexed by name.
+    """
     # Need index_col to be False or None due to
     # https://github.com/pandas-dev/pandas/issues/9435
+    _dtype = dtype
+    if dtype == "category":
+        _dtype = str
     df = pd.read_csv(
         filename,
-        index_col=False,
+        index_col=0,
         header=0,
-        converters={0: str, 1: dtype},
+        converters={0: str, 1: _dtype},
         low_memory=False,
     )
-    annotations = df.set_index(df.columns[0])[df.columns[1]].to_dict()
-    return annotations
+    if dtype == "category":
+        return df[df.columns[0]].astype("category")
+    return df[df.columns[0]]
 
 
 def write_annotations(

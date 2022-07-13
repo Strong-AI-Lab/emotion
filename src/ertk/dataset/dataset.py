@@ -24,6 +24,7 @@ from typing import (
 
 import numpy as np
 import omegaconf
+import pandas as pd
 from sklearn.base import TransformerMixin
 from sklearn.preprocessing import StandardScaler
 from typing_extensions import Literal
@@ -119,7 +120,7 @@ class Dataset:
         The subset of instances to use.
     """
 
-    _annotations: Dict[str, Dict[str, Any]]
+    _annotations: pd.DataFrame
     _corpus: str = ""
     _feature_names: List[str]
     _names: List[str]
@@ -151,7 +152,7 @@ class Dataset:
         self._label_annot = label
 
     def _init(self) -> None:
-        self._annotations = {}
+        self._annotations = pd.DataFrame()
         self._feature_names = []
         self._names = []
         self._partitions = set()
@@ -166,7 +167,7 @@ class Dataset:
         return new_dataset
 
     def _copy_from_dataset(self, other: "Dataset") -> None:
-        self._annotations = copy.deepcopy(other._annotations)
+        self._annotations = other._annotations.copy(deep=True)
         self._corpus = other._corpus
         self._default_subset = other._default_subset
         self._feature_names = other._feature_names.copy()
@@ -204,10 +205,11 @@ class Dataset:
             self.subsets[subset] = [x.stem for x in get_audio_paths(clips_file)]
             if subset == "all":
                 name_to_path = {x.stem: str(x) for x in get_audio_paths(clips_file)}
-                self.update_annotation("_audio_path", name_to_path, dtype=str)
+                # This will initialise the index of self.annotations
+                self.update_annotation("_audio_path", name_to_path)
         for partition in corpus_info.partitions:
             self.update_annotation(
-                partition, path.parent / f"{partition}.csv", dtype=str
+                partition, path.parent / f"{partition}.csv", dtype="category"
             )
         for annotation in corpus_info.annotations:
             self.update_annotation(annotation, path.parent / f"{annotation}.csv")
@@ -215,17 +217,24 @@ class Dataset:
     def _verify_annotations(self, annot_name: Optional[str] = None):
         """Make sure there is a value for each instance for each annotation."""
 
+        annots = self.annotations.loc[self.names]
+
         def verify_annotation(annot_name: str):
-            missing = set(self.names) - self.annotations[annot_name].keys()
+            missing = annots.index[annots[annot_name].isna()]
             if len(missing) > 0:
                 raise RuntimeError(
                     f"Incomplete annotation {annot_name}. These names are missing:"
                     f"{missing}"
                 )
 
-        to_verify = self.annotations.keys() if annot_name is None else {annot_name}
+        to_verify = self.annotations.columns if annot_name is None else {annot_name}
         for annot_name in to_verify:
             verify_annotation(annot_name)
+
+    def _reset_categorical(self):
+        for part in self.partitions:
+            new = self.annotations.loc[self.names, part].cat.remove_unused_categories()
+            self.annotations[part] = new
 
     def update_features(self, features: PathOrStr, **read_kwargs) -> None:
         """Update the features matrix and feature names for this dataset.
@@ -280,6 +289,7 @@ class Dataset:
             subset = self._default_subset
         self._subset = subset
         self._names = self.subsets[subset]
+        self._reset_categorical()
         self._verify_annotations()
 
     def get_idx_for_names(self, names: Collection[str]) -> np.ndarray:
@@ -369,8 +379,8 @@ class Dataset:
     def update_annotation(
         self,
         annot_name: str,
-        annotations: Union[PathOrStr, Mapping[str, Any], Sequence[Any]],
-        dtype: Optional[Type] = None,
+        annotations: Union[PathOrStr, Mapping[str, Any], Sequence[Any], pd.Series],
+        dtype: Optional[Union[Type, Literal["category"]]] = None,
     ) -> None:
         """Add or update an annotation.
 
@@ -384,24 +394,31 @@ class Dataset:
             should be of the form {instance: annotation}. If a list,
             should have an annotation for each instance.
         dtype: type, optional
-            The type of annotations for reading from CSV file.
+            The type of annotations for reading from CSV file. If the
+            literal "category" is given the annotations are converted to
+            the Pandas categorical dtype.
         """
         if isinstance(annotations, (os.PathLike, str)):
-            annot_dict = read_annotations(annotations, dtype=dtype)
+            series = read_annotations(annotations, dtype=dtype)
         elif isinstance(annotations, Mapping):
-            annot_dict = dict(annotations)
+            series = pd.DataFrame.from_dict(annotations, orient="index")
+            series = series.squeeze("columns")
+        elif isinstance(annotations, pd.Series):
+            series = annotations
         else:
-            annot_dict = {
-                k: v for k, v in zip(self.names, annotations) if v is not None
-            }
+            series = pd.Series(annotations, index=self.names)
 
-        self._annotations[annot_name] = annot_dict
+        self.annotations[annot_name] = series
         if (
-            dtype is not None
-            and issubclass(dtype, str)
-            or isinstance(next(iter(annot_dict.values())), str)
+            dtype == "category"
+            or (dtype is not None and issubclass(dtype, str))
+            or series.dtype == object
+            or series.dtype == pd.CategoricalDtype
         ):
             self.partitions.add(annot_name)
+            self.annotations[annot_name] = self.annotations[annot_name].astype(
+                "category"
+            )
         self._verify_annotations(annot_name)
 
     def map_groups(self, part_name: str, mapping: Mapping[str, str]) -> None:
@@ -414,10 +431,14 @@ class Dataset:
         mapping: dict
             Group name mapping.
         """
-        groups = self.get_annotations(part_name)
-        self.update_annotation(
-            part_name, [mapping.get(x, x) for x in groups], dtype=str
-        )
+        new = self.annotations[part_name].cat.rename_categories(mapping)
+        new = new.cat.reorder_categories(new.cat.categories.sort_values())
+        self.annotations[part_name] = new
+
+        # groups = self.annotations[part_name]
+        # self.update_annotation(
+        #     part_name, groups.map(lambda x: mapping.get(x, x)), dtype=str
+        # )
 
     def remove_groups(
         self,
@@ -433,8 +454,10 @@ class Dataset:
         ----------
         part_name: str
             The partition name.
-        groups: collection of str
+        drop: collection of str
             The groups to remove in given partition.
+        keep: collection of str
+            The groups to keep in given partition.
         """
         drop = set([] if drop is None else drop)
         keep = set([] if keep is None else keep)
@@ -442,11 +465,17 @@ class Dataset:
         if (len(drop) == 0) == (len(keep) == 0):
             raise ValueError("Exactly one of drop and keep should be non-empty.")
 
+        all_groups = set(self.get_group_names(part_name))
         if len(keep) == 0:
-            keep = set(self.get_group_names(part_name)) - drop
+            keep = all_groups - drop
 
-        annotation = self.annotations[part_name]
-        self.remove_instances(keep=[x for x in self.names if annotation[x] in keep])
+        if len(drop) == 0:
+            drop = all_groups - keep
+        new = self.annotations[part_name].cat.remove_categories(list(drop))
+        self.annotations[part_name] = new
+
+        keep_names = new.index[new.isin(keep)]
+        self.remove_instances(keep=keep_names.intersection(self.names))
 
     def map_and_select(
         self,
@@ -499,8 +528,7 @@ class Dataset:
         new_name: str
             The new name of the annotation.
         """
-        self.annotations[new_name] = self.annotations[old_name]
-        del self.annotations[old_name]
+        self.annotations.rename(columns={old_name: new_name}, inplace=True)
         if old_name in self.partitions:
             self.partitions.add(new_name)
             self.partitions.remove(old_name)
@@ -518,7 +546,7 @@ class Dataset:
         # Use difference_update in case annot_name is not already a partition
         self.partitions.difference_update({annot_name})
 
-    def get_annotations(self, annot_name: str) -> List[Any]:
+    def get_annotations(self, annot_name: str) -> np.ndarray:
         """Get a list of annotations, one for each instance currently in
         the dataset.
 
@@ -529,13 +557,13 @@ class Dataset:
 
         Returns
         -------
-        A list of values, one for each instance in the datset, in the
-        same order they appear in names and x.
+        A pd.Series of values, one for each instance in the datset, in
+        the same order they appear in names and x.
         """
-        return [self.annotations[annot_name][x] for x in self.names]
+        return self.annotations.loc[self.names, annot_name].to_numpy()
 
     def annotation_type(self, annot_name: str) -> Type:
-        return type(next(iter(self.annotations[annot_name].values())))
+        return self.annotations[annot_name].dtype
 
     def get_group_indices(self, annot_name: str) -> np.ndarray:
         """Gets the group indices (i.e. indices into the groups array)
@@ -550,7 +578,8 @@ class Dataset:
         -------
         A NumPy array of group indices for each instance in the dataset.
         """
-        _, idx = np.unique(self.get_annotations(annot_name), return_inverse=True)
+        # _, idx = np.unique(self.get_annotations(annot_name), return_inverse=True)
+        idx = self.annotations.loc[self.names, annot_name].cat.codes.to_numpy()
         return idx
 
     def get_group_counts(self, annot_name: str) -> np.ndarray:
@@ -566,7 +595,12 @@ class Dataset:
         A NumPy array of counts for the corresponding group in this
         partition.
         """
-        _, counts = np.unique(self.get_annotations(annot_name), return_counts=True)
+        # _, counts = np.unique(self.get_annotations(annot_name), return_counts=True)
+        counts = (
+            self.annotations.loc[self.names, annot_name]
+            .value_counts(sort=False)
+            .to_numpy()
+        )
         return counts
 
     def get_group_names(self, annot_name: str) -> List[str]:
@@ -577,21 +611,7 @@ class Dataset:
         annot_name: str
             Annotation name.
         """
-        return list(np.unique(self.get_annotations(annot_name)))
-
-    def update_speakers(
-        self, speakers: Union[PathOrStr, Mapping[str, str], Sequence[str]]
-    ):
-        """Update the speakers for this dataset.
-
-        Parameters
-        ----------
-        speakers: Path, str, dict or list
-            If Path or str, read speaker info from CSV at given path. If
-            dict, use speaker dict directly. If list, each speakers[i]
-            is the corresponding speaker for instance i.
-        """
-        self.update_annotation("speaker", speakers, dtype=str)
+        return list(self.annotations.loc[self.names, annot_name].cat.categories)
 
     def remove_instances(
         self, *, drop: Collection[str] = None, keep: Collection[str] = None
@@ -616,10 +636,12 @@ class Dataset:
         if len(keep) == 0:
             keep = set(self.names) - drop
 
+        # Need idx for self.x, instead of ordered_intersect()
         idx = self.get_idx_for_names(keep)
         self._names = [self.names[i] for i in idx]
         if len(self._x) > 0:  # To avoid NumPy DeprecationWarning
             self._x = self.x[idx]
+        self._reset_categorical()
         try:
             self._verify_annotations()
         except RuntimeError as e:
@@ -726,7 +748,7 @@ class Dataset:
         return self.get_group_indices("speaker")
 
     @property
-    def speakers(self) -> List[str]:
+    def speakers(self) -> np.ndarray:
         return self.get_annotations("speaker")
 
     @property
@@ -739,8 +761,8 @@ class Dataset:
         return self._partitions
 
     @property
-    def annotations(self) -> Dict[str, Dict[str, Any]]:
-        """Each annotation is a mapping from instance name to value."""
+    def annotations(self) -> pd.DataFrame:
+        """Annotations store in DataFrame."""
         return self._annotations
 
     @property
@@ -766,7 +788,9 @@ class Dataset:
     def __len__(self) -> int:
         return self.n_instances
 
-    def update_labels(self, labels: Union[PathOrStr, Mapping[str, str], Sequence[str]]):
+    def update_labels(
+        self, labels: Union[PathOrStr, Mapping[str, str], Sequence[str], pd.Series]
+    ):
         self.update_annotation(self.label_annot, labels, dtype=str)
 
     def map_classes(self, mapping: Mapping[str, str]):
@@ -798,7 +822,7 @@ class Dataset:
         return self.get_group_counts(self.label_annot)
 
     @property
-    def labels(self) -> List[str]:
+    def labels(self) -> np.ndarray:
         """List of labels for instances."""
         return self.get_annotations(self.label_annot)
 
@@ -817,7 +841,7 @@ class Dataset:
         if self.label_annot in self.partitions:
             return self.get_group_indices(self.label_annot)
         else:
-            return np.ndarray(self.get_annotations(self.label_annot))
+            return self.get_annotations(self.label_annot)
 
     def __str__(self):
         s = f"Corpus: {self.corpus}\n"
@@ -830,7 +854,7 @@ class Dataset:
             if annot in self.partitions:
                 continue
             s += f"annotation '{annot}'\n"
-            annotations = np.array(self.get_annotations(annot))
+            annotations = self.get_annotations(annot)
             s += f"\tmin: {annotations.min():.3f}, max: {annotations.max():.3f}, "
             s += f"mean: {annotations.mean():.3f}\n"
         s += f"{self.n_instances} instances\n"
@@ -870,12 +894,12 @@ class CombinedDataset(Dataset):
         self._x = np.concatenate([d.x for d in datasets])
 
         self.update_annotation(
-            "corpus", [d.corpus for d in datasets for _ in d.names], dtype=str
+            "corpus", [d.corpus for d in datasets for _ in d.names], dtype="category"
         )
 
         all_speakers = {}
         for d in datasets:
-            if "speaker" not in d.annotations:
+            if "speaker" not in d.annotations.columns:
                 all_speakers.update(
                     {f"{d.corpus}_{k}": f"{d.corpus}_unknown" for k in d.names}
                 )
@@ -884,13 +908,15 @@ class CombinedDataset(Dataset):
                 all_speakers.update(
                     {f"{d.corpus}_{k}": f"{d.corpus}_{v}" for k, v in speakers.items()}
                 )
-        self.update_speakers(all_speakers)
+        self.update_annotation("speaker", all_speakers)
 
         # TODO: handle case when only some datasets have a given annotation?
-        all_annotations = set(chain(*(d.annotations for d in datasets)))
+        all_annotations = set(chain(*(d.annotations.columns for d in datasets)))
         all_annotations -= {"speaker"}  # assumed to be per-dataset
         common_annotations = {
-            x for x in all_annotations if all(x in d.annotations for d in datasets)
+            x
+            for x in all_annotations
+            if all(x in d.annotations.columns for d in datasets)
         }
         logger.info(f"All annotations: {all_annotations}")
         logger.info(f"Common annotations: {common_annotations}")
@@ -898,21 +924,20 @@ class CombinedDataset(Dataset):
             combined_annot = {}
             for dataset in datasets:
                 annotations = dataset.annotations[annot_name]
+                # annotations.index = annotations.index.map(lambda x: f"{dataset.corpus}_{x}")
                 combined_annot.update(
                     {f"{dataset.corpus}_{k}": v for k, v in annotations.items()}
                 )
             self.update_annotation(annot_name, combined_annot)
 
-        # Not common categorical annotations
+        # Non-common categorical annotations
         for annot_name in all_annotations - common_annotations:
             if not any(annot_name in d.partitions for d in datasets):
                 continue
             combined_annot = {}
             for d in datasets:
                 if annot_name not in d.annotations:
-                    combined_annot.update(
-                        {f"{d.corpus}_{k}": "unknown" for k in d.names}
-                    )
+                    combined_annot.update({f"{d.corpus}_{k}": None for k in d.names})
                 else:
                     annotations = d.annotations[annot_name]
                     combined_annot.update(
@@ -939,7 +964,7 @@ class CombinedDataset(Dataset):
             self.label_annot = next(d.label_annot for d in datasets)
 
     @property
-    def corpus_names(self) -> Sequence[str]:
+    def corpus_names(self) -> List[str]:
         """List of corpora in this CombinedDataset."""
         return self.get_group_names("corpus")
 
