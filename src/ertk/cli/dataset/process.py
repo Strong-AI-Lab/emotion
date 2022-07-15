@@ -111,8 +111,8 @@ def main(
             disable=None,
         )
     else:
-        # TODO: Set back to joblib when https://github.com/joblib/joblib/pull/588
-        # is merged
+        # TODO: Set back to joblib when
+        # https://github.com/joblib/joblib/pull/588 is merged
         pool = TqdmMultiprocessing(len(input_data), "Processing files")
         feats = pool.imap(
             extractor.process_instance, input_data, n_jobs=n_jobs, sr=sample_rate

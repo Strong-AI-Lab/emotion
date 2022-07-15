@@ -139,6 +139,9 @@ class InstanceProcessor(ABC):
             raise ValueError("Batch size cannot be 0.")
 
     def finish(self) -> None:
+        """Perform any cleanup necesasry (e.g. closing files, unloading
+        models, etc.)
+        """
         pass
 
     @property

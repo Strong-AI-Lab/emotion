@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
+import joblib
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -28,6 +29,9 @@ class FairseqExtractorConfig(ERTKConfig):
     aggregate: _Aggregation = _Aggregation.MEAN
     device: str = "cuda"
     arg_overrides: Dict[str, Any] = field(default_factory=dict)
+    vq_path: Optional[str] = None
+    vq_ids: bool = False
+    vq_ids_as_string: bool = True
 
 
 class FairseqExtractor(
@@ -56,10 +60,10 @@ class FairseqExtractor(
             model = task.build_model(cfg.model)
 
             del state["model"]["_ema"]
-            state["model"]["final_proj.weight"] = state["model"]["final_proj.0.weight"]
-            del state["model"]["final_proj.0.weight"]
-            state["model"]["final_proj.bias"] = state["model"]["final_proj.0.bias"]
-            del state["model"]["final_proj.0.bias"]
+            state["model"]["final_proj.weight"] = state["model"].pop(
+                "final_proj.0.weight"
+            )
+            state["model"]["final_proj.bias"] = state["model"].pop("final_proj.0.bias")
             model.load_state_dict(state["model"])
 
             args = OmegaConf.create(state["args"])
@@ -74,44 +78,68 @@ class FairseqExtractor(
         self.task = task
         torch.set_grad_enabled(False)
 
+        self.vq = None
+        if config.vq_path:
+            self.vq = joblib.load(config.vq_path)
+
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
         if kwargs.pop("sr") != 16000:
             raise ValueError("Sample rate should be 16kHz")
 
+        x = np.squeeze(x, -1)
         tensor = torch.tensor(x, device=self.config.device).unsqueeze(0)
         if hasattr(self.task, "normalize") and self.task.normalize:
             tensor = F.layer_norm(tensor, tensor.shape)
+
+        layer: Union[str, int]
+        try:
+            layer = int(self.config.layer)
+        except ValueError:
+            layer = self.config.layer
+        if layer == "context":
+            layer = -1
+
         if self.config.model_type == "wav2vec":
             feats = self.model.feature_extractor(tensor)
             if self.model.vector_quantizer is not None:
                 feats, _ = self.model.vector_quantizer.forward_idx(feats)
-            if self.config.layer == "context":
+            if layer == "context":
                 feats = self.model.feature_aggregator(feats)
         elif self.config.model_type in ["wav2vec2", "data2vec"]:
-            if self.config.layer == "context":
-                c = self.model.extract_features(tensor, None)["x"]
+            if layer == "encoder":
+                feats = self.model.feature_extractor(tensor)
+            else:
+                c = self.model.extract_features(tensor, None, layer=layer)["x"]
                 # Transpose to (batch, feats, steps)
                 feats = c.transpose(-2, -1)
-            else:
-                feats = self.model.feature_extractor(tensor)
         elif self.config.model_type == "hubert":
-            if self.config.layer == "context":
-                c, _ = self.model.extract_features(tensor)
+            if layer == "encoder":
+                feats = self.model.feature_extractor(tensor)
+            else:
+                c, _ = self.model.extract_features(tensor, output_layer=layer)
                 # Transpose to (batch, feats, steps)
                 feats = c.transpose(-2, -1)
-            else:
-                feats = self.model.feature_extractor(tensor)
         else:
             raise ValueError(f"Unknown model_type: {self.config.model_type}")
 
         if self.config.aggregate == _Aggregation.NONE:
-            return feats[0].transpose(1, 0).cpu().numpy()
+            feats = feats[0].transpose(1, 0).cpu().numpy()
         elif self.config.aggregate == _Aggregation.MEAN:
-            return feats[0].mean(-1).cpu().numpy()
+            feats = feats[0].mean(-1).cpu().numpy()
         elif self.config.aggregate == _Aggregation.MAX:
-            return feats[0].max(-1).cpu().numpy()
+            feats = feats[0].max(-1).cpu().numpy()
         else:
             raise ValueError(f"Aggregation type {self.config.aggregate} not supported")
+
+        if self.vq is not None:
+            if self.config.vq_ids:
+                feats = self.vq.predict(feats)
+                if self.config.vq_ids_as_string:
+                    feats = np.array([" ".join(map(str, feats))])
+                feats = np.expand_dims(feats, -1)
+            else:
+                feats = self.vq.cluster_centers_[self.vq.predict(feats)]
+        return feats
 
     def process_file(self, path: PathOrStr, sr: Optional[float] = None) -> np.ndarray:
         # Require 16 kHz sample rate
@@ -119,6 +147,8 @@ class FairseqExtractor(
 
     @property
     def dim(self) -> int:
+        if self.config.vq_ids:
+            return 1
         if self.config.layer == "encoder":
             return 512
         if self.config.model_type == "wav2vec":
@@ -133,4 +163,6 @@ class FairseqExtractor(
 
     @property
     def feature_names(self) -> List[str]:
+        if self.config.vq_ids:
+            return [f"{self.config.model_type}_vq_tok"]
         return [f"{self.config.model_type}_{i}" for i in range(self.dim)]

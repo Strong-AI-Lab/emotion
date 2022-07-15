@@ -1,6 +1,6 @@
 import warnings
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import librosa
 import numpy as np
@@ -26,6 +26,7 @@ def spectrogram(
     fmax: Optional[float] = 8000,
     power: int = 2,
     to_db: bool = True,
+    mel_norm: Union[str, int] = "slaney",
 ):
     """General purpose spectrogram pipeline. Calculates spectrogram with
     optional pre-emphasis, clipping, mel/chroma transform, power and
@@ -106,7 +107,12 @@ def spectrogram(
     spec = np.abs(spec) ** power
     if kind == "mel":
         spec = librosa.feature.melspectrogram(
-            S=spec, n_mels=n_mels, fmin=fmin, fmax=fmax, htk=htk_mel
+            S=spec,
+            n_mels=n_mels,
+            fmin=fmin,
+            fmax=fmax,
+            htk=htk_mel,
+            norm=mel_norm,
         )
     elif kind == "chroma":
         spec = librosa.feature.chroma_stft(S=spec, n_chroma=n_chroma)
@@ -134,6 +140,7 @@ class SpectrogramExtractorConfig(ERTKConfig):
     fmax: Optional[float] = 8000
     power: int = 2
     to_db: bool = True
+    mel_norm: Union[str, int] = "slaney"
 
 
 class SpectrogramExtractor(
