@@ -1,6 +1,10 @@
-from typing import Any, Callable, Dict, Iterable, List, Union
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+from typing import Any, Callable, Dict, Iterable, List, Optional, Type, TypeVar, Union
 
 import numpy as np
+import omegaconf
 import pandas as pd
 from sklearn.base import MetaEstimatorMixin
 from sklearn.metrics import get_scorer
@@ -18,7 +22,9 @@ from sklearn.model_selection._validation import _score
 from sklearn.pipeline import Pipeline
 from sklearn.utils import check_array
 
-from ertk.utils import ScoreFunction, filter_kwargs
+from ertk.config import ERTKConfig
+from ertk.dataset import DataLoadConfig
+from ertk.utils import PathOrStr, ScoreFunction, filter_kwargs
 
 
 class TrainValidation(BaseCrossValidator):
@@ -254,8 +260,78 @@ def scores_to_df(
         else:
             index = pd.RangeIndex(len(_val), name="fold")
     elif not isinstance(index, pd.Index):
-        index = pd.Index(index)
+        index = pd.Index(index, name="fold")
     return pd.DataFrame(
         {k[5:] if k.startswith("test_") else k: v for k, v in scores.items()},
         index=index,
     )
+
+
+@dataclass
+class ModelConfig(ERTKConfig):
+    type: str = omegaconf.MISSING
+    config: Any = None
+    args: Optional[Dict[str, Any]] = None
+    args_path: Optional[str] = None
+    param_grid: Optional[Dict[str, Any]] = None
+    param_grid_path: Optional[str] = None
+
+
+@dataclass
+class CrossValidationConfig(ERTKConfig):
+    part: str = omegaconf.MISSING
+    kfold: int = omegaconf.MISSING
+    use_inner_cv: bool = True
+    inner_kfold: int = 2
+    inner_part: Optional[str] = None
+    test_size: float = 0.2
+
+
+@dataclass
+class TVTConfig(ERTKConfig):
+    train: str = omegaconf.MISSING
+    valid: str = omegaconf.MISSING
+    test: Optional[str] = None
+
+
+@dataclass
+class EvalConfig(ERTKConfig):
+    cross_validation: Optional[CrossValidationConfig] = None
+    train_val_test: Optional[TVTConfig] = None
+
+
+class TransformClass(Enum):
+    std = "std"
+    minmax = "minmax"
+
+
+@dataclass
+class TrainConfig(ERTKConfig):
+    balanced: bool = True
+    n_gpus: int = 1
+    reps: int = 1
+    normalise: str = "online"
+    transform: TransformClass = TransformClass.std
+    n_jobs: int = -1
+    verbose: int = 0
+    label: str = "label"
+    epochs: int = 50
+
+
+T = TypeVar("T", bound="ExperimentConfig")
+
+
+@dataclass
+class ExperimentConfig(ERTKConfig):
+    data: DataLoadConfig = omegaconf.MISSING
+    model: ModelConfig = omegaconf.MISSING
+    evaluation: EvalConfig = EvalConfig()
+    training: TrainConfig = TrainConfig()
+
+    @classmethod
+    def from_file(cls: Type[T], path: PathOrStr) -> T:
+        path = Path(path)
+        conf = super().from_file(path)
+        if isinstance(conf.data, str):
+            conf.data = DataLoadConfig.from_file(path.parent / conf.data)
+        return conf
