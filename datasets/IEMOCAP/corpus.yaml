@@ -4,6 +4,7 @@ annotations:
 - activation
 - dominance
 - valence
+- transcript
 partitions:
 - label
 - speaker

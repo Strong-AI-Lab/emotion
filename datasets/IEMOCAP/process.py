@@ -1,4 +1,4 @@
-"""Process the raw eNTERFACE dataset.
+"""Process the raw IEMOCAP dataset.
 
 This assumes the file structure from the original compressed file:
 /.../
@@ -51,7 +51,7 @@ def _clean(words: str):
     words = " ".join(words.split("..."))
     words = " ".join(words.split(".."))
     words = " ".join(words.split("-"))
-    return " ".join([x.strip() for x in words.split()])
+    return " ".join((x.strip() for x in words.split()))
 
 
 @click.command()
@@ -66,7 +66,8 @@ def main(input_dir: Path, resample: bool):
 
     dimensions = {}
     labels = {}
-    _ratings = []
+    _cat_ratings = []
+    _att_ratings = []
     for filename in input_dir.glob("Session?/dialog/EmoEvaluation/*.txt"):
         with open(filename) as fid:
             name = ""
@@ -78,7 +79,7 @@ def main(input_dir: Path, resample: bool):
                     labels[name] = match.group(4)
                     dimensions[name] = list(map(float, match.group(5, 6, 7)))
                 elif line.startswith("C"):
-                    # C is classification
+                    # Emotion classification
                     rater, _annotations = line.strip().split(":")
                     rater = rater.strip().split("-")[1]
                     if rater[0] in "MF":
@@ -86,21 +87,34 @@ def main(input_dir: Path, resample: bool):
                         continue
                     *annotations, comments = _annotations.strip().split(";")
                     label = annotations[0].strip()
-                    _ratings.append((name, rater, label))
+                    _cat_ratings.append((name, rater, label))
+                elif line.startswith("A"):
+                    # Emotion attributes
+                    rater, _annotations = line.strip().split(":")
+                    rater = rater.strip().split("-")[1]
+                    if rater[0] in "MF":
+                        # M or F refer to self-evalulation
+                        continue
+                    *annotations, comments = _annotations.strip().split(";")
+                    val = int(annotations[0].strip().split(" ")[1])
+                    act = int(annotations[1].strip().split(" ")[1])
+                    try:
+                        # For some reason 36 of these are missing
+                        dom = int(annotations[2].strip().split("  ")[1])
+                    except IndexError:
+                        dom = 0
+                    _att_ratings.append((name, rater, val, act, dom))
 
     paths = list(input_dir.glob("Session?/sentences/wav/*/*.wav"))
     if resample:
         resample_dir = Path("resampled")
         resample_audio(paths, resample_dir)
-        write_filelist(resample_dir.glob("*.wav"), "files_all")
-        write_filelist(
-            [
-                p
-                for p in resample_dir.glob("*.wav")
-                if labels[p.stem] in ["ang", "hap", "neu", "sad", "exc"]
-            ],
-            "files_4class",
-        )
+        paths = list(resample_dir.glob("*.wav"))
+    write_filelist(paths, "files_all")
+    write_filelist(
+        [p for p in paths if labels[p.stem] in ["ang", "hap", "neu", "sad", "exc"]],
+        "files_4class",
+    )
 
     write_annotations({n: emotion_map[labels[n]] for n in labels}, "label")
     speaker_dict = {p.stem: p.stem[3:6] for p in paths}
@@ -121,28 +135,40 @@ def main(input_dir: Path, resample: bool):
     for dim in ["valence", "activation", "dominance"]:
         df[dim].to_csv(dim + ".csv", index=True, header=True)
 
-    # Ratings analysis
-    ratings = pd.DataFrame(sorted(_ratings), columns=["name", "rater", "label"])
+    dim_ratings = (
+        pd.DataFrame(_att_ratings, columns=["name", "rater", "val", "act", "dom"])
+        .set_index(["name", "rater"])
+        .sort_index()
+    )
+    cat_ratings = (
+        pd.DataFrame(_cat_ratings, columns=["name", "rater", "label"])
+        .set_index(["name", "rater"])
+        .sort_index()
+    )
+    ratings = cat_ratings.join(dim_ratings)
+    ratings.to_csv("ratings.csv")
+
+    ratings["label"] = ratings["label"].str.lower()
+    ratings["label"] = ratings["label"].map(
+        lambda x: {"excited": "excitement"}.get(x, x)
+    )
+    ratings["label"] = ratings["label"].astype("category")
 
     # There are 3 (non-self) raters per utterance. Agreement is the
     # proportion of labels which are the same. This formula only works
     # for 3 raters.
-    mode_count = 4 - ratings.groupby("name")["label"].nunique()
+    mode_count = 4 - ratings["label"].unstack().nunique(1)
     agreement = np.mean(mode_count / 3)
     print(mode_count.value_counts().rename_axis("majority").to_frame("count"))
     print(f"Mean label agreement: {agreement:.3f}")
 
     # Simple way to get int matrix of labels for raters x clips
-    data = (
-        ratings.set_index(["rater", "name"])["label"]
-        .astype("category")
-        .cat.codes.unstack()
-        + 1
-    )
+    data = ratings["label"].cat.codes.unstack() + 1
     data[data.isna()] = 0
     data = data.astype(int).to_numpy()
     print(f"Krippendorf's alpha (categorical): {alpha(data):.3f}")
 
+    # Transcriptions
     utts = {}
     for p in input_dir.glob("Session?/dialog/transcriptions/*.txt"):
         with open(p) as fid:
@@ -150,9 +176,10 @@ def main(input_dir: Path, resample: bool):
                 match = TRN_REGEX.match(line)
                 if match:
                     utts[match.group(1)] = match.group(2).strip()
-    utts = {u: _clean(x) for u, x in utts.items()}
-    df = pd.DataFrame({"Name": utts.keys(), "Transcript": utts.values()})
-    df.sort_values("Name").to_csv("transcripts.csv", index=False, header=True)
+    utts = {n: _clean(u) for n, u in utts.items()}
+    df = pd.DataFrame.from_dict(utts, orient="index", columns=["transcript"])
+    df = df.rename_axis(index="name").sort_index()
+    df.to_csv("transcript.csv", header=True, index=True)
 
 
 if __name__ == "__main__":
