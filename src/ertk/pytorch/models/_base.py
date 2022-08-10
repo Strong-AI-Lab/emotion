@@ -20,7 +20,30 @@ class PyTorchModelConfig(ERTKConfig):
     loss_args: Dict[str, Any] = field(default_factory=dict)
 
 
-class SimpleModel(pl.LightningModule, ABC):
+class ERTKPyTorchModel(pl.LightningModule, ABC):
+    config: PyTorchModelConfig
+
+    def __init__(
+        self,
+        config: PyTorchModelConfig,
+    ) -> None:
+        super().__init__()
+        self.save_hyperparameters(PyTorchModelConfig.to_dictconfig(config))
+        self.config = config
+
+    @abstractmethod
+    def forward(self, x, **kwargs):  # type: ignore
+        raise NotImplementedError()
+
+    def preprocess_input(self, x: torch.Tensor) -> torch.Tensor:
+        """Perform any modifications to the input tensor `x`, which is
+        extracted from a batch. This will typically have shape
+        (batch_size, features) or (batch_size, timesteps, features).
+        """
+        return x
+
+
+class SimpleModel(ERTKPyTorchModel):
     """A model that takes input x, gives output y, and has a single loss
     function. Each batch is either (x, y) pairs or (x, y, sw) triplets,
     where sw is the sample weights.
@@ -44,8 +67,8 @@ class SimpleModel(pl.LightningModule, ABC):
         self,
         config: PyTorchModelConfig,
     ) -> None:
-        super().__init__()
-        self.save_hyperparameters(config)
+        super().__init__(config)
+        self.save_hyperparameters(PyTorchModelConfig.to_dictconfig(config))
         loss_fn = {
             "cross_entropy": nn.CrossEntropyLoss,
             "nll": nn.NLLLoss,
@@ -58,10 +81,6 @@ class SimpleModel(pl.LightningModule, ABC):
         self.optimiser = config.optimiser
         self.opt_params = config.opt_params
         self.learning_rate = config.learning_rate
-
-    @abstractmethod
-    def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
-        raise NotImplementedError()
 
     def training_step(self, batch, batch_idx: int) -> torch.Tensor:
         x, y, yhat, sw = self.get_outputs_for_batch(batch)
@@ -97,15 +116,13 @@ class SimpleModel(pl.LightningModule, ABC):
         x, *_ = self.get_outputs_for_batch(batch)
         return self.forward(x)
 
-    def preprocess_input(self, x: torch.Tensor) -> torch.Tensor:
-        """Perform any modifications to the input tensor `x`, which is
-        extracted from a batch. This will typically have shape
-        (batch_size, features) or (batch_size, timesteps, features).
-        """
-        return x
-
     def configure_optimizers(self):
-        optim_fn = {"adam": torch.optim.Adam, "sgd": torch.optim.SGD}[self.optimiser]
+        optim_fn = {
+            "adam": torch.optim.Adam,
+            "sgd": torch.optim.SGD,
+            "adamw": torch.optim.AdamW,
+            "rmsprop": torch.optim.RMSprop,
+        }[self.optimiser]
         return optim_fn(self.parameters(), lr=self.learning_rate, **self.opt_params)
 
 

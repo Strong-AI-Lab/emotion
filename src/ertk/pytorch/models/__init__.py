@@ -10,6 +10,7 @@ from ._base import (
     SimpleClassificationModel,
     SimpleModel,
 )
+from .layers import Attention1D, make_fc
 
 
 def get_pt_model_fn(name: str, **kwargs) -> Callable[..., Module]:
