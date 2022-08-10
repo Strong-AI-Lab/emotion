@@ -118,7 +118,7 @@ class KerasAppsExtractor(
             fmin=0,
             fmax=None,
             power=2,
-            to_db=True,
+            to_log=True,
         )
 
     def _to_img(self, spec: np.ndarray) -> np.ndarray:

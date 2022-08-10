@@ -17,6 +17,8 @@ def spectrogram(
     pre_emphasis: float = 0,
     window_size: float = 0.025,
     window_shift: float = 0.01,
+    win_length_samp: Optional[int] = None,
+    hop_length_samp: Optional[int] = None,
     n_fft: int = 2048,
     n_mels: int = 128,
     htk_mel: bool = False,
@@ -25,7 +27,7 @@ def spectrogram(
     fmin: float = 0,
     fmax: Optional[float] = 8000,
     power: int = 2,
-    to_db: bool = True,
+    to_log: Optional[str] = "db",
     mel_norm: Union[str, int] = "slaney",
 ):
     """General purpose spectrogram pipeline. Calculates spectrogram with
@@ -49,6 +51,11 @@ def spectrogram(
     window_shift: float
         Amount window moves each frame, in seconds. Default is 0.01 (10
         ms).
+    win_length_samp: int, optional
+        The window length in samples. This overrides `window_size` if
+        given.
+    hop_length_samp: int, optional
+        The hop size in samples. This overrides `window_shift` if given.
     n_fft: int, optional
         Number of FFT bins. Default is to use the next power of 2
         greater than `window_size * sr`.
@@ -69,9 +76,14 @@ def spectrogram(
     power: int
         Raise spectrogram magnitudes to this power. Default is 2 which
         is the usual power spectrogram.
-    to_db: bool
-        Whether to convert spectrogram to dB units. Default is `True`.
-        Note that this is mainly only useful if `power == 2`.
+    to_log: str
+        Whether to convert spectrogram to logarithmic domain. Default is
+        `db` which converts to dB units. If `to_log=='log'` then the
+        natual logarithm is taken. Note that this argument is mainly
+        only useful if `power == 2`.
+    mel_norm: str or int
+        Normalisation to apply to mel filters. Default is "slaney" as in
+        librosa.
 
     Returns
     -------
@@ -84,22 +96,20 @@ def spectrogram(
     if audio.ndim != 1:
         raise ValueError(f"Audio should be in mono format, got shape {audio.shape}")
 
-    window_samples = int(window_size * sr)
-    stride_samples = int(window_shift * sr)
+    win_length = win_length_samp if win_length_samp else int(window_size * sr)
+    hop_length = hop_length_samp if hop_length_samp else int(window_shift * sr)
 
     # Pre-emphasis
     if pre_emphasis > 0:
         audio = librosa.effects.preemphasis(audio, pre_emphasis)
 
     # Spectrogram
-    if not n_fft:
-        n_fft = 2 ** int(np.ceil(np.log2(window_samples)))
     warnings.simplefilter("ignore", UserWarning)
     spec = librosa.stft(
         audio,
         n_fft=n_fft,
-        hop_length=stride_samples,
-        win_length=window_samples,
+        hop_length=hop_length,
+        win_length=win_length,
         center=True,
         window="hann",
         pad_mode="reflect",
@@ -119,8 +129,10 @@ def spectrogram(
     warnings.simplefilter("default", UserWarning)
 
     # Optional dB calculation
-    if to_db:
+    if to_log == "db":
         spec = librosa.power_to_db(spec, ref=np.max, top_db=clip_db)
+    elif to_log == "log":
+        spec = np.log(np.maximum(spec, 1e-8))
 
     return spec.T
 
@@ -131,6 +143,8 @@ class SpectrogramExtractorConfig(ERTKConfig):
     pre_emphasis: float = 0
     window_size: float = 0.025
     window_shift: float = 0.01
+    win_length_samp: Optional[int] = None
+    hop_length_samp: Optional[int] = None
     n_mels: int = 128
     htk_mel: bool = False
     n_fft: int = 2048
@@ -139,7 +153,7 @@ class SpectrogramExtractorConfig(ERTKConfig):
     fmin: float = 0
     fmax: Optional[float] = 8000
     power: int = 2
-    to_db: bool = True
+    to_log: Optional[str] = "db"
     mel_norm: Union[str, int] = "slaney"
 
 
@@ -152,7 +166,8 @@ class SpectrogramExtractor(
     config: SpectrogramExtractorConfig
 
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
-        return spectrogram(x, sr=kwargs.pop("sr"), **self.config)  # type: ignore
+        config = SpectrogramExtractorConfig.to_dictconfig(self.config)
+        return spectrogram(x, sr=kwargs.pop("sr"), **config)
 
     @property
     def dim(self) -> int:
