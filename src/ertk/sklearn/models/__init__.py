@@ -4,10 +4,15 @@ from typing import Callable
 
 from sklearn.base import BaseEstimator
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.neighbors import KNeighborsClassifier
 
 from .svm import PrecomputedSVC
 
-CLASSIFIER_MAP = {"svm": PrecomputedSVC, "rf": RandomForestClassifier}
+CLASSIFIER_MAP = {
+    "svm": PrecomputedSVC,
+    "rf": RandomForestClassifier,
+    "knn": KNeighborsClassifier,
+}
 
 
 def get_sk_model_fn(name: str) -> Callable[..., BaseEstimator]:
