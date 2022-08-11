@@ -18,11 +18,11 @@ class InstanceProcessor(ABC):
     Parameters
     ----------
     config: ERTKConfig
-        The configuration for this AudioClipProcessor.
+        The configuration for this InstanceProcessor.
     """
 
     config: ERTKConfig
-    """The configuration for this AudioClipProcessor."""
+    """The configuration for this InstanceProcessor."""
     logger: logging.Logger
 
     _config_type: ClassVar[Type[ERTKConfig]]
@@ -31,7 +31,7 @@ class InstanceProcessor(ABC):
 
     def __init__(self, config: ERTKConfig) -> None:
         self.config = config
-        cls_name = f"{InstanceProcessor.__module__}.{InstanceProcessor.__name__}"
+        cls_name = f"{type(self).__module__}.{type(self).__name__}"
         self.logger = logging.getLogger(cls_name)
 
     def __init_subclass__(
