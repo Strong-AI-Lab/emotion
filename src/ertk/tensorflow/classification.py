@@ -4,11 +4,11 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import tensorflow as tf
+from keras.callbacks import History, TensorBoard
+from keras.metrics import SparseCategoricalAccuracy
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.model_selection import BaseCrossValidator
 from sklearn.pipeline import Pipeline
-from tensorflow.keras.callbacks import History, TensorBoard
-from tensorflow.keras.metrics import SparseCategoricalAccuracy
 
 from ertk.tensorflow.utils import (
     DataFunction,
