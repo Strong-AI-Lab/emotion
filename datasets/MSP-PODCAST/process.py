@@ -76,9 +76,20 @@ def main(input_dir: Path, resample: bool):
         _ratings = []
         for name, workers in labels_detailed.items():
             for worker, annotations in workers.items():
-                _ratings.append((name[:-4], worker, annotations["EmoClass_Major"][0]))
-    ratings = pd.DataFrame(sorted(_ratings), columns=["name", "rater", "label"])
-    ratings.drop_duplicates(["name", "rater"], inplace=True)
+                _ratings.append(
+                    (
+                        name[:-4],
+                        worker,
+                        annotations["EmoClass_Major"][0],
+                        annotations["EmoAct"],
+                        annotations["EmoDom"],
+                        annotations["EmoVal"],
+                    )
+                )
+    ratings = pd.DataFrame(
+        sorted(_ratings), columns=["name", "rater", "label", "act", "val", "dom"]
+    )
+    ratings.set_index(["name", "rater"]).to_csv("ratings.csv")
 
     num_ratings = ratings.groupby("name").size().to_frame("total")
     label_count = ratings.groupby(["name", "label"]).size().to_frame("freq")
