@@ -28,7 +28,7 @@ def spectrogram(
     fmax: Optional[float] = 8000,
     power: int = 2,
     to_log: Optional[str] = "db",
-    mel_norm: Union[str, int] = "slaney",
+    mel_norm: str = "slaney",
 ):
     """General purpose spectrogram pipeline. Calculates spectrogram with
     optional pre-emphasis, clipping, mel/chroma transform, power and
@@ -81,7 +81,7 @@ def spectrogram(
         `db` which converts to dB units. If `to_log=='log'` then the
         natual logarithm is taken. Note that this argument is mainly
         only useful if `power == 2`.
-    mel_norm: str or int
+    mel_norm: str
         Normalisation to apply to mel filters. Default is "slaney" as in
         librosa.
 
@@ -116,6 +116,10 @@ def spectrogram(
     )
     spec = np.abs(spec) ** power
     if kind == "mel":
+        try:
+            mel_norm = int(mel_norm)
+        except ValueError:
+            pass
         spec = librosa.feature.melspectrogram(
             S=spec,
             n_mels=n_mels,
@@ -154,7 +158,7 @@ class SpectrogramExtractorConfig(ERTKConfig):
     fmax: Optional[float] = 8000
     power: int = 2
     to_log: Optional[str] = "db"
-    mel_norm: Union[str, int] = "slaney"
+    mel_norm: str = "slaney"
 
 
 class SpectrogramExtractor(
