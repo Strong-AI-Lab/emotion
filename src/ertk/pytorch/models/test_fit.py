@@ -1,56 +1,73 @@
 from pathlib import Path
+from typing import List, Tuple
 
 import click
-import numpy as np
 import pytorch_lightning as pl
 import torch
-from torch import nn
-from torch.optim import Adam
-from torch.utils.data import DataLoader, TensorDataset
+from omegaconf import OmegaConf
+from torch.utils.data import DataLoader, Dataset
 
-from ertk.config import get_arg_mapping
 from ertk.pytorch import get_pt_model
-from ertk.pytorch.utils import LightningWrapper
+from ertk.pytorch.models import PyTorchModelConfig
+
+
+class RandomDataset(Dataset[Tuple[torch.Tensor, ...]]):
+    def __init__(
+        self, total: int, shapes: List[Tuple[int]], dtypes: List[torch.dtype]
+    ) -> None:
+        super().__init__()
+        self.total = total
+        self.data = []
+        for shape, dtype in zip(shapes, dtypes):
+            self.data.append(torch.zeros(shape, dtype=dtype))
+
+    def __getitem__(self, index) -> Tuple[torch.Tensor, ...]:
+        return tuple(self.data)
+
+    def __len__(self) -> int:
+        return self.total
 
 
 @click.command()
 @click.argument("model_name")
 @click.option("--batch_size", type=int, default=32, help="Batch size.")
-@click.option("--1D/--2D", "is_1d", default=True, help="Input type.")
+@click.option("--shape", default="[(1024,), ()]", help="Shapes.")
+@click.option("--dtype", default="[torch.float32, torch.int64]", help="Dtypes.")
 @click.option(
     "--summary_only", is_flag=True, help="Print summary but don't train on dummy data."
 )
-@click.option(
-    "--memory/--generated",
-    default=False,
-    help="Have all data in memory or generate batches.",
-)
-@click.option("--model_args", type=click.Path(exists=True, path_type=Path))
+@click.option("--model_config", type=click.Path(exists=True, path_type=Path))
 @click.option("--train", type=int, default=8000, help="Number of training instances.")
 @click.option("--valid", type=int, default=800, help="Number of validation instances.")
-@click.option("--features", type=int, default=1024, help="Dimensionality of input.")
-@click.option("--steps", type=int, default=512, help="Length of sequence.")
+@click.argument("restargs", nargs=-1)
 def test_fit(
     model_name: str,
     batch_size: int,
-    is_1d: bool,
+    shape: str,
+    dtype: str,
     summary_only: bool,
-    memory: bool,
-    model_args: Path,
+    model_config: Path,
     train: int,
     valid: int,
-    features: int,
-    steps: int,
+    restargs: Tuple[str],
 ):
     """Trains a model for 2 epochs with random data and prints timing
-    information for testing purposes. The default number of instances is
-    8000, which is larger than the current largest dataset, MSP-IMPROV.
+    information for testing purposes.
     """
 
-    args = get_arg_mapping(model_args) if model_args else {}
-    model = get_pt_model(model_name, n_features=features, n_classes=4, **args)
-    if not isinstance(model, pl.LightningModule):
-        model = LightningWrapper(model, nn.CrossEntropyLoss(), lambda x: Adam(x, 0.001))
+    config: PyTorchModelConfig
+    if model_config:
+        config = OmegaConf.load(model_config)
+    else:
+        config = PyTorchModelConfig(
+            optimiser="adam", learning_rate=0.001, loss="cross_entropy"
+        )
+
+    cli_args = OmegaConf.from_cli(list(restargs))
+    if cli_args.model_config:
+        config = OmegaConf.merge(config, cli_args.model_config)
+
+    model = get_pt_model(model_name, config=config)
     print(model)
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total_params = sum(p.numel() for p in model.parameters())
@@ -61,16 +78,10 @@ def test_fit(
     if summary_only:
         return
 
-    shape = (features,) if is_1d else (steps, features)
-
-    rng = np.random.default_rng()
-    train_x = torch.as_tensor(rng.random((train,) + shape, dtype=np.float32))
-    train_y = torch.as_tensor(rng.integers(4, size=train))
-    valid_x = torch.as_tensor(rng.random((valid,) + shape, dtype=np.float32))
-    valid_y = torch.as_tensor(rng.integers(4, size=valid))
-
-    train_data = TensorDataset(train_x, train_y)
-    valid_data = TensorDataset(valid_x, valid_y)
+    shapes = eval(shape, {})
+    dtypes = eval(dtype, {"torch": torch})
+    train_data = RandomDataset(train, shapes, dtypes)
+    valid_data = RandomDataset(valid, shapes, dtypes)
     train_dl = DataLoader(
         train_data, batch_size=batch_size, shuffle=True, pin_memory=True
     )
@@ -87,8 +98,7 @@ def test_fit(
         max_epochs=2,
     )
     trainer.fit(model, train_dataloaders=train_dl, val_dataloaders=valid_dl)
-    preds = torch.cat(trainer.predict(model, valid_dl)).cpu().numpy()
-    print(preds)
+    trainer.predict(model, valid_dl)
 
 
 if __name__ == "__main__":
