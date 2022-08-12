@@ -342,7 +342,7 @@ def batch_arrays_by_length(
     size. This is designed for use with variable length sequences. Each
     batch will have a maximum of batch_size arrays, but may have less if
     there are fewer arrays of the same length. It is recommended to use
-    the pad_arrays() method of the LabelledDataset instance before using
+    the `pad_arrays()` method of the `Dataset` instance before using
     this function, in order to quantise the lengths.
 
     Parameters
