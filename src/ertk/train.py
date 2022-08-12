@@ -23,7 +23,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.utils import check_array
 
 from ertk.config import ERTKConfig
-from ertk.dataset import DataLoadConfig
+from ertk.dataset.dataset import DataLoadConfig, DataSelector
 from ertk.utils import PathOrStr, ScoreFunction, filter_kwargs
 
 
@@ -289,8 +289,8 @@ class CrossValidationConfig(ERTKConfig):
 
 @dataclass
 class TVTConfig(ERTKConfig):
-    train: str = omegaconf.MISSING
-    valid: str = omegaconf.MISSING
+    train: DataSelector = omegaconf.MISSING
+    valid: DataSelector = omegaconf.MISSING
     test: Optional[str] = None
 
 

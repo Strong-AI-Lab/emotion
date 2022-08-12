@@ -64,6 +64,12 @@ class _SubsetConfig:
 
 
 @dataclass
+class DataSelector(ERTKConfig):
+    subset: Optional[str] = None
+    groups: Optional[Dict[str, _RemoveGroups]] = None
+
+
+@dataclass
 class CorpusInfo(ERTKConfig):
     name: str = omegaconf.MISSING
     description: str = ""
@@ -194,6 +200,8 @@ class Dataset:
         path: os.Pathlike or str
             The path to a YAML file containing corpus metadata.
         """
+        logger.debug(f"Initialising corpus from {path}")
+
         path = Path(path)
         corpus_info = CorpusInfo.from_file(path)
         self._corpus = corpus_info.name
@@ -217,12 +225,22 @@ class Dataset:
     def _verify_annotations(self, annot_name: Optional[str] = None):
         """Make sure there is a value for each instance for each annotation."""
 
+        try:
+            self.annotations.loc[self.names]
+        except KeyError as e:
+            raise RuntimeError("Incomplete annotations") from e
+        return
+
         annots = self.annotations.loc[self.names]
 
         def verify_annotation(annot_name: str):
             missing = annots.index[annots[annot_name].isna()]
             if len(missing) > 0:
-                raise RuntimeError(
+                # raise RuntimeError(
+                #     f"Incomplete annotation {annot_name}. These names are missing:"
+                #     f"{missing}"
+                # )
+                warnings.warn(
                     f"Incomplete annotation {annot_name}. These names are missing:"
                     f"{missing}"
                 )
@@ -268,8 +286,12 @@ class Dataset:
         self._feature_names = data.feature_names
         if len(self.names) > 0:
             names = set(self.names)
-            if len(names - set(data.names)) > 0:
-                raise ValueError(f"Features at {features} don't contain all instances.")
+            missing = names - set(data.names)
+            if len(missing) > 0:
+                raise ValueError(
+                    f"Features at {features} don't contain all instances, these are"
+                    f"missing: {missing}"
+                )
             self._x = data.features[[i for i, n in enumerate(data.names) if n in names]]
             self._names = ordered_intersect(data.names, names)
         else:
@@ -408,6 +430,8 @@ class Dataset:
         else:
             series = pd.Series(annotations, index=self.names)
 
+        logger.debug(f"Updating annotation {annot_name} ({len(series)} values).")
+
         self.annotations[annot_name] = series
         if (
             dtype == "category"
@@ -431,7 +455,16 @@ class Dataset:
         mapping: dict
             Group name mapping.
         """
-        new = self.annotations[part_name].cat.rename_categories(mapping)
+        logger.debug(f"Mapping {part_name}: {mapping}")
+
+        annot = self.annotations[part_name]
+        try:
+            new = annot.cat.rename_categories(mapping)
+        except ValueError:
+            # Not a 1-1 mapping
+            _map = {x: x for x in annot.cat.categories}
+            _map.update(mapping)
+            new = annot.map(_map).astype("category")
         new = new.cat.reorder_categories(new.cat.categories.sort_values())
         self.annotations[part_name] = new
 
