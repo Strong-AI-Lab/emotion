@@ -66,7 +66,7 @@ def list_processors(ctx, param, val):
     default=16000,
     help="Resample to this rate for audio input.",
 )
-@click.option("--n_jobs", type=int, default=-1, help="Number of parallel jobs to run.")
+@click.option("--n_jobs", type=int, default=1, help="Number of parallel jobs to run.")
 @click.option("--verbose", is_flag=True)
 @click.argument("restargs", nargs=-1)
 def main(

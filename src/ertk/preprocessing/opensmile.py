@@ -45,7 +45,7 @@ class OpenSMILEExtractor(
             self._feature_names.extend(smile.feature_names)
 
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
-        xs = [smile(x, kwargs.pop("sr")) for smile in self.smiles]
+        xs = [smile(x.squeeze(), kwargs.pop("sr")) for smile in self.smiles]
         # TODO: allow other window/padding correction options
         cut = min(x.shape[2] for x in xs)
         xs = [x[:, :, :cut] for x in xs]
