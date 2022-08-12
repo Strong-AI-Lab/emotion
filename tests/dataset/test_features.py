@@ -120,8 +120,7 @@ def test_write_features(
 
 def test_featuresdata_flat():
     data = FeaturesData(np.array([[0.1, 0.2], [0.2, 0.1]]), ["test1", "test2"])
-    with pytest.raises(AttributeError):
-        _ = data.flat
+    assert hasattr(data, "flat")
 
 
 @pytest.mark.parametrize("names", [["test1", "test2"], ["name2", "name1"]])
