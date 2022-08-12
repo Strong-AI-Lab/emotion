@@ -117,6 +117,11 @@ def train_args(f):
             "--balanced/--imbalanced", default=True, help="Balances sample weights."
         ),
         optgroup.option(
+            "--sample_rate",
+            type=int,
+            help="Sample rate if loading raw audio.",
+        ),
+        optgroup.option(
             "--n_gpus",
             type=int,
             default=1,
@@ -138,6 +143,12 @@ def train_args(f):
             "normalisation.",
         ),
         optgroup.option(
+            "--seq_transform",
+            default="feature",
+            show_default=True,
+            help="Normalisation method for sequences.",
+        ),
+        optgroup.option(
             "--transform",
             type=click.Choice(["std", "minmax"]),
             default="std",
@@ -152,6 +163,12 @@ def train_args(f):
             type=int,
             default=0,
             help="Verbosity. -1=nothing, 0=dataset+results, 1=INFO, 2=DEBUG",
+        ),
+        optgroup.option(
+            "--train_config",
+            "train_config_path",
+            type=click.Path(exists=True, path_type=Path),
+            help="Path to train config file.",
         ),
     ]
     return apply_decorators(f, *decs)

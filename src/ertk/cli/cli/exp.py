@@ -62,6 +62,9 @@ def main(
     train: str,
     valid: str,
     test: str,
+    train_config_path: Path,
+    seq_transform: str,
+    sample_rate: int,
 ):
     np.set_printoptions(precision=4, threshold=10)
     if verbose > 0:
@@ -73,13 +76,18 @@ def main(
     if (train and kfold) or (not train and not kfold):
         raise ValueError("Exactly one of train and kfold must be given.")
 
+    read_kwargs = {"sample_rate": sample_rate} if sample_rate else {}
     if len(subset) == 1 and ":" not in subset[0]:
-        dataset = load_multiple(corpus_info, features, subsets=subset[0])
+        dataset = load_multiple(
+            corpus_info, features, subsets=subset[0], label=label, **read_kwargs
+        )
     else:
         subset_map = {}
         for m in subset:
             subset_map.update(get_arg_mapping(m))
-        dataset = load_multiple(corpus_info, features, subsets=subset_map)
+        dataset = load_multiple(
+            corpus_info, features, subsets=subset_map, label=label, **read_kwargs
+        )
 
     grp_map = {}
     for m in map_groups:
@@ -101,7 +109,7 @@ def main(
     if normalise == "none":
         transformer = None
     elif normalise == "online" and len(dataset.x[0].shape) > 1:
-        transformer = SequenceTransformWrapper(transformer, "feature")
+        transformer = SequenceTransformWrapper(transformer, seq_transform)
     elif normalise != "online":
         dataset.normalise(normaliser=transformer, partition=normalise)
         transformer = None
@@ -227,35 +235,39 @@ def main(
     elif clf_lib == "pt":
         from omegaconf import OmegaConf
 
-        from ertk.pytorch.models import get_pt_model
+        from ertk.pytorch.models import PyTorchModelConfig, get_pt_model
         from ertk.pytorch.train import PyTorchLoggingConfig, PyTorchTrainConfig
 
         n_jobs = 1
-
-        train_config = PyTorchTrainConfig(
-            batch_size=batch_size,
-            n_gpus=n_gpus,
-            epochs=epochs,
-            logging=PyTorchLoggingConfig(log_dir=str(logdir)),
-        )
+        if train_config_path:
+            train_config = PyTorchTrainConfig.from_file(train_config_path)
+        else:
+            train_config = PyTorchTrainConfig(
+                batch_size=batch_size,
+                n_gpus=n_gpus,
+                epochs=epochs,
+                logging=PyTorchLoggingConfig(log_dir=str(logdir)),
+            )
         fit_params.update({"train_config": train_config})
 
-        # model_config = PyTorchModelConfig(
-        #     optimiser="adam",
-        #     learning_rate=learning_rate,
-        #     n_features=dataset.n_features,
-        #     n_classes=dataset.n_classes,
-        #     loss="cross_entropy",
-        # )
-        model_config = OmegaConf.create(model_args)
-        model_config.n_features = dataset.n_features
-        model_config.n_classes = dataset.n_classes
+        model_config: PyTorchModelConfig = OmegaConf.create(model_args)
+        if model_config.n_features == -1:
+            model_config.n_features = dataset.n_features
+        elif model_config.n_features != dataset.n_features:
+            logging.warning("`n_features` differs between dataset and model_config")
+        if model_config.n_classes == -1:
+            model_config.n_classes = dataset.n_classes
+        elif model_config.n_classes != dataset.n_classes:
+            raise ValueError("`n_classes` differs between dataset and model_config")
 
         def model_fn():
             model = get_pt_model(clf_type, config=model_config)
             return model if transformer is None else (transformer, model)
 
-        params = {**model_config, **PyTorchTrainConfig.to_dictconfig(train_config)}
+        params = {
+            **PyTorchModelConfig.to_dictconfig(model_config),
+            **PyTorchTrainConfig.to_dictconfig(train_config),
+        }
         clf = model_fn
     else:
         raise ValueError(f"Invalid classifier type {clf_type}")
@@ -286,6 +298,8 @@ def main(
             print("Using 'online' normalisation.")
         elif normalise != "none":
             print(f"Normalising globally using {normalise} partition.")
+        if normalise != "none":
+            print(f"Using transformer {transformer}")
 
     dfs = []
     for rep in range(1, reps + 1):
