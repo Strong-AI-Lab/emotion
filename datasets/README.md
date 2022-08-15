@@ -27,6 +27,7 @@ Currently the following datasets have processing scripts:
 - [MELD](https://github.com/declare-lab/MELD/)
 - [MESD](https://data.mendeley.com/datasets/cy34mh68j9/3)
 - [MESS](https://zenodo.org/record/3813437)
+- [MLEndSND](https://www.kaggle.com/datasets/jesusrequena/mlend-spoken-numerals)
 - [MSP-IMPROV](https://ecs.utdallas.edu/research/researchlabs/msp-lab/MSP-Improv.html)
 - [MSP-PODCAST](https://ecs.utdallas.edu/research/researchlabs/msp-lab/MSP-Podcast.html)
 - [Portuguese](https://link.springer.com/article/10.3758/BRM.42.1.74)
