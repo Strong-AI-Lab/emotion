@@ -25,15 +25,36 @@ class ERTKConfig(ABC):
 
     @classmethod
     def from_config(cls: Type[T], config: Any) -> T:
+        """Create config from any omegaconf config."""
         schema = OmegaConf.structured(cls)
         return cast(T, OmegaConf.merge(schema, config))
 
     @classmethod
-    def from_file(cls: Type[T], path: PathOrStr) -> T:
+    def from_file(
+        cls: Type[T], path: PathOrStr, override: Optional[List[str]] = None
+    ) -> T:
+        """Create config from YAML file and optionlly override some
+        values.
+
+        Parameters
+        ----------
+        path: os.Pathlike or str
+            The path to YAML file containing config.
+        override: list of str, optional
+            Argument overrides in the form of key=value pairs.
+
+        Returns
+        -------
+        omegaconf.DictConfig
+            The structured config which behaves like the corresponding
+            config dataclass.
+        """
         config = OmegaConf.load(Path(path))
+        if override is not None:
+            config = OmegaConf.merge(config, OmegaConf.from_dotlist(override))
         return cls.from_config(config)
 
-    def merge_with_cli(self: T, args: Optional[List[str]] = None) -> T:
+    def merge_with_args(self: T, args: Optional[List[str]] = None) -> T:
         return cast(T, OmegaConf.merge(self, OmegaConf.from_cli(args)))
 
 
