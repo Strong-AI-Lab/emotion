@@ -5,13 +5,14 @@ import click
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+from click_option_group import RequiredAnyOptionGroup, optgroup
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import MinMaxScaler, Normalizer, StandardScaler
 from umap import UMAP
 
-from ertk.dataset import DataLoadConfig, load_datasets_config, read_features
+from ertk.dataset import DataLoadConfig, Dataset, load_datasets_config, read_features
 
 
 @click.group()
@@ -20,14 +21,36 @@ def main():
 
 
 @main.command("xy")
-@click.argument("input", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@optgroup.group("input", cls=RequiredAnyOptionGroup)
+@optgroup.option(
+    "--conf", "data_conf", type=click.Path(exists=True, dir_okay=False, path_type=Path)
+)
+@optgroup.option(
+    "--features", type=click.Path(exists=True, dir_okay=False, path_type=Path)
+)
+@optgroup.option(
+    "--corpus",
+    "corpus_info",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
 @click.option(
     "--transform",
     type=click.Choice(["pca", "umap", "tsne", "std", "minmax"]),
     default=("pca",),
     multiple=True,
 )
-@click.option("--colour", "colour_part", type=str, help="Colour by this partition.")
+@click.option(
+    "--colour",
+    "colour_part",
+    type=str,
+    help="Colour by this partition.",
+)
+@click.option(
+    "--style",
+    "style_part",
+    type=str,
+    help="Style markers by this partition.",
+)
 @click.option(
     "--sample",
     "sample_str",
@@ -37,9 +60,12 @@ def main():
 )
 @click.argument("restargs", type=str, nargs=-1)
 def xy(
-    input: Path,
+    data_conf: Path,
+    features: Path,
+    corpus_info: Path,
     transform: Tuple[str],
     colour_part: str,
+    style_part: str,
     sample_str: str,
     restargs: Tuple[str],
 ):
@@ -47,16 +73,26 @@ def xy(
     either be a features file or data load config.
     """
 
-    print(f"Loading data from {input}")
-    if input.suffix == ".yaml":
-        conf = DataLoadConfig.from_file(input, override=list(restargs))
-        data = load_datasets_config(conf)
+    if data_conf or corpus_info:
+        if data_conf:
+            print(f"Loading data from {data_conf}")
+            conf = DataLoadConfig()
+            conf = DataLoadConfig.from_file(data_conf, override=list(restargs))
+            data = load_datasets_config(conf)
+        else:
+            if features is None:
+                raise ValueError("Must specify --features to use with --corpus")
+            print(f"Loading data from {features}")
+            data = Dataset(corpus_info, features=features)
 
         x = data.x
-        hue = data.get_annotations(colour_part)
+        hue = data.get_annotations(colour_part) if colour_part else None
+        style = data.get_annotations(style_part) if style_part else None
     else:
-        x = read_features(input).features
+        print(f"Loading data from {features}")
+        x = read_features(features).features
         hue = None
+        style = None
 
     try:
         sample = int(float(sample_str) * len(x))
@@ -89,7 +125,7 @@ def xy(
     print(f"Transforming with {pipeline}")
     x_new = pipeline.fit_transform(x)
     plt.figure()
-    sns.scatterplot(x=x_new[:, 0], y=x_new[:, 1], hue=hue)
+    sns.scatterplot(x=x_new[:, 0], y=x_new[:, 1], hue=hue, style=style)
     plt.show()
 
 
