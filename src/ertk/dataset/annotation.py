@@ -12,8 +12,6 @@ def read_annotations(
     """Returns a pd.Series containing values for this annotation for
     each instance, indexed by name.
     """
-    # Need index_col to be False or None due to
-    # https://github.com/pandas-dev/pandas/issues/9435
     _dtype = dtype
     if dtype == "category":
         _dtype = str
@@ -21,7 +19,7 @@ def read_annotations(
         filename,
         index_col=0,
         header=0,
-        converters={0: str, 1: _dtype},
+        dtype={0: str, 1: _dtype},
         low_memory=False,
     )
     if dtype == "category":
