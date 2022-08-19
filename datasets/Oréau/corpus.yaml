@@ -1,0 +1,20 @@
+name: Oréau
+description: Oréau French dataset
+annotations: []
+partitions:
+- label
+- speaker
+- language
+- sentence
+subsets:
+  all:
+    clips: files_all
+    description: All files
+  "01":
+    clips: files_01
+    description: Files from version 1
+  "02":
+    clips: files_02
+    description: Files from version 2
+default_subset: all
+features_dir: ../../features/OréauFR

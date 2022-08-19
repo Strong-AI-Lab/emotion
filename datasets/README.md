@@ -30,6 +30,7 @@ Currently the following datasets have processing scripts:
 - [MLEndSND](https://www.kaggle.com/datasets/jesusrequena/mlend-spoken-numerals)
 - [MSP-IMPROV](https://ecs.utdallas.edu/research/researchlabs/msp-lab/MSP-Improv.html)
 - [MSP-PODCAST](https://ecs.utdallas.edu/research/researchlabs/msp-lab/MSP-Podcast.html)
+- [Oréau](https://zenodo.org/record/4405783)
 - [Portuguese](https://link.springer.com/article/10.3758/BRM.42.1.74)
 - [RAVDESS](https://zenodo.org/record/1188976)
 - [SAVEE](http://kahlan.eps.surrey.ac.uk/savee/)
