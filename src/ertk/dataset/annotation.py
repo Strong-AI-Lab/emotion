@@ -1,4 +1,4 @@
-from typing import Mapping, Optional, Type, Union
+from typing import Dict, Mapping, Optional, Type, Union
 
 import pandas as pd
 from typing_extensions import Literal
@@ -13,15 +13,12 @@ def read_annotations(
     each instance, indexed by name.
     """
     _dtype = dtype
-    if dtype == "category":
+    if _dtype == "category":
         _dtype = str
-    df = pd.read_csv(
-        filename,
-        index_col=0,
-        header=0,
-        dtype={0: str, 1: _dtype},
-        low_memory=False,
-    )
+    dtypes: Dict[int, Type] = {0: str}
+    if _dtype is not None:
+        dtypes[1] = _dtype
+    df = pd.read_csv(filename, index_col=0, header=0, dtype=dtypes, low_memory=False)
     if dtype == "category":
         return df[df.columns[0]].astype("category")
     return df[df.columns[0]]
