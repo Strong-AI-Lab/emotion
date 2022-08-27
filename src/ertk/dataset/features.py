@@ -78,8 +78,8 @@ def read_netcdf(path: PathOrStr):
 
 
 def _read_audio_file(path, sample_rate: int = 16000):
-    with warnings.catch_warnings():
-        audio, _ = librosa.load(path, sr=sample_rate, mono=True, res_type="kaiser_fast")
+    warnings.filterwarnings("ignore", message="PySoundFile", category=UserWarning)
+    audio, _ = librosa.load(path, sr=sample_rate, mono=True, res_type="kaiser_fast")
     return np.expand_dims(audio, -1)
 
 
