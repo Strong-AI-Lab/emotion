@@ -1,10 +1,12 @@
+import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Optional, Tuple, Type
+from typing import Any, ClassVar, Dict, List, Optional, Tuple, Type, cast
 
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
+from omegaconf import OmegaConf
 
 from ertk.config import ERTKConfig
 
@@ -23,13 +25,65 @@ class PyTorchModelConfig(ERTKConfig):
 class ERTKPyTorchModel(pl.LightningModule, ABC):
     config: PyTorchModelConfig
 
+    _config_type: ClassVar[Type[PyTorchModelConfig]]
+    _friendly_name: ClassVar[str]
+    _registry: ClassVar[Dict[str, Type["ERTKPyTorchModel"]]] = {}
+
     def __init__(
         self,
         config: PyTorchModelConfig,
     ) -> None:
         super().__init__()
+
+        full_config = OmegaConf.merge(type(self).get_default_config(), config)
+        # Inplace merge so that subclass __init__() also gets the full config
+        config.merge_with(full_config)
+
         self.save_hyperparameters(PyTorchModelConfig.to_dictconfig(config))
         self.config = config
+
+    def __init_subclass__(
+        cls, fname: str = None, config: Type[PyTorchModelConfig] = None
+    ) -> None:
+        cls._registry = {}
+        if fname and config:
+            cls._friendly_name = fname
+            cls._config_type = config
+            for t in cls.mro()[1:-1]:
+                t = cast(Type[ERTKPyTorchModel], t)  # For MyPy
+                if not hasattr(t, "_registry"):
+                    continue
+                if fname in t._registry:
+                    prev_cls = t._registry[fname]
+                    msg = f"Name {fname} already registered with class {prev_cls}."
+                    if prev_cls is cls:
+                        warnings.warn(msg)
+                    else:
+                        raise KeyError(msg)
+                t._registry[fname] = cls
+
+    @classmethod
+    def get_model_class(cls, name: str) -> Type["ERTKPyTorchModel"]:
+        try:
+            return cls._registry[name]
+        except KeyError as e:
+            raise ValueError(f"No model named {name}") from e
+
+    @classmethod
+    def make_model(cls, name: str, config: PyTorchModelConfig) -> "ERTKPyTorchModel":
+        return cls.get_model_class(name)(config)
+
+    @classmethod
+    def get_config_type(cls) -> Type[PyTorchModelConfig]:
+        return cls._config_type
+
+    @classmethod
+    def valid_models(cls) -> List[str]:
+        return list(cls._registry)
+
+    @classmethod
+    def get_default_config(cls) -> PyTorchModelConfig:
+        return OmegaConf.structured(cls._config_type)
 
     @abstractmethod
     def forward(self, x, **kwargs):  # type: ignore
@@ -68,7 +122,6 @@ class SimpleModel(ERTKPyTorchModel):
         config: PyTorchModelConfig,
     ) -> None:
         super().__init__(config)
-        self.save_hyperparameters(PyTorchModelConfig.to_dictconfig(config))
         loss_fn = {
             "cross_entropy": nn.CrossEntropyLoss,
             "nll": nn.NLLLoss,
@@ -99,7 +152,7 @@ class SimpleModel(ERTKPyTorchModel):
             loss = loss.dot(sw) / sw.sum()
         else:
             loss = loss.mean()
-        self.log(f"{name}_loss", loss.item())
+        self.log(f"loss/{name}", loss.item())
         return loss
 
     def get_outputs_for_batch(
@@ -178,9 +231,10 @@ class SimpleClassificationModel(SimpleModel):
     def validation_step(self, batch, batch_idx: int) -> None:
         x, y, yhat, sw = self.get_outputs_for_batch(batch)
         self.log_loss("val", y, yhat, sw)
-        self.log_acc("val", y, yhat)
+        acc = self.log_acc("val", y, yhat)
+        self.log("hp_metric", acc.item())
 
     def log_acc(self, name: str, y: torch.Tensor, yhat: torch.Tensor) -> torch.Tensor:
         acc = (yhat.argmax(1) == y).float().mean()
-        self.log(f"{name}_acc", acc.item())
+        self.log(f"acc/{name}", acc.item())
         return acc

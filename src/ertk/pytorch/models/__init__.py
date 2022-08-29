@@ -4,7 +4,9 @@ from typing import Callable
 
 from torch.nn import Module
 
+from . import aldeneh2017, mlp, wav2vec_ft, zhang2019
 from ._base import (
+    ERTKPyTorchModel,
     LightningWrapper,
     PyTorchModelConfig,
     SimpleClassificationModel,
