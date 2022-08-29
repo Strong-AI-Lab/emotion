@@ -5,6 +5,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from ertk.pytorch.utils import get_activation
+
 
 class Attention1D(nn.Module):
     def __init__(self, in_channels: int) -> None:
@@ -20,39 +22,13 @@ class Attention1D(nn.Module):
         return r
 
 
-def get_activation(act: str, *args, **kwargs) -> nn.Module:
-    """Get torch Module for activation function.
-
-    Parameters
-    ----------
-    act: str
-        String representing the activation function.
-    *args, **kwargs: optional
-        Arguments and keyword arguments to pass to activation function
-        module `__init__()`.
-
-    Returns
-    -------
-    torch.nn.Module
-        The activation function as a `Module`.
-    """
-    cls = {
-        "relu": nn.ReLU,
-        "leaky_relu": nn.LeakyReLU,
-        "sigmoid": nn.Sigmoid,
-        "linear": nn.Identity,
-        "tanh": nn.Tanh,
-    }[act]
-    return cls(*args, **kwargs)
-
-
 def make_fc(
     dims: List[int],
     activation: str = "relu",
     activation_args: Sequence[Any] = [],
     init_fn: Callable = nn.init.xavier_uniform_,
-    norm: str = "batch",
-    dropout: float = 0.2,
+    norm: str = "none",
+    dropout: float = 0,
 ):
     """Makes a fully connected module with the given numbers of hidden
     units, and given activation after every layer except the last.
@@ -94,5 +70,5 @@ def make_fc(
             module.append(nn.Dropout(dropout))
     linear = nn.Linear(dims[-2], dims[-1])
     init_fn(linear.weight, gain=init_gain)
-    module.append(nn.Linear(dims[-2], dims[-1]))
+    module.append(linear)
     return module

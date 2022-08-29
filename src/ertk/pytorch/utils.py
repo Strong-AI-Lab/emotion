@@ -1,10 +1,82 @@
-from dataclasses import dataclass
 from typing import Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchaudio
+
+
+def get_loss(loss: str, *args, **kwargs) -> nn.Module:
+    """Get torch Module for activation function.
+
+    Parameters
+    ----------
+    loss: str
+        String representing the loss function.
+    *args, **kwargs: optional
+        Arguments and keyword arguments to pass to loss function
+        module `__init__()`.
+
+    Returns
+    -------
+    torch.nn.Module
+        The loss function as a `Module`.
+    """
+    cls = {
+        "l1": nn.L1Loss,
+        "mse": nn.MSELoss,
+        "ce": nn.CrossEntropyLoss,
+        "cross_entropy": nn.CrossEntropyLoss,
+        "kl": nn.KLDivLoss,
+        "bce": nn.BCELoss,
+        "bce_logits": nn.BCEWithLogitsLoss,
+        "ctc": nn.CTCLoss,
+        "nll": nn.NLLLoss,
+        "hinge": nn.HingeEmbeddingLoss,
+        "cosine": nn.CosineEmbeddingLoss,
+        "triplet": nn.TripletMarginLoss,
+    }[loss]
+    return cls(*args, **kwargs)
+
+
+def get_activation(act: str, *args, **kwargs) -> nn.Module:
+    """Get torch Module for activation function.
+
+    Parameters
+    ----------
+    act: str
+        String representing the activation function.
+    *args, **kwargs: optional
+        Arguments and keyword arguments to pass to activation function
+        module `__init__()`.
+
+    Returns
+    -------
+    torch.nn.Module
+        The activation function as a `Module`.
+    """
+    cls = {
+        "relu": nn.ReLU,
+        "leaky_relu": nn.LeakyReLU,
+        "glu": nn.GLU,
+        "mish": nn.Mish,
+        "selu": nn.SELU,
+        "silu": nn.SiLU,
+        "gelu": nn.GELU,
+        "celu": nn.CELU,
+        "prelu": nn.PReLU,
+        "rrelu": nn.RReLU,
+        "elu": nn.ELU,
+        "sigmoid": nn.Sigmoid,
+        "log_sigmoid": nn.LogSigmoid,
+        "tanh": nn.Tanh,
+        "threshold": nn.Threshold,
+        "softmax": nn.Softmax,
+        "log_softmax": nn.LogSoftmax,
+        "softplus": nn.Softplus,
+        "linear": nn.Identity,
+    }[act]
+    return cls(*args, **kwargs)
 
 
 def load_tensorboard():
@@ -16,14 +88,6 @@ def load_tensorboard():
     import tensorflow as _tensorflow
 
     _tensorflow.io.gfile = _gfile
-
-
-@dataclass
-class MTLTaskConfig:
-    name: str
-    weight: float
-    output_dim: int
-    loss: nn.Module
 
 
 def frame_tensor(

@@ -10,8 +10,6 @@ from ertk.pytorch.models import PyTorchModelConfig
 @dataclass
 class PyTorchLoggingConfig(ERTKConfig):
     log_dir: Optional[str] = None
-    name: str = ""
-    version: str = ""
     tensorboard: bool = True
     csv: bool = True
 
