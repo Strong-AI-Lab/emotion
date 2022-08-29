@@ -15,7 +15,12 @@ def resolve_files(key):
     return key
 
 
+def resolve_files_load(key):
+    return OmegaConf.load(key)
+
+
 OmegaConf.register_resolver("file", resolve_files)
+OmegaConf.register_resolver("cwdpath", resolve_files_load)
 
 
 @dataclass

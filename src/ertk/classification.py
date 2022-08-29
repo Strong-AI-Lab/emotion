@@ -328,3 +328,50 @@ def get_balanced_sample_weights(labels: Union[List[int], np.ndarray]):
     class_weight = len(labels) / (len(unique) * counts)
     sample_weights = class_weight[indices].astype(np.float32)
     return sample_weights
+
+
+def get_balanced_class_weights(classes: Union[List[int], np.ndarray]):
+    """Gets class weights such that each class has the same total weight
+    across all instances.
+
+    Parameters
+    ----------
+    classes: list or array
+        Sequence of classes of length n_samples.
+
+    Returns
+    -------
+    class_weights: np.ndarray
+        Array of class weights of length n_classes.
+    """
+    unique, counts = np.unique(classes, return_counts=True)
+    class_weights = len(classes) / (len(unique) * counts)
+    return class_weights
+
+
+def class_ratings_to_probs(
+    ratings: pd.Series, classes: Optional[List[str]] = None
+) -> np.ndarray:
+    """Convert annotator ratings into distribution over classes for each
+    instance.
+
+    Parameters
+    ----------
+    ratings: pd.Series
+        The Pandas `Series` containing the ratings.
+    classes: list of str, optional
+        Limit to these classes.
+
+    Returns
+    -------
+    numpy.ndarray
+        Matrix of shape (n_instances, n_classes) containing
+        probabilities (relative frequencies) for each class.
+    """
+    ratings = ratings.astype("category")
+    if classes:
+        ratings = ratings.cat.set_categories(classes)
+
+    mat = ratings.groupby(level=0).value_counts(sort=False).unstack().to_numpy()
+    mat = mat / np.sum(mat, axis=1, keepdims=True)
+    return mat

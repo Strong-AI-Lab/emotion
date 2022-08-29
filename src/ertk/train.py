@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Type, TypeVar, Union
@@ -225,7 +225,7 @@ def get_scores(
     dummy = DummyEstimator(y_pred)
 
     if isinstance(scoring, str):
-        scoring = {"score": get_scorer(scoring)}
+        scoring = {scoring: get_scorer(scoring)}
     elif callable(scoring):
         scoring = {"score": scoring}
     elif isinstance(scoring, list):
@@ -271,9 +271,9 @@ def scores_to_df(
 class ModelConfig(ERTKConfig):
     type: str = omegaconf.MISSING
     config: Any = None
-    args: Optional[Dict[str, Any]] = None
+    args: Dict[str, Any] = field(default_factory=dict)
     args_path: Optional[str] = None
-    param_grid: Optional[Dict[str, Any]] = None
+    param_grid: Dict[str, Any] = field(default_factory=dict)
     param_grid_path: Optional[str] = None
 
 
@@ -291,13 +291,14 @@ class CrossValidationConfig(ERTKConfig):
 class TVTConfig(ERTKConfig):
     train: DataSelector = omegaconf.MISSING
     valid: DataSelector = omegaconf.MISSING
-    test: Optional[str] = None
+    test: Optional[DataSelector] = None
 
 
 @dataclass
 class EvalConfig(ERTKConfig):
     cross_validation: Optional[CrossValidationConfig] = None
     train_val_test: Optional[TVTConfig] = None
+    results: str = ""
 
 
 class TransformClass(Enum):
@@ -308,14 +309,16 @@ class TransformClass(Enum):
 @dataclass
 class TrainConfig(ERTKConfig):
     balanced: bool = True
-    n_gpus: int = 1
     reps: int = 1
     normalise: str = "online"
     transform: TransformClass = TransformClass.std
+    seq_transform: str = "global"
     n_jobs: int = -1
     verbose: int = 0
     label: str = "label"
-    epochs: int = 50
+    sklearn: Any = None
+    pytorch: Any = None
+    tensorflow: Any = None
 
 
 T = TypeVar("T", bound="ExperimentConfig")
@@ -323,15 +326,19 @@ T = TypeVar("T", bound="ExperimentConfig")
 
 @dataclass
 class ExperimentConfig(ERTKConfig):
+    name: str = "default"
     data: DataLoadConfig = omegaconf.MISSING
     model: ModelConfig = omegaconf.MISSING
-    evaluation: EvalConfig = EvalConfig()
-    training: TrainConfig = TrainConfig()
+    evaluation: EvalConfig = field(default_factory=EvalConfig)
+    evaluations: Dict[str, EvalConfig] = field(default_factory=dict)
+    training: TrainConfig = field(default_factory=TrainConfig)
 
     @classmethod
-    def from_file(cls: Type[T], path: PathOrStr) -> T:
+    def from_file(
+        cls: Type[T], path: PathOrStr, override: Optional[List[str]] = None
+    ) -> T:
         path = Path(path)
-        conf = super().from_file(path)
+        conf = super().from_file(path, override)
         if isinstance(conf.data, str):
             conf.data = DataLoadConfig.from_file(path.parent / conf.data)
         return conf
