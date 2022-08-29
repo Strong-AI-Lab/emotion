@@ -18,15 +18,19 @@ from ertk.dataset import get_audio_paths
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     help="File with names to include for statistics.",
 )
-def main(input: Tuple[Path], plot: bool, files: Path):
+@click.option("--dtype")
+def main(input: Tuple[Path], plot: bool, files: Path, dtype: str):
     """Calculate statistics from annotations in INPUT(s). If multiple
     INPUTs are given, additional statistics for the other INPUTs are
     shown for each level of INPUT.
     """
 
     dfs: List[pd.DataFrame] = []
+    _dtype = {0: str}
+    if dtype == "str":
+        _dtype[1] = str
     for file in input:
-        df = pd.read_csv(file, header=0, converters={0: str}).set_index("name")
+        df = pd.read_csv(file, header=0, dtype=_dtype).set_index("name")
         if files:
             names = {Path(x).stem for x in get_audio_paths(files)}
             df = df[df.index.isin(names)]
