@@ -1,4 +1,4 @@
-"""Process the raw CaFE dataset.
+"""Process the raw CREMA-D dataset.
 
 This assumes the file structure from the original compressed file:
 /.../
@@ -28,6 +28,21 @@ emotion_map = {
     "X": "unknown",
 }
 
+sentence_map = {
+    "IEO": "It's eleven o'clock",
+    "TIE": "That is exactly what happened",
+    "IOM": "I'm on my way to the meeting",
+    "IWW": "I wonder what this is about",
+    "TAI": "The airplane is almost full",
+    "MTI": "Maybe tomorrow it will be cold",
+    "IWL": "I would like a new alarm clock",
+    "ITH": "I think I have a doctor's appointment",
+    "DFA": "Don't forget a jacket",
+    "ITS": "I think I've seen this before",
+    "TSI": "The surface is slick",
+    "WSI": "We'll stop in a couple of minutes",
+}
+
 
 @click.command()
 @click.argument(
@@ -37,19 +52,33 @@ emotion_map = {
 def main(input_dir: Path, resample: bool):
     """Process CREMA-D dataset at location INPUT_DIR."""
 
-    paths = list(input_dir.glob("AudioMP3/*.mp3"))
+    paths = list(input_dir.glob("AudioMP3/*.mp3"))  # MP3 has fewer issues
     write_annotations({p.stem: emotion_map[p.stem[9]] for p in paths}, "label")
-    write_annotations({p.stem: p.stem[:4] for p in paths}, "speaker")
+    speakers = {p.stem: p.stem[:4] for p in paths}
+    write_annotations(speakers, "speaker")
+    spk_df = pd.read_csv(
+        input_dir / "VideoDemographics.csv", header=0, dtype={0: str}
+    ).set_index("ActorID")
+    for key in ["Age", "Sex", "Race", "Ethnicity"]:
+        write_annotations(
+            {k: spk_df.loc[v, key] for k, v in speakers.items()}, key.lower()
+        )
+    write_annotations({p.stem: p.stem[5:8] for p in paths}, "sentence")
+    write_annotations({p.stem: sentence_map[p.stem[5:8]] for p in paths}, "transcript")
+    write_annotations({p.stem: p.stem[-2:] for p in paths}, "level")
     write_annotations({p.stem: "en" for p in paths}, "language")
     write_annotations({p.stem: "us" for p in paths}, "country")
-    # 1076_MTI_SAD_XX has no signal
-    paths = [p for p in paths if p.stem != "1076_MTI_SAD_XX"]
-    resample_dir = Path("resampled")
+
     if resample:
+        resample_dir = Path("resampled")
         resample_dir.mkdir(exist_ok=True)
         resample_audio(paths, resample_dir)
-    write_filelist(resample_dir.glob("*.wav"), "files_all")
+        paths = list(resample_dir.glob("*.wav"))
+    # 1076_MTI_SAD_XX has no signal
+    paths = [p for p in paths if p.stem != "1076_MTI_SAD_XX"]
+    write_filelist(paths, "files_all")
 
+    # Annotations
     summaryTable = pd.read_csv(
         input_dir / "processedResults" / "summaryTable.csv",
         low_memory=False,
@@ -76,6 +105,7 @@ def main(input_dir: Path, resample: bool):
     summaryTable.loc[~valid, "VoiceVote"] = "X"
     write_annotations(summaryTable["VoiceVote"].to_dict(), "label_voice")
 
+    # Full ratings
     finishedResponses = pd.read_csv(
         input_dir / "finishedResponses.csv", low_memory=False, index_col=0
     )
@@ -83,16 +113,19 @@ def main(input_dir: Path, resample: bool):
         finishedResponses["respLevel"], errors="coerce"
     )
     # Remove these two duplicates
-    finishedResponses = finishedResponses.drop([137526, 312184], errors="ignore")
+    finishedResponses = finishedResponses.drop(index=[137526, 312184], errors="ignore")
 
     finishedEmoResponses = pd.read_csv(
         input_dir / "finishedEmoResponses.csv", low_memory=False, index_col=0
     )
+    # Ignore practice clips
     finishedEmoResponses = finishedEmoResponses[
         ~finishedEmoResponses["clipNum"].isin([7443, 7444])
     ]
-    distractedResponses = finishedEmoResponses[finishedEmoResponses["ttr"] > 10000]
 
+    # Get all annotations not defined to be distracted
+    # Same as from processFinishedResponses.r
+    distractedResponses = finishedEmoResponses[finishedEmoResponses["ttr"] > 10000]
     uniqueIDs = (
         finishedResponses["sessionNums"] * 1000
         + finishedResponses["queryType"] * 100
@@ -103,16 +136,23 @@ def main(input_dir: Path, resample: bool):
         + distractedResponses["queryType"] * 100
         + distractedResponses["questNum"]
     )
-    # Get all annotations not defined to be distracted
     goodResponses = finishedResponses[~uniqueIDs.isin(distractedIDs)]
 
     # Responses based on different modalities
-    voiceResp = goodResponses.query("queryType == 1")
-    faceResp = goodResponses.query("queryType == 2")
-    multiModalResp = goodResponses.query("queryType == 3")
+    resp_d = {1: "voice", 2: "face", 3: "both"}
+    gb = goodResponses.groupby("queryType")
+    for num, s in resp_d.items():
+        df = gb.get_group(num)
 
-    resp_d = {"voice": voiceResp, "face": faceResp, "both": multiModalResp}
-    for s, df in resp_d.items():
+        ratings = (
+            df.rename(columns={"clipName": "name", "localid": "rater"})
+            .set_index(["name", "rater"])
+            .sort_index()[["respEmo", "respLevel", "numTries", "ttr"]]
+        )
+        # Make sure all names are present in ratings
+        assert len(ratings.index.unique("name")) == 7442
+        ratings.to_csv(f"ratings_{s}.csv")
+
         # Proportion of human responses equal to acted emotion
         accuracy = (df["respEmo"] == df["dispEmo"]).mean()
         print(f"Human accuracy to acted using {s}: {accuracy:.3f}")
