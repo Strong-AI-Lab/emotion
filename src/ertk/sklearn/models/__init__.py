@@ -4,6 +4,7 @@ from typing import Callable
 
 from sklearn.base import BaseEstimator
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 
 from .svm import PrecomputedSVC
@@ -12,6 +13,7 @@ CLASSIFIER_MAP = {
     "svm": PrecomputedSVC,
     "rf": RandomForestClassifier,
     "knn": KNeighborsClassifier,
+    "lr": LogisticRegression,
 }
 
 
