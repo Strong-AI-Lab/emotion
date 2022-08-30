@@ -10,6 +10,8 @@ partitions:
 - gender
 - language
 - split
+ratings:
+- ratings
 subsets:
   all:
     clips: files_all

@@ -8,10 +8,12 @@ annotations:
 - sad
 - surprise
 - sentiment
+- transcript
 partitions:
 - label_maj
 - label_plu
-- transcript
+ratings:
+- ratings
 subsets:
   all:
     clips: files_all

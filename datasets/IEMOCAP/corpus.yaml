@@ -13,6 +13,8 @@ partitions:
 - country
 - session
 - sess_type
+ratings:
+- ratings
 subsets:
   all:
     clips: files_all

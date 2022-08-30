@@ -27,6 +27,9 @@ from ertk.stats import alpha
 REGEX = re.compile(
     r"^UTD-IMPROV-([A-Z0-9-]+)\.avi; ([A-Z]); A:(\d+\.\d+|NaN); V:(\d+\.\d+|NaN); D:(\d+\.\d+|NaN) ; N:(\d+\.\d+|NaN);$"  # noqa
 )
+RATER_RE = re.compile(
+    r"^([A-Za-z0-9-_]+); (Sad|Angry|Happy|Neutral|Other); (.*); A:(\d+\.\d+|NaN); V:(\d+\.\d+|NaN); D:(\d+\.\d+|NaN); N:(\d+\.\d+|NaN);$"  # noqa
+)
 
 emotion_map = {
     "A": "anger",
@@ -36,6 +39,8 @@ emotion_map = {
     "O": "other",
     "X": "unknown",
 }
+
+ratings_map = {"angry": "anger", "happy": "happiness", "sad": "sadness"}
 
 unused_emotions = ["O", "X"]
 
@@ -58,28 +63,32 @@ def main(input_dir: Path, resample: bool):
         for line in fid:
             line = line.strip()
             match = REGEX.match(line)
+            match_rater = RATER_RE.match(line)
             if match:
                 name = "MSP-IMPROV-" + match.group(1)
                 labels[name] = match.group(2)
                 dimensions[name] = list(map(float, match.group(3, 4, 5, 6)))
-            elif line != "":
-                rater, label, *_ = line.split(";")
-                label = label.strip()[0]
-                _ratings.append((name, rater, label))
+            elif match_rater:
+                rater = match_rater.group(1).strip()
+                label = match_rater.group(2).strip().lower()
+                label = ratings_map.get(label, label)
+                # other_labels = match_rater.group(3).strip()
+                act = float(match_rater.group(4).strip())
+                val = float(match_rater.group(5).strip())
+                dom = float(match_rater.group(6).strip())
+                nat = float(match_rater.group(7).strip())
+                _ratings.append((name, rater, label, act, val, dom, nat))
 
     paths = list(input_dir.glob("session?/*/*/*.wav"))
     if resample:
         resample_dir = Path("resampled")
         resample_audio(paths, resample_dir)
-        write_filelist(resample_dir.glob("*.wav"), "files_all")
-        write_filelist(
-            [
-                p
-                for p in resample_dir.glob("*.wav")
-                if labels[p.stem] not in unused_emotions
-            ],
-            "files_4class",
-        )
+        paths = list(resample_dir.glob("*.wav"))
+    write_filelist(paths, "files_all")
+    write_filelist(
+        [p for p in paths if labels[p.stem] not in unused_emotions],
+        "files_4class",
+    )
 
     write_annotations({n: emotion_map[labels[n]] for n in labels}, "label")
     write_annotations({p.stem: emotion_map[p.stem[14]] for p in paths}, "acted_label")
@@ -105,10 +114,15 @@ def main(input_dir: Path, resample: bool):
     #
     # Ratings analysis
     #
-    ratings = pd.DataFrame(sorted(_ratings), columns=["name", "rater", "label"])
-    print("Number of duplicate (clip, rater) pairs:")
+    ratings = pd.DataFrame(
+        sorted(_ratings), columns=["name", "rater", "label", "act", "val", "dom", "nat"]
+    )
+    print("Number of duplicated raters per clip:")
     print(ratings.groupby(["name", "rater"]).size().value_counts().loc[2:])
+    # They appear to simply be copied
     ratings.drop_duplicates(["name", "rater"], inplace=True)
+    ratings.set_index(["name", "rater"]).to_csv("ratings.csv")
+
     # Frequency of mode label(s) per utterance
     name_groups = ratings.groupby("name")
     mode_labels = (

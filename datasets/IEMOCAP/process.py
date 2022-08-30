@@ -45,6 +45,8 @@ emotion_map = {
     "xxx": "unknown",
 }
 
+ratings_map = {"excited": "excitement"}
+
 
 def _clean(words: str):
     words = " ".join(re.split(r"\[\w+\]", words))
@@ -86,8 +88,8 @@ def main(input_dir: Path, resample: bool):
                         # M or F refer to self-evalulation
                         continue
                     *annotations, comments = _annotations.strip().split(";")
-                    label = annotations[0].strip()
-                    _cat_ratings.append((name, rater, label))
+                    label = annotations[0].strip().lower()
+                    _cat_ratings.append((name, rater, ratings_map.get(label, label)))
                 elif line.startswith("A"):
                     # Emotion attributes
                     rater, _annotations = line.strip().split(":")

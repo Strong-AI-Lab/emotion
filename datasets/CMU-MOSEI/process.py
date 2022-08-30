@@ -85,6 +85,22 @@ def main(input_dir: Path, resample: bool):
     trn_df.index = trn_df["video"] + "_" + trn_df["clip"]
     write_annotations(trn_df["trn"].to_dict(), "transcript")
 
+    dfs = []
+    for csvfile in (input_dir / "Raw" / "Labels").glob("*.csv"):
+        dfs.append(pd.read_csv(csvfile, dtype={15: str, 27: str, 28: str}))
+    df = pd.concat(dfs)
+    df["name"] = df["Input.VIDEO_ID"].str.cat(df["Input.CLIP"], sep="_")
+    df["name"] = df["name"].map(lambda x: x.split("/")[1] if "/" in x else x)
+    df["rater"] = df["WorkerId"]
+    df.set_index(["name", "rater"], inplace=True)
+    df.rename(
+        columns={x: x[7:] for x in df.columns if x.startswith("Answer.")}, inplace=True
+    )
+    df = df[
+        ["sentiment", "anger", "disgust", "fear", "happiness", "sadness", "surprise"]
+    ]
+    df.sort_index().to_csv("ratings.csv")
+
     def process(seg):
         start = max(0, int(16000 * trn_df.loc[seg, "start"]))
         end = max(0, int(16000 * trn_df.loc[seg, "end"]))
@@ -102,7 +118,7 @@ def main(input_dir: Path, resample: bool):
         TqdmParallel(len(trn_df.index), "Splitting audio", prefer="threads", n_jobs=-1)(
             delayed(process)(name) for name in trn_df.index
         )
-    write_filelist(resample_dir.glob("*.wav"), "files_all")
+    write_filelist(resample_dir.glob("*.flac"), "files_all")
 
     dataset = h5py.File(input_dir / "CMU_MOSEI_Labels.csd", "r")
     dim_names = json.loads(dataset["All Labels/metadata/dimension names"][0])

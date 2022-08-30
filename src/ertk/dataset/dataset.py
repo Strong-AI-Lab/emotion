@@ -23,8 +23,8 @@ from typing import (
 )
 
 import numpy as np
-import omegaconf
 import pandas as pd
+from omegaconf import MISSING, OmegaConf
 from sklearn.base import TransformerMixin
 from sklearn.preprocessing import StandardScaler
 from typing_extensions import Literal
@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class _MapGroups:
-    map: Dict[str, str] = omegaconf.MISSING
+    map: Dict[str, str] = MISSING
 
 
 @dataclass
@@ -59,30 +59,31 @@ class _RemoveGroups:
 
 @dataclass
 class _SubsetConfig:
-    clips: str = omegaconf.MISSING
+    clips: str = MISSING
     description: str = ""
 
 
 @dataclass
 class DataSelector(ERTKConfig):
-    subset: Optional[str] = None
-    groups: Optional[Dict[str, _RemoveGroups]] = None
+    subset: str = ""
+    groups: Dict[str, _RemoveGroups] = field(default_factory=dict)
 
 
 @dataclass
 class CorpusInfo(ERTKConfig):
-    name: str = omegaconf.MISSING
+    name: str = MISSING
     description: str = ""
     annotations: List[str] = field(default_factory=list)
     partitions: List[str] = field(default_factory=list)
+    ratings: List[str] = field(default_factory=list)
     subsets: Dict[str, _SubsetConfig] = field(default_factory=dict)
     default_subset: str = "all"
-    features_dir: str = omegaconf.MISSING
+    features_dir: str = "features"
 
 
 @dataclass
 class DatasetConfig(ERTKConfig):
-    path: str = omegaconf.MISSING
+    path: str = MISSING
     features: Optional[str] = None
     read_kwargs: Dict[str, Any] = field(default_factory=dict)
     subset: str = "default"
@@ -95,7 +96,7 @@ class DatasetConfig(ERTKConfig):
 
 @dataclass
 class DataLoadConfig(ERTKConfig):
-    datasets: Dict[str, DatasetConfig] = omegaconf.MISSING
+    datasets: Dict[str, DatasetConfig] = MISSING
     features: Optional[str] = None
     label: Optional[str] = None
     map_groups: Dict[str, _MapGroups] = field(default_factory=dict)
@@ -129,12 +130,13 @@ class Dataset:
     _annotations: pd.DataFrame
     _corpus: str = ""
     _feature_names: List[str]
-    _names: List[str]
+    _names: pd.Index
     _partitions: Set[str]
     _subset: str = ""
     _subsets: Dict[str, List[str]]
     _x: np.ndarray
     _label_annot: str = ""
+    _ratings: Dict[str, pd.DataFrame]
 
     # "Private" vars
     _default_subset: str = ""
@@ -160,11 +162,12 @@ class Dataset:
     def _init(self) -> None:
         self._annotations = pd.DataFrame()
         self._feature_names = []
-        self._names = []
+        self._names = pd.Index([])
         self._partitions = set()
         self._subsets = {}
         self._subset_paths = {}
         self._x = np.empty((0, 0), dtype=np.float32)
+        self._ratings = {}
 
     @classmethod
     def _copy(cls, inst: "Dataset"):
@@ -173,7 +176,7 @@ class Dataset:
         return new_dataset
 
     def _copy_from_dataset(self, other: "Dataset") -> None:
-        self._annotations = other._annotations.copy(deep=True)
+        self._annotations = other._annotations.copy()
         self._corpus = other._corpus
         self._default_subset = other._default_subset
         self._feature_names = other._feature_names.copy()
@@ -187,6 +190,7 @@ class Dataset:
         self._subsets = copy.deepcopy(other._subsets)
         self._x = other._x.copy()
         self._label_annot = other._label_annot
+        self._ratings = copy.deepcopy(other._ratings)
         if len(self._x.shape) == 1:
             # Non-contiguous array, so copy each contiguous sub-array
             for i in range(len(self._x)):
@@ -221,33 +225,25 @@ class Dataset:
             )
         for annotation in corpus_info.annotations:
             self.update_annotation(annotation, path.parent / f"{annotation}.csv")
+        for ratings in corpus_info.ratings:
+            self.update_ratings(ratings, path.parent / f"{ratings}.csv")
 
-    def _verify_annotations(self, annot_name: Optional[str] = None):
-        """Make sure there is a value for each instance for each annotation."""
-
+    def _verify_index(
+        self, df_or_series: Union[pd.DataFrame, pd.Series], msg: Optional[str] = None
+    ):
+        msg = msg or "Incomplete index"
         try:
-            self.annotations.loc[self.names]
+            df_or_series.loc[self.names]
         except KeyError as e:
-            raise RuntimeError("Incomplete annotations") from e
-        return
+            raise RuntimeError(msg) from e
 
-        annots = self.annotations.loc[self.names]
+    def _verify_annotations(self, msg: Optional[str] = "Incomplete annotation"):
+        """Make sure there is a value for each instance for each annotation."""
+        self._verify_index(self.annotations, msg=msg)
 
-        def verify_annotation(annot_name: str):
-            missing = annots.index[annots[annot_name].isna()]
-            if len(missing) > 0:
-                # raise RuntimeError(
-                #     f"Incomplete annotation {annot_name}. These names are missing:"
-                #     f"{missing}"
-                # )
-                warnings.warn(
-                    f"Incomplete annotation {annot_name}. These names are missing:"
-                    f"{missing}"
-                )
-
-        to_verify = self.annotations.columns if annot_name is None else {annot_name}
-        for annot_name in to_verify:
-            verify_annotation(annot_name)
+    def _verify_ratings(self, msg: Optional[str] = "Incomplete ratings"):
+        for ratings in self.ratings.values():
+            self._verify_index(ratings, msg=msg)
 
     def _reset_categorical(self):
         for part in self.partitions:
@@ -286,17 +282,17 @@ class Dataset:
         self._feature_names = data.feature_names
         if len(self.names) > 0:
             names = set(self.names)
-            missing = names - set(data.names)
+            missing = self.names.difference(data.names)
             if len(missing) > 0:
                 raise ValueError(
                     f"Features at {features} don't contain all instances, these are"
                     f"missing: {missing}"
                 )
             self._x = data.features[[i for i, n in enumerate(data.names) if n in names]]
-            self._names = ordered_intersect(data.names, names)
+            self._names = pd.Index(ordered_intersect(data.names, names))
         else:
             self._x = data.features
-            self._names = data.names
+            self._names = pd.Index(data.names)
 
     def use_subset(self, subset: str = "default") -> None:
         """Use a different subset of the instances.
@@ -310,7 +306,7 @@ class Dataset:
         if subset == "default":
             subset = self._default_subset
         self._subset = subset
-        self._names = self.subsets[subset]
+        self._names = pd.Index(self.subsets[subset])
         self._reset_categorical()
         self._verify_annotations()
 
@@ -327,13 +323,14 @@ class Dataset:
         idx: np.ndarray
             The indices corresponding to `names`, in order.
         """
-        names = set(names)
-        return np.array([i for i, x in enumerate(self.names) if x in names])
+        return self.names.get_indexer(names)
+        # names = set(names)
+        # return np.array([i for i, x in enumerate(self.names) if x in names])
 
     @overload
     def get_idx_for_split(
         self,
-        split: Union[str, Dict[str, Collection[str]]],
+        split: Union[str, Dict[str, Collection[str]], DataSelector],
         return_complement: Literal[False] = False,
     ) -> np.ndarray:
         ...
@@ -341,14 +338,14 @@ class Dataset:
     @overload
     def get_idx_for_split(
         self,
-        split: Union[str, Dict[str, Collection[str]]],
+        split: Union[str, Dict[str, Collection[str]], DataSelector],
         return_complement: Literal[True],
     ) -> Tuple[np.ndarray, np.ndarray]:
         ...
 
     def get_idx_for_split(
         self,
-        split: Union[str, Dict[str, Collection[str]]],
+        split: Union[str, Dict[str, Collection[str]], DataSelector],
         return_complement: bool = False,
     ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """Gets indices of instances corresponding to the selection
@@ -376,8 +373,18 @@ class Dataset:
             if ":" not in split and not Path(split).exists():  # is a subset
                 return self.get_idx_for_names(self.subsets[split])
             mapping = get_arg_mapping(split)
-        else:
+        elif isinstance(split, dict):
             mapping = split
+        else:
+            _type = OmegaConf.get_type(split)
+            if _type is None:
+                raise TypeError("Config is of incorrect type")
+            if split.subset:
+                return self.get_idx_for_names(self.subsets[split.subset])
+            mapping = {
+                k: v.keep if v.keep else set(self.get_group_names(k)) - set(v.drop)
+                for k, v in split.groups.items()
+            }
         indices_parts: Dict[str, Set[int]] = {}
         for part_name in mapping:
             group_names = self.get_group_names(part_name)
@@ -410,7 +417,7 @@ class Dataset:
         ----------
         annot_name: str
             The name of the annotation.
-        annotations: PathLike, str, mapping or sequence
+        annotations: PathLike, str, mapping, DataFrame, Series or sequence
             Annotations to add, similar to update_partition(). If
             PathLike or str, annotations are read from a CSV. If a dict,
             should be of the form {instance: annotation}. If a list,
@@ -432,6 +439,7 @@ class Dataset:
 
         logger.debug(f"Updating annotation {annot_name} ({len(series)} values).")
 
+        self._verify_index(series)
         self.annotations[annot_name] = series
         if (
             dtype == "category"
@@ -443,7 +451,41 @@ class Dataset:
             self.annotations[annot_name] = self.annotations[annot_name].astype(
                 "category"
             )
-        self._verify_annotations(annot_name)
+
+    def update_ratings(
+        self,
+        rating_set: str,
+        ratings: Union[PathOrStr, Mapping[str, Mapping[str, Any]], pd.Series],
+    ) -> None:
+        """Update a set of ratings.
+
+        Parameters
+        ----------
+        rating_set: str
+            The name for this set of ratings.
+        ratings: PathLike, str, mapping, DataFrame, Series
+            The ratings to add. Must have a joint index where
+        """
+        if isinstance(ratings, (os.PathLike, str)):
+            df = pd.read_csv(ratings, converters={0: str, 1: str})
+            df = df.set_index(list(df.columns[0:2]))
+        elif isinstance(ratings, pd.DataFrame):
+            df = ratings
+        elif isinstance(ratings, pd.Series):
+            df = ratings.to_frame()
+
+        self.ratings[rating_set] = df
+        self._verify_ratings()
+
+    def remove_ratings(self, rating_set: str) -> None:
+        """Delete a set of ratings for this dataset.
+
+        Parameters
+        ----------
+        rating_set: str
+            The name of a set of ratings.
+        """
+        del self.ratings[rating_set]
 
     def map_groups(self, part_name: str, mapping: Mapping[str, str]) -> None:
         """Map group names in a partition.
@@ -504,6 +546,12 @@ class Dataset:
 
         if len(drop) == 0:
             drop = all_groups - keep
+
+        logger.debug(
+            f"Dropping {len(drop)} and keeping {len(keep)} groups from "
+            f"partition {part_name}."
+        )
+
         new = self.annotations[part_name].cat.remove_categories(list(drop))
         self.annotations[part_name] = new
 
@@ -595,6 +643,24 @@ class Dataset:
         """
         return self.annotations.loc[self.names, annot_name].to_numpy()
 
+    def get_ratings(self, name: str, rating_set: str = "ratings") -> pd.Series:
+        """Get per-annotator ratings of a specified column, for this
+        dataset.
+
+        Parameters
+        ----------
+        name: str
+            The name of the rating column to get.
+        rating_set: str
+            The name of the rating set to get.
+
+        Returns
+        -------
+        pd.Series
+            Pandas Series with (name, rater) multiindex.
+        """
+        return self.ratings[rating_set].loc[self.names, name]
+
     def annotation_type(self, annot_name: str) -> Type:
         return self.annotations[annot_name].dtype
 
@@ -612,7 +678,7 @@ class Dataset:
         A NumPy array of group indices for each instance in the dataset.
         """
         # _, idx = np.unique(self.get_annotations(annot_name), return_inverse=True)
-        idx = self.annotations.loc[self.names, annot_name].cat.codes.to_numpy()
+        idx = self.annotations.loc[self.names, annot_name].cat.codes.to_numpy(np.int64)
         return idx
 
     def get_group_counts(self, annot_name: str) -> np.ndarray:
@@ -667,20 +733,15 @@ class Dataset:
             raise ValueError("Exactly one of drop and keep should be given.")
 
         if len(keep) == 0:
-            keep = set(self.names) - drop
+            keep = self.names.difference(drop)
 
         # Need idx for self.x, instead of ordered_intersect()
         idx = self.get_idx_for_names(keep)
-        self._names = [self.names[i] for i in idx]
+        self._names = self.names[idx]
         if len(self._x) > 0:  # To avoid NumPy DeprecationWarning
             self._x = self.x[idx]
         self._reset_categorical()
-        try:
-            self._verify_annotations()
-        except RuntimeError as e:
-            raise RuntimeError(
-                "Incomplete annotations after removing instances."
-            ) from e
+        self._verify_annotations(msg="Incomplete annotations after removing instances.")
 
     def clone(self):
         return self.copy()
@@ -795,11 +856,16 @@ class Dataset:
 
     @property
     def annotations(self) -> pd.DataFrame:
-        """Annotations store in DataFrame."""
+        """Full annotations for dataset."""
         return self._annotations
 
     @property
-    def names(self) -> List[str]:
+    def ratings(self) -> Dict[str, pd.DataFrame]:
+        """Full ratings for dataset."""
+        return self._ratings
+
+    @property
+    def names(self) -> pd.Index:
         """List of instance names."""
         return self._names
 
@@ -880,7 +946,10 @@ class Dataset:
         s = f"Corpus: {self.corpus}\n"
         for part in sorted(self.partitions):
             group_names = self.get_group_names(part)
-            s += f"partition '{part}' ({len(group_names)} groups)\n"
+            s += f"partition '{part}' ({len(group_names)} groups)"
+            if self.annotations.loc[self.names, part].isna().any():
+                s += " (incomplete)"
+            s += "\n"
             if len(group_names) <= 20:
                 s += f"\t{dict(zip(group_names, self.get_group_counts(part)))}\n"
         for annot in sorted(self.annotations):
@@ -921,7 +990,7 @@ class CombinedDataset(Dataset):
 
         logger.info("Combining " + ", ".join(d.corpus for d in datasets))
         self._corpus = "combined"
-        self._names = [f"{d.corpus}_{n}" for d in datasets for n in d.names]
+        self._names = pd.Index([f"{d.corpus}_{n}" for d in datasets for n in d.names])
         self._feature_names = datasets[0].feature_names
         self._features = datasets[0]._features
         self._x = np.concatenate([d.x for d in datasets])
@@ -957,7 +1026,6 @@ class CombinedDataset(Dataset):
             combined_annot = {}
             for dataset in datasets:
                 annotations = dataset.annotations[annot_name]
-                # annotations.index = annotations.index.map(lambda x: f"{dataset.corpus}_{x}")
                 combined_annot.update(
                     {f"{dataset.corpus}_{k}": v for k, v in annotations.items()}
                 )

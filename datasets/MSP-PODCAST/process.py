@@ -34,6 +34,15 @@ emotion_map = {
     "X": "unknown",
 }
 
+rating_map = {"angry": "anger", "happy": "happiness", "sad": "sadness"}
+
+
+def _filter_other(s: str) -> str:
+    if s.startswith("Other"):
+        s = "Other"
+    s = s.lower()
+    return rating_map.get(s, s)
+
 
 @click.command()
 @click.argument(
@@ -80,7 +89,7 @@ def main(input_dir: Path, resample: bool):
                     (
                         name[:-4],
                         worker,
-                        annotations["EmoClass_Major"][0],
+                        _filter_other(annotations["EmoClass_Major"]),
                         annotations["EmoAct"],
                         annotations["EmoDom"],
                         annotations["EmoVal"],

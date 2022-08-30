@@ -3,6 +3,7 @@ from .dataset import (
     CombinedDataset,
     CorpusInfo,
     DataLoadConfig,
+    DataSelector,
     Dataset,
     load_datasets_config,
     load_multiple,
