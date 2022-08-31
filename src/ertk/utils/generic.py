@@ -104,8 +104,13 @@ def filter_kwargs(kwargs: Dict[str, Any], method: Callable) -> Dict[str, Any]:
     return kwargs
 
 
+_BatchSentinel = object()
+
+
 def batch_iterable(
-    it: Iterable[T], batch_size: int, fillvalue: Any = None
+    it: Iterable[T],
+    batch_size: int,
+    return_last: bool = True,
 ) -> Iterable[Tuple[T, ...]]:
     """Batches an iterable into chunks of size `batch_size`.
 
@@ -115,18 +120,24 @@ def batch_iterable(
         The iterable to batch.
     batch_size: int
         The size of each batch/chunk.
-    fillvalue:
-        An optional fill value if the final batch isn't full (i.e.
+    return_last: bool
+        Whether to yield the last batch if it isn't full (i.e.
         `batch_size` doesn't divide the iterable length.)
 
     Yields
     -------
     tuple
         A tuple of length `batch_size` with successive elements from the
-        original iterable.
+        original iterable. If `return_last == False` then the last batch
+        is dropped if it contains less than `batch_size` items.
     """
     # From the itertools recipes, to chunk an iterator
-    yield from zip_longest(*[iter(it)] * batch_size, fillvalue=fillvalue)
+    iterables = [iter(it)] * batch_size
+    if return_last:
+        for batch in zip_longest(*iterables, fillvalue=_BatchSentinel):
+            yield tuple(filter(lambda x: x is not _BatchSentinel, batch))
+    else:
+        yield from zip(*iterables)
 
 
 def subsets(it: Iterable[T], max_size: Optional[int] = None) -> Iterable[Tuple[T, ...]]:

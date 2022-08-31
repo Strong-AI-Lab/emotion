@@ -130,8 +130,8 @@ class InstanceProcessor(ABC):
                 yield self.process_instance(x, **kwargs)
         elif batch_size > 1:
             yield from chain.from_iterable(
-                self.process_batch(filter(lambda x: x is not None, b), **kwargs)
-                for b in batch_iterable(xs, batch_size)
+                self.process_batch(batch, **kwargs)
+                for batch in batch_iterable(xs, batch_size)
             )
         elif batch_size < 0:
             yield from self.process_batch(xs, **kwargs)

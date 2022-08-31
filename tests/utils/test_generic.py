@@ -1,6 +1,6 @@
 import pytest
 
-from ertk.utils.generic import filter_kwargs, itmap, ordered_intersect
+from ertk.utils.generic import batch_iterable, filter_kwargs, itmap, ordered_intersect
 
 
 @pytest.mark.parametrize(
@@ -58,3 +58,21 @@ def test_itmap():
 )
 def test_ordered_intersect(a, b, expected):
     assert ordered_intersect(a, b) == expected
+
+
+def test_batch_iterable():
+    iterable = [0] * 100
+    batches = list(batch_iterable(iterable, batch_size=10, return_last=True))
+    assert len(batches) == 10
+    assert len(batches[0]) == 10
+    assert len(batches[-1]) == 10
+
+    batches = list(batch_iterable(iterable, batch_size=12, return_last=True))
+    assert len(batches) == 9
+    assert len(batches[0]) == 12
+    assert len(batches[-1]) == 4
+
+    batches = list(batch_iterable(iterable, batch_size=12, return_last=False))
+    assert len(batches) == 8
+    assert len(batches[0]) == 12
+    assert len(batches[-1]) == 12
