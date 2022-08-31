@@ -19,6 +19,7 @@ class PhonemizeConfig(ERTKConfig):
     syl_sep: Optional[str] = None
     word_sep: Optional[str] = None
     preserve_punctuation: bool = False
+    preserve_empty_lines: bool = True
     strip: bool = False
     language_switch: str = "keep-flags"
 
@@ -45,6 +46,7 @@ class Phonemizer(FeatureExtractor, fname="phonemize", config=PhonemizeConfig):
                 word=self.config.word_sep,
             ),
             preserve_punctuation=self.config.preserve_punctuation,
+            preserve_empty_lines=self.config.preserve_empty_lines,
             strip=self.config.strip,
             language_switch=self.config.language_switch,
         )
@@ -67,6 +69,7 @@ class Phonemizer(FeatureExtractor, fname="phonemize", config=PhonemizeConfig):
                 word=self.config.word_sep,
             ),
             preserve_punctuation=self.config.preserve_punctuation,
+            preserve_empty_lines=self.config.preserve_empty_lines,
             strip=self.config.strip,
             language_switch=self.config.language_switch,
             njobs=os.cpu_count(),
