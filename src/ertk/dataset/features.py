@@ -436,7 +436,7 @@ class SequentialWriter:
 
     def write_csv(self, path, features: Iterable[np.ndarray], **kwargs):
         with open(path, "w") as fid:
-            writer = csv.writer(fid)
+            writer = csv.writer(fid, lineterminator="\n")
             writer.writerow(["name"] + self.feature_names)
             for name, inst in zip(self.names, features):
                 if len(inst.shape) == 2:
