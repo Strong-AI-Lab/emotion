@@ -14,7 +14,14 @@ from ertk.classification import (
     get_balanced_sample_weights,
     train_val_test,
 )
-from ertk.cli._utils import dataset_args, eval_args, model_args, result_args, train_args
+from ertk.cli._utils import (
+    dataset_args,
+    debug_args,
+    eval_args,
+    model_args,
+    result_args,
+    train_args,
+)
 from ertk.config import get_arg_mapping
 from ertk.dataset import load_multiple
 from ertk.sklearn.utils import GridSearchVal
@@ -28,9 +35,11 @@ from ertk.transform import SequenceTransformWrapper
 @model_args
 @result_args
 @train_args
+@debug_args
 def main(
     clf_type: str,
     corpus_info: Tuple[Path],
+    data_config: Path,
     features: str,
     cv_part: str,
     label: str,
@@ -135,7 +144,9 @@ def main(
             )
             inner_cv = cv
         else:
-            inner_cv = get_cv_splitter(bool(inner_part), inner_kfold)
+            inner_cv = get_cv_splitter(
+                bool(inner_part), inner_kfold, shuffle=True, random_state=54321
+            )
     else:
         if not valid:
             raise ValueError("valid must be specified.")

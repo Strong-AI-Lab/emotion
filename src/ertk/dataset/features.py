@@ -72,7 +72,7 @@ def read_csv(path: PathOrStr, header: bool = True, label: bool = False):
 
 def read_netcdf(path: PathOrStr):
     reader = NetCDFReader(path)
-    features = list(reader)
+    features = reader[:]
     reader.close()
     return FeaturesData(features, reader.names, reader.corpus, reader.feature_names)
 

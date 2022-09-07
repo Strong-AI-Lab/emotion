@@ -32,3 +32,4 @@ __pycache__
 desktop.ini
 nohup*.out
 *.log
+.rsync-filter

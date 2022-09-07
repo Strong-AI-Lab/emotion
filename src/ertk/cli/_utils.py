@@ -17,6 +17,10 @@ def dataset_args(f):
             type=click.Path(exists=True, dir_okay=False, path_type=Path),
             nargs=-1,
         ),
+        click.option(
+            "--data_config",
+            type=click.Path(exists=True, dir_okay=False, path_type=Path),
+        ),
         optgroup.group("Dataset options"),
         optgroup.option(
             "--subset", multiple=True, default=["default"], help="Subset selection."
@@ -159,16 +163,23 @@ def train_args(f):
             "--n_jobs", type=int, default=-1, help="Number of parallel executions."
         ),
         optgroup.option(
-            "--verbose",
-            type=int,
-            default=0,
-            help="Verbosity. -1=nothing, 0=dataset+results, 1=INFO, 2=DEBUG",
-        ),
-        optgroup.option(
             "--train_config",
             "train_config_path",
             type=click.Path(exists=True, path_type=Path),
             help="Path to train config file.",
+        ),
+    ]
+    return apply_decorators(f, *decs)
+
+
+def debug_args(f):
+    decs = [
+        optgroup.group("Debug options"),
+        optgroup.option(
+            "--verbose",
+            type=int,
+            default=0,
+            help="Verbosity. -1=nothing, 0=normal output, 1=INFO, 2=DEBUG",
         ),
     ]
     return apply_decorators(f, *decs)

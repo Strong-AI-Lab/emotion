@@ -86,7 +86,7 @@ def main(input: Tuple[Path], plot: bool, files: Path, dtype: str):
                         table = joined.groupby([refcol])[col].hist(
                             bins=5, alpha=0.3, legend=True, ax=ax
                         )
-            else:
+            elif plot:
                 joined.plot(kind="scatter", x=refcol, y=col, ax=ax)
             print()
             if plot:

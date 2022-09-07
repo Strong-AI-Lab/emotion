@@ -10,7 +10,6 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import MinMaxScaler, Normalizer, StandardScaler
-from umap import UMAP
 
 from ertk.dataset import DataLoadConfig, Dataset, load_datasets_config, read_features
 
@@ -119,6 +118,8 @@ def xy(
         elif trans == "norm":
             trn.append(Normalizer())
         elif trans == "umap":
+            from umap import UMAP  # Import here because of import time
+
             trn.append(UMAP(n_components=2))
     pipeline = make_pipeline(*trn)
 

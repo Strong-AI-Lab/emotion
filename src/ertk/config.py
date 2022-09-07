@@ -59,6 +59,10 @@ class ERTKConfig(ABC):
             config = OmegaConf.merge(config, OmegaConf.from_dotlist(override))
         return cls.from_config(config)
 
+    def to_file(self, path: PathOrStr):
+        with open(path, "w") as fid:
+            fid.write(OmegaConf.to_yaml(self))
+
     def merge_with_args(self: T, args: Optional[List[str]] = None) -> T:
         return cast(T, OmegaConf.merge(self, OmegaConf.from_cli(args)))
 
