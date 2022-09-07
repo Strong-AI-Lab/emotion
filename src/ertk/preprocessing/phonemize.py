@@ -1,6 +1,8 @@
 import os
+import re
+import warnings
 from dataclasses import dataclass
-from typing import Iterable, List, Optional, Union
+from typing import Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 from phonemizer import phonemize
@@ -24,6 +26,18 @@ class PhonemizeConfig(ERTKConfig):
     language_switch: str = "keep-flags"
 
 
+def _festival_punct(texts: List[str]) -> Tuple[List[str], int]:
+    newtexts = []
+    invalid = 0
+    for x in texts:
+        if re.match(r"^\W+$", x):
+            newtexts.append("")
+            invalid += 1
+        else:
+            newtexts.append(x)
+    return newtexts, invalid
+
+
 class Phonemizer(FeatureExtractor, fname="phonemize", config=PhonemizeConfig):
     config: PhonemizeConfig
 
@@ -36,6 +50,14 @@ class Phonemizer(FeatureExtractor, fname="phonemize", config=PhonemizeConfig):
             text = " ".join(x)
         else:
             text = x.item()
+        if self.config.backend == "festival":
+            corrected, invalid = _festival_punct([text])
+            if invalid > 0:
+                warnings.warn(
+                    "Some text contains only punctuation, which causes issues with "
+                    "the festival backend. Setting to empty string."
+                )
+                text = corrected[0]
         res = phonemize(
             text,
             language=self.config.language,
@@ -59,6 +81,14 @@ class Phonemizer(FeatureExtractor, fname="phonemize", config=PhonemizeConfig):
             text = batch.squeeze().tolist()
         else:
             text = [x.squeeze().item() for x in batch]
+        if self.config.backend == "festival":
+            corrected, invalid = _festival_punct(text)
+            if invalid > 0:
+                warnings.warn(
+                    "Some text contains only punctuation, which causes issues with "
+                    "the festival backend. Setting to empty string."
+                )
+                text = corrected
         res = phonemize(
             text,
             language=self.config.language,
