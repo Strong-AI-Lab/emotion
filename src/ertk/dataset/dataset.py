@@ -3,7 +3,7 @@ import logging
 import os
 import warnings
 from dataclasses import dataclass, field
-from functools import reduce
+from functools import partial, reduce
 from itertools import chain
 from pathlib import Path
 from typing import (
@@ -24,6 +24,7 @@ from typing import (
 
 import numpy as np
 import pandas as pd
+from numpy.lib.arraysetops import setdiff1d
 from omegaconf import MISSING, OmegaConf
 from sklearn.base import TransformerMixin
 from sklearn.preprocessing import StandardScaler
@@ -34,14 +35,7 @@ from ertk.dataset.annotation import read_annotations
 from ertk.dataset.features import find_features_file, read_features
 from ertk.dataset.utils import get_audio_paths
 from ertk.transform import group_transform
-from ertk.utils import (
-    PathOrStr,
-    clip_arrays,
-    frame_arrays,
-    ordered_intersect,
-    pad_arrays,
-    transpose_time,
-)
+from ertk.utils import PathOrStr, clip_arrays, frame_arrays, pad_arrays, transpose_time
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +52,7 @@ class _RemoveGroups:
 
 
 @dataclass
-class _SubsetConfig:
+class SubsetInfo:
     clips: str = MISSING
     description: str = ""
 
@@ -76,7 +70,7 @@ class CorpusInfo(ERTKConfig):
     annotations: List[str] = field(default_factory=list)
     partitions: List[str] = field(default_factory=list)
     ratings: List[str] = field(default_factory=list)
-    subsets: Dict[str, _SubsetConfig] = field(default_factory=dict)
+    subsets: Dict[str, SubsetInfo] = field(default_factory=dict)
     default_subset: str = "all"
     features_dir: str = "features"
 
@@ -90,6 +84,7 @@ class DatasetConfig(ERTKConfig):
     map_groups: Dict[str, _MapGroups] = field(default_factory=dict)
     remove_groups: Dict[str, _RemoveGroups] = field(default_factory=dict)
     rename_annotations: Dict[str, str] = field(default_factory=dict)
+    select: Optional[DataSelector] = None
     clip_seq: Optional[int] = None
     pad_seq: Optional[int] = None
 
@@ -101,6 +96,10 @@ class DataLoadConfig(ERTKConfig):
     label: Optional[str] = None
     map_groups: Dict[str, _MapGroups] = field(default_factory=dict)
     remove_groups: Dict[str, _RemoveGroups] = field(default_factory=dict)
+    select: Optional[DataSelector] = None
+
+
+_AUDIO_PATH_KEY = "_audio_path"
 
 
 class Dataset:
@@ -212,13 +211,17 @@ class Dataset:
         self._features_dir = path.parent / corpus_info.features_dir
         self._default_subset = corpus_info.default_subset
         for subset, subset_info in corpus_info.subsets.items():
-            clips_file = path.parent / f"{subset_info.clips}.txt"
+            clips_file = path.parent / subset_info.clips
+            if clips_file.suffix == "":
+                clips_file = clips_file.with_suffix(".txt")
             self._subset_paths[subset] = clips_file
-            self.subsets[subset] = [x.stem for x in get_audio_paths(clips_file)]
+            name_to_path = {x.stem: str(x) for x in get_audio_paths(clips_file)}
+            self.subsets[subset] = list(name_to_path.keys())
             if subset == "all":
-                name_to_path = {x.stem: str(x) for x in get_audio_paths(clips_file)}
+                self._names = pd.Index(self.subsets["all"])
                 # This will initialise the index of self.annotations
-                self.update_annotation("_audio_path", name_to_path)
+                self.annotations.index = pd.Index(self.subsets["all"])
+                self.update_annotation(_AUDIO_PATH_KEY, list(name_to_path.values()))
         for partition in corpus_info.partitions:
             self.update_annotation(
                 partition, path.parent / f"{partition}.csv", dtype="category"
@@ -241,11 +244,17 @@ class Dataset:
         """Make sure there is a value for each instance for each annotation."""
         self._verify_index(self.annotations, msg=msg)
 
-    def _verify_ratings(self, msg: Optional[str] = "Incomplete ratings"):
-        for ratings in self.ratings.values():
-            self._verify_index(ratings, msg=msg)
+    def _verify_ratings(self):
+        for name, df in self.ratings.items():
+            try:
+                self._verify_index(df, msg=f"Incomplete ratings for '{name}'")
+            except RuntimeError as e:
+                warnings.warn(str(e), RuntimeWarning)
 
     def _reset_categorical(self):
+        """Make sure there are no extraneous categories in any
+        partition.
+        """
         for part in self.partitions:
             new = self.annotations.loc[self.names, part].cat.remove_unused_categories()
             self.annotations[part] = new
@@ -280,19 +289,19 @@ class Dataset:
         self._features_path = features
         data = read_features(features, **read_kwargs)
         self._feature_names = data.feature_names
-        if len(self.names) > 0:
-            names = set(self.names)
-            missing = self.names.difference(data.names)
-            if len(missing) > 0:
-                raise ValueError(
-                    f"Features at {features} don't contain all instances, these are"
-                    f"missing: {missing}"
-                )
-            self._x = data.features[[i for i, n in enumerate(data.names) if n in names]]
-            self._names = pd.Index(ordered_intersect(data.names, names))
-        else:
-            self._x = data.features
-            self._names = pd.Index(data.names)
+
+        assert len(self.names) > 0
+        missing = self.names.difference(data.names)
+        if len(missing) > 0:
+            raise ValueError(
+                f"Features at {features} don't contain all instances, these are"
+                f"missing: {missing}"
+            )
+        # To avoid reordering the feature matrix, reorder self. names instead
+        data_names = pd.Index(data.names)
+        idx = data_names.isin(self.names)
+        self._x = data.features[idx]
+        self._names = pd.Index(data.names)[idx]
 
     def use_subset(self, subset: str = "default") -> None:
         """Use a different subset of the instances.
@@ -323,9 +332,7 @@ class Dataset:
         idx: np.ndarray
             The indices corresponding to `names`, in order.
         """
-        return self.names.get_indexer(names)
-        # names = set(names)
-        # return np.array([i for i, x in enumerate(self.names) if x in names])
+        return np.flatnonzero(self.names.isin(names))
 
     @overload
     def get_idx_for_split(
@@ -369,6 +376,7 @@ class Dataset:
             If `return_complement` is True, this is also returned and
             contains the complement indices.
         """
+        subset_idx = None
         if isinstance(split, str):
             if ":" not in split and not Path(split).exists():  # is a subset
                 return self.get_idx_for_names(self.subsets[split])
@@ -380,30 +388,33 @@ class Dataset:
             if _type is None:
                 raise TypeError("Config is of incorrect type")
             if split.subset:
-                return self.get_idx_for_names(self.subsets[split.subset])
+                subset_idx = self.get_idx_for_names(self.subsets[split.subset])
             mapping = {
                 k: v.keep if v.keep else set(self.get_group_names(k)) - set(v.drop)
                 for k, v in split.groups.items()
             }
-        indices_parts: Dict[str, Set[int]] = {}
+
+        indices_parts: Dict[str, np.ndarray] = {}
         for part_name in mapping:
-            group_names = self.get_group_names(part_name)
-            group_indices = self.get_group_indices(part_name)
             sel = mapping[part_name]
             sel = [sel] if isinstance(sel, str) else sel
+            group_names = self.get_group_names(part_name)
             sel_idx = [group_names.index(x) for x in sel]
-            indices_parts[part_name] = set(
-                np.flatnonzero(np.isin(group_indices, sel_idx))
+            indices_parts[part_name] = np.flatnonzero(
+                np.isin(self.get_group_indices(part_name), sel_idx)
             )
-        if len(indices_parts) > 1:
-            indices = reduce(set.intersection, indices_parts.values())
-        else:
-            indices = next(iter(indices_parts.values()))
-        comp_indices = set(range(len(self))) - indices
+
+        all_idx = np.arange(len(self))
+        indices = reduce(
+            partial(np.intersect1d, assume_unique=True), indices_parts.values(), all_idx
+        )
+        if subset_idx is not None:
+            indices = np.intersect1d(indices, subset_idx, assume_unique=True)
+        comp_indices = setdiff1d(all_idx, indices, assume_unique=True)
         if return_complement:
-            return np.array(sorted(indices)), np.array(sorted(comp_indices))
+            return np.sort(indices), np.sort(comp_indices)
         else:
-            return np.array(sorted(indices))
+            return np.sort(indices)
 
     def update_annotation(
         self,
@@ -643,6 +654,9 @@ class Dataset:
         """
         return self.annotations.loc[self.names, annot_name].to_numpy()
 
+    def get_audio_paths(self) -> np.ndarray:
+        return self.get_annotations(_AUDIO_PATH_KEY)
+
     def get_ratings(self, name: str, rating_set: str = "ratings") -> pd.Series:
         """Get per-annotator ratings of a specified column, for this
         dataset.
@@ -694,7 +708,6 @@ class Dataset:
         A NumPy array of counts for the corresponding group in this
         partition.
         """
-        # _, counts = np.unique(self.get_annotations(annot_name), return_counts=True)
         counts = (
             self.annotations.loc[self.names, annot_name]
             .value_counts(sort=False)
@@ -733,7 +746,7 @@ class Dataset:
             raise ValueError("Exactly one of drop and keep should be given.")
 
         if len(keep) == 0:
-            keep = self.names.difference(drop)
+            keep = self.names.difference(drop, sort=False)
 
         # Need idx for self.x, instead of ordered_intersect()
         idx = self.get_idx_for_names(keep)
@@ -945,10 +958,14 @@ class Dataset:
     def __str__(self):
         s = f"Corpus: {self.corpus}\n"
         for part in sorted(self.partitions):
+            if part == _AUDIO_PATH_KEY:
+                continue
             group_names = self.get_group_names(part)
             s += f"partition '{part}' ({len(group_names)} groups)"
-            if self.annotations.loc[self.names, part].isna().any():
-                s += " (incomplete)"
+            n_invalid = self.annotations.loc[self.names, part].isna().sum()
+            if n_invalid > 0:
+                n_valid = len(self) - n_invalid
+                s += f" (incomplete [{n_valid} valid])"
             s += "\n"
             if len(group_names) <= 20:
                 s += f"\t{dict(zip(group_names, self.get_group_counts(part)))}\n"
@@ -994,7 +1011,6 @@ class CombinedDataset(Dataset):
         self._feature_names = datasets[0].feature_names
         self._features = datasets[0]._features
         self._x = np.concatenate([d.x for d in datasets])
-
         self.update_annotation(
             "corpus", [d.corpus for d in datasets for _ in d.names], dtype="category"
         )

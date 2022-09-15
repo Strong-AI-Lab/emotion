@@ -5,6 +5,7 @@ from .dataset import (
     DataLoadConfig,
     DataSelector,
     Dataset,
+    SubsetInfo,
     load_datasets_config,
     load_multiple,
 )
