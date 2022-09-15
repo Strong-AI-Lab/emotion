@@ -55,7 +55,13 @@ def main(input_dir: Path, resample: bool):
     """Process the MSP-IMPROV dataset at location INPUT_DIR."""
 
     labels_dir = input_dir / "Labels"
-    labels_concensus = pd.read_csv(labels_dir / "labels_concensus.csv", header=0)
+    labels_concensus = pd.read_csv(
+        labels_dir / "labels_concensus.csv",
+        header=0,
+        low_memory=False,
+        na_values=["Unknown"],
+        dtype={"SpkrID": str},
+    )
     labels_concensus.set_index("FileName", inplace=True)
     labels_concensus.index = labels_concensus.index.map(lambda x: x[:-4])
     for dim in ["EmoAct", "EmoVal", "EmoDom"]:

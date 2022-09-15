@@ -13,8 +13,10 @@ This assumes the file structure from the original sorted data:
             *.wav
         ...
     ...
+    cmuarctic.data
 """
 
+import re
 from pathlib import Path
 
 import click
@@ -22,11 +24,11 @@ import click
 from ertk.dataset import resample_rename_clips, write_annotations, write_filelist
 
 emotion_map = {
-    "Amused": "amusement",
-    "Angry": "anger",
-    "Disgusted": "disgust",
-    "Neutral": "neutral",
-    "Sleepy": "sleepiness",
+    "amused": "amusement",
+    "anger": "anger",
+    "disgust": "disgust",
+    "neutral": "neutral",
+    "sleepiness": "sleepiness",
 }
 
 gender_map = {"bea": "F", "jenie": "F", "josh": "M", "sam": "M"}
@@ -44,21 +46,30 @@ def main(input_dir: Path, resample: bool):
     paths = list(input_dir.glob("**/*.wav"))
     resample_dir = Path("resampled")
     mapping = {x: resample_dir / f"{x.parts[-3]}_{x.stem.lower()}.wav" for x in paths}
-    if resample:
-        resample_rename_clips(mapping=mapping)
-    resampled_paths = list(resample_dir.glob("*.wav"))
-    write_filelist(resampled_paths, "files_all")
+    resample_rename_clips(mapping=mapping)
+    paths = list(resample_dir.glob("*.wav"))
+    write_filelist(paths, "files_all")
 
     write_annotations(
-        {mapping[p].stem: emotion_map[p.parts[-2]] for p in paths}, "label"
+        {p.stem: emotion_map[p.stem.split("_")[1]] for p in paths}, "label"
     )
-    write_annotations({mapping[p].stem: p.parts[-3] for p in paths}, "speaker")
+    write_annotations({p.stem: p.stem.split("_")[0] for p in paths}, "speaker")
     write_annotations(
-        {mapping[p].stem: gender_map[p.parts[-3]] for p in paths}, "gender"
+        {p.stem: gender_map[p.stem.split("_")[0]] for p in paths}, "gender"
     )
-    write_annotations({mapping[p].stem: p.stem[-4:] for p in paths}, "sentence")
-    write_annotations({mapping[p].stem: "us" for p in paths}, "country")
-    write_annotations({mapping[p].stem: "en" for p in paths}, "language")
+    write_annotations({p.stem: p.stem[-4:] for p in paths}, "sentence")
+    write_annotations({p.stem: "us" for p in paths}, "country")
+    write_annotations({p.stem: "en" for p in paths}, "language")
+
+    sent_to_transcript = {}
+    with open(input_dir / "cmuarctic.data") as fid:
+        for line in fid:
+            match = re.match(r"^\( arctic_a([0-9]{4}) \"(.*)\" \)$", line.strip())
+            if match:
+                sent_to_transcript[match.group(1)] = match.group(2)
+    write_annotations(
+        {p.stem: sent_to_transcript[p.stem[-4:]] for p in paths}, "transcript"
+    )
 
 
 if __name__ == "__main__":

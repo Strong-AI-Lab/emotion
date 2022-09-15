@@ -5,7 +5,7 @@ This assumes the file structure from the original compressed file:
     male/
         *.wav
     female/
-    ...
+    transcript/
 """
 
 from pathlib import Path
@@ -50,8 +50,14 @@ def main(input_dir: Path, resample: bool):
     speaker_dict = {p.stem: p.stem[:3] for p in paths}
     write_annotations(speaker_dict, "speaker")
     write_annotations({k: v[0] for k, v in speaker_dict.items()}, "gender")
-    write_annotations({p.stem: "ar" for p in paths}, "language")
+    write_annotations({p.stem: "fa" for p in paths}, "language")
     write_annotations({p.stem: "ir" for p in paths}, "country")
+
+    transcripts = {}
+    for trn in (input_dir / "transcript/final text").glob("*.ort"):
+        with open(trn, encoding="utf_8_sig") as fid:
+            transcripts[trn.stem] = fid.read().strip().replace("\u200e", "")
+    write_annotations(transcripts, "transcript")
 
 
 if __name__ == "__main__":
