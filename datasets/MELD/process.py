@@ -44,6 +44,7 @@ def main(input_dir: Path, resample: bool):
 
     if resample:
         resample_rename_clips(mapping=name_map)
+    write_filelist(resample_dir.glob("*.wav"), "files_all")
 
     dfs = []
     for split, x in zip(splits, csvs):
@@ -51,13 +52,15 @@ def main(input_dir: Path, resample: bool):
         df.index = df.apply(
             lambda x: f"{split}_dia{x['Dialogue_ID']}_utt{x['Utterance_ID']}", axis=1
         )
+        if split == "train":
+            # Train dia125_utt3 is broken
+            df = df.drop("train_dia125_utt3")
         df["split"] = split
         write_filelist({resample_dir / f"{x}.wav" for x in df.index}, f"files_{split}")
         dfs.append(df)
     df = pd.concat(dfs)
     df = df.drop(index={"dev_dia110_utt7"})
 
-    write_filelist({resample_dir / f"{x}.wav" for x in df.index}, "files_all")
     write_annotations(df["Emotion"].to_dict(), "label")
     write_annotations(df["Speaker"].to_dict(), "speaker")
     write_annotations(df["split"].to_dict(), "split")
