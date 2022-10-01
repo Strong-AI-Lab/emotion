@@ -18,6 +18,24 @@ subsets:
   all:
     clips: files_all
     description: All files (manually extracted audio segments)
+  train:
+    clips: files_train
+    description: Files in standard train subset
+  valid:
+    clips: files_valid
+    description: Files in standard valid subset
+  test:
+    clips: files_test
+    description: Files in standard test subset
+  train_labels:
+    clips: files_train_labels
+    description: Files in standard train subset that have labels
+  valid_labels:
+    clips: files_valid_labels
+    description: Files in standard valid subset that have labels
+  test_labels:
+    clips: files_test_labels
+    description: Files in standard test subset that have labels
   labels:
     clips: files_labels
     description: Clips with emotion and sentiment information

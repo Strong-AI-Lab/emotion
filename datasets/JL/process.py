@@ -31,7 +31,7 @@ emotion_map = {
     "encouraging": "encouraging",
 }
 
-unused_emotions = ["anxious", "apologetic", "assertive", "concerned", "encouraging"]
+secondary_emotions = ["anxious", "apologetic", "assertive", "concerned", "encouraging"]
 
 
 @click.command()
@@ -47,26 +47,27 @@ def main(input_dir: Path, resample: bool):
     paths = list(
         input_dir.glob("Raw JL corpus (unchecked and unannotated)/JL(wav+txt)/*.wav")
     )
+
+    transcripts = {}
+    for p in paths:
+        trn_file = p.with_suffix(".txt")
+        with open(trn_file, "r") as fid:
+            transcripts[p.stem] = fid.read().strip()
+    write_annotations(transcripts, "transcript")
+
     if resample:
         resample_dir = Path("resampled")
         resample_audio(paths, resample_dir)
-        write_filelist([p for p in resample_dir.glob("*.wav")], "files_all")
-        write_filelist(
-            [
-                p
-                for p in resample_dir.glob("*.wav")
-                if REGEX.match(p.stem).group(1) not in unused_emotions
-            ],
-            "files_primary",
-        )
-        write_filelist(
-            [
-                p
-                for p in resample_dir.glob("*.wav")
-                if REGEX.match(p.stem).group(1) in unused_emotions
-            ],
-            "files_secondary",
-        )
+        paths = list(resample_dir.glob("*.wav"))
+    write_filelist([p for p in paths], "files_all")
+    write_filelist(
+        [p for p in paths if REGEX.match(p.stem).group(1) not in secondary_emotions],
+        "files_primary",
+    )
+    write_filelist(
+        [p for p in paths if REGEX.match(p.stem).group(1) in secondary_emotions],
+        "files_secondary",
+    )
 
     write_annotations(
         {p.stem: emotion_map.get(REGEX.match(p.stem).group(1)) for p in paths},

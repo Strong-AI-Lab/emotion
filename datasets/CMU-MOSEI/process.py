@@ -24,7 +24,7 @@ This assumes the file structure from the original compressed file:
 import json
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 import click
 import h5py
@@ -32,6 +32,7 @@ import numpy as np
 import pandas as pd
 import soundfile
 from joblib import delayed
+from splits import standard_test_fold, standard_train_fold, standard_valid_fold
 from tqdm import tqdm
 
 from ertk.dataset import write_annotations, write_filelist
@@ -118,7 +119,8 @@ def main(input_dir: Path, resample: bool):
         TqdmParallel(len(trn_df.index), "Splitting audio", prefer="threads", n_jobs=-1)(
             delayed(process)(name) for name in trn_df.index
         )
-    write_filelist(resample_dir.glob("*.flac"), "files_all")
+    all_paths = list(resample_dir.glob("*.flac"))
+    write_filelist(all_paths, "files_all")
 
     dataset = h5py.File(input_dir / "CMU_MOSEI_Labels.csd", "r")
     dim_names = json.loads(dataset["All Labels/metadata/dimension names"][0])
@@ -159,8 +161,23 @@ def main(input_dir: Path, resample: bool):
     for dim in dim_names:
         dim_vals[dim].update({k: "" for k in trn_df.index if k not in dim_vals[dim]})
         write_annotations(dim_vals[dim], dim)
-    labelled_paths = [resample_dir / f"{k}.wav" for k, v in labels_maj.items() if v]
+    labelled_paths = {resample_dir / f"{k}.flac" for k, v in labels_maj.items() if v}
     write_filelist(labelled_paths, "files_labels")
+
+    fold_paths = defaultdict(list)
+    vid_to_fold = {x: "train" for x in standard_train_fold}
+    vid_to_fold.update({x: "valid" for x in standard_valid_fold})
+    vid_to_fold.update({x: "test" for x in standard_test_fold})
+    for path in all_paths:
+        video = path.stem.rsplit("_", maxsplit=1)[0]
+        fold = vid_to_fold.get(video)
+        if fold is None:
+            continue
+        fold_paths[fold].append(path)
+        if path in labelled_paths:
+            fold_paths[f"{fold}_labels"].append(path)
+    for key, pathlist in fold_paths.items():
+        write_filelist(pathlist, f"files_{key}")
 
 
 if __name__ == "__main__":

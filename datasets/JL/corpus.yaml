@@ -1,6 +1,7 @@
 name: JL
 description: JL-corpus data
-annotations: []
+annotations:
+- transcript
 partitions:
 - label
 - speaker

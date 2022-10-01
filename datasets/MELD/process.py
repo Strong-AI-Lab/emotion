@@ -44,7 +44,6 @@ def main(input_dir: Path, resample: bool):
 
     if resample:
         resample_rename_clips(mapping=name_map)
-    write_filelist(resample_dir.glob("*.wav"), "files_all")
 
     dfs = []
     for split, x in zip(splits, csvs):
@@ -60,10 +59,12 @@ def main(input_dir: Path, resample: bool):
         dfs.append(df)
     df = pd.concat(dfs)
     df = df.drop(index={"dev_dia110_utt7"})
+    write_filelist({resample_dir / f"{x}.wav" for x in df.index}, "files_all")
 
-    write_annotations(df["Emotion"].to_dict(), "label")
-    write_annotations(df["Speaker"].to_dict(), "speaker")
-    write_annotations(df["split"].to_dict(), "split")
+    write_annotations(df["Emotion"], "label")
+    write_annotations(df["Speaker"], "speaker")
+    write_annotations(df["split"], "split")
+    write_annotations(df["Utterance"], "transcript")
     write_annotations({x: "us" for x in df.index}, "country")
     write_annotations({x: "en" for x in df.index}, "language")
 

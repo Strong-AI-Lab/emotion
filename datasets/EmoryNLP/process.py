@@ -53,15 +53,21 @@ def main(input_dir: Path, resample: bool):
         df = pd.read_csv(input_dir / x)
         df.index = df.apply(lambda x: NAME_FMT.format(x), axis=1)
         df["split"] = split
+        if split == "train":
+            # Corrupted
+            df = df.drop(
+                ["sea4_ep4_sc3_utt10", "sea4_ep4_sc3_utt8", "sea4_ep4_sc3_utt9"]
+            )
         write_filelist({resample_dir / f"{x}.wav" for x in df.index}, f"files_{split}")
         dfs.append(df)
     df = pd.concat(dfs)
     df["Emotion"] = df["Emotion"].map(emotion_map)
-
     write_filelist({resample_dir / f"{x}.wav" for x in df.index}, "files_all")
-    write_annotations(df["Emotion"].to_dict(), "label")
-    write_annotations(df["Speaker"].to_dict(), "speaker")
-    write_annotations(df["split"].to_dict(), "split")
+
+    write_annotations(df["Emotion"], "label")
+    write_annotations(df["Speaker"], "speaker")
+    write_annotations(df["split"], "split")
+    write_annotations(df["Utterance"], "transcript")
     write_annotations({x: "us" for x in df.index}, "country")
     write_annotations({x: "en" for x in df.index}, "language")
 
