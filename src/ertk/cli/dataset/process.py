@@ -11,6 +11,8 @@ from tqdm import tqdm
 from ertk.dataset import read_features_iterable, write_features
 from ertk.utils import TqdmMultiprocessing
 
+logger = logging.getLogger(__name__)
+
 
 def list_processors(ctx, param, val):
     from ertk.preprocessing import InstanceProcessor
@@ -67,7 +69,7 @@ def list_processors(ctx, param, val):
     help="Resample to this rate for audio input.",
 )
 @click.option("--n_jobs", type=int, default=1, help="Number of parallel jobs to run.")
-@click.option("--verbose", is_flag=True)
+@click.option("--verbose", type=int, default=0)
 @click.argument("restargs", nargs=-1)
 def main(
     input: Path,
@@ -78,15 +80,15 @@ def main(
     batch_size: int,
     sample_rate: int,
     n_jobs: int,
-    verbose: bool,
+    verbose: int,
     restargs: Tuple[str],
 ):
     """Process features or audio files in INPUT, write to OUTPUT."""
 
     from ertk.preprocessing import InstanceProcessor
 
-    if verbose:
-        logging.basicConfig(level=logging.INFO)
+    if verbose > 0:
+        logging.basicConfig(level=logging.DEBUG if verbose > 1 else logging.INFO)
 
     extractor_cls = InstanceProcessor.get_processor_class(features)
     config_cls = extractor_cls.get_config_type()
@@ -95,9 +97,8 @@ def main(
     else:
         conf = extractor_cls.get_default_config()
     conf = OmegaConf.merge(conf, OmegaConf.from_dotlist(list(restargs)))
-    if verbose:
-        print("Using configuration:")
-        pprint.pprint(dict(conf))
+    logger.info("Using configuration:")
+    logger.info(pprint.pformat(dict(conf)))
     extractor = extractor_cls(config_cls.from_config(conf))
 
     input_data = read_features_iterable(input, sample_rate=sample_rate)

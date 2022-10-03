@@ -6,6 +6,7 @@ from sklearn.base import BaseEstimator
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neural_network import MLPClassifier
 
 from .svm import PrecomputedSVC
 
@@ -14,6 +15,7 @@ CLASSIFIER_MAP = {
     "rf": RandomForestClassifier,
     "knn": KNeighborsClassifier,
     "lr": LogisticRegression,
+    "mlp": MLPClassifier,
 }
 
 

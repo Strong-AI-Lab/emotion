@@ -20,11 +20,11 @@ from click_option_group import RequiredMutuallyExclusiveOptionGroup, optgroup
 @optgroup.option("--cpus", type=int, help="Number of CPU threads to use")
 @optgroup.option("--gpus", help="GPU IDs to run on.")
 def main(input: Tuple[Path], cpus: int, gpus: str, failed: Path):
-    """Runs all commands specified in the INPUT file(s), splitting the
+    """Run all commands specified in the INPUT file(s), splitting the
     work across multiple CPU threads or GPUs such that each command runs
     solely on whichever thread/GPU is next available.
 
-    Each GPU still has it's own thread to run processed using
+    Each GPU still has it's own thread to run processes using
     CUDA_VISIBLE_DEVICES. Each thread reads from a synchronous queue and
     runs the command in a shell.
     """
@@ -45,7 +45,7 @@ def main(input: Tuple[Path], cpus: int, gpus: str, failed: Path):
             cmd = q.get()
             print(
                 datetime.now().isoformat(),
-                f"Executing command on thread {t_id or gpu}: {cmd}",
+                f"Executing command on {print_prefix}: {cmd}",
                 flush=True,
             )
             proc = subprocess.Popen(
@@ -72,7 +72,7 @@ def main(input: Tuple[Path], cpus: int, gpus: str, failed: Path):
 
     for file in input:
         with open(file) as fid:
-            for line in list(filter(None, map(str.strip, fid))):
+            for line in filter(None, map(str.strip, fid)):
                 q.put(line)
     print(f"Loaded {q.qsize()} commands")
 
@@ -82,11 +82,14 @@ def main(input: Tuple[Path], cpus: int, gpus: str, failed: Path):
         _gpus = list(map(int, gpus.split(",")))
         threads = [Thread(target=worker, kwargs={"gpu": i}) for i in _gpus]
     print(f"Starting threads at {datetime.now().isoformat()}")
+    start_time = datetime.now()
     for t in threads:
         t.start()
     for t in threads:
         t.join()
+    total_time = datetime.now() - start_time
     print(f"Finished at {datetime.now().isoformat()}")
+    print(f"Total time: {total_time} ({total_time.total_seconds()} s)")
 
 
 if __name__ == "__main__":
