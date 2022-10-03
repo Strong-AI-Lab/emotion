@@ -103,7 +103,7 @@ class KerasAppsExtractor(
         _test = self._spectrogram(np.zeros(16000, dtype=np.float32), 16000)
         _test = self._to_img(_test)
         _test = self._preprocess_input(_test)
-        _test = self.model(_test).numpy()
+        _test = self.model(_test[None, :, :, :]).numpy()
         self._dim = _test.shape[-1]
 
     def _spectrogram(self, x: np.ndarray, sr: float) -> np.ndarray:
@@ -118,10 +118,12 @@ class KerasAppsExtractor(
             fmin=0,
             fmax=None,
             power=2,
-            to_log=True,
+            to_log="db",
         )
 
     def _to_img(self, spec: np.ndarray) -> np.ndarray:
+        if spec.ndim > 2:
+            spec = spec.squeeze(0)
         scale = self.size / np.array(spec.shape)
         spec = zoom(spec, scale)
         spec = np.interp(spec, (spec.min(), spec.max()), (0, 255))
@@ -129,18 +131,20 @@ class KerasAppsExtractor(
 
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
         if is_mono_audio(x):
-            x = self._spectrogram(x, kwargs.pop("sr"))
+            x = self._spectrogram(x.squeeze(-1), kwargs.pop("sr"))
         x = self._to_img(x)
         x = self._preprocess_input(x)
-        return self.model(x).numpy()
+        return self.model(x[None, :, :, :]).numpy()
 
     def process_batch(
         self, batch: Union[Iterable[np.ndarray], np.ndarray], **kwargs
     ) -> List[np.ndarray]:
         batch = list(batch)
-        if all(is_mono_audio(x) for x in batch):
+        if any(is_mono_audio(x) for x in batch):
+            if any(not is_mono_audio(x) for x in batch):
+                raise RuntimeError("Inconsistent input representation")
             sr = kwargs.pop("sr")
-            batch = [self._spectrogram(x, sr) for x in batch]
+            batch = [self._spectrogram(x.squeeze(), sr) for x in batch]
         batch = [self._to_img(x) for x in batch]
         batch = np.stack(batch)
         batch = self._preprocess_input(batch)

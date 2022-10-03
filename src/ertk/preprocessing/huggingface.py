@@ -14,13 +14,23 @@ from ._base import AudioClipProcessor, FeatureExtractor
 
 class _Task(Enum):
     CTC = "ctc"
+    EMBEDDINGS = "embeddings"
+
+
+class _Agg(Enum):
+    MEAN = "mean"
+    MAX = "max"
+    NONE = "none"
 
 
 @dataclass
 class HuggingFaceExtractorConfig(ERTKConfig):
     model: str = MISSING
     device: str = "cuda"
-    task: Optional[_Task] = _Task.CTC
+    task: _Task = _Task.CTC
+    agg: Optional[_Agg] = _Agg.MEAN
+    layer: Optional[str] = "context"
+    max_input_len: int = 1500000
 
 
 class HuggingFaceExtractor(
@@ -46,27 +56,41 @@ class HuggingFaceExtractor(
 
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
         wav = self.processor(
-            x.squeeze(),
+            x.squeeze()[: self.config.max_input_len],
             sampling_rate=kwargs.pop("sr"),
             return_tensors="pt",
             padding="longest",
         ).input_values.to(self.config.device)
-        output = self.model(wav).logits.argmax(-1)
-        output = self.processor.batch_decode(output)
-        return np.array([output], dtype=object)
+        if self.config.task == _Task.CTC:
+            output = self.model(wav).logits.argmax(-1)
+            output = self.processor.batch_decode(output)
+            return np.array([output], dtype=object)
+        # Embeddings
+        if self.config.layer == "context":
+            output = self.model(wav).last_hidden_state.squeeze()
+        else:
+            output = self.model(wav).extract_features.squeeze()
+        if self.config.agg == _Agg.MEAN:
+            output = output.mean(0)
+        elif self.config.agg == _Agg.MAX:
+            output = output.max(0)
+        return output.cpu().numpy()
 
     def process_batch(
         self, batch: Union[Iterable[np.ndarray], np.ndarray], **kwargs
     ) -> List[np.ndarray]:
         wav = self.processor(
-            [x.squeeze() for x in batch],
+            [x.squeeze()[: self.config.max_input_len] for x in batch],
             sampling_rate=kwargs.pop("sr"),
             return_tensors="pt",
             padding="longest",
         ).input_values.to(self.config.device)
-        output = self.model(wav).logits.argmax(-1)
-        output = self.processor.batch_decode(output)
-        return [np.array([x], dtype=object) for x in output]
+        if self.config.task == _Task.CTC:
+            output = self.model(wav).logits.argmax(-1)
+            output = self.processor.batch_decode(output)
+            return [np.array([x], dtype=object) for x in output]
+        # Embeddings
+        raise RuntimeError("Cannot use batching for extracting embeddings.")
 
     @property
     def dim(self) -> int:

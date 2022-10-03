@@ -6,7 +6,6 @@ import joblib
 import numpy as np
 import torch
 import torch.nn.functional as F
-from fairseq.checkpoint_utils import load_model_ensemble_and_task
 from omegaconf import MISSING, OmegaConf
 
 from ertk.config import ERTKConfig
@@ -68,6 +67,8 @@ class FairseqExtractor(
 
             args = OmegaConf.create(state["args"])
         else:
+            from fairseq.checkpoint_utils import load_model_ensemble_and_task
+
             [model], args, task = load_model_ensemble_and_task(
                 [config.checkpoint], arg_overrides=config.arg_overrides
             )

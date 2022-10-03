@@ -29,20 +29,24 @@ class OpenXBOWExtractor(
         super().__init__(config)
 
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
-        raise NotImplementedError()
+        raise NotImplementedError("Use batch_size=-1 for openxbow.")
 
     def process_batch(
         self,
         batch: Union[Iterable[np.ndarray], np.ndarray],
         **kwargs,
     ) -> List[np.ndarray]:
-
         _, tmpin = tempfile.mkstemp(prefix="openxbow_", suffix=".csv")
         _, tmpout = tempfile.mkstemp(prefix="openxbow_", suffix=".csv")
 
         xs = list(batch)
         names = [str(i) for i in range(len(xs))]
-        write_features(tmpin, xs, names=names)
+        self.logger.info(f"Writing temp CSV to {tmpin}")
+        write_features(tmpin, xs, names=names, header=False)
+
+        add_args = []
+        for arg in self.config.xbowargs:
+            add_args.extend(arg.split("=", maxsplit=1))
 
         with res_path("ertk.preprocessing.openxbow", "openXBOW.jar") as jar:
             xbow_args = [
@@ -59,9 +63,10 @@ class OpenXBOWExtractor(
                 ",",
                 "-writeName",
                 "-noLabels",
-                *self.config.xbowargs,
+                *add_args,
             ]
 
+        self.logger.info(f"Using cmdline: {' '.join(xbow_args)}")
         if subprocess.call(xbow_args) != 0:
             raise RuntimeError("openXBOW returned an error")
         os.remove(tmpin)
@@ -70,6 +75,9 @@ class OpenXBOWExtractor(
         )
         os.remove(tmpout)
         self._dim = data.shape[1] - 1
+        self.logger.debug(data.shape)
+        if not len(data) == len(xs):
+            raise RuntimeError("Got incorrect number of instances from openXBOW.")
 
         return list(data.iloc[:, 1:].to_numpy())
 
