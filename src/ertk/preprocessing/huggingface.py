@@ -5,7 +5,7 @@ from typing import Iterable, List, Optional, Union
 import numpy as np
 import torch
 from omegaconf import MISSING
-from transformers import AutoModel, AutoModelForCTC, AutoProcessor
+from transformers import AutoFeatureExtractor, AutoModel, AutoModelForCTC, AutoProcessor
 
 from ertk.config import ERTKConfig
 
@@ -47,9 +47,10 @@ class HuggingFaceExtractor(
         print(f"Loading model from {config.model}")
         if config.task == _Task.CTC:
             self.model = AutoModelForCTC.from_pretrained(config.model)
+            self.processor = AutoProcessor.from_pretrained(config.model)
         else:
             self.model = AutoModel.from_pretrained(config.model)
-        self.processor = AutoProcessor.from_pretrained(config.model)
+            self.processor = AutoFeatureExtractor.from_pretrained(config.model)
 
         self.model.to(config.device).eval()
         torch.set_grad_enabled(False)
