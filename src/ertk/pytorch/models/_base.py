@@ -37,7 +37,7 @@ class ERTKPyTorchModel(pl.LightningModule, ABC):
 
         full_config = OmegaConf.merge(type(self).get_default_config(), config)
         # Inplace merge so that subclass __init__() also gets the full config
-        config.merge_with(full_config)
+        config.merge_with(full_config)  # type: ignore
 
         self.save_hyperparameters(PyTorchModelConfig.to_dictconfig(config))
         self.config = config

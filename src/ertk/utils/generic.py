@@ -76,7 +76,7 @@ def ordered_intersect(a: Iterable, b: Container) -> List:
 def filter_kwargs(kwargs: Dict[str, Any], method: Callable) -> Dict[str, Any]:
     """Removes incompatible keyword arguments. This ignores any
     `**kwargs` catchall in method signature, and only returns args
-    specifically present as keyhwords in the method signature which are
+    specifically present as keywords in the method signature which are
     also not positional only.
 
     Parameters

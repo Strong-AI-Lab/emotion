@@ -24,7 +24,7 @@ This assumes the file structure from the original compressed file:
 import json
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict
 
 import click
 import h5py
@@ -47,7 +47,7 @@ emotion_map = {
 def get_vote(vals):
     idx = vals.argmax()
     max = vals[idx]
-    if max > vals.sum() // 2:
+    if max > vals.sum() / 2:
         # Majority
         return idx, "M"
     if np.count_nonzero(max == vals) == 1:
