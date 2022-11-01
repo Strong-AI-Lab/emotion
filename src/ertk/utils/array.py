@@ -82,9 +82,13 @@ def frame_array(
                 "so no frames will be generated."
             )
         num_frames = 0
-    remainder = (x.shape[axis] - frame_size) % frame_shift
+    if frame_size > x.shape[axis]:
+        remainder = frame_size - x.shape[axis]
+    else:
+        remainder = (x.shape[axis] - frame_size) % frame_shift
     if remainder != 0:
         num_frames += 1 if pad else 0
+    assert num_frames > 0
     # Insert new dim before axis with num_frames, and axis is replaced
     # with the size of each frame.
     new_shape = x.shape[:axis] + (num_frames, frame_size) + x.shape[axis + 1 :]

@@ -1,4 +1,5 @@
 from typing import Tuple
+
 import numpy as np
 import pytest
 
@@ -55,6 +56,8 @@ def test_check_3d():
         ((1, 37, 10), 50, 50, True, 1, (1, 1, 50, 10)),
         ((37, 10), 50, 50, True, 0, (1, 50, 10)),
         ((37, 10), 50, 10, True, 0, (1, 50, 10)),
+        ((49, 64), 96, 48, True, 0, (1, 96, 64)),
+        ((48, 64), 96, 48, True, 0, (1, 96, 64)),
     ],
 )
 def test_frame_array_shape(
