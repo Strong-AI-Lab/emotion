@@ -6,6 +6,7 @@ partitions:
 - speaker
 - language
 - country
+- gender
 subsets:
   all:
     clips: files_all

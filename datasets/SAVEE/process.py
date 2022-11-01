@@ -57,6 +57,7 @@ def main(input_dir: Path, resample: bool):
     write_annotations({p.stem: p.stem[:2] for p in paths}, "speaker")
     write_annotations({p.stem: "en" for p in paths}, "language")
     write_annotations({p.stem: "gb" for p in paths}, "country")
+    write_annotations({p.stem: "M" for p in paths}, "gender")
 
 
 if __name__ == "__main__":

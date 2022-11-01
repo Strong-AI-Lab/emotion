@@ -3,6 +3,7 @@
 This assumes the file structure from the original compressed file:
 /.../
     *.wav
+    f_m_corpus_it_es_en_legend.xlsx
 """
 
 from pathlib import Path
@@ -40,6 +41,7 @@ film_map = {
 speaker_map = {
     "camilo garcia": "camilo garcía",
     "constantino romero+6": "constantino romero",
+    "adalberto maria merli+6": "adalberto maria merli",
     "giuppi izzo": "giuppy izzo",
     "maria moscardo": "maría moscardó",
     "massimo de ambrosio": "massimo de ambrosis",
@@ -66,18 +68,19 @@ def main(input_dir: Path, resample: bool):
     write_annotations({p.stem: emotion_map[p.stem[2:5]] for p in paths}, "label")
 
     df = pd.concat(
-        pd.read_excel(
-            input_dir.parent / "f_m_corpus_it_es_en_legend.xlsx", sheet_name=None
-        )
+        pd.read_excel(input_dir / "f_m_corpus_it_es_en_legend.xlsx", sheet_name=None)
     ).set_index("file")
     df["gender"] = df.index.map(lambda x: x[0])
     df["language"] = df.index.map(lambda x: x[-2:])
     df["film"] = df["film"].str.lower().replace(film_map)
-    df["speaker"] = df["speaker"].str.lower().replace(r"^\?+$", pd.NA, regex=True)
-    df.loc[df["speaker"].isna(), "speaker"] = [
-        f"unknown{x}" for x in range(df["speaker"].isna().sum())
-    ]
-    df["speaker"].replace(speaker_map, inplace=True)
+    df["speaker"] = (
+        df["speaker"]
+        .str.strip()
+        .str.lower()
+        .replace(r"^\?+$", pd.NA, regex=True)
+        .str.replace("\u00a0", " ", regex=False)
+        .replace(speaker_map)
+    )
     for col in df.columns:
         write_annotations(df[col].to_dict(), col)
 

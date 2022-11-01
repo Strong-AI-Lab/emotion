@@ -3,11 +3,12 @@
 !/datasets/*/process.py
 !/datasets/*/process_transcripts.py
 !/datasets/*/corpus.yaml
+!/datasets/CMU-MOSEI/splits.py
 
 # Misc. project related
 
 # Python related
-.venv
+.venv*
 .ipynb_checkpoints
 *.egg-info
 /build

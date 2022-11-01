@@ -30,12 +30,10 @@ def main(input_dir: Path, resample: bool):
         resample_audio(paths, resample_dir)
     write_filelist(resample_dir.glob("*.wav"), "files_all")
 
-    write_annotations(
-        {p.stem: p.stem[: p.stem.find("_")].lower() for p in paths}, "label"
-    )
-    write_annotations({p.stem: p.stem[p.stem.rfind("_") + 1 :] for p in paths}, "word")
-    write_annotations({p.stem: p.stem[p.stem.find("_") + 1] for p in paths}, "voice")
-    write_annotations({p.stem: p.stem[p.stem.rfind("_") - 1] for p in paths}, "corpus")
+    write_annotations({p.stem: p.stem.split("_")[0].lower() for p in paths}, "label")
+    write_annotations({p.stem: p.stem.split("_", maxsplit=3)[3] for p in paths}, "word")
+    write_annotations({p.stem: p.stem.split("_")[1] for p in paths}, "voice")
+    write_annotations({p.stem: p.stem.split("_")[2] for p in paths}, "corpus")
     write_annotations({p.stem: "es" for p in paths}, "language")
     write_annotations({p.stem: "mx" for p in paths}, "country")
 
