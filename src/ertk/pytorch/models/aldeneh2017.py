@@ -15,7 +15,7 @@ class Aldeneh2017Config(PyTorchModelConfig):
     dense_dims: List[int] = field(default_factory=lambda: [1024, 1024])
 
 
-class Model(SimpleClassificationModel):
+class Model(SimpleClassificationModel, fname="aldeneh2017", config=Aldeneh2017Config):
     def __init__(self, config: Aldeneh2017Config):
         super().__init__(config)
 

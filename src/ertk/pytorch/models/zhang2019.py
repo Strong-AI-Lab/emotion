@@ -7,7 +7,7 @@ from ._base import PyTorchModelConfig, SimpleClassificationModel
 from .layers import Attention1D
 
 
-class Model(SimpleClassificationModel):
+class Model(SimpleClassificationModel, fname="zhang2019", config=PyTorchModelConfig):
     def __init__(self, config: PyTorchModelConfig) -> None:
         super().__init__(config)
 
