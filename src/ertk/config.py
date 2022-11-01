@@ -1,4 +1,5 @@
 from abc import ABC
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, TypeVar, Union, cast
@@ -59,42 +60,18 @@ class ERTKConfig(ABC):
             config = OmegaConf.merge(config, OmegaConf.from_dotlist(override))
         return cls.from_config(config)
 
+    def to_string(self):
+        return OmegaConf.to_yaml(self)
+
     def to_file(self, path: PathOrStr):
         with open(path, "w") as fid:
-            fid.write(OmegaConf.to_yaml(self))
+            fid.write(type(self).to_string(self))
+
+    def merge_with_other(self, other: "ERTKConfig"):
+        return OmegaConf.merge(self, other)
 
     def merge_with_args(self: T, args: Optional[List[str]] = None) -> T:
         return cast(T, OmegaConf.merge(self, OmegaConf.from_cli(args)))
-
-
-def get_arg_mapping_multi(s: str) -> Dict[str, List[Any]]:
-    """Given a string mapping from the command-line, returns a dict
-    representing that mapping.
-
-    The string form of the mapping is::
-        key:value[,key:value]+
-
-    Duplicate keys will be mapped to a list of values.
-
-    Parameters
-    ----------
-    s: str
-        String representing the mapping. It cannot contain spaces or
-        shell symbols (unless escaped).
-
-    Returns
-    -------
-    mapping: dict
-        A dictionary mapping keys to lists of values from the string.
-    """
-    mapping: Dict[str, List[str]] = {}
-    for cls in s.split(","):
-        key, val = cls.split(":")
-        if key in mapping:
-            mapping[key].append(val)
-        else:
-            mapping[key] = [val]
-    return mapping
 
 
 def get_arg_mapping(s: Union[Path, str]) -> Dict[str, Any]:
@@ -119,4 +96,8 @@ def get_arg_mapping(s: Union[Path, str]) -> Dict[str, Any]:
     if isinstance(s, Path) or Path(s).exists():
         with open(s) as fid:
             return yaml.safe_load(fid) or {}
-    return {k: v[0] if len(v) == 1 else v for k, v in get_arg_mapping_multi(s).items()}
+    mapping: Dict[str, List[str]] = defaultdict(list)
+    for cls in s.split(","):
+        key, val = cls.split(":")
+        mapping[key].append(val)
+    return {k: v[0] if len(v) == 1 else v for k, v in mapping.items()}
