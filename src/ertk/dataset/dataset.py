@@ -136,6 +136,7 @@ class Dataset:
     _x: np.ndarray
     _label_annot: str = ""
     _ratings: Dict[str, pd.DataFrame]
+    _description: str = ""
 
     # "Private" vars
     _default_subset: str = ""
@@ -168,12 +169,6 @@ class Dataset:
         self._x = np.empty((0, 0), dtype=np.float32)
         self._ratings = {}
 
-    @classmethod
-    def _copy(cls, inst: "Dataset"):
-        new_dataset = Dataset.__new__(cls)
-        new_dataset._copy_from_dataset(inst)
-        return new_dataset
-
     def _copy_from_dataset(self, other: "Dataset") -> None:
         self._annotations = other._annotations.copy()
         self._corpus = other._corpus
@@ -190,6 +185,7 @@ class Dataset:
         self._x = other._x.copy()
         self._label_annot = other._label_annot
         self._ratings = copy.deepcopy(other._ratings)
+        self._description = other._description
         if len(self._x.shape) == 1:
             # Non-contiguous array, so copy each contiguous sub-array
             for i in range(len(self._x)):
@@ -208,6 +204,7 @@ class Dataset:
         path = Path(path)
         corpus_info = CorpusInfo.from_file(path)
         self._corpus = corpus_info.name
+        self._description = corpus_info.description
         self._features_dir = path.parent / corpus_info.features_dir
         self._default_subset = corpus_info.default_subset
         for subset, subset_info in corpus_info.subsets.items():
@@ -297,11 +294,11 @@ class Dataset:
                 f"Features at {features} don't contain all instances, these are"
                 f"missing: {missing}"
             )
-        # To avoid reordering the feature matrix, reorder self. names instead
+        # To avoid reordering the feature matrix, reorder self.names instead
         data_names = pd.Index(data.names)
         idx = data_names.isin(self.names)
         self._x = data.features[idx]
-        self._names = pd.Index(data.names)[idx]
+        self._names = data_names[idx]
 
     def use_subset(self, subset: str = "default") -> None:
         """Use a different subset of the instances.
@@ -384,8 +381,7 @@ class Dataset:
         elif isinstance(split, dict):
             mapping = split
         else:
-            _type = OmegaConf.get_type(split)
-            if _type is None:
+            if OmegaConf.get_type(split) is None:
                 raise TypeError("Config is of incorrect type")
             if split.subset:
                 subset_idx = self.get_idx_for_names(self.subsets[split.subset])
@@ -760,7 +756,9 @@ class Dataset:
         return self.copy()
 
     def copy(self):
-        return self._copy(self)
+        new_dataset = type(self).__new__(type(self))
+        new_dataset._copy_from_dataset(self)
+        return new_dataset
 
     def normalise(
         self, partition: str, normaliser: TransformerMixin = StandardScaler()
@@ -821,6 +819,11 @@ class Dataset:
     def corpus(self) -> str:
         """The corpus this dataset represents."""
         return self._corpus
+
+    @property
+    def description(self) -> str:
+        """The descriptive name of this corpus"""
+        return self._description
 
     @property
     def n_instances(self) -> int:
@@ -957,6 +960,7 @@ class Dataset:
 
     def __str__(self):
         s = f"Corpus: {self.corpus}\n"
+        s += f"Description: {self.description}\n"
         for part in sorted(self.partitions):
             if part == _AUDIO_PATH_KEY:
                 continue
@@ -1005,8 +1009,10 @@ class CombinedDataset(Dataset):
 
         self._init()
 
-        logger.info("Combining " + ", ".join(d.corpus for d in datasets))
+        combined_str = ", ".join(d.corpus for d in datasets)
+        logger.info(f"Combining {combined_str}")
         self._corpus = "combined"
+        self._description = f"Combined datasets ({combined_str})"
         self._names = pd.Index([f"{d.corpus}_{n}" for d in datasets for n in d.names])
         self._feature_names = datasets[0].feature_names
         self._features = datasets[0]._features
