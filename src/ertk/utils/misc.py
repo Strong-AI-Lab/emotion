@@ -62,8 +62,12 @@ class TqdmMultiprocessing:
         desc: str = "",
         unit: str = "it",
         leave: bool = True,
+        n_jobs: int = 1,
+        context: str = "forkserver",
         **kwargs,
     ) -> None:
+        self.n_jobs = n_jobs
+        self.context = context
         self.tqdm_args = {
             "total": total,
             "desc": desc,
@@ -73,14 +77,17 @@ class TqdmMultiprocessing:
             **kwargs,
         }
 
-    def imap(self, func, iterable, *args, n_jobs=1, chunksize=1, **kwargs) -> Iterable:
+    def imap(self, func, iterable, *args, chunksize=1, **kwargs) -> Iterable:
         _f = partial(func, *args, **kwargs)
-        if n_jobs == -1:
-            n_jobs = os.cpu_count()
+        if self.n_jobs == -1:
+            cpu_count = os.cpu_count()
+            if cpu_count is None:
+                raise RuntimeError("n_jobs == -1 but cannot get CPU count.")
+            self.n_jobs = cpu_count
         self.pbar = tqdm.tqdm(iterable, **self.tqdm_args)
-        if n_jobs > 1:
-            with multiprocessing.Pool(n_jobs) as pool:
-                yield from pool.imap(_f, iter(self.pbar), chunksize=chunksize)
+        if self.n_jobs > 1:
+            with multiprocessing.get_context(self.context).Pool(self.n_jobs) as pool:
+                yield from pool.imap(_f, self.pbar, chunksize=chunksize)
         else:
             yield from map(_f, iter(self.pbar))
         self.pbar.close()

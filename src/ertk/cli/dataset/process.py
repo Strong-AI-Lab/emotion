@@ -1,6 +1,7 @@
 import logging
 import pprint
 from dataclasses import asdict
+from functools import partial
 from pathlib import Path
 from typing import Tuple
 
@@ -114,10 +115,9 @@ def main(
     else:
         # TODO: Set back to joblib when
         # https://github.com/joblib/joblib/pull/588 is merged
-        pool = TqdmMultiprocessing(len(input_data), "Processing files")
-        feats = pool.imap(
-            extractor.process_instance, input_data, n_jobs=n_jobs, sr=sample_rate
-        )
+        pool = TqdmMultiprocessing(len(input_data), "Processing files", n_jobs=n_jobs)
+        f = partial(extractor.process_instance, sr=sample_rate)
+        feats = pool.imap(f, input_data)
     write_features(
         output, feats, names=names, corpus=corpus, feature_names=extractor.feature_names
     )
