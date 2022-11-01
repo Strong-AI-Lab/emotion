@@ -5,8 +5,6 @@ from dataclasses import dataclass
 from typing import Iterable, List, Optional, Tuple, Union
 
 import numpy as np
-from phonemizer import phonemize
-from phonemizer.separator import Separator
 
 from ertk.config import ERTKConfig
 
@@ -42,7 +40,16 @@ class Phonemizer(FeatureExtractor, fname="phonemize", config=PhonemizeConfig):
     config: PhonemizeConfig
 
     def __init__(self, config: PhonemizeConfig) -> None:
+        from phonemizer import phonemize
+        from phonemizer.separator import Separator
+
         super().__init__(config)
+        self.sep = Separator(
+            phone=self.config.ph_sep,
+            syllable=self.config.syl_sep,
+            word=self.config.word_sep,
+        )
+        self.phonemize = phonemize
 
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
         x = x.squeeze()
@@ -58,15 +65,11 @@ class Phonemizer(FeatureExtractor, fname="phonemize", config=PhonemizeConfig):
                     "the festival backend. Setting to empty string."
                 )
                 text = corrected[0]
-        res = phonemize(
+        res = self.phonemize(
             text,
             language=self.config.language,
             backend=self.config.backend,
-            separator=Separator(
-                phone=self.config.ph_sep,
-                syllable=self.config.syl_sep,
-                word=self.config.word_sep,
-            ),
+            separator=self.sep,
             preserve_punctuation=self.config.preserve_punctuation,
             preserve_empty_lines=self.config.preserve_empty_lines,
             strip=self.config.strip,
@@ -89,15 +92,11 @@ class Phonemizer(FeatureExtractor, fname="phonemize", config=PhonemizeConfig):
                     "the festival backend. Setting to empty string."
                 )
                 text = corrected
-        res = phonemize(
+        res = self.phonemize(
             text,
             language=self.config.language,
             backend=self.config.backend,
-            separator=Separator(
-                phone=self.config.ph_sep,
-                syllable=self.config.syl_sep,
-                word=self.config.word_sep,
-            ),
+            separator=self.sep,
             preserve_punctuation=self.config.preserve_punctuation,
             preserve_empty_lines=self.config.preserve_empty_lines,
             strip=self.config.strip,

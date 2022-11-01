@@ -31,6 +31,7 @@ class FairseqExtractorConfig(ERTKConfig):
     vq_path: Optional[str] = None
     vq_ids: bool = False
     vq_ids_as_string: bool = True
+    max_input_len: int = 1500000
 
 
 class FairseqExtractor(
@@ -87,7 +88,7 @@ class FairseqExtractor(
         if kwargs.pop("sr") != 16000:
             raise ValueError("Sample rate should be 16kHz")
 
-        x = np.squeeze(x, -1)
+        x = np.squeeze(x, -1)[: self.config.max_input_len]
         tensor = torch.tensor(x, device=self.config.device).unsqueeze(0)
         if hasattr(self.task, "normalize") and self.task.normalize:
             tensor = F.layer_norm(tensor, tensor.shape)

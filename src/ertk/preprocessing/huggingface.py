@@ -5,7 +5,6 @@ from typing import Iterable, List, Optional, Union
 import numpy as np
 import torch
 from omegaconf import MISSING
-from transformers import AutoFeatureExtractor, AutoModel, AutoModelForCTC, AutoProcessor
 
 from ertk.config import ERTKConfig
 
@@ -42,6 +41,13 @@ class HuggingFaceExtractor(
     config: HuggingFaceExtractorConfig
 
     def __init__(self, config: HuggingFaceExtractorConfig) -> None:
+        from transformers import (
+            AutoFeatureExtractor,
+            AutoModel,
+            AutoModelForCTC,
+            AutoProcessor,
+        )
+
         super().__init__(config)
 
         print(f"Loading model from {config.model}")

@@ -3,26 +3,11 @@ from types import ModuleType
 from typing import Iterable, List, Optional, Union
 
 import numpy as np
-from keras.applications import (
-    densenet,
-    efficientnet,
-    inception_resnet_v2,
-    inception_v3,
-    mobilenet,
-    mobilenet_v2,
-    mobilenet_v3,
-    nasnet,
-    resnet,
-    vgg16,
-    vgg19,
-    xception,
-)
 from omegaconf import MISSING
 from scipy.ndimage import zoom
 
 from ertk.config import ERTKConfig
 from ertk.preprocessing.spectrogram import spectrogram
-from ertk.tensorflow.utils import init_gpu_memory_growth
 from ertk.utils import is_mono_audio
 
 from ._base import AudioClipProcessor, FeatureExtractor
@@ -35,36 +20,56 @@ class ModelArgs:
     size: int
 
 
-MODEL_MAP = {
-    "densenet121": ModelArgs(densenet, "DenseNet121", 224),
-    "densenet169": ModelArgs(densenet, "DenseNet169", 224),
-    "densenet201": ModelArgs(densenet, "DenseNet201", 224),
-    "efficientnet_b0": ModelArgs(efficientnet, "EfficientNetB0", 224),
-    "efficientnet_b1": ModelArgs(efficientnet, "EfficientNetB1", 240),
-    "efficientnet_b2": ModelArgs(efficientnet, "EfficientNetB2", 260),
-    "efficientnet_b3": ModelArgs(efficientnet, "EfficientNetB3", 300),
-    "efficientnet_b4": ModelArgs(efficientnet, "EfficientNetB4", 380),
-    "efficientnet_b5": ModelArgs(efficientnet, "EfficientNetB5", 456),
-    "efficientnet_b6": ModelArgs(efficientnet, "EfficientNetB6", 528),
-    "efficientnet_b7": ModelArgs(efficientnet, "EfficientNetB7", 600),
-    "inception_resnet_v2": ModelArgs(inception_resnet_v2, "InceptionResNetV2", 299),
-    "inception_v3": ModelArgs(inception_v3, "InceptionV3", 299),
-    "mobilenet": ModelArgs(mobilenet, "MobileNet", 224),
-    "mobilenet_v2": ModelArgs(mobilenet_v2, "MobileNetV2", 224),
-    "mobilenet_v3_large": ModelArgs(mobilenet_v3, "MobileNetV3Large", 224),
-    "mobilenet_v3_small": ModelArgs(mobilenet_v3, "MobileNetV3Small", 224),
-    "nasnet_large": ModelArgs(nasnet, "NASNetLarge", 331),
-    "nasnet_mobile": ModelArgs(nasnet, "NASNetMobile", 224),
-    "resnet50": ModelArgs(resnet, "ResNet50", 224),
-    "resnet50_v2": ModelArgs(resnet, "ResNet50V2", 224),
-    "resnet101": ModelArgs(resnet, "ResNet101", 224),
-    "resnet101_v2": ModelArgs(resnet, "ResNet101V2", 224),
-    "resnet152": ModelArgs(resnet, "ResNet152", 224),
-    "resnet152_v2": ModelArgs(resnet, "ResNet152V2", 224),
-    "vgg16": ModelArgs(vgg16, "VGG16", 224),
-    "vgg19": ModelArgs(vgg19, "VGG19", 224),
-    "xception": ModelArgs(xception, "Xception", 299),
-}
+MODEL_MAP = {}
+
+
+def _init_models():
+    from keras.applications import (
+        densenet,
+        efficientnet,
+        inception_resnet_v2,
+        inception_v3,
+        mobilenet,
+        mobilenet_v2,
+        mobilenet_v3,
+        nasnet,
+        resnet,
+        vgg16,
+        vgg19,
+        xception,
+    )
+
+    global MODEL_MAP
+    MODEL_MAP = {
+        "densenet121": ModelArgs(densenet, "DenseNet121", 224),
+        "densenet169": ModelArgs(densenet, "DenseNet169", 224),
+        "densenet201": ModelArgs(densenet, "DenseNet201", 224),
+        "efficientnet_b0": ModelArgs(efficientnet, "EfficientNetB0", 224),
+        "efficientnet_b1": ModelArgs(efficientnet, "EfficientNetB1", 240),
+        "efficientnet_b2": ModelArgs(efficientnet, "EfficientNetB2", 260),
+        "efficientnet_b3": ModelArgs(efficientnet, "EfficientNetB3", 300),
+        "efficientnet_b4": ModelArgs(efficientnet, "EfficientNetB4", 380),
+        "efficientnet_b5": ModelArgs(efficientnet, "EfficientNetB5", 456),
+        "efficientnet_b6": ModelArgs(efficientnet, "EfficientNetB6", 528),
+        "efficientnet_b7": ModelArgs(efficientnet, "EfficientNetB7", 600),
+        "inception_resnet_v2": ModelArgs(inception_resnet_v2, "InceptionResNetV2", 299),
+        "inception_v3": ModelArgs(inception_v3, "InceptionV3", 299),
+        "mobilenet": ModelArgs(mobilenet, "MobileNet", 224),
+        "mobilenet_v2": ModelArgs(mobilenet_v2, "MobileNetV2", 224),
+        "mobilenet_v3_large": ModelArgs(mobilenet_v3, "MobileNetV3Large", 224),
+        "mobilenet_v3_small": ModelArgs(mobilenet_v3, "MobileNetV3Small", 224),
+        "nasnet_large": ModelArgs(nasnet, "NASNetLarge", 331),
+        "nasnet_mobile": ModelArgs(nasnet, "NASNetMobile", 224),
+        "resnet50": ModelArgs(resnet, "ResNet50", 224),
+        "resnet50_v2": ModelArgs(resnet, "ResNet50V2", 224),
+        "resnet101": ModelArgs(resnet, "ResNet101", 224),
+        "resnet101_v2": ModelArgs(resnet, "ResNet101V2", 224),
+        "resnet152": ModelArgs(resnet, "ResNet152", 224),
+        "resnet152_v2": ModelArgs(resnet, "ResNet152V2", 224),
+        "vgg16": ModelArgs(vgg16, "VGG16", 224),
+        "vgg19": ModelArgs(vgg19, "VGG19", 224),
+        "xception": ModelArgs(xception, "Xception", 299),
+    }
 
 
 @dataclass
@@ -87,7 +92,10 @@ class KerasAppsExtractor(
     def __init__(self, config: KerasAppsExtractorConfig) -> None:
         super().__init__(config)
 
+        from ertk.tensorflow.utils import init_gpu_memory_growth
+
         init_gpu_memory_growth()
+        _init_models()
 
         model_args = MODEL_MAP[config.model]
         size = config.size or model_args.size

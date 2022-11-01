@@ -1,6 +1,6 @@
 import warnings
 from dataclasses import dataclass
-from typing import List, Optional, Union
+from typing import List, Optional
 
 import librosa
 import numpy as np

@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Dict, List
 
 import numpy as np
-import opensmile
 from omegaconf import MISSING
 
 from ertk.config import ERTKConfig
@@ -27,6 +26,8 @@ class OpenSMILEExtractor(
     config: OpenSMILEExtractorConfig
 
     def __init__(self, config: OpenSMILEExtractorConfig) -> None:
+        import opensmile
+
         super().__init__(config)
 
         opensmile_config = config.opensmile_config
