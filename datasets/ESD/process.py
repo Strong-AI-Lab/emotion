@@ -89,6 +89,10 @@ def main(input_dir: Path, resample: bool):
     """
 
     paths = list(input_dir.glob("**/*.wav"))
+    subsets = {}
+    for subset in ["train", "evaluation", "test"]:
+        subsets[subset] = {x.name for x in paths if subset in x.parts}
+
     resample_dir = Path("resampled")
     if resample:
         resample_dir.mkdir(exist_ok=True)
@@ -98,7 +102,7 @@ def main(input_dir: Path, resample: bool):
         paths = list(resample_dir.glob("*.wav"))
     write_filelist(paths, "files_all")
     for subset in ["train", "evaluation", "test"]:
-        write_filelist([x for x in paths if subset in x.parts], f"files_{subset}")
+        write_filelist(subsets[subset], f"files_{subset}")
 
     transcripts = {}
     for spk_id in range(1, 21):
@@ -114,6 +118,12 @@ def main(input_dir: Path, resample: bool):
                     transcripts[name] = unicodedata.normalize("NFKD", transcript)
     transcripts.update(error_lines)
     write_annotations(transcripts, "transcript")
+    write_annotations(
+        {k: v for k, v in transcripts.items() if int(k[:4]) < 11}, "transcripts_zh"
+    )
+    write_annotations(
+        {k: v for k, v in transcripts.items() if int(k[:4]) >= 11}, "transcripts_en"
+    )
 
     labels = {}
     for emo1, emo2 in emotion_map.items():
