@@ -34,6 +34,13 @@ def main(input: Tuple[Path], cpus: int, gpus: str, failed: Path):
         raise ValueError("No input files specified.")
 
     q: "Queue[str]" = Queue()
+    for file in input:
+        with open(file) as fid:
+            for line in filter(None, map(str.strip, fid)):
+                q.put(line)
+    n_commands = q.qsize()
+    print(f"Loaded {n_commands} commands")
+
     file_lock = Lock()
     if not failed.exists():
         failed.parent.mkdir(exist_ok=True, parents=True)
@@ -78,13 +85,6 @@ def main(input: Tuple[Path], cpus: int, gpus: str, failed: Path):
                     fail_file.write(cmd + "\n")
                     fail_file.flush()
             q.task_done()
-
-    for file in input:
-        with open(file) as fid:
-            for line in filter(None, map(str.strip, fid)):
-                q.put(line)
-    n_commands = q.qsize()
-    print(f"Loaded {n_commands} commands")
 
     if cpus is not None:
         threads = [Thread(target=worker, kwargs={"t_id": i}) for i in range(cpus)]
