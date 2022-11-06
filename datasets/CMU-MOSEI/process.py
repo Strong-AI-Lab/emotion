@@ -168,14 +168,17 @@ def main(input_dir: Path, resample: bool):
     vid_to_fold = {x: "train" for x in standard_train_fold}
     vid_to_fold.update({x: "valid" for x in standard_valid_fold})
     vid_to_fold.update({x: "test" for x in standard_test_fold})
+    splits = {}
     for path in all_paths:
         video = path.stem.rsplit("_", maxsplit=1)[0]
         fold = vid_to_fold.get(video)
+        splits[path.stem] = fold
         if fold is None:
             continue
         fold_paths[fold].append(path)
         if path in labelled_paths:
             fold_paths[f"{fold}_labels"].append(path)
+    write_annotations(splits, "split")
     for key, pathlist in fold_paths.items():
         write_filelist(pathlist, f"files_{key}")
 

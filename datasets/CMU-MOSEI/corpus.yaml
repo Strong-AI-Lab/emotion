@@ -9,6 +9,7 @@ annotations:
 - surprise
 - sentiment
 - transcript
+- split
 partitions:
 - label_maj
 - label_plu
