@@ -1,8 +1,9 @@
 import warnings
+from typing import List
 
 import numpy as np
 from joblib import Parallel, delayed
-from sklearn.base import MetaEstimatorMixin, clone
+from sklearn.base import BaseEstimator, MetaEstimatorMixin, clone
 from sklearn.model_selection import GridSearchCV
 from sklearn.multiclass import OneVsRestClassifier as _SKOvR
 from sklearn.multiclass import _ConstantPredictor
@@ -54,7 +55,32 @@ class OneVsRestClassifier(_SKOvR):
         return self
 
 
-def get_base_estimator(clf):
+def get_estimator_tree(clf) -> List:
+    """Gets the estimator list of nested estimators.
+
+    Parameters
+    ----------
+    clf: estimator
+        An estimator.
+
+    Returns
+    -------
+    list
+        The tree of estimators of `clf`.
+    """
+    tree = [clf]
+    if isinstance(clf, Pipeline):
+        for x in clf.steps[:-1]:
+            tree += get_estimator_tree(x[1])
+        if clf._final_estimator != "passthrough":
+            return tree + get_estimator_tree(clf._final_estimator)
+    for attr in ["base_estimator", "estimator"]:
+        if hasattr(clf, attr):
+            return tree + get_estimator_tree(getattr(clf, attr))
+    return tree
+
+
+def get_base_estimator(clf) -> BaseEstimator:
     """Gets the base estimator of a pipeline or meta-estimator, assuming
     there is only one.
 
@@ -113,11 +139,16 @@ class GridSearchVal(GridSearchCV):
         )
 
     def fit(self, X, y=None, *, groups=None, **fit_params):
+        from sklearn.utils.validation import _check_fit_params
+
         self.refit = False
         super().fit(X, y=y, groups=groups, **fit_params)
+
+        # Refit only on real train part of "train" data
+        train, _ = next(iter(self.cv.split(X, y, groups)))
+        fit_params = _check_fit_params(X, fit_params, indices=train)
         self.best_estimator_ = clone(
             clone(self.estimator).set_params(**self.best_params_)
         )
-        train, _ = next(iter(self.cv.split(X, y, groups)))
         self.best_estimator_.fit(X[train], y[train], **fit_params)
         return self.best_estimator_

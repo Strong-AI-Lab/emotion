@@ -17,7 +17,7 @@ from sklearn.model_selection import BaseCrossValidator, LeaveOneGroupOut
 from sklearn.utils.multiclass import unique_labels
 
 from ertk.dataset import Dataset
-from ertk.train import get_cv_splitter, scores_to_df
+from ertk.train import ExperimentResult, get_cv_splitter, scores_to_df
 
 
 def binary_accuracy_score(
@@ -132,7 +132,7 @@ def dataset_cross_validation(
     n_jobs: int = 1,
     scoring=None,
     fit_params: Dict[str, Any] = {},
-) -> pd.DataFrame:
+) -> ExperimentResult:
     """Cross validates a `Classifier` instance on a single dataset.
 
     Parameters
@@ -176,7 +176,7 @@ def dataset_cross_validation(
     if scoring is None:
         scoring = standard_class_scoring(dataset.get_group_names(label))
 
-    cross_validate_fn: Callable[..., Dict[str, Any]]
+    cross_validate_fn: Callable[..., ExperimentResult]
     if clf_lib == "sk":
         from ertk.sklearn.classification import sk_cross_validate
 
@@ -196,7 +196,7 @@ def dataset_cross_validation(
 
     start_time = time.perf_counter()
     logging.info(f"Starting cross-validation with n_jobs={n_jobs}")
-    scores = cross_validate_fn(
+    result = cross_validate_fn(
         clf,
         dataset.x,
         dataset.get_group_indices(label),
@@ -212,10 +212,11 @@ def dataset_cross_validation(
     index = None
     if isinstance(cv, LeaveOneGroupOut) and partition is not None:
         index = dataset.get_group_names(partition)
-    return scores_to_df(scores, index=index)
+    result.scores_df = scores_to_df(result.scores_dict, index=index)
+    return result
 
 
-def train_val_test(
+def dataset_train_val_test(
     clf,
     dataset: Dataset,
     train_idx: Union[Sequence[int], np.ndarray],
@@ -227,7 +228,7 @@ def train_val_test(
     verbose: int = 0,
     scoring=None,
     fit_params: Dict[str, Any] = {},
-) -> pd.DataFrame:
+) -> ExperimentResult:
     """Trains a `Classifier` instance on some training data, optionally
     using validation data, and returns results on given test data.
 
@@ -259,7 +260,7 @@ def train_val_test(
     if scoring is None:
         scoring = standard_class_scoring(dataset.get_group_names(label))
 
-    train_val_test_fn: Callable[..., Dict[str, Any]]
+    train_val_test_fn: Callable[..., ExperimentResult]
     if clf_lib == "sk":
         from ertk.sklearn.classification import sk_train_val_test
 
@@ -295,7 +296,7 @@ def train_val_test(
 
     start_time = time.perf_counter()
     logging.info("Starting train/val/test.")
-    scores = train_val_test_fn(
+    result = train_val_test_fn(
         clf,
         train_data,
         valid_data,
@@ -307,7 +308,8 @@ def train_val_test(
     total_time = time.perf_counter() - start_time
     logging.info(f"Train/val/test complete in {total_time:.2f}s")
 
-    return scores_to_df(scores)
+    result.scores_df = scores_to_df(result.scores_dict)
+    return result
 
 
 def get_balanced_sample_weights(labels: Union[List[int], np.ndarray]):

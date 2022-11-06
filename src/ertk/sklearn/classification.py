@@ -5,15 +5,16 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from sklearn.base import ClassifierMixin
+from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import BaseCrossValidator, cross_validate
 from sklearn.model_selection._search import BaseSearchCV
 from sklearn.pipeline import Pipeline
 
-from ertk.sklearn.utils import get_base_estimator
-from ertk.train import get_pipeline_params, get_scores
-from ertk.utils import ScoreFunction, filter_kwargs
+from ertk.sklearn.utils import get_base_estimator, get_estimator_tree
+from ertk.train import ExperimentResult, get_pipeline_params, get_scores
+from ertk.utils import ScoreFunction
 
-_logger = logging.getLogger("ertk.sklearn.classification")
+logger = logging.getLogger("ertk.sklearn.classification")
 
 
 def sk_cross_validate(
@@ -29,12 +30,9 @@ def sk_cross_validate(
     verbose: int = 0,
     n_jobs: int = 1,
     fit_params: Dict[str, Any] = {},
-):
-    if isinstance(clf, Pipeline):
-        fit_params = get_pipeline_params(fit_params, clf)
-    else:
-        fit_params = filter_kwargs(fit_params, clf.fit)
-    _logger.debug(f"cross_validate(): filtered fit_params={fit_params}")
+) -> ExperimentResult:
+    logger.debug(f"cross_validate(): filtered fit_params={fit_params}")
+    logger.info(f"cross_validate(): verbose={verbose}")
 
     scores = cross_validate(
         clf,
@@ -57,9 +55,9 @@ def sk_cross_validate(
             )
         else:
             params.append(json.dumps(get_base_estimator(est).get_params()))
-    scores["params"] = params
+    scores["params"] = np.array(params)
     del scores["estimator"]
-    return scores
+    return ExperimentResult(scores)
 
 
 def sk_train_val_test(
@@ -72,23 +70,20 @@ def sk_train_val_test(
         str, List[str], Dict[str, ScoreFunction], Callable[..., float]
     ] = "accuracy",
     fit_params: Dict[str, Any] = {},
-):
-    if isinstance(clf, Pipeline):
-        fit_params = get_pipeline_params(fit_params, clf)
-    else:
-        fit_params = filter_kwargs(fit_params, clf.fit)
-    _logger.debug(f"train_val_test(): filtered fit_params={fit_params}")
+) -> ExperimentResult:
+    sw_kw = {"sample_weight": train_data[2] if len(train_data) > 2 else None}
+    for est in get_estimator_tree(clf):
+        if isinstance(est, Pipeline):
+            sw_kw = get_pipeline_params(sw_kw, est)
+            break
+    fit_params = dict(**fit_params, **sw_kw)
+    logger.debug(f"train_val_test(): filtered fit_params={fit_params}")
 
-    if test_data is None:
-        test_data = valid_data
-
-    if verbose > 0:
-        print(f"Fitting classifier {clf}")
+    logger.info(f"Fitting classifier {clf}")
     start_time = time.perf_counter()
     clf = clf.fit(train_data[0], train_data[1], **fit_params)
     fit_time = time.perf_counter() - start_time
-    if verbose > 0:
-        print(f"Getting predictions from classifier {clf}")
+    logger.info(f"Getting predictions from classifier {clf}")
     start_time = time.perf_counter()
     y_pred = clf.predict(test_data[0])
     score_time = time.perf_counter() - start_time
@@ -98,10 +93,11 @@ def sk_train_val_test(
         **get_scores(scoring, y_pred, test_data[1]),
     }
     scores = {f"test_{k}": v for k, v in scores.items()}
+    print(confusion_matrix(test_data[1], y_pred))
     if isinstance(clf, BaseSearchCV):
         scores["params"] = json.dumps(
             get_base_estimator(clf.best_estimator_).get_params()
         )
     else:
         scores["params"] = json.dumps(get_base_estimator(clf).get_params())
-    return scores
+    return ExperimentResult(scores, predictions=y_pred)

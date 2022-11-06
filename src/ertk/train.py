@@ -268,6 +268,13 @@ def scores_to_df(
 
 
 @dataclass
+class ExperimentResult:
+    scores_dict: Dict[str, np.ndarray] = field(default_factory=dict)
+    scores_df: pd.DataFrame = field(default_factory=pd.DataFrame)
+    predictions: Optional[np.ndarray] = None
+
+
+@dataclass
 class ModelConfig(ERTKConfig):
     type: str = omegaconf.MISSING
     config: Any = None
@@ -279,26 +286,19 @@ class ModelConfig(ERTKConfig):
 
 @dataclass
 class CrossValidationConfig(ERTKConfig):
-    part: str = omegaconf.MISSING
+    part: Optional[str] = None
     kfold: int = omegaconf.MISSING
-    use_inner_cv: bool = True
-    inner_kfold: int = 2
-    inner_part: Optional[str] = None
     test_size: float = 0.2
 
 
 @dataclass
-class TVTConfig(ERTKConfig):
-    train: DataSelector = omegaconf.MISSING
-    valid: DataSelector = omegaconf.MISSING
-    test: Optional[DataSelector] = None
-
-
-@dataclass
 class EvalConfig(ERTKConfig):
-    cross_validation: Optional[CrossValidationConfig] = None
-    train_val_test: Optional[TVTConfig] = None
-    results: str = ""
+    cv: Optional[CrossValidationConfig] = None
+    train: Optional[DataSelector] = None
+    valid: Optional[DataSelector] = None
+    test: Optional[DataSelector] = None
+    inner_kfold: Optional[int] = None
+    inner_part: Optional[str] = None
 
 
 class TransformClass(Enum):
@@ -313,7 +313,7 @@ class TrainConfig(ERTKConfig):
     normalise: str = "online"
     transform: TransformClass = TransformClass.std
     seq_transform: str = "global"
-    n_jobs: int = -1
+    n_jobs: int = 1
     verbose: int = 0
     label: str = "label"
     sklearn: Any = None
@@ -329,9 +329,10 @@ class ExperimentConfig(ERTKConfig):
     name: str = "default"
     data: DataLoadConfig = omegaconf.MISSING
     model: ModelConfig = omegaconf.MISSING
-    evaluation: EvalConfig = field(default_factory=EvalConfig)
-    evaluations: Dict[str, EvalConfig] = field(default_factory=dict)
+    eval: Optional[EvalConfig] = None
+    evals: Dict[str, EvalConfig] = field(default_factory=dict)
     training: TrainConfig = field(default_factory=TrainConfig)
+    results: str = ""
 
     @classmethod
     def from_file(

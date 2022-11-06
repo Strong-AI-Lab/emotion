@@ -1,10 +1,11 @@
 import logging
+import time
 from collections import defaultdict
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import tensorflow as tf
-from keras.callbacks import History, TensorBoard
+from keras.callbacks import TensorBoard
 from keras.metrics import SparseCategoricalAccuracy
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.model_selection import BaseCrossValidator
@@ -18,8 +19,10 @@ from ertk.tensorflow.utils import (
     tf_dataset_mem,
     tf_dataset_mem_ragged,
 )
-from ertk.train import get_scores
+from ertk.train import ExperimentResult, get_scores
 from ertk.utils import ScoreFunction, filter_kwargs
+
+logger = logging.getLogger(__name__)
 
 
 def tf_train_val_test(
@@ -34,7 +37,7 @@ def tf_train_val_test(
     batch_size: int = 32,
     verbose: int = 0,
     fit_params: Dict[str, Any] = {},
-) -> Dict[str, Union[float, History]]:
+) -> ExperimentResult:
     """Trains on given data, using given validation data, and tests on
     given test data.
 
@@ -97,14 +100,16 @@ def tf_train_val_test(
     elif not callable(data_fn):
         raise ValueError(f"Unsupported value for data_fn {data_fn}")
 
-    logging.debug(f"fit_params={fit_params}")
-    logging.debug(f"batch_size={batch_size}")
-    logging.debug(f"data_fn={data_fn}")
+    logger.debug(f"fit_params={fit_params}")
+    logger.debug(f"batch_size={batch_size}")
+    logger.debug(f"data_fn={data_fn}")
+    if any(x[2] is not None for x in [train_data, valid_data, test_data]):
+        logger.debug(f"Using sample weights")
 
     tf.keras.backend.clear_session()
 
     clf = model_fn()
-    logging.debug(clf)
+    logger.debug(clf)
     if isinstance(clf, Pipeline):
         new_pipeline = clf[:-1]
         clf = clf._final_estimator
@@ -124,18 +129,24 @@ def tf_train_val_test(
     clf.summary(print_fn=logging.info)
 
     fit_params = filter_kwargs(fit_params, clf.fit)
-    history = clf.fit(
-        train_dataset, validation_data=valid_dataset, verbose=verbose, **fit_params
-    )
+    start_time = time.perf_counter()
+    clf.fit(train_dataset, validation_data=valid_dataset, verbose=verbose, **fit_params)
+    fit_time = time.perf_counter() - start_time
+
     # Setting y_true is necessary for dataset creation routines that may
     # reorder data on creation (but without shuffling each time).
     y_true = np.concatenate([x[1] for x in test_dataset.as_numpy_iterator()])
-    y_pred = tf.argmax(clf.predict(test_dataset), axis=-1)
+    start_time = time.perf_counter()
+    y_pred = np.array(clf.predict(test_dataset))
+    score_time = time.perf_counter() - start_time
 
-    scores = get_scores(scoring, y_pred, y_true)
+    scores: Dict[str, Any] = {
+        "fit_time": fit_time,
+        "score_time": score_time,
+        **get_scores(scoring, np.argmax(y_pred, -1), y_true),
+    }
     scores = {f"test_{k}": v for k, v in scores.items()}
-    scores["history"] = history
-    return scores
+    return ExperimentResult(scores, predictions=y_pred)
 
 
 def tf_cross_validate(
@@ -150,7 +161,7 @@ def tf_cross_validate(
         str, List[str], Dict[str, ScoreFunction], Callable[..., float]
     ] = "accuracy",
     fit_params: Dict[str, Any] = {},
-):
+) -> ExperimentResult:
     """Performs cross-validation on a TensorFlow model. This works with
     both sequence models and single vector models.
 
@@ -187,17 +198,18 @@ def tf_cross_validate(
     sw = fit_params.pop("sample_weight", None)
     data_fn = fit_params.pop("data_fn", None)
 
-    logging.debug(f"log_dir={log_dir}")
-    logging.debug(f"sample_weight={sw}")
-    logging.debug(f"data_fn={data_fn}")
-    logging.debug(f"cv={cv}")
-    logging.debug(f"fit_params={fit_params}")
+    logger.debug(f"log_dir={log_dir}")
+    logger.debug(f"sample_weight={sw}")
+    logger.debug(f"data_fn={data_fn}")
+    logger.debug(f"cv={cv}")
+    logger.debug(f"fit_params={fit_params}")
 
     n_folds = cv.get_n_splits(x, y, groups)
     scores = defaultdict(list)
+    preds = np.zeros((len(y), len(np.unique(y))), dtype=np.float32)
     for fold, (train, test) in enumerate(cv.split(x, y, groups)):
         if verbose:
-            logging.info(f"Fold {fold + 1}/{n_folds}")
+            logger.info(f"Fold {fold + 1}/{n_folds}")
 
         x_train = x[train]
         y_train = y[train]
@@ -218,7 +230,7 @@ def tf_cross_validate(
             )
 
         fit_params["callbacks"] = callbacks
-        _scores = tf_train_val_test(
+        result = tf_train_val_test(
             model_fn,
             train_data=(x_train, y_train, sw_train),
             valid_data=(x_test, y_test, sw_test),
@@ -229,9 +241,10 @@ def tf_cross_validate(
             fit_params=dict(fit_params),
         )
 
-        for k in _scores:
-            scores[k].append(_scores[k])
-    return {k: np.array(scores[k]) for k in scores}
+        for k, v in result.scores_dict.items():
+            scores[k].append(v)
+        preds[test] = result.predictions
+    return ExperimentResult({k: np.array(scores[k]) for k in scores}, predictions=preds)
 
 
 class TFClassifierWrapper(ClassifierMixin, BaseEstimator):

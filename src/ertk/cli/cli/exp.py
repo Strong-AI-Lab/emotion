@@ -11,8 +11,8 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 from ertk.classification import (
     dataset_cross_validation,
+    dataset_train_val_test,
     get_balanced_sample_weights,
-    train_val_test,
 )
 from ertk.cli._utils import (
     dataset_args,
@@ -317,7 +317,7 @@ def main(
         if verbose > -1:
             print(f"Rep {rep}/{reps}")
         if train:
-            df = train_val_test(
+            res = dataset_train_val_test(
                 clf,
                 dataset=dataset,
                 train_idx=train_indices,
@@ -330,7 +330,7 @@ def main(
                 fit_params=fit_params,
             )
         else:
-            df = dataset_cross_validation(
+            res = dataset_cross_validation(
                 clf,
                 dataset,
                 clf_lib=clf_lib,
@@ -341,6 +341,7 @@ def main(
                 n_jobs=n_jobs,
                 fit_params=fit_params,
             )
+        df = res.scores_df
         if "params" not in df:
             df["params"] = [json.dumps(params, default=str)] * len(df)
         dfs.append(df)
