@@ -105,7 +105,7 @@ class FairseqExtractor(
             feats = self.model.feature_extractor(tensor)
             if self.model.vector_quantizer is not None:
                 feats, _ = self.model.vector_quantizer.forward_idx(feats)
-            if layer == "context":
+            if layer == -1:
                 feats = self.model.feature_aggregator(feats)
         elif self.config.model_type in ["wav2vec2", "data2vec"]:
             if layer == "encoder":

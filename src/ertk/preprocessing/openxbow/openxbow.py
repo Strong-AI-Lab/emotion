@@ -32,9 +32,7 @@ class OpenXBOWExtractor(
         raise NotImplementedError("Use batch_size=-1 for openxbow.")
 
     def process_batch(
-        self,
-        batch: Union[Iterable[np.ndarray], np.ndarray],
-        **kwargs,
+        self, batch: Union[Iterable[np.ndarray], np.ndarray], **kwargs
     ) -> List[np.ndarray]:
         _, tmpin = tempfile.mkstemp(prefix="openxbow_", suffix=".csv")
         _, tmpout = tempfile.mkstemp(prefix="openxbow_", suffix=".csv")
