@@ -104,6 +104,9 @@ def main(input_dir: Path, resample: bool):
     for subset in ["train", "evaluation", "test"]:
         write_filelist(subsets[subset], f"files_{subset}")
 
+    splits = {n[:-4]: s for s in subsets for n in subsets[s]}
+    write_annotations(splits, "split")
+
     transcripts = {}
     for spk_id in range(1, 21):
         trans_file = input_dir / f"00{spk_id:02d}" / f"00{spk_id:02d}.txt"

@@ -92,6 +92,7 @@ def main(input_dir: Path, resample: bool):
     clip_info = pd.read_csv(
         input_dir / "veneccountryinfo.csv",
         index_col=0,
+        header=None,
         names=["Filename", "Country", "Original"],
     )
     clip_info.index = clip_info.index.map(lambda x: x[:-4])

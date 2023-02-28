@@ -7,6 +7,7 @@ partitions:
 - speaker
 - gender
 - transcript
+- split
 subsets:
   all:
     clips: files_all

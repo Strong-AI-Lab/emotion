@@ -85,6 +85,7 @@ def main(input_dir: Path, resample: bool):
         print(f"WARNING: {len(neg_starts)} clips with negative start value")
     trn_df.index = trn_df["video"] + "_" + trn_df["clip"]
     write_annotations(trn_df["trn"].to_dict(), "transcript")
+    write_annotations(trn_df["video"].to_dict(), "video")
 
     dfs = []
     for csvfile in (input_dir / "Raw" / "Labels").glob("*.csv"):
@@ -121,6 +122,7 @@ def main(input_dir: Path, resample: bool):
         )
     all_paths = list(resample_dir.glob("*.flac"))
     write_filelist(all_paths, "files_all")
+    write_annotations({x.stem: "en" for x in all_paths}, "language")
 
     dataset = h5py.File(input_dir / "CMU_MOSEI_Labels.csd", "r")
     dim_names = json.loads(dataset["All Labels/metadata/dimension names"][0])

@@ -10,6 +10,8 @@ annotations:
 - sentiment
 - transcript
 - split
+- language
+- video
 partitions:
 - label_maj
 - label_plu
