@@ -17,6 +17,7 @@ pythonVersion = "3.7"
 [tool.pytest.ini_options]
 minversion = "6.0"
 testpaths = ["tests"]
+filterwarnings = ['ignore:.*pkg_resources\.declare_namespace.*:DeprecationWarning']
 
 [tool.mypy]
 follow_imports = "silent"
