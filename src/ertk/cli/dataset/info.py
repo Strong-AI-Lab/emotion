@@ -3,10 +3,12 @@ from pathlib import Path
 from typing import Tuple
 
 import click
+from omegaconf.errors import OmegaConfBaseException
 
 from ertk.cli._utils import dataset_args, debug_args
 from ertk.config import get_arg_mapping
 from ertk.dataset import DataLoadConfig, load_datasets_config, load_multiple
+from ertk.train import ExperimentConfig
 
 
 def write_list(dataset, output_list):
@@ -35,7 +37,14 @@ def main(
         logging.basicConfig(level=logging.DEBUG if verbose > 1 else logging.INFO)
 
     if data_config:
-        dataset = load_datasets_config(DataLoadConfig.from_file(data_config))
+        try:
+            config = DataLoadConfig.from_file(data_config)
+        except OmegaConfBaseException:
+            config = ExperimentConfig.from_file(data_config).data
+        config.features = None
+        for c in config.datasets:
+            config.datasets[c].features = None
+        dataset = load_datasets_config(config)
         print(dataset)
         if output_list:
             write_list(dataset, output_list)
