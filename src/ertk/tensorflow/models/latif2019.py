@@ -7,7 +7,7 @@ http://arxiv.org/abs/1904.03833.
 """
 
 import tensorflow as tf
-from tensorflow.keras.layers import (
+from keras.layers import (
     LSTM,
     BatchNormalization,
     Conv1D,
@@ -21,7 +21,7 @@ from tensorflow.keras.layers import (
     Reshape,
     concatenate,
 )
-from tensorflow.keras.models import Model
+from keras.models import Model
 
 __all__ = ["model"]
 

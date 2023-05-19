@@ -10,11 +10,11 @@ from ertk.utils import PathOrStr
 __all__ = ["BBRBM", "GBRBM"]
 
 
-def _sample_bernoulli(p):
+def _sample_bernoulli(p: tf.Tensor):
     return tf.nn.relu(tf.sign(p - tf.random.uniform(tf.shape(p))))
 
 
-def _sample_std_normal(p):
+def _sample_std_normal(p: tf.Tensor):
     return tf.random.normal()
 
 

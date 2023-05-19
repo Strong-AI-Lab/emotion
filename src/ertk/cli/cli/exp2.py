@@ -117,7 +117,8 @@ def main(config_path: Path, restargs: Tuple[str], verbose: int):
             # Predefinted train/val split
             # This is a hack so that the ValidationSplit works properly.
             inner_cv = ValidationSplit(
-                np.arange(len(train_indices), len(train_indices) + len(valid_indices))
+                np.arange(len(train_indices)),
+                np.arange(len(train_indices), len(train_indices) + len(valid_indices)),
             )
             train_indices = np.concatenate([train_indices, valid_indices])
             grid_search = GridSearchVal
@@ -169,7 +170,7 @@ def main(config_path: Path, restargs: Tuple[str], verbose: int):
                 "epochs": tf_config.epochs,
                 "callbacks": callbacks,
                 "batch_size": tf_config.batch_size,
-                "data_fn": None,
+                "data_fn": tf_config.data_fn,
                 "n_gpus": tf_config.n_gpus,
                 "log_dir": tf_config.logging.log_dir,
             }
@@ -196,7 +197,11 @@ def main(config_path: Path, restargs: Tuple[str], verbose: int):
         }
         clf = model_fn
     elif clf_lib == "pt":
-        from ertk.pytorch.models import PyTorchModelConfig, get_pt_model
+        from ertk.pytorch.models import (
+            ERTKPyTorchModel,
+            PyTorchModelConfig,
+            get_pt_model,
+        )
         from ertk.pytorch.train import PyTorchTrainConfig
 
         pt_config = PyTorchTrainConfig.from_config(config.training.pytorch)
@@ -204,7 +209,8 @@ def main(config_path: Path, restargs: Tuple[str], verbose: int):
         n_jobs = 1
         fit_params.update({"train_config": pt_config})
 
-        model_config = config.model.config
+        model_cls = ERTKPyTorchModel.get_model_class(clf_type)
+        model_config = model_cls.get_config_type().from_config(config.model.config)
         if model_config.n_features == -1:
             model_config.n_features = dataset.n_features
         elif model_config.n_features != dataset.n_features:

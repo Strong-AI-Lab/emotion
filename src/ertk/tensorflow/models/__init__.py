@@ -3,9 +3,11 @@
 import importlib
 from functools import partial
 
-from tensorflow.keras.models import Model
+from keras.models import Model
 
 from ertk.tensorflow.utils import TFModelFunction
+
+from ._base import TFModelConfig
 
 
 def get_tf_model_fn(name: str, **kwargs) -> TFModelFunction:

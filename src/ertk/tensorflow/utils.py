@@ -343,6 +343,25 @@ class BatchedSequence(Sequence):
         return self.x[sl], self.y[sl]
 
 
+DATA_FNS = {
+    "mem": tf_dataset_mem,
+    "gen": tf_dataset_gen,
+    "mem_ragged": tf_dataset_mem_ragged,
+}
+
+
+def get_data_fn(name: str) -> Callable[..., tf.data.Dataset]:
+    if ":" in name:
+        import importlib
+
+        modname, fname = name.split(":")
+        module = importlib.import_module(modname)
+        func = getattr(module, fname)
+    else:
+        func = DATA_FNS[name]
+    return func
+
+
 def print_linear_model_structure(model: Model):
     """Prints the structure of a "sequential" model by listing the layer
     types and shapes in order.
@@ -377,5 +396,8 @@ def init_gpu_memory_growth():
     """Sets TensorFlow to allocate memory on GPU as needed instead of
     all at once.
     """
-    for gpu in tf.config.list_physical_devices("GPU"):
-        tf.config.experimental.set_memory_growth(gpu, True)
+    try:
+        for gpu in tf.config.list_physical_devices("GPU"):
+            tf.config.experimental.set_memory_growth(gpu, True)
+    except RuntimeError as e:
+        print(e)

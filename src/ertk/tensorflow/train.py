@@ -19,3 +19,4 @@ class TFTrainConfig(ERTKConfig):
     logging: TFLoggingConfig = TFLoggingConfig()
     n_gpus: int = 1
     epochs: int = 50
+    data_fn: Optional[str] = None

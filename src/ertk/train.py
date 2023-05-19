@@ -90,12 +90,20 @@ class ShuffleGroupKFold(_BaseKFold):
 class ValidationSplit(BaseCrossValidator):
     """Validation method that uses a pre-defined validation set."""
 
-    def __init__(self, valid_idx: Union[List[int], np.ndarray]):
+    def __init__(
+        self,
+        train_idx: Union[List[int], np.ndarray],
+        valid_idx: Union[List[int], np.ndarray],
+    ):
+        self.train_idx = train_idx
         self.valid_idx = valid_idx
 
     def split(self, X, y, groups):
-        train_idx = np.arange(len(X))
-        train_idx = train_idx[~np.isin(train_idx, self.valid_idx)]
+        if self.train_idx is not None:
+            train_idx = np.array(self.train_idx)
+        else:
+            train_idx = np.arange(len(X))
+            train_idx = train_idx[~np.isin(train_idx, self.valid_idx)]
         yield train_idx, self.valid_idx
 
     def get_n_splits(self, X, y, groups):

@@ -90,7 +90,7 @@ def pt_train_val_test(
     callbacks: List[Callback] = []
     if verbose:
         callbacks.append(ModelSummary(5))
-    if log_dir is not None:
+    if log_dir:
         _logger = TensorBoardLogger(log_dir, name=None)
         loggers.append(_logger)
         loggers.append(CSVLogger(_logger.log_dir, name=None, version=""))

@@ -3,7 +3,7 @@
 [1] Z. Zhang, B. Wu, and B. Schuller, 'Attention-augmented End-to-end
 Multi-task Learning for Emotion Prediction from Speech', in ICASSP 2019
 - 2019 IEEE International Conference on Acoustics, Speech and Signal
-Processing (ICASSP), May 2019, pp. 6705–6709, doi:
+Processing (ICASSP), May 2019, pp. 6705-6709, doi:
 10.1109/ICASSP.2019.8682896.
 """
 
@@ -11,7 +11,7 @@ from typing import Optional
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import (
+from keras.layers import (
     GRU,
     RNN,
     Conv1D,
@@ -23,7 +23,7 @@ from tensorflow.keras.layers import (
     Reshape,
     TimeDistributed,
 )
-from tensorflow.keras.models import Model, Sequential
+from keras.models import Model, Sequential
 
 from ertk.tensorflow.utils import tf_dataset_mem
 

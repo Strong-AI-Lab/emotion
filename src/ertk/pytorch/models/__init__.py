@@ -1,4 +1,3 @@
-import importlib
 from functools import partial
 from typing import Callable
 
@@ -31,12 +30,8 @@ def get_pt_model_fn(name: str, **kwargs) -> Callable[..., Module]:
     model_fn: callable
         A method that takes arguments and returns a Module instance.
     """
-    try:
-        module = importlib.import_module(f".{name}", __package__)
-        model_fn = getattr(module, "Model")
-    except (ImportError, AttributeError) as e:
-        raise ValueError(f"{name} does not correspond to a valid PyTorch model.") from e
-    return partial(model_fn, **kwargs)
+    model_cls = ERTKPyTorchModel.get_model_class(name)
+    return partial(model_cls, **kwargs)
 
 
 def get_pt_model(name: str, **kwargs) -> Module:

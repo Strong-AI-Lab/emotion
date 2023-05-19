@@ -14,6 +14,7 @@ from sklearn.pipeline import Pipeline
 from ertk.tensorflow.utils import (
     DataFunction,
     TFModelFunction,
+    get_data_fn,
     init_gpu_memory_growth,
     tf_dataset_gen,
     tf_dataset_mem,
@@ -83,11 +84,6 @@ def tf_train_val_test(
     if "sample_weight" in fit_params:
         del fit_params["sample_weight"]  # Part of *_data
 
-    data_fns = {
-        "mem": tf_dataset_mem,
-        "gen": tf_dataset_gen,
-        "mem_ragged": tf_dataset_mem_ragged,
-    }
     if data_fn is None:
         if len(train_data[0].shape) == 3:
             data_fn = tf_dataset_gen
@@ -96,7 +92,7 @@ def tf_train_val_test(
         else:
             data_fn = tf_dataset_mem
     elif isinstance(data_fn, str):
-        data_fn = data_fns[data_fn]
+        data_fn = get_data_fn(data_fn)
     elif not callable(data_fn):
         raise ValueError(f"Unsupported value for data_fn {data_fn}")
 
@@ -104,7 +100,7 @@ def tf_train_val_test(
     logger.debug(f"batch_size={batch_size}")
     logger.debug(f"data_fn={data_fn}")
     if any(x[2] is not None for x in [train_data, valid_data, test_data]):
-        logger.debug(f"Using sample weights")
+        logger.debug("Using sample weights")
 
     tf.keras.backend.clear_session()
 
