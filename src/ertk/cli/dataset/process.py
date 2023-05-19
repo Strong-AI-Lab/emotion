@@ -15,7 +15,7 @@ from ertk.utils import TqdmMultiprocessing
 logger = logging.getLogger(__name__)
 
 
-def list_processors(ctx, param, val):
+def list_processors(ctx: click.Context, param, val):
     from ertk.preprocessing import InstanceProcessor
 
     if not val or ctx.resilient_parsing:

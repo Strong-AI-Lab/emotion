@@ -14,7 +14,7 @@ from ertk.utils import PathOrStr
 from ._base import AudioClipProcessor, FeatureExtractor
 
 
-class _Aggregation(Enum):
+class Agg(Enum):
     MEAN = "mean"
     MAX = "max"
     NONE = "none"
@@ -25,7 +25,7 @@ class FairseqExtractorConfig(ERTKConfig):
     model_type: str = MISSING
     checkpoint: str = MISSING
     layer: str = "context"
-    aggregate: _Aggregation = _Aggregation.MEAN
+    aggregate: Agg = Agg.MEAN
     device: str = "cuda"
     arg_overrides: Dict[str, Any] = field(default_factory=dict)
     vq_path: Optional[str] = None
@@ -51,6 +51,9 @@ class FairseqExtractor(
 
             state = torch.load(config.checkpoint)
             cfg = OmegaConf.create(state["cfg"])
+
+            del cfg.task["precompute_mask_indices"]
+            del cfg.task["inferred_w2v_config"]
             task = tasks.setup_task(cfg.task)
 
             _model_dataclass = models.MODEL_DATACLASS_REGISTRY["data2vec_audio"]
@@ -88,8 +91,17 @@ class FairseqExtractor(
         if kwargs.pop("sr") != 16000:
             raise ValueError("Sample rate should be 16kHz")
 
-        x = np.squeeze(x, -1)[: self.config.max_input_len]
-        tensor = torch.tensor(x, device=self.config.device).unsqueeze(0)
+        if x.ndim > 1:
+            if x.shape[0] == 1:
+                x = np.squeeze(x, 0)
+            elif x.shape[1] == 1:
+                x = np.squeeze(x, 1)
+            else:
+                raise ValueError("Audio must be mono")
+        x = x[: self.config.max_input_len]
+        tensor = torch.tensor(
+            x, dtype=torch.float32, device=self.config.device
+        ).unsqueeze(0)
         if hasattr(self.task, "normalize") and self.task.normalize:
             tensor = F.layer_norm(tensor, tensor.shape)
 
@@ -124,11 +136,11 @@ class FairseqExtractor(
         else:
             raise ValueError(f"Unknown model_type: {self.config.model_type}")
 
-        if self.config.aggregate == _Aggregation.NONE:
+        if self.config.aggregate == Agg.NONE:
             feats = feats[0].transpose(1, 0).cpu().numpy()
-        elif self.config.aggregate == _Aggregation.MEAN:
+        elif self.config.aggregate == Agg.MEAN:
             feats = feats[0].mean(-1).cpu().numpy()
-        elif self.config.aggregate == _Aggregation.MAX:
+        elif self.config.aggregate == Agg.MAX:
             feats = feats[0].max(-1).cpu().numpy()
         else:
             raise ValueError(f"Aggregation type {self.config.aggregate} not supported")
@@ -155,13 +167,13 @@ class FairseqExtractor(
             return 512
         if self.config.model_type == "wav2vec":
             return 512
-        elif self.config.model_type in ["wav2vec2", "hubert"]:
+        elif self.config.model_type in ["wav2vec2", "data2vec", "hubert"]:
             return self.model.encoder.embedding_dim
         raise ValueError("Unknown dim")
 
     @property
     def is_sequence(self) -> bool:
-        return self.config.aggregate == _Aggregation.NONE
+        return self.config.aggregate == Agg.NONE
 
     @property
     def feature_names(self) -> List[str]:

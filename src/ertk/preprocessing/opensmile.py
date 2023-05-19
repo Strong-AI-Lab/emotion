@@ -46,17 +46,14 @@ class OpenSMILEExtractor(
             self._feature_names.extend(smile.feature_names)
 
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
-        xs = [smile(x.squeeze(), kwargs.pop("sr")) for smile in self.smiles]
+        sr = kwargs.pop("sr")
+        xs = [smile(x.squeeze(), sr) for smile in self.smiles]
         # TODO: allow other window/padding correction options
         cut = min(x.shape[2] for x in xs)
         xs = [x[:, :, :cut] for x in xs]
         x = np.concatenate(xs, axis=1)
         # Get single segment and transpose axes so that frames are first
         return x[0].T
-
-    @property
-    def dim(self) -> int:
-        return len(self.feature_names)
 
     @property
     def is_sequence(self) -> bool:

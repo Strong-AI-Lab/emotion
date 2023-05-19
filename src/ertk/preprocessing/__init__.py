@@ -8,6 +8,7 @@ from . import (
     phonemize,
     resample,
     spectrogram,
+    speechbrain,
     vad_trim,
 )
 from ._base import AudioClipProcessor, FeatureExtractor, InstanceProcessor

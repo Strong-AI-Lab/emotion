@@ -35,7 +35,7 @@ class InstanceProcessor(ABC):
         self.logger = logging.getLogger(cls_name)
 
     def __init_subclass__(
-        cls, fname: str = None, config: Type[ERTKConfig] = None
+        cls, fname: Optional[str] = None, config: Optional[Type[ERTKConfig]] = None
     ) -> None:
         cls._registry = {}
         if fname and config:
@@ -53,6 +53,14 @@ class InstanceProcessor(ABC):
                     else:
                         raise KeyError(msg)
                 t._registry[fname] = cls
+
+    def __repr__(self):
+        return f"{type(self).__name__}({self.config})"
+
+    def __str__(self):
+        yaml = OmegaConf.to_yaml(self.config).strip()
+        yaml = "\t" + yaml.replace("\n", "\n\t")
+        return f"{type(self)._friendly_name}(\n{yaml}\n)"
 
     @classmethod
     def get_processor_class(cls, name: str) -> Type["InstanceProcessor"]:
@@ -209,10 +217,9 @@ class AudioClipProcessor(InstanceProcessor):
 
 class FeatureExtractor(InstanceProcessor):
     @property
-    @abstractmethod
     def dim(self) -> int:
         """The dimensionality of the extracted features."""
-        raise NotImplementedError()
+        return len(self.feature_names)
 
     @property
     @abstractmethod

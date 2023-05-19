@@ -106,10 +106,6 @@ class Phonemizer(FeatureExtractor, fname="phonemize", config=PhonemizeConfig):
         return [np.array([x]) for x in res]
 
     @property
-    def dim(self) -> int:
-        return 1
-
-    @property
     def is_sequence(self) -> bool:
         # We output a single string of phonemes
         return False
