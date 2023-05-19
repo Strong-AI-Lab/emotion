@@ -1,51 +1,38 @@
 from collections import OrderedDict
-from typing import Dict, Sequence, Type
+from dataclasses import dataclass, field
+from typing import Dict, List
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .mtl import MTLModel, MTLTaskConfig
+from .layers import make_fc
+from .mtl import MTLModel, MTLModelConfig
 
 
-def make_hidden(sizes: Sequence[int], activation: Type[nn.Module]) -> nn.Module:
-    if len(sizes) == 0:
-        return nn.Identity()
-    return nn.Sequential(
-        *(
-            nn.Sequential(
-                nn.Linear(sizes[i], sizes[i + 1]),
-                activation(),
-            )
-            for i in range(len(sizes) - 1)
-        )
-    )
+@dataclass
+class SimpleMTLModelConfig(MTLModelConfig):
+    shared_units: List[int] = field(default_factory=lambda: [512])
+    task_units: List[int] = field(default_factory=lambda: [512])
 
 
-class SimpleMTLModel(MTLModel):
-    def __init__(
-        self,
-        tasks: Dict[str, MTLTaskConfig],
-        input_dim: int,
-        opt_lr: float = 0.001,
-        shared_units: Sequence[int] = [512],
-        task_units: Sequence[int] = [512],
-    ):
-        super().__init__(tasks=tasks)
+class SimpleMTLModel(MTLModel, fname="simple_mtl", config=SimpleMTLModelConfig):
+    config: SimpleMTLModelConfig
 
-        self.opt_lr = opt_lr
+    def __init__(self, config: SimpleMTLModelConfig):
+        super().__init__(config)
 
-        self.save_hyperparameters("opt_lr", "shared_units", "task_units")
-
-        shared_sizes = [input_dim] + list(shared_units)
-        self.shared = make_hidden(shared_sizes, nn.ReLU)
+        shared_sizes = [config.n_features] + list(config.shared_units)
+        self.shared = make_fc(shared_sizes, activation="relu", dropout=0, norm="none")
+        self.shared.append(nn.Tanh())
         self.add_module("shared", self.shared)
 
         self.task_layer = {}
         self.task_output = {}
-        task_sizes = [shared_sizes[-1]] + list(task_units)
+        task_sizes = [shared_sizes[-1]] + list(config.task_units)
         for name, task in self.tasks.items():
-            self.task_layer[name] = make_hidden(task_sizes, nn.ReLU)
+            self.task_layer[name] = make_fc(task_sizes, activation="relu", dropout=0)
+            self.task_layer[name].append(nn.ReLU())
             self.task_output[name] = nn.Linear(task_sizes[-1], task.output_dim)
             submod = nn.Sequential(
                 OrderedDict(
@@ -64,6 +51,3 @@ class SimpleMTLModel(MTLModel):
             return task_embeddings
         out = {k: F.relu(v) for k, v in task_embeddings.items()}
         return {k: self.task_output[k](out[k]) for k in self.tasks}
-
-    def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.opt_lr)

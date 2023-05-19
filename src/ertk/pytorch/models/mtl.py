@@ -1,19 +1,39 @@
 from abc import ABC, abstractmethod
-from typing import Dict
+from dataclasses import dataclass, field
+from typing import Callable, Dict, List
 
-import pytorch_lightning as pl
+import omegaconf
 import torch
+import torch.nn as nn
 
-from ertk.pytorch.utils import MTLTaskConfig
+from ertk.config import ERTKConfig
+from ertk.pytorch.utils import get_loss
+
+from ._base import ERTKPyTorchModel, PyTorchModelConfig
 
 
-class MTLModel(pl.LightningModule, ABC):
+@dataclass
+class MTLTaskConfig(ERTKConfig):
+    output_dim: int = omegaconf.MISSING
+    loss: str = omegaconf.MISSING
+    metrics: List[str] = field(default_factory=list)
+    weight: float = 1
+
+
+@dataclass
+class MTLModelConfig(PyTorchModelConfig):
+    tasks: Dict[str, MTLTaskConfig] = omegaconf.MISSING
+
+
+class MTLModel(ERTKPyTorchModel, ABC):
     tasks: Dict[str, MTLTaskConfig]
+    losses: Dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]]
+    config: MTLModelConfig
 
-    def __init__(self, tasks: Dict[str, MTLTaskConfig], **kwargs) -> None:
-        super().__init__(**kwargs)
-
-        self.tasks = tasks
+    def __init__(self, config: MTLModelConfig) -> None:
+        super().__init__(config)
+        self.tasks = config.tasks
+        self.losses = {n: get_loss(t.loss) for n, t in self.tasks.items()}
 
     @abstractmethod
     def forward(self, x: torch.Tensor, **kwargs) -> Dict[str, torch.Tensor]:
@@ -22,30 +42,46 @@ class MTLModel(pl.LightningModule, ABC):
     def training_step(self, batch, batch_idx: int) -> torch.Tensor:
         x, ys = batch
         outputs = self.forward(x)
-        loss = 0
+        total_loss = 0
+        accs = {k: 0 for k in self.tasks}
         losses = {k: 0 for k in self.tasks}
         for k, v in outputs.items():
-            losses[k] += self.tasks[k].loss(v, ys[k]) * self.tasks[k].weight
-            loss += losses[k]
-        res = dict(loss=loss, **{f"train_{k}_loss": losses[k].detach() for k in losses})
+            loss = self.losses[k](v, ys[k])
+            losses[k] = loss
+            total_loss = total_loss + loss * self.tasks[k].weight
+            y_pred = v.argmax(1)
+            accs[k] = torch.sum(y_pred == ys[k]).item() / float(len(ys[k]))
+        res = {
+            "loss/train": total_loss,
+            **{f"acc_{k}/train": accs[k] for k in accs},
+            **{f"loss_{k}/train": losses[k] for k in losses},
+        }
         self.log_dict(res)
-        return loss
+        return total_loss
 
     def validation_step(self, batch, batch_idx: int) -> None:
         x, ys = batch
         outputs = self.forward(x)
-        val_loss = 0
+        total_loss = 0
         accs = {k: 0 for k in self.tasks}
         losses = {k: 0 for k in self.tasks}
         for k, v in outputs.items():
-            losses[k] += self.tasks[k].loss(v, ys[k]).item() * self.tasks[k].weight
-            val_loss += losses[k]
+            # print(k, ys[k])
+            loss = self.losses[k](v, ys[k])
+            losses[k] += loss
+            total_loss = total_loss + loss * self.tasks[k].weight
             y_pred = v.argmax(1)
             accs[k] = torch.sum(y_pred == ys[k]).item() / float(len(ys[k]))
         self.log_dict(
-            dict(
-                val_loss=val_loss,
-                **{f"{k}_acc": accs[k] for k in accs},
-                **{f"{k}_loss": losses[k] for k in losses},
-            )
+            {
+                "loss/valid": total_loss,
+                **{f"acc_{k}/valid": accs[k] for k in accs},
+                **{f"loss_{k}/valid": losses[k] for k in losses},
+            }
         )
+
+    def predict_step(self, batch, batch_idx: int) -> torch.Tensor:
+        return self.forward(batch[0])
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=self.config.learning_rate)
