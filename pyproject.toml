@@ -17,9 +17,27 @@ pythonVersion = "3.7"
 [tool.pytest.ini_options]
 minversion = "6.0"
 testpaths = ["tests"]
-filterwarnings = ['ignore:.*pkg_resources\.declare_namespace.*:DeprecationWarning']
+filterwarnings = [
+    'ignore:.*pkg_resources\.declare_namespace.*:DeprecationWarning',
+]
+addopts = ["--cov=src/ertk", "--cov-report=term-missing", "--cov-report=lcov"]
 
 [tool.mypy]
 follow_imports = "silent"
 ignore_missing_imports = true
 files = ["src", "scripts", "tests"]
+
+[tool.coverage.run]
+omit = [
+    "src/ertk/tensorflow/models/*",
+    "src/ertk/pytorch/models/*",
+    "src/ertk/preprocessing/audioset/_vggish/*",
+    "src/ertk/preprocessing/audioset/_yamnet/*",
+    "src/ertk/cli/_utils.py",
+]
+branch = true
+
+[tool.coverage.report]
+skip_covered = true
+show_missing = true
+skip_empty = true

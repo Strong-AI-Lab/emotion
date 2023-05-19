@@ -16,6 +16,8 @@
 /docs/_build
 __pycache__
 .mypy_cache
+.coverage*
+*.lcov
 
 # NumPy
 *.npy
