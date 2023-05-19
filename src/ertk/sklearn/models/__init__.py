@@ -8,6 +8,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
 
+from ._base import ERTKSkModel, SkModelConfig, SkWrapperConfig, SkWrapperModel
+from .mtl import MTFLClassifier, MultiDimensionalCC
 from .svm import PrecomputedSVC
 
 CLASSIFIER_MAP = {
