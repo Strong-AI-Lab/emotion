@@ -476,11 +476,9 @@ def inst_to_flat(x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
             if len(x.shape) == 3:
                 # Contiguous 3D array
                 x = x.reshape(sum(slices), x.shape[2])
-            elif x[0].base is not None and all(_x.base is x[0].base for _x in x):
-                # Array of views into contiguous array
-                x = x[0].base
             else:
-                # Array of separate arrays
+                # Array of arrays. Cannot assume they are contiguous
+                # views into base array, so need to concatenate.
                 x = np.concatenate(x)
     assert sum(slices) == len(x)
     return x, slices

@@ -76,6 +76,7 @@ def sk_train_val_test(
         if isinstance(est, Pipeline):
             sw_kw = get_pipeline_params(sw_kw, est)
             break
+    # TODO: make array arg lengths the same
     fit_params = dict(**fit_params, **sw_kw)
     logger.debug(f"train_val_test(): filtered fit_params={fit_params}")
 

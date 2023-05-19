@@ -185,6 +185,7 @@ def ordered_subsets(
         The next generated ordered subset.
     """
     if max_size is None:
-        it = list(it)
+        if not hasattr(it, "__len__"):
+            it = list(it)
         max_size = len(it)
     yield from chain(*(permutations(it, i) for i in range(max_size + 1)))
