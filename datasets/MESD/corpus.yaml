@@ -7,7 +7,7 @@ partitions:
 - voice
 - word
 - country
-- corpus
+- mesd_corpus
 subsets:
   all:
     clips: files_all

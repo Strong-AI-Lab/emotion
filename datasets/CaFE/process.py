@@ -26,6 +26,15 @@ emotion_map = {
     "T": "sadness",
 }
 
+sentence_map = {
+    "1": "Un cheval fou dans mon jardin",
+    "2": "Deux ânes aigris au pelage brun",
+    "3": "Trois cygnes aveugles au bord du lac",
+    "4": "Quatre vieilles truies éléphantesques",
+    "5": "Cinq pumas fiers et passionnés",
+    "6": "Six ours aimants domestiqués",
+}
+
 
 @click.command()
 @click.argument(
@@ -52,6 +61,10 @@ def main(input_dir: Path, resample: bool):
         {k: ["F", "M"][int(v) % 2] for k, v in speaker_dict.items()},
         "gender",
     )
+    sentence_dict = {p.stem: p.stem[-1] for p in paths}
+    write_annotations(sentence_dict, "sentence")
+    transcript = {k: sentence_map[v] for k, v in sentence_dict.items()}
+    write_annotations(transcript, "transcript")
     write_annotations({p.stem: "fr" for p in paths}, "language")
     write_annotations({p.stem: "ca" for p in paths}, "country")
 

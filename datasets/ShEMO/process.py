@@ -45,19 +45,24 @@ def main(input_dir: Path, resample: bool):
             [p for p in resample_dir.glob("*.wav") if p.stem[3] not in unused_emotions],
             "files_5class",
         )
+    name2path = {p.stem: p for p in paths}
 
-    write_annotations({p.stem: emotion_map[p.stem[3]] for p in paths}, "label")
-    speaker_dict = {p.stem: p.stem[:3] for p in paths}
+    write_annotations({n: emotion_map[n[3]] for n in name2path}, "label")
+    speaker_dict = {n: n[:3] for n in name2path}
     write_annotations(speaker_dict, "speaker")
     write_annotations({k: v[0] for k, v in speaker_dict.items()}, "gender")
-    write_annotations({p.stem: "fa" for p in paths}, "language")
-    write_annotations({p.stem: "ir" for p in paths}, "country")
+    write_annotations({n: "fa" for n in name2path}, "language")
+    write_annotations({n: "ir" for n in name2path}, "country")
 
     transcripts = {}
     for trn in (input_dir / "transcript/final text").glob("*.ort"):
         with open(trn, encoding="utf_8_sig") as fid:
-            transcripts[trn.stem] = fid.read().strip().replace("\u200e", "")
+            transcripts[trn.stem] = (
+                fid.read().strip().replace("\u200e", "").replace("\u200f", "")
+            )
     write_annotations(transcripts, "transcript")
+    missing = set(name2path) - transcripts.keys()
+    write_filelist([name2path[x] for x in missing], "missing_transcripts")
 
 
 if __name__ == "__main__":

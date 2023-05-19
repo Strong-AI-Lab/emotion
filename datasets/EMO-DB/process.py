@@ -66,8 +66,7 @@ def main(input_dir: Path, resample: bool):
             utt[p.stem] = " ".join(words)
 
     df = pd.DataFrame({"Name": utt.keys(), "Transcript": utt.values()})
-    df.sort_values("Name").to_csv("transcripts.csv", index=False, header=True)
-    print("Wrote CSV to transcripts.csv")
+    df.sort_values("Name").to_csv("transcript.csv", index=False, header=True)
 
 
 if __name__ == "__main__":

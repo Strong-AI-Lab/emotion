@@ -33,7 +33,7 @@ def main(input_dir: Path, resample: bool):
     write_annotations({p.stem: p.stem.split("_")[0].lower() for p in paths}, "label")
     write_annotations({p.stem: p.stem.split("_", maxsplit=3)[3] for p in paths}, "word")
     write_annotations({p.stem: p.stem.split("_")[1] for p in paths}, "voice")
-    write_annotations({p.stem: p.stem.split("_")[2] for p in paths}, "corpus")
+    write_annotations({p.stem: p.stem.split("_")[2] for p in paths}, "mesd_corpus")
     write_annotations({p.stem: "es" for p in paths}, "language")
     write_annotations({p.stem: "mx" for p in paths}, "country")
 

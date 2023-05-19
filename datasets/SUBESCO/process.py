@@ -30,6 +30,19 @@ emotion_map = {
     "SAD": "sadness",
 }
 
+sentence_map = {
+    1: " েমৗমািছর চাকেদেখ কুকুরিট েঘউেঘউ করেছ",
+    2: "তু িমসবউলটপালট কের িদেয়ছ",
+    3: " েসেকানিকছু নাবেলই চেল েগেছ",
+    4: " েতামােক এখিন আমার সােথ েযেত হেব",
+    5: " েতামার কাজটা করািঠকহয়িন",
+    6: "ইঁদুর ছানাটা হািরেয় েগল",
+    7: "এখন পৰ্শ্ন করাযােব না",
+    8: "দরজার বাইের কুকুরিট দাঁিড়েয় আেছ",
+    9: "একিদন পেরই তারিবেয়",
+    10: "ডাকােতরা ঢালতেলায়ার িনেয় এল",
+}
+
 
 @click.command()
 @click.argument(
@@ -47,7 +60,7 @@ def main(input_dir: Path, resample: bool):
         resample_audio(paths, resample_dir)
         write_filelist(resample_dir.glob("*.wav"), "files_all")
 
-    keys = ["label", "sentence", "speaker", "speaker_name", "gender"]
+    keys = ["label", "sentence", "speaker", "speaker_name", "gender", "transcript"]
     annot: Dict[str, Dict[str, str]] = {x: {} for x in keys}
     for p in paths:
         match = REGEX.match(p.stem)
@@ -58,6 +71,7 @@ def main(input_dir: Path, resample: bool):
             annot["speaker"][p.stem] = match[2]
             annot["speaker_name"][p.stem] = match[3]
             annot["sentence"][p.stem] = match[4]
+            annot["transcript"][p.stem] = sentence_map[int(match[4])]
             annot["label"][p.stem] = emotion_map[match[5]]
 
     for k in keys:

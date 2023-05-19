@@ -25,6 +25,23 @@ emotion_map = {
     "tri": "sadness",
 }
 
+sentence_map = {
+    "b1": "Gli operai si alzano presto",
+    "b2": "I vigili sono muniti di pistola",
+    "b3": "La cascata fa molto rumore",
+    "l1": "L'autunno prossimo Tony partirà per la Spagna nella prima metà di ottobre",
+    "l2": "Ora prendo la felpa di là ed esco per fare una passeggiata",
+    "l3": "Un attimo dopo s'è incamminato ... ed è inciampato",
+    "l4": "Vorrei il numero telefonico del Signor Piatti",
+    "n1": "La casa forte vuole col pane",
+    "n2": "La forza trova il passo e l'aglio rosso",
+    "n3": "Il gatto sta scorrendo nella pera",
+    "n4": "Insalata pastasciutta coscia d'agnello limoncello",
+    "n5": "Uno quarantatré dieci mille cinquantasette venti",
+    "d1": "Sabato sera cosa farà?",
+    "d2": "Porti con te quella cosa?",
+}
+
 
 @click.command()
 @click.argument(
@@ -45,6 +62,7 @@ def main(input_dir: Path, resample: bool):
     write_annotations({p.stem: p.stem[4:6] for p in paths}, "speaker")
     write_annotations({p.stem: p.stem[4].upper() for p in paths}, "gender")
     write_annotations({p.stem: p.stem[7:9] for p in paths}, "sentence")
+    write_annotations({p.stem: sentence_map[p.stem[7:9]] for p in paths}, "transcript")
     write_annotations({p.stem: "it" for p in paths}, "language")
     write_annotations({p.stem: "it" for p in paths}, "country")
 
