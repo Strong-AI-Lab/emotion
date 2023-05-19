@@ -49,15 +49,16 @@ def write_annotations(
                 raise ValueError("Passed DataFrame should have 'name' as index.")
         elif len(df.columns) > 2:
             raise ValueError("Passed DataFrame should have 1 or 2 columns.")
-        df = df[df.columns[0]]
+        series = df[df.columns[0]]
     elif isinstance(annotations, pd.Series):
-        df = annotations
+        series = annotations
     else:
         if not name:
             raise ValueError("`name` must be given when passing a dict.")
         df = pd.DataFrame.from_dict(annotations, orient="index", columns=[name])
-        df = df[name]
-    df.index.name = "name"
-    name = name or df.name
+        series = df[name]
+    series.index.name = "name"
+    name = name or series.name
+    series.name = name
     path = path or f"{name}.csv"
-    df.sort_index().to_csv(path, header=True, index=True)
+    series.sort_index().to_csv(path, header=True, index=True)
