@@ -7,12 +7,12 @@ profile = "black"
 extend_skip = ["third_party"]
 
 [tool.black]
-target-version = ["py37"]
+target-version = ["py38"]
 
 [tool.pyright]
 include = ["src", "scripts", "datasets/*", "tests"]
 exclude = ["**/__pycache__", "third_party", ".git"]
-pythonVersion = "3.7"
+pythonVersion = "3.8"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
