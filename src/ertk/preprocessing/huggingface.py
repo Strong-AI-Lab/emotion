@@ -7,6 +7,7 @@ import torch
 from omegaconf import MISSING
 
 from ertk.config import ERTKConfig
+from ertk.utils.array import is_mono_audio
 
 from ._base import AudioClipProcessor, FeatureExtractor
 
@@ -90,8 +91,12 @@ class HuggingFaceExtractor(
         torch.set_grad_enabled(False)
 
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
+        if not is_mono_audio(x):
+            x = np.squeeze(x)
+            if x.ndim > 1:
+                raise ValueError("Audio must be mono")
         processed = self.processor(
-            x.squeeze()[: self.config.max_input_len],
+            x[: self.config.max_input_len],
             sampling_rate=kwargs.pop("sr"),
             return_tensors="pt",
         )
@@ -158,7 +163,8 @@ class HuggingFaceExtractor(
 
     @property
     def is_sequence(self) -> bool:
-        return self.config.task in [Task.CTC, Task.W2V2, Task.WHISPER, Task.S2T]
+        # Single text string
+        return False
 
     @property
     def feature_names(self) -> List[str]:

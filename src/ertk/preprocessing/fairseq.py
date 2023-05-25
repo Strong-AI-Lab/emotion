@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from omegaconf import MISSING, OmegaConf
 
 from ertk.config import ERTKConfig
-from ertk.utils import PathOrStr
+from ertk.utils import PathOrStr, is_mono_audio
 
 from ._base import AudioClipProcessor, FeatureExtractor
 
@@ -91,12 +91,9 @@ class FairseqExtractor(
         if kwargs.pop("sr") != 16000:
             raise ValueError("Sample rate should be 16kHz")
 
-        if x.ndim > 1:
-            if x.shape[0] == 1:
-                x = np.squeeze(x, 0)
-            elif x.shape[1] == 1:
-                x = np.squeeze(x, 1)
-            else:
+        if not is_mono_audio(x):
+            x = np.squeeze(x)
+            if x.ndim > 1:
                 raise ValueError("Audio must be mono")
         x = x[: self.config.max_input_len]
         tensor = torch.tensor(

@@ -26,6 +26,8 @@ OmegaConf.register_resolver("cwdpath", resolve_files_load)
 
 @dataclass
 class ERTKConfig(ABC):
+    """Base class for ERTK configuration dataclasses."""
+
     def to_dictconfig(self) -> DictConfig:
         return DictConfig(self)
 

@@ -139,7 +139,7 @@ class KerasAppsExtractor(
 
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
         if is_mono_audio(x):
-            x = self._spectrogram(x.squeeze(-1), kwargs.pop("sr"))
+            x = self._spectrogram(x.squeeze(), kwargs.pop("sr"))
         x = self._to_img(x)
         x = self._preprocess_input(x)
         return self.model(x[None, :, :, :]).numpy()

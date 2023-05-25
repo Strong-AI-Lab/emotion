@@ -6,6 +6,7 @@ import numpy as np
 from omegaconf import MISSING
 
 from ertk.config import ERTKConfig
+from ertk.utils.array import is_mono_audio
 
 from ._base import AudioClipProcessor, FeatureExtractor
 
@@ -47,7 +48,11 @@ class OpenSMILEExtractor(
 
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
         sr = kwargs.pop("sr")
-        xs = [smile(x.squeeze(), sr) for smile in self.smiles]
+        if not is_mono_audio(x):
+            x = np.squeeze(x)
+            if x.ndim > 1:
+                raise ValueError("Audio must be mono")
+        xs = [smile(x, sr) for smile in self.smiles]
         # TODO: allow other window/padding correction options
         cut = min(x.shape[2] for x in xs)
         xs = [x[:, :, :cut] for x in xs]

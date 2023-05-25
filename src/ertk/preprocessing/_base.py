@@ -6,7 +6,7 @@ from typing import ClassVar, Dict, Iterable, List, Optional, Type, Union, cast
 
 import librosa
 import numpy as np
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from ertk.config import ERTKConfig
 from ertk.utils import PathOrStr, batch_iterable
@@ -18,12 +18,13 @@ class InstanceProcessor(ABC):
     Parameters
     ----------
     config: ERTKConfig
-        The configuration for this InstanceProcessor.
+        The configuration for this processor.
     """
 
     config: ERTKConfig
-    """The configuration for this InstanceProcessor."""
+    """The configuration for this processor."""
     logger: logging.Logger
+    """The logger for this processor."""
 
     _config_type: ClassVar[Type[ERTKConfig]]
     _friendly_name: ClassVar[str]
@@ -63,23 +64,52 @@ class InstanceProcessor(ABC):
         return f"{type(self)._friendly_name}(\n{yaml}\n)"
 
     @classmethod
-    def get_processor_class(cls, name: str) -> Type["InstanceProcessor"]:
+    def get_processor_class(cls, name: str) -> "Type[InstanceProcessor]":
+        """Get the class for the named processor.
+
+        Parameters
+        ----------
+        name: str
+            The name of the processor.
+
+        Returns
+        -------
+        processor: Type[InstanceProcessor]
+            The processor class.
+        """
         return cls._registry[name]
 
     @classmethod
     def make_processor(cls, name: str, config: ERTKConfig) -> "InstanceProcessor":
+        """Create an instance of the named processor.
+
+        Parameters
+        ----------
+        name: str
+            The name of the processor to create.
+        config: ERTKConfig
+            The configuration for the processor.
+
+        Returns
+        -------
+        processor: InstanceProcessor
+            The created processor.
+        """
         return cls.get_processor_class(name)(config)
 
     @classmethod
     def get_config_type(cls) -> Type[ERTKConfig]:
+        """Get the configuration type for this processor."""
         return cls._config_type
 
     @classmethod
-    def valid_preprocessors(cls) -> List[str]:
+    def valid_processors(cls) -> List[str]:
+        """Get a list of all registered processor names."""
         return list(cls._registry)
 
     @classmethod
-    def get_default_config(cls):
+    def get_default_config(cls) -> DictConfig:
+        """Get the default configuration for this processor."""
         return OmegaConf.structured(cls._config_type)
 
     @abstractmethod
@@ -116,7 +146,7 @@ class InstanceProcessor(ABC):
         """
         return [self.process_instance(x, **kwargs) for x in batch]
 
-    def process_instances(
+    def process_all(
         self, xs: Union[Iterable[np.ndarray], np.ndarray], batch_size: int, **kwargs
     ) -> Iterable[np.ndarray]:
         """Process all instances in batches.
@@ -150,7 +180,6 @@ class InstanceProcessor(ABC):
         """Perform any cleanup necesasry (e.g. closing files, unloading
         models, etc.)
         """
-        pass
 
     @property
     @abstractmethod
@@ -212,7 +241,7 @@ class AudioClipProcessor(InstanceProcessor):
             paths, tmp = tee(paths)
             _sr = librosa.load(next(tmp), sr=sr, duration=0)[1]
             audios = (librosa.load(path, sr=_sr, mono=True)[0] for path in paths)
-            yield from self.process_instances(audios, batch_size=batch_size, sr=_sr)
+            yield from self.process_all(audios, batch_size=batch_size, sr=_sr)
 
 
 class FeatureExtractor(InstanceProcessor):

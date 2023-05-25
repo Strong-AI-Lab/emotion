@@ -1,5 +1,6 @@
 from . import (
     audioset,
+    encodec,
     fairseq,
     huggingface,
     keras_apps,

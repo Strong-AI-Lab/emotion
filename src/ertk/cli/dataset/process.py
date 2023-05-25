@@ -21,12 +21,12 @@ def list_processors(ctx: click.Context, param, val):
     if not val or ctx.resilient_parsing:
         return
 
-    print(f"\nAvailable processors:\n{InstanceProcessor.valid_preprocessors()}\n")
+    print(f"\nAvailable processors:\n{InstanceProcessor.valid_processors()}\n")
     print(
         "Below are the default configurations for registered feature extractors. Items "
         "with '???' are required to be specified manually.\n"
     )
-    for key in InstanceProcessor.valid_preprocessors():
+    for key in sorted(InstanceProcessor.valid_processors()):
         print(f"[{key}]: ", end="")
         proc_cls = InstanceProcessor.get_processor_class(key)
         print(", ".join([b.__name__ for b in proc_cls.__bases__]))
@@ -41,14 +41,14 @@ def list_processors(ctx: click.Context, param, val):
 @click.command()
 @click.argument("input", type=click.Path(exists=True, path_type=Path))
 @click.argument("output", type=Path)
-@click.option("--features", required=True, help="Features to extract.")
+@click.option("--processor", "--features", required=True, help="Processor to apply.")
 @click.option(
     "--list_processors",
     is_flag=True,
     callback=list_processors,
     expose_value=False,
     is_eager=True,
-    help="Show options for registered feature extractors.",
+    help="Show options for registered processors.",
 )
 @click.option(
     "--config",
@@ -75,7 +75,7 @@ def list_processors(ctx: click.Context, param, val):
 def main(
     input: Path,
     output: Path,
-    features: str,
+    processor: str,
     config: Path,
     corpus: str,
     batch_size: int,
@@ -91,7 +91,7 @@ def main(
     if verbose > 0:
         logging.basicConfig(level=logging.DEBUG if verbose > 1 else logging.INFO)
 
-    extractor_cls = InstanceProcessor.get_processor_class(features)
+    extractor_cls = InstanceProcessor.get_processor_class(processor)
     config_cls = extractor_cls.get_config_type()
     if config:
         conf = OmegaConf.load(config)
@@ -107,7 +107,7 @@ def main(
     names = input_data.names
     if batch_size != 1:
         feats = tqdm(
-            extractor.process_instances(iter(input_data), batch_size, sr=sample_rate),
+            extractor.process_all(iter(input_data), batch_size, sr=sample_rate),
             total=len(input_data),
             desc="Processing files",
             disable=None,
