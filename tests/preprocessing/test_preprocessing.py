@@ -1,8 +1,10 @@
+import os
 from pathlib import Path
 from typing import List
 
 import numpy as np
 import pytest
+from dotenv import load_dotenv
 
 from ertk.preprocessing import (
     audioset,
@@ -38,8 +40,9 @@ def transcript() -> np.ndarray:
     return df.to_numpy()
 
 
-AUDIOSET_DIR = "/mnt/storage2/models/audioset"
-FAIRSEQ_DIR = "/mnt/storage2/models/fairseq"
+load_dotenv()
+AUDIOSET_DIR = os.environ["AUDIOSET_DIR"]
+FAIRSEQ_DIR = os.environ["FAIRSEQ_DIR"]
 
 
 class TestAudioset:
@@ -156,7 +159,7 @@ class TestFairseq:
             checkpoint=f"{FAIRSEQ_DIR}/hubert/hubert_base_ls960.pt",
             layer="context",
             aggregate=fairseq.Agg.NONE,
-            vq_path=f"{FAIRSEQ_DIR}/hubert/km200/km.bin",
+            vq_path=f"{FAIRSEQ_DIR}/textless_nlp/gslm/hubert/km200/km.bin",
             vq_ids=True,
             vq_ids_as_string=False,
         )
