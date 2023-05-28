@@ -18,6 +18,7 @@ __pycache__
 .mypy_cache
 .coverage*
 *.lcov
+.virtual_documents/
 
 # NumPy
 *.npy
@@ -29,6 +30,8 @@ __pycache__
 
 # PyTorch
 *.pt
+whisper_checkpoints/
+
 
 # Misc general
 .vscode
