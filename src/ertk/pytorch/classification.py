@@ -32,6 +32,7 @@ def pt_cross_validate(
         str, List[str], Dict[str, ScoreFunction], Callable[..., float]
     ] = "accuracy",
     verbose: int = 0,
+    n_jobs: int = 1,
     fit_params: Dict[str, Any] = {},
 ) -> ExperimentResult:
     sw = fit_params.pop("sample_weight", None)

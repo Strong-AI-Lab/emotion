@@ -156,6 +156,7 @@ def tf_cross_validate(
     scoring: Union[
         str, List[str], Dict[str, ScoreFunction], Callable[..., float]
     ] = "accuracy",
+    n_jobs: int = 1,
     fit_params: Dict[str, Any] = {},
 ) -> ExperimentResult:
     """Performs cross-validation on a TensorFlow model. This works with
