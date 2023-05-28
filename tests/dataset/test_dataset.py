@@ -27,12 +27,13 @@ class TestDataset:
             "annot1",
             "label",
             "speaker",
+            "corpus",
             "_audio_path",
         }
         assert len(data.annotations["speaker"]) == 12
         assert len(data.get_annotations("speaker")) == len(all_clips_names)
         assert np.array_equal(data.speakers, data.get_annotations("speaker"))
-        assert data.partitions == {"label", "speaker", "_audio_path"}
+        assert data.partitions == {"label", "speaker", "corpus", "_audio_path"}
         assert data.n_speakers == len(data.speaker_names)
         assert data.n_speakers == 2
         assert data.speaker_names == ["1001", "1002"]
@@ -58,11 +59,13 @@ class TestDataset:
             "annot1",
             "label",
             "speaker",
+            "corpus",
             "_audio_path",
         }
-        assert len(data.annotations["speaker"]) == 12
+        assert len(data._annotations["speaker"]) == 12
+        assert len(data.annotations["speaker"]) == 6
         assert len(data.get_annotations("speaker")) == len(subset_names)
-        assert data.partitions == {"label", "speaker", "_audio_path"}
+        assert data.partitions == {"label", "speaker", "corpus", "_audio_path"}
         assert data.n_speakers == len(data.speaker_names)
         assert data.n_speakers == 2
         assert set(data.speaker_names) == {"1001", "1002"}
@@ -74,8 +77,13 @@ class TestDataset:
     def test_dataset2(self):
         data = Dataset(test_data_dir / "corpus2.yaml", subset="all")
         assert data.corpus == "test_corpus2"
-        assert set(data.annotations.columns) == {"label", "speaker", "_audio_path"}
-        assert data.partitions == {"label", "speaker", "_audio_path"}
+        assert set(data.annotations.columns) == {
+            "label",
+            "speaker",
+            "corpus",
+            "_audio_path",
+        }
+        assert data.partitions == {"label", "speaker", "corpus", "_audio_path"}
         assert data.subset == "all"
         assert data.subsets.keys() == {"all"}
 
@@ -118,11 +126,17 @@ class TestDataset:
             "annot1",
             "label",
             "speaker",
+            "corpus",
             "_audio_path",
         }
         data.remove_annotation("label")
-        assert set(data.annotations.columns) == {"annot1", "speaker", "_audio_path"}
-        assert data.partitions == {"speaker", "_audio_path"}
+        assert set(data.annotations.columns) == {
+            "annot1",
+            "speaker",
+            "corpus",
+            "_audio_path",
+        }
+        assert data.partitions == {"speaker", "corpus", "_audio_path"}
 
     def test_remove_annotation(self):
         data = Dataset(test_data_dir / "corpus_info.yaml")
@@ -130,11 +144,17 @@ class TestDataset:
             "annot1",
             "label",
             "speaker",
+            "corpus",
             "_audio_path",
         }
         data.remove_annotation("annot1")
-        assert set(data.annotations.columns) == {"label", "speaker", "_audio_path"}
-        assert data.partitions == {"label", "speaker", "_audio_path"}
+        assert set(data.annotations.columns) == {
+            "label",
+            "speaker",
+            "corpus",
+            "_audio_path",
+        }
+        assert data.partitions == {"label", "speaker", "corpus", "_audio_path"}
 
     def test_rename_partition(self):
         data = Dataset(test_data_dir / "corpus_info.yaml")
@@ -142,6 +162,7 @@ class TestDataset:
             "annot1",
             "label",
             "speaker",
+            "corpus",
             "_audio_path",
         }
         data.rename_annotation("annot1", "annot2")
@@ -149,9 +170,10 @@ class TestDataset:
             "annot2",
             "label",
             "speaker",
+            "corpus",
             "_audio_path",
         }
-        assert data.partitions == {"label", "speaker", "_audio_path"}
+        assert data.partitions == {"label", "speaker", "corpus", "_audio_path"}
 
     def test_rename_annotation(self):
         data = Dataset(test_data_dir / "corpus_info.yaml")
@@ -159,6 +181,7 @@ class TestDataset:
             "annot1",
             "label",
             "speaker",
+            "corpus",
             "_audio_path",
         }
         data.rename_annotation("label", "xyz")
@@ -166,9 +189,10 @@ class TestDataset:
             "annot1",
             "xyz",
             "speaker",
+            "corpus",
             "_audio_path",
         }
-        assert data.partitions == {"xyz", "speaker", "_audio_path"}
+        assert data.partitions == {"xyz", "speaker", "corpus", "_audio_path"}
 
     def test_update_annotation(self):
         data = Dataset(test_data_dir / "corpus_info.yaml")
@@ -179,12 +203,19 @@ class TestDataset:
         data = Dataset(test_data_dir / "corpus_info.yaml")
         new_annot = list("cbaabcbccaaa")
         data.update_annotation("new_annot", new_annot)
-        assert data.partitions == {"label", "speaker", "new_annot", "_audio_path"}
+        assert data.partitions == {
+            "label",
+            "speaker",
+            "new_annot",
+            "corpus",
+            "_audio_path",
+        }
         assert set(data.annotations.columns) == {
             "annot1",
             "label",
             "speaker",
             "new_annot",
+            "corpus",
             "_audio_path",
         }
         assert np.array_equal(data.get_annotations("new_annot"), new_annot)
