@@ -91,10 +91,9 @@ class HuggingFaceExtractor(
         torch.set_grad_enabled(False)
 
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
+        x = np.squeeze(x)
         if not is_mono_audio(x):
-            x = np.squeeze(x)
-            if x.ndim > 1:
-                raise ValueError("Audio must be mono")
+            raise ValueError("Audio must be mono")
         processed = self.processor(
             x[: self.config.max_input_len],
             sampling_rate=kwargs.pop("sr"),

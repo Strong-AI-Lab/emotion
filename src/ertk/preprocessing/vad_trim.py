@@ -72,10 +72,10 @@ def mh2009_vad(
     https://ieeexplore.ieee.org/abstract/document/7077834
     """
     window_samples = int(sr * window)
-    frame_length = 1024
+    n_fft = 1024
     sxx = librosa.stft(
         x,
-        n_fft=frame_length,
+        n_fft=n_fft,
         hop_length=window_samples,
         win_length=window_samples,
         center=True,
@@ -84,24 +84,23 @@ def mh2009_vad(
     )
     sxx = np.abs(sxx)
 
-    # e = np.log(sxx.mean(0))
-    e = librosa.feature.rms(S=sxx, frame_length=frame_length)[0]
+    # RMS energy
+    e = librosa.feature.rms(S=sxx, frame_length=n_fft)[0]
     min_e = e.min()
 
-    freq = librosa.fft_frequencies(sr, frame_length)[1:]
+    # Dominant frequency (excluding DC) in each frame
+    freq = librosa.fft_frequencies(sr=sr, n_fft=n_fft)[1:]
     f = freq[sxx[1:, :].argmax(0)]
     min_f = f.min()
 
-    sf = librosa.feature.spectral_flatness(x, S=sxx, power=2)[0]
-    sf = -10 * np.log10(sf / 10)
-    min_sf = sf.min()
+    # Spectral flatness
+    sf = librosa.feature.spectral_flatness(S=sxx, n_fft=n_fft, power=2)[0]
+    sf_db = -10 * np.log10(sf / 10)
+    min_sf = sf_db.min()
 
-    thresh_e = energy_thresh
-    thresh_f = freq_thresh
-    thresh_sf = sf_thresh
-    cond1 = (e - min_e >= thresh_e).astype(int)
-    cond2 = (f - min_f >= thresh_f).astype(int)
-    cond3 = (sf - min_sf >= thresh_sf).astype(int)
+    cond1 = (e - min_e >= energy_thresh).astype(int)
+    cond2 = (f - min_f >= freq_thresh).astype(int)
+    cond3 = (sf_db - min_sf >= sf_thresh).astype(int)
     count = cond1 + cond2 + cond3
     speech = count > 1
 
@@ -114,7 +113,7 @@ def mh2009_vad(
             print(cond1)
             print(f - min_f)
             print(cond2)
-            print(sf - min_sf)
+            print(sf_db - min_sf)
             print(cond3)
         raise ValueError("No speech segments detected.")
 

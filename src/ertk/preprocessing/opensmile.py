@@ -48,10 +48,9 @@ class OpenSMILEExtractor(
 
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
         sr = kwargs.pop("sr")
+        x = np.squeeze(x)
         if not is_mono_audio(x):
-            x = np.squeeze(x)
-            if x.ndim > 1:
-                raise ValueError("Audio must be mono")
+            raise ValueError("Audio must be mono")
         xs = [smile(x, sr) for smile in self.smiles]
         # TODO: allow other window/padding correction options
         cut = min(x.shape[2] for x in xs)

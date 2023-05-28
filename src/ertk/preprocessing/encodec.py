@@ -56,10 +56,9 @@ class EncodecExtractor(
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
         sr = kwargs.pop("sr")
 
+        x = np.squeeze(x)
         if not is_mono_audio(x):
-            x = np.squeeze(x)
-            if x.ndim > 1:
-                raise ValueError("Audio must be mono")
+            raise ValueError("Audio must be mono")
         x = x[: self.config.max_input_len]
         audio = torch.as_tensor(x).unsqueeze(0)
         audio = self.convert_audio(

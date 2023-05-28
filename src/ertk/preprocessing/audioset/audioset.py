@@ -68,7 +68,7 @@ class YamnetExtractor(
             x = _spectrogram(x, kwargs.pop("sr"))
         frames = frame_array(x, 96, 48, pad=True, axis=0)
         _, embeddings = self.model(frames)
-        return np.mean(embeddings, 0)
+        return np.mean(embeddings.numpy(), 0)
 
     def process_batch(
         self, batch: Union[Iterable[np.ndarray], np.ndarray], **kwargs
@@ -82,7 +82,7 @@ class YamnetExtractor(
         frames = np.concatenate(frames)
 
         _, embeddings = self.model(frames)
-        return [np.mean(x, 0) for x in np.split(embeddings, slices)]
+        return [np.mean(x, 0) for x in np.split(embeddings.numpy(), slices)]
 
     def finish(self) -> None:
         import tensorflow as tf

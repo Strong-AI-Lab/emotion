@@ -1,7 +1,7 @@
 audioread>=3.0.0
 click>=8.0.0
 click-option-group
-git+https://github.com/pytorch/fairseq.git@3f6ba43f07a6e9e2acf957fc24e57251a7a3f55c
+git+https://github.com/pytorch/fairseq.git@ae59bd6d04871f6174351ad46c90992e1dca7ac7
 joblib
 liac-arff
 librosa

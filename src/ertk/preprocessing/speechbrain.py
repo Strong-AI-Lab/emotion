@@ -72,10 +72,9 @@ class SpeechBrainExtractor(
             self._dim = self.model.encode_batch(wav).shape[2]
 
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
+        x = np.squeeze(x)
         if not is_mono_audio(x):
-            x = np.squeeze(x)
-            if x.ndim > 1:
-                raise ValueError("Audio must be mono")
+            raise ValueError("Audio must be mono")
         wav = torch.from_numpy(x).to(self.config.device)
         wav = wav[: self.config.max_input_len].unsqueeze(0)
         assert kwargs.pop("sr") == 16000

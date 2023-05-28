@@ -32,6 +32,7 @@ class FairseqExtractorConfig(ERTKConfig):
     vq_ids: bool = False
     vq_ids_as_string: bool = True
     max_input_len: int = 1500000
+    mms_lang: str = "eng"
 
 
 class FairseqExtractor(
@@ -70,6 +71,34 @@ class FairseqExtractor(
             model.load_state_dict(state["model"])
 
             args = OmegaConf.create(state["args"])
+        elif self.config.model_type == "mms":
+            from fairseq.checkpoint_utils import load_checkpoint_to_cpu
+            from fairseq.tasks import setup_task
+
+            ckpt = load_checkpoint_to_cpu(config.checkpoint)
+            assert config.mms_lang in ckpt["adapter"]
+
+            cfg = ckpt["cfg"]
+            args = cfg
+            task = setup_task(cfg.task, from_checkpoint=True)
+            task.load_state_dict(ckpt["task_state"])  # Needed to build model
+            model = task.build_model(cfg.model, from_checkpoint=True)
+            model.load_state_dict(ckpt["model"], strict=True, model_cfg=cfg.model)
+
+            # Load the correct language adapter
+            ft_obj = ckpt["adapter"][config.mms_lang]
+            ft_model = ft_obj["model"]
+            cdevice = model.w2v_encoder.proj.weight.device
+            cdtype = model.w2v_encoder.proj.weight.dtype
+            proj_out, proj_in = ft_model["w2v_encoder.proj.weight"].shape
+            ft_proj = torch.nn.Linear(proj_in, proj_out, bias=True)
+            ft_proj.to(device=cdevice, dtype=cdtype)
+            model.w2v_encoder.proj = ft_proj
+            with torch.no_grad():
+                for kk, vv in model.named_parameters():
+                    if kk in ft_model:
+                        vv.copy_(ft_model[kk])
+            task.load_state_dict(ft_obj["task_state"])
         else:
             from fairseq.checkpoint_utils import load_model_ensemble_and_task
 
@@ -91,10 +120,9 @@ class FairseqExtractor(
         if kwargs.pop("sr") != 16000:
             raise ValueError("Sample rate should be 16kHz")
 
+        x = np.squeeze(x)
         if not is_mono_audio(x):
-            x = np.squeeze(x)
-            if x.ndim > 1:
-                raise ValueError("Audio must be mono")
+            raise ValueError("Audio must be mono")
         x = x[: self.config.max_input_len]
         tensor = torch.tensor(
             x, dtype=torch.float32, device=self.config.device
@@ -110,6 +138,19 @@ class FairseqExtractor(
         if layer == "context":
             layer = -1
 
+        # Automatic speech recognition
+        if self.config.model_type == "mms":
+            outputs = self.model.forward(
+                source=tensor, padding_mask=None, corpus_key=[0]
+            )
+            logprobs = self.model.get_normalized_probs(outputs, log_probs=True)
+            toks = logprobs.transpose(0, 1).argmax(dim=-1).cpu().unique_consecutive()
+            toks = toks[toks != 0]
+            sent: str = self.task.target_dictionary.string(toks.long())
+            sent = sent.replace(" ", "").replace("|", " ").strip()
+            return np.array([sent], dtype=object)
+
+        # Embeddings
         if self.config.model_type == "wav2vec":
             feats = self.model.feature_extractor(tensor)
             if self.model.vector_quantizer is not None:
@@ -142,14 +183,17 @@ class FairseqExtractor(
         else:
             raise ValueError(f"Aggregation type {self.config.aggregate} not supported")
 
-        if self.vq is not None:
-            if self.config.vq_ids:
-                feats = self.vq.predict(feats)
-                if self.config.vq_ids_as_string:
-                    feats = np.array([" ".join(map(str, feats))])
-                feats = np.expand_dims(feats, -1)
-            else:
-                feats = self.vq.cluster_centers_[self.vq.predict(feats)]
+        if self.vq is None:
+            return feats
+
+        # Vector quantization
+        if self.config.vq_ids:
+            feats = self.vq.predict(feats)
+            if self.config.vq_ids_as_string:
+                feats = np.array([" ".join(map(str, feats))])
+            feats = np.expand_dims(feats, -1)
+        else:
+            feats = self.vq.cluster_centers_[self.vq.predict(feats)]
         return feats
 
     def process_file(self, path: PathOrStr, sr: Optional[float] = None) -> np.ndarray:
@@ -158,7 +202,7 @@ class FairseqExtractor(
 
     @property
     def dim(self) -> int:
-        if self.config.vq_ids:
+        if self.config.vq_ids or self.config.model_type == "mms":
             return 1
         if self.config.layer == "encoder":
             return 512
@@ -176,4 +220,6 @@ class FairseqExtractor(
     def feature_names(self) -> List[str]:
         if self.config.vq_ids:
             return [f"{self.config.model_type}_vq_tok"]
+        if self.config.model_type == "mms":
+            return ["text"]
         return [f"{self.config.model_type}_{i}" for i in range(self.dim)]
