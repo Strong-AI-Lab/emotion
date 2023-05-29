@@ -6,7 +6,8 @@ from typing import ClassVar, Dict, Iterable, List, Optional, Type, Union, cast
 
 import librosa
 import numpy as np
-from omegaconf import DictConfig, OmegaConf
+from importlib_metadata import EntryPoint, entry_points
+from omegaconf import OmegaConf
 
 from ertk.config import ERTKConfig
 from ertk.utils import PathOrStr, batch_iterable
@@ -29,6 +30,9 @@ class InstanceProcessor(ABC):
     _config_type: ClassVar[Type[ERTKConfig]]
     _friendly_name: ClassVar[str]
     _registry: ClassVar[Dict[str, Type["InstanceProcessor"]]] = {}
+    _plugins: ClassVar[Dict[str, EntryPoint]] = {
+        x.name: x for x in entry_points().select(group="ertk.processors")
+    }
 
     def __init__(self, config: ERTKConfig) -> None:
         self.config = config
@@ -64,6 +68,11 @@ class InstanceProcessor(ABC):
         return f"{type(self)._friendly_name}(\n{yaml}\n)"
 
     @classmethod
+    def friendly_name(cls) -> str:
+        """Get the friendly name for this processor."""
+        return cls._friendly_name
+
+    @classmethod
     def get_processor_class(cls, name: str) -> "Type[InstanceProcessor]":
         """Get the class for the named processor.
 
@@ -77,6 +86,20 @@ class InstanceProcessor(ABC):
         processor: Type[InstanceProcessor]
             The processor class.
         """
+        if name not in cls._registry:
+            ep = cls._plugins.get(name)
+            if ep is None:
+                raise KeyError(f"Unknown processor: {name}")
+            try:
+                obj = ep.load()
+            except ImportError as e:
+                raise ImportError(f"Plugin {ep.name} could not be loaded.") from e
+            if not issubclass(obj, InstanceProcessor):
+                raise TypeError(
+                    f"Plugin {ep.name} of type {obj} does not subclass "
+                    "InstanceProcessor"
+                )
+            cls._registry[name] = obj
         return cls._registry[name]
 
     @classmethod
@@ -105,10 +128,10 @@ class InstanceProcessor(ABC):
     @classmethod
     def valid_processors(cls) -> List[str]:
         """Get a list of all registered processor names."""
-        return list(cls._registry)
+        return sorted(cls._registry.keys() | cls._plugins.keys())
 
     @classmethod
-    def get_default_config(cls) -> DictConfig:
+    def get_default_config(cls) -> ERTKConfig:
         """Get the default configuration for this processor."""
         return OmegaConf.structured(cls._config_type)
 
