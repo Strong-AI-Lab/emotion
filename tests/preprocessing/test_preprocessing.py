@@ -21,7 +21,7 @@ from ertk.preprocessing import (
     vad_trim,
 )
 
-test_data_dir = Path(__file__).parent.parent / "dataset/test_data"
+test_data_dir = Path(__file__).parent / "../test_data"
 files = list(test_data_dir.glob("resampled/*.wav"))
 
 
@@ -284,3 +284,11 @@ class TestSpeechBrain:
         assert ext.dim == 1
         assert not ext.is_sequence
         assert all(x.shape == (ext.dim,) for x in feats)
+
+
+class TestVADTrim:
+    def test_vad_trim(self, audio):
+        config = vad_trim.VADTrimmerConfig()
+        ext = vad_trim.VADTrimmer(config)
+        feats = list(ext.process_all(audio, batch_size=1, sr=16000))
+        assert len(feats) == len(files)

@@ -1,7 +1,5 @@
-audioread>=3.0.0
 click>=8.0.0
 click-option-group
-git+https://github.com/pytorch/fairseq.git@ae59bd6d04871f6174351ad46c90992e1dca7ac7
 joblib
 liac-arff
 librosa
@@ -9,17 +7,13 @@ matplotlib>=3.0.0
 netCDF4
 numpy
 omegaconf
-opensmile>=2.4.0
-Orange3
 pandas>=1.4.0
 pytorch_lightning
-resampy>=0.4.0
 seaborn
 scikit-learn
 scipy
 soundfile
 statsmodels
 tensorflow>=2.3
-tf-slim
 torch
 tqdm

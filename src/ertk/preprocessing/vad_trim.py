@@ -9,14 +9,14 @@ from ertk.config import ERTKConfig
 from ertk.preprocessing._base import AudioClipProcessor
 
 
-class _VADMethod(Enum):
+class Method(Enum):
     mh2009 = "MH2009"
     librosa = "librosa"
 
 
 @dataclass
 class VADTrimmerConfig(ERTKConfig):
-    method: _VADMethod = _VADMethod.librosa
+    method: Method = Method.librosa
     top_db: int = 60
     energy_thresh: float = 2.5
     freq_thresh: float = 150
@@ -129,9 +129,9 @@ class VADTrimmer(AudioClipProcessor, fname="vad_trim", config=VADTrimmerConfig):
 
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
         sr = kwargs.pop("sr")
-        if self.config.method == _VADMethod.librosa:
+        if self.config.method == Method.librosa:
             return librosa.effects.trim(x, top_db=self.config.top_db)[0]
-        elif self.config.method == _VADMethod.mh2009:
+        elif self.config.method == Method.mh2009:
             return mh2009_vad(
                 x,
                 sr=sr,
