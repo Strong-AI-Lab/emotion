@@ -1,4 +1,8 @@
+encodec
 git+https://github.com/pytorch/fairseq.git@ae59bd6d04871f6174351ad46c90992e1dca7ac7
+keras_applications
 opensmile>=2.4.0
 resampy>=0.4.0
+speechbrain
+transformers
 tf-slim
