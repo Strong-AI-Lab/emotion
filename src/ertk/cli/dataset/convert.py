@@ -9,19 +9,7 @@ from ertk.dataset import read_features_iterable, write_features
 @click.argument("input", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.argument("output", type=Path)
 @click.option("--corpus", type=str, help="Corpus attribute to set, if required.")
-@click.option(
-    "--header/--noheader",
-    default=True,
-    help="Input CSV has header/Write output CSV header.",
-    show_default=True,
-)
-@click.option(
-    "--label/--nolabel",
-    default=False,
-    help="Input has label column.",
-    show_default=True,
-)
-def main(input: Path, output: Path, corpus: str, header: bool, label: bool):
+def main(input: Path, output: Path, corpus: str):
     """Convert INPUT dataset format to OUTPUT format. Note that no label
     information is written to OUTPUT.
     """

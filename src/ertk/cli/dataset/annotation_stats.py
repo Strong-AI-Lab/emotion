@@ -29,6 +29,9 @@ def main(input: Tuple[Path], plot: bool, files: Path, dtype: str):
     _dtype = {0: str}
     if dtype == "str":
         _dtype[1] = str
+
+    if len(input) == 0:
+        raise click.UsageError("No input files given.")
     for file in input:
         df = pd.read_csv(file, header=0, dtype=_dtype).set_index("name")
         if files:

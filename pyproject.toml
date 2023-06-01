@@ -19,6 +19,7 @@ minversion = "6.0"
 testpaths = ["tests"]
 filterwarnings = [
     'ignore:.*pkg_resources\.declare_namespace.*:DeprecationWarning',
+    'ignore:.*Jupyter is migrating.*:DeprecationWarning',
 ]
 addopts = ["--cov=src/ertk", "--cov-report=term-missing", "--cov-report=lcov"]
 

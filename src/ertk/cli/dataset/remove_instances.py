@@ -28,10 +28,10 @@ def main(input: Path, output: Path, names_file: Path):
         output,
         corpus=data.corpus,
         names=list(names),
-        features=data.features[idx],
+        features=data.features[list(idx)],
         feature_names=data.feature_names,
     )
-    print(f"Wrote features to {input}")
+    print(f"Wrote features to {output}")
 
 
 if __name__ == "__main__":

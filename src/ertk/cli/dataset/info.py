@@ -50,6 +50,9 @@ def main(
             write_list(dataset, output_list)
         return
 
+    if len(corpus_info) == 0:
+        raise click.UsageError("No corpus info files specified")
+
     if len(subset) == 1 and ":" not in subset[0]:
         dataset = load_multiple(corpus_info, subsets=subset[0], label="")
     else:

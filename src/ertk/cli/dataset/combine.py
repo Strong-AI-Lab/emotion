@@ -35,6 +35,10 @@ def main(input: Tuple[Path], output: Path, prefix_corpus: bool, corpus: str):
             raise ValueError("Feature size of all datasets must match.")
         features.append(iter(data))
         if prefix_corpus:
+            if not data.corpus:
+                raise ValueError(
+                    "Some datasets do not have a corpus name, cannot prefix."
+                )
             names += [f"{data.corpus}_{x}" for x in data.names]
         else:
             names += data.names

@@ -14,21 +14,22 @@ from ertk.dataset import Dataset, get_audio_paths
 @click.option(
     "--label", "label_name", default="label", help="Categorical label to use."
 )
-def main(input: Path, output: Path, label_name: str):
-    """Create directory structure with speaker-independent
-    cross-validation folds. Each speaker has a directory which is
+@click.option("--partition", default="speaker", help="Partition to split on.")
+def main(input: Path, output: Path, label_name: str, partition: str):
+    """Create directory structure with group-independent
+    cross-validation folds. Each group has a directory which is
     patitioned by label.
     """
 
     dataset = Dataset(input)
     paths = get_audio_paths(dataset._subset_paths[dataset.subset])
-    speaker_paths: Dict[str, List[Path]] = defaultdict(list)
+    group_paths: Dict[str, List[Path]] = defaultdict(list)
     for path in paths:
-        speaker_paths[dataset.annotations["speaker"][path.stem]].append(path)
+        group_paths[dataset.annotations.loc[path.stem, partition]].append(path)
 
-    for i, speaker in enumerate(speaker_paths.keys()):
-        for path in speaker_paths[speaker]:
-            label = dataset.annotations[label_name][path.stem]
+    for i, group in enumerate(group_paths.keys()):
+        for path in group_paths[group]:
+            label = dataset.annotations.loc[path.stem, label_name]
             fold = f"fold_{i + 1:d}"
             newpath = output / fold / label / path.name
             newpath.parent.mkdir(parents=True, exist_ok=True)

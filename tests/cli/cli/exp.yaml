@@ -1,0 +1,14 @@
+data:
+  datasets:
+    test_data:
+      path: tests/test_data/corpus_info.yaml
+      subset: all
+  features: features_2d
+model:
+  type: sk/lr
+  config: {}
+eval:
+  cv:
+    part: speaker
+    kfold: -1
+  inner_kfold: 2
