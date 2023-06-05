@@ -1,9 +1,13 @@
+"""Support Vector Machine (SVM) models for scikit-learn."""
+
 from functools import partial
 from typing import Any, Dict, Union
 
 from sklearn.base import BaseEstimator
 from sklearn.metrics.pairwise import kernel_metrics
 from sklearn.svm import SVC
+
+__all__ = ["PrecomputedSVC"]
 
 
 def _get_kernel_func(
@@ -30,8 +34,8 @@ class PrecomputedSVC(SVC):
     """Class that wraps scikit-learn's SVC to precompute the kernel
     values in order to speed up training. The kernel parameter is a
     string which is transparently mapped to and from the corresponding
-    callable function with the relevant parameters (degree, gamma,
-    coef0). All other parameters are passed directly to SVC.
+    callable function with the relevant parameters (`degree`, `gamma`,
+    `coef0`). All other parameters are passed directly to SVC.
     """
 
     def __init__(

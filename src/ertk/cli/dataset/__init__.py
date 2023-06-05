@@ -1,3 +1,30 @@
+"""
+``ertk-dataset`` scripts
+========================
+
+This module contains the ``ertk-dataset`` scripts.
+
+.. autosummary::
+    :toctree:
+
+    cli
+
+
+Commands
+--------
+.. autosummary::
+    :toctree:
+
+    annotation_stats_main
+    combine_main
+    convert_main
+    filter_clips_main
+    info_main
+    process_main
+    remove_instances_main
+    vis_main
+"""
+
 import click
 
 from .annotation_stats import main as annotation_stats_main

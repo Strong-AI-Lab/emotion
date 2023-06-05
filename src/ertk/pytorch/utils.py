@@ -1,9 +1,21 @@
+"""PyTorch utilities."""
+
 from typing import Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchaudio
+
+__all__ = [
+    "get_activation",
+    "get_loss",
+    "load_tensorboard",
+    "frame_tensor",
+    "add_signal_awgn",
+    "add_gaussian",
+    "spectrogram",
+]
 
 
 def get_loss(loss: str, *args, **kwargs) -> nn.Module:
@@ -167,10 +179,7 @@ def add_signal_awgn(x: torch.Tensor, snr: float = 20) -> torch.Tensor:
     """
     x = x.squeeze(-1)
     noise = torch.randn(x.size(), dtype=x.dtype, device=x.device)
-    x_power = torch.mean(x ** 2, -1)
-    n_power = torch.mean(noise ** 2, -1)
-    K = torch.sqrt(x_power / n_power * 10 ** (-snr / 10))
-    return x + K.unsqueeze(-1) * noise
+    return torchaudio.functional.add_noise(x, noise, snr)
 
 
 def add_gaussian(x: torch.Tensor, sigma: float = 1, multiplicative: bool = True):
@@ -236,4 +245,8 @@ def spectrogram(
             power=power,
         )
     with torch.no_grad():
-        return module(x).transpose(-1, -2)
+        spec = module(x).transpose(-1, -2)
+        if to_db:
+            spec = torchaudio.transforms.AmplitudeToDB(
+                stype="power" if power == 2 else "magnitude", top_db=clip_db
+            )(spec)

@@ -1,11 +1,39 @@
+"""Utility functions for working with numpy arrays."""
+
 from typing import List, Optional, Sequence, Tuple, Union, overload
 
 import numpy as np
 
+__all__ = [
+    "batch_arrays_by_length",
+    "make_array_array",
+    "check_3d",
+    "is_mono_audio",
+    "frame_array",
+    "frame_arrays",
+    "pad_array",
+    "pad_arrays",
+    "clip_arrays",
+    "inst_to_flat",
+    "flat_to_inst",
+    "transpose_time",
+    "shuffle_multiple",
+]
+
 
 def make_array_array(x: List[np.ndarray]) -> np.ndarray:
-    """Helper function to make an array of arrays. The returned array
-    has `shape==(len(x),)` and `dtype==object`.
+    """Helper function to make an array of arrays.
+
+    Parameters
+    ----------
+    x: list of np.ndarray
+        The arrays to put in the array of arrays.
+
+    Returns
+    -------
+    arr: np.ndarray
+        The array of arrays, with ``shape==(len(x),)``, and
+        ``dtype==object``.
     """
     arr = np.empty(len(x), dtype=object)
     for i, a in enumerate(x):
@@ -16,6 +44,16 @@ def make_array_array(x: List[np.ndarray]) -> np.ndarray:
 def check_3d(arrays: Union[Sequence[np.ndarray], np.ndarray]) -> None:
     """Checks if an array is 3D or each array in a list is 2D. Raises an
     exception if this isn't the case.
+
+    Parameters
+    ----------
+    arrays: np.ndarray or list of np.ndarray
+        The arrays to check.
+
+    Raises
+    ------
+    ValueError
+        If any array is not 3D.
     """
     if any(len(x.shape) != 2 for x in arrays):
         raise ValueError("arrays must be 3D (contiguous or vlen).")
@@ -27,6 +65,16 @@ def is_mono_audio(x: np.ndarray) -> bool:
 
     Note that this method will also return True for '2D' sequences of
     length 1, so care should be taken for edge cases.
+
+    Parameters
+    ----------
+    x: np.ndarray
+        The array to check.
+
+    Returns
+    -------
+    is_mono: bool
+        Whether the array represents mono audio data.
     """
     return np.squeeze(x).ndim == 1
 
@@ -235,10 +283,22 @@ def pad_arrays(arrays: np.ndarray, pad: int) -> np.ndarray:
 
 
 def pad_arrays(arrays: Union[List[np.ndarray], np.ndarray], pad: int = 32):
-    """Pads each array to the nearest multiple of `pad` greater than the
-    array size. Assumes axis 0 of each sub-array, or axis 1 of x, is
-    the time axis. This is mainly a wrapper around `pad_array()` for
-    instance arrays.
+    """Pads each array to the nearest multiple of ``pad`` greater than the
+    array size.  This is mainly a wrapper around `pad_array()` that
+    takes care of padding ragged or non-contiguous arrays.
+
+    Parameters
+    ----------
+    arrays: list of np.ndarray
+        The arrays to process. Assumes axis 0 of each sub-array, or axis
+        1 of ``arrays``, is the time axis.
+    pad: int
+        The multiple to pad to.
+
+    Returns
+    -------
+    padded_arrays:
+        Padded arrays.
     """
     if isinstance(arrays, np.ndarray) and len(arrays.shape) > 1:
         # Contiguous 2D/3D
@@ -267,7 +327,21 @@ def clip_arrays(arrays: np.ndarray, length: int, copy: bool) -> np.ndarray:
 def clip_arrays(
     arrays: Union[List[np.ndarray], np.ndarray], length: int, copy: bool = True
 ):
-    """Clips each array to the specified maximum length."""
+    """Clips each array to the specified maximum sequence length.
+
+    Parameters
+    ----------
+    arrays: list of np.ndarray
+        The arrays to process. Assumes axis 0 of each sub-array, or axis
+        1 of ``arrays``, is the time axis.
+    length: int
+        The maximum length.
+
+    Returns
+    -------
+    clipped_arrays:
+        Clipped arrays.
+    """
     if isinstance(arrays, np.ndarray):
         if len(arrays.shape) > 1:
             return arrays[:, :length, ...].copy() if copy else arrays[:, :length, ...]
@@ -294,6 +368,17 @@ def transpose_time(arrays: Union[List[np.ndarray], np.ndarray]):
     array be 2-D.
 
     Note: This function modifies the arrays in-place.
+
+    Parameters
+    ----------
+    arrays: list of np.ndarray
+        The arrays to process. Assumes axis 0 of each sub-array, or axis
+        1 of ``arrays``, is the time axis.
+
+    Returns
+    -------
+    transposed_arrays:
+        Transposed arrays.
     """
     check_3d(arrays)
     if isinstance(arrays, np.ndarray) and len(arrays.shape) == 3:
@@ -322,6 +407,7 @@ def shuffle_multiple(
         Whether to use NumPy-style indexing or list comprehension.
 
     Returns:
+    --------
     shuffled_arrays: iterable of array-like
         The shuffled arrays.
     """

@@ -1,3 +1,5 @@
+"""Voice activity detection (VAD) trimming."""
+
 from dataclasses import dataclass
 from enum import Enum
 from typing import List
@@ -8,26 +10,43 @@ import numpy as np
 from ertk.config import ERTKConfig
 from ertk.preprocessing._base import AudioClipProcessor
 
+__all__ = ["VADTrimmerConfig", "VADTrimmer"]
+
 
 class Method(Enum):
+    """VAD trimming method."""
+
     mh2009 = "MH2009"
+    """Moattar and Homayounpour (2009)"""
     librosa = "librosa"
+    """librosa.effects.trim"""
 
 
 @dataclass
 class VADTrimmerConfig(ERTKConfig):
+    """VAD trimming configuration."""
+
     method: Method = Method.librosa
+    """VAD trimming method."""
     top_db: int = 60
+    """Top decibel threshold for librosa VAD."""
     energy_thresh: float = 2.5
+    """Energy threshold for MH2009 VAD."""
     freq_thresh: float = 150
+    """Frequency threshold for MH2009 VAD."""
     sf_thresh: float = 10
+    """Spectral flatness threshold for MH2009 VAD."""
     window: float = 0.01
+    """Window size in seconds for MH2009 VAD."""
     debug: bool = False
+    """Whether to plot debug figures."""
     min_speech: int = 5
+    """Minimum number of consecutive speech frames to keep."""
     min_silence: int = 10
+    """Minimum number of consecutive silence frames to keep."""
 
 
-def filter_silence_speech(x: np.ndarray, min_speech: int = 5, min_silence: int = 10):
+def _filter_silence_speech(x: np.ndarray, min_speech: int = 5, min_silence: int = 10):
     """Smooths a boolean array indicating segments of speech based on
     the given speech and silence thresholds.
     """
@@ -64,12 +83,43 @@ def mh2009_vad(
     min_speech: int = 5,
     min_silence: int = 10,
 ):
-    """Trim audio clips based on a VAD algorithm adapted from [1].
+    """Trim audio clips based on a VAD algorithm adapted from [1]_.
 
-    [1] M. H. Moattar and M. M. Homayounpour, "A simple but efficient
-    real-time Voice Activity Detection algorithm," 2009 17th European
-    Signal Processing Conference, Glasgow, 2009, pp. 2549-2553.
-    https://ieeexplore.ieee.org/abstract/document/7077834
+    Parameters
+    ----------
+    x : np.ndarray
+        Audio signal.
+    sr : float
+        Sample rate.
+    energy_thresh : float, optional
+        Energy threshold, by default 0.05.
+    freq_thresh : float, optional
+        Frequency threshold, by default 150.
+    sf_thresh : float, optional
+        Spectral flatness threshold, by default 10.
+    window : float, optional
+        Window size in seconds, by default 0.01.
+    debug : bool, optional
+        Whether to plot debug figures, by default False.
+    min_speech : int, optional
+        Minimum number of consecutive speech frames to keep, by default
+        5.
+    min_silence : int, optional
+        Minimum number of consecutive silence frames to keep, by default
+        10.
+
+    Returns
+    -------
+    np.ndarray
+        Boolean array indicating segments of voicing.
+
+    References
+    ----------
+    .. [1] M. H. Moattar and M. M. Homayounpour, "A simple but efficient
+           real-time Voice Activity Detection algorithm," 2009 17th
+           European Signal Processing Conference, Glasgow, 2009, pp.
+           2549-2553.
+           https://ieeexplore.ieee.org/abstract/document/7077834
     """
     window_samples = int(sr * window)
     n_fft = 1024
@@ -104,7 +154,7 @@ def mh2009_vad(
     count = cond1 + cond2 + cond3
     speech = count > 1
 
-    filter_silence_speech(speech, min_speech=min_speech, min_silence=min_silence)
+    _filter_silence_speech(speech, min_speech=min_speech, min_silence=min_silence)
 
     if not np.any(speech):
         if debug:
@@ -125,6 +175,8 @@ def mh2009_vad(
 
 
 class VADTrimmer(AudioClipProcessor, fname="vad_trim", config=VADTrimmerConfig):
+    """Voice activity detection (VAD) trimmer."""
+
     config: VADTrimmerConfig
 
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:

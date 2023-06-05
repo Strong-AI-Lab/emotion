@@ -1,15 +1,18 @@
+"""Multi-task learning MTL utilities."""
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List
 
 import omegaconf
 import torch
-import torch.nn as nn
 
 from ertk.config import ERTKConfig
 from ertk.pytorch.utils import get_loss
 
 from ._base import ERTKPyTorchModel, PyTorchModelConfig
+
+__all__ = ["MTLModelConfig", "MTLModel", "MTLTaskConfig"]
 
 
 @dataclass

@@ -32,15 +32,33 @@ TRANSFORM_MAP = {
 
 @dataclass
 class SkModelConfig(ERTKConfig):
+    """Configuration for a scikit-learn model."""
+
     kwargs: Dict[str, Any] = field(default_factory=dict)
+    """Keyword arguments to pass to the model constructor."""
     transform: Optional[str] = "std"
+    """The name of the transform to use."""
     transform_kwargs: Dict[str, Any] = field(default_factory=dict)
+    """Keyword arguments to pass to the transform constructor."""
     param_grid: Dict[str, Any] = field(default_factory=dict)
+    """The parameter grid to use for grid search."""
     param_grid_path: Optional[str] = None
+    """The path to a YAML file containing the parameter grid to use for
+    grid search.
+    """
 
 
 class ERTKSkModel(ABC):
+    """Base class for scikit-learn models.
+
+    Parameters
+    ----------
     config: SkModelConfig
+        The model configuration.
+    """
+
+    config: SkModelConfig
+    """The model configuration."""
 
     _config_type: ClassVar[Type[SkModelConfig]]
     _friendly_name: ClassVar[str]
@@ -98,10 +116,15 @@ class ERTKSkModel(ABC):
 
 
 class SkWrapperConfig(SkModelConfig):
+    """Configuration for a scikit-learn model wrapper."""
+
     kind: str = MISSING
+    """The name of the model to wrap."""
 
 
 class SkWrapperModel(ERTKSkModel, fname="wrapper", config=SkWrapperConfig):
+    """A wrapper for scikit-learn models."""
+
     config: SkWrapperConfig
 
     def __init__(self, config: SkWrapperConfig) -> None:
@@ -127,7 +150,15 @@ class SkWrapperModel(ERTKSkModel, fname="wrapper", config=SkWrapperConfig):
         self.clf = clf
 
 
-def gen_wrapper_for_clf(kind):
+def gen_wrapper_for_clf(kind: str) -> None:
+    """Generate a wrapper for a scikit-learn classifier.
+
+    Parameters
+    ----------
+    kind: str
+        The name of the classifier.
+    """
+
     class _(ERTKSkModel, fname=kind, config=SkModelConfig):
         def __init__(self, config: SkModelConfig) -> None:
             super().__init__(config)

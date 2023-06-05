@@ -1,3 +1,5 @@
+"""Dataset features backend."""
+
 import csv
 import itertools
 import logging
@@ -36,68 +38,22 @@ from ertk.utils import (
     make_array_array,
 )
 
+__all__ = [
+    "read_features",
+    "read_features_iterable",
+    "write_features",
+    "register_format",
+    "FeaturesData",
+    "SequentialReader",
+    "RandomAccessReader",
+    "SequentialWriter",
+    "NetCDFReader",
+    "RawAudioReader",
+    "ARFFSequentialReader",
+    "CSVSequentialReader",
+]
+
 logger = logging.getLogger(__name__)
-
-
-def read_arff(path: PathOrStr, label: bool = False):
-    path = Path(path)
-    with open(path) as fid:
-        data = arff.load(fid)
-
-    attr_names = [x[0] for x in data["attributes"]]
-    counts = Counter([x[0] for x in data["data"]])
-    idx = slice(1, -1) if label else slice(1, None)
-
-    return FeaturesData(
-        corpus=data["relation"],
-        names=list(counts.keys()),
-        features=np.array([x[idx] for x in data["data"]]),
-        slices=np.array(list(counts.values())),
-        feature_names=attr_names[idx],
-    )
-
-
-def read_csv(path: PathOrStr, header: bool = True, label: bool = False):
-    df = pd.read_csv(path, header=0 if header else None, converters={0: str})
-    counts: typing.Counter[str] = Counter(df.iloc[:, 0])
-    idx = slice(1, -1) if label else slice(1, None)
-
-    return FeaturesData(
-        names=list(counts.keys()),
-        features=np.array(df.iloc[:, idx]),
-        slices=np.array(list(counts.values())),
-        feature_names=list(df.columns[idx]),
-    )
-
-
-def read_netcdf(path: PathOrStr):
-    reader = NetCDFReader(path)
-    features = reader[:]
-    reader.close()
-    return FeaturesData(features, reader.names, reader.corpus, reader.feature_names)
-
-
-def _read_audio_file(path, sample_rate: int = 16000):
-    warnings.filterwarnings("ignore", message="PySoundFile", category=UserWarning)
-    audio, _ = librosa.load(path, sr=sample_rate, mono=True, res_type="kaiser_fast")
-    return np.expand_dims(audio, -1)
-
-
-def read_raw(path: PathOrStr, sample_rate: int = 16000):
-    logger.info(f"Reading raw audio with sample_rate: {sample_rate}")
-    path = Path(path)
-    filepaths = get_audio_paths(path)
-    _audio = TqdmParallel(len(filepaths), desc="Reading audio", leave=False, n_jobs=-1)(
-        delayed(_read_audio_file)(filepath, sample_rate) for filepath in filepaths
-    )
-
-    return FeaturesData(
-        corpus=path.parent.stem,
-        names=[x.stem for x in filepaths],
-        features=np.concatenate(_audio),
-        slices=[len(x) for x in _audio],
-        feature_names=["pcm"],
-    )
 
 
 class FeaturesData:
@@ -218,7 +174,72 @@ class FeaturesData:
         return self.features[index]
 
 
+def read_arff_mem(path: PathOrStr, label: bool = False) -> FeaturesData:
+    path = Path(path)
+    with open(path) as fid:
+        data = arff.load(fid)
+
+    attr_names = [x[0] for x in data["attributes"]]
+    counts = Counter([x[0] for x in data["data"]])
+    idx = slice(1, -1) if label else slice(1, None)
+
+    return FeaturesData(
+        corpus=data["relation"],
+        names=list(counts.keys()),
+        features=np.array([x[idx] for x in data["data"]]),
+        slices=np.array(list(counts.values())),
+        feature_names=attr_names[idx],
+    )
+
+
+def read_csv_mem(
+    path: PathOrStr, header: bool = True, label: bool = False
+) -> FeaturesData:
+    df = pd.read_csv(path, header=0 if header else None, converters={0: str})
+    counts: typing.Counter[str] = Counter(df.iloc[:, 0])
+    idx = slice(1, -1) if label else slice(1, None)
+
+    return FeaturesData(
+        names=list(counts.keys()),
+        features=np.array(df.iloc[:, idx]),
+        slices=np.array(list(counts.values())),
+        feature_names=list(df.columns[idx]),
+    )
+
+
+def read_netcdf_mem(path: PathOrStr) -> FeaturesData:
+    reader = NetCDFReader(path)
+    features = reader[:]
+    reader.close()
+    return FeaturesData(features, reader.names, reader.corpus, reader.feature_names)
+
+
+def _read_audio_file(path, sample_rate: int = 16000):
+    warnings.filterwarnings("ignore", message="PySoundFile", category=UserWarning)
+    audio, _ = librosa.load(path, sr=sample_rate, mono=True, res_type="kaiser_fast")
+    return np.expand_dims(audio, -1)
+
+
+def read_raw_mem(path: PathOrStr, sample_rate: int = 16000) -> FeaturesData:
+    logger.info(f"Reading raw audio with sample_rate: {sample_rate}")
+    path = Path(path)
+    filepaths = get_audio_paths(path)
+    _audio = TqdmParallel(len(filepaths), desc="Reading audio", leave=False, n_jobs=-1)(
+        delayed(_read_audio_file)(filepath, sample_rate) for filepath in filepaths
+    )
+
+    return FeaturesData(
+        corpus=path.parent.stem,
+        names=[x.stem for x in filepaths],
+        features=np.concatenate(_audio),
+        slices=[len(x) for x in _audio],
+        feature_names=["pcm"],
+    )
+
+
 class SequentialReader(Iterable[np.ndarray], Sized, ABC):
+    """Base class for readers that read features sequentially."""
+
     feature_names: List[str]
     names: List[str]
     corpus: str = ""
@@ -243,6 +264,8 @@ class SequentialReader(Iterable[np.ndarray], Sized, ABC):
 
 
 class RandomAccessReader(SequentialReader, ABC):
+    """Base class for readers that can access features by index."""
+
     @abstractmethod
     def __getitem__(
         self, index: Union[int, slice, List[int], np.ndarray]
@@ -258,6 +281,8 @@ class RandomAccessReader(SequentialReader, ABC):
 
 
 class NetCDFReader(RandomAccessReader):
+    """Read features from NetCDF4 file."""
+
     _is_2d: bool = False
     _is_3d: bool = False
     _is_vlen: bool = False
@@ -321,6 +346,8 @@ class NetCDFReader(RandomAccessReader):
 
 
 class RawAudioReader(RandomAccessReader):
+    """Read raw audio files."""
+
     def __init__(self, path: PathOrStr, sample_rate: int = 16000, **kwargs) -> None:
         super().__init__(path, **kwargs)
         self.sample_rate = sample_rate
@@ -344,6 +371,8 @@ class RawAudioReader(RandomAccessReader):
 
 
 class CSVSequentialReader(SequentialReader):
+    """Read features from CSV file."""
+
     def open(self) -> None:
         with open(self.path) as fid:
             reader = csv.reader(fid)
@@ -365,6 +394,8 @@ class CSVSequentialReader(SequentialReader):
 
 
 class ARFFSequentialReader(SequentialReader):
+    """Read features from ARFF file."""
+
     def open(self) -> None:
         self.feature_names = []
         with open(self.path) as fid:
@@ -401,6 +432,18 @@ class ARFFSequentialReader(SequentialReader):
 
 
 class SequentialWriter:
+    """Write features to file.
+
+    Parameters
+    ----------
+    names : List[str]
+        List of utterance names.
+    corpus : str
+        Corpus name.
+    feature_names : List[str]
+        List of feature names.
+    """
+
     def __init__(
         self,
         names: List[str],
@@ -409,6 +452,8 @@ class SequentialWriter:
     ) -> None:
         self.names = names
         self.corpus = corpus
+        if len(feature_names) == 0:
+            raise ValueError("Feature names must be provided.")
         self.feature_names = feature_names
 
     def write(self, path: PathOrStr, features: Iterable[np.ndarray], **kwargs):
@@ -420,6 +465,8 @@ class SequentialWriter:
         meth(self, path, features, **kwargs)
 
     def write_arff(self, path: PathOrStr, features: Iterable[np.ndarray], **kwargs):
+        """Write features to ARFF file."""
+
         with open(path, "w") as fid:
             fid.write(f"@RELATION {self.corpus}\n\n")
             fid.write("@ATTRIBUTE name STRING\n")
@@ -435,6 +482,8 @@ class SequentialWriter:
                     writer.writerow([name] + list(inst))
 
     def write_csv(self, path, features: Iterable[np.ndarray], header=True, **kwargs):
+        """Write features to CSV file."""
+
         with open(path, "w") as fid:
             writer = csv.writer(fid, lineterminator="\n")
             if header:
@@ -453,6 +502,8 @@ class SequentialWriter:
         chunksize: int = 1024,
         **kwargs,
     ):
+        """Write features to NetCDF4 file."""
+
         dataset = netCDF4.Dataset(path, "w")
         dataset.createDimension("name", len(self.names))
         dataset.createDimension("concat", 0)
@@ -495,6 +546,8 @@ class SequentialWriter:
     def write_raw(
         self, path: PathOrStr, features: Iterable[np.ndarray], sr: int = 16000, **kwargs
     ):
+        """Write raw audio files."""
+
         output_dir = Path(path).with_suffix("")
         output_dir.mkdir(exist_ok=True, parents=True)
         for name, audio in zip(self.names, features):
@@ -510,11 +563,11 @@ class SequentialWriter:
     }
 
 
-_READ_BACKENDS: Dict[str, Callable[..., FeaturesData]] = {
-    ".nc": read_netcdf,
-    ".arff": read_arff,
-    ".csv": read_csv,
-    ".txt": read_raw,
+_READ_BACKENDS_MEM: Dict[str, Callable[..., FeaturesData]] = {
+    ".nc": read_netcdf_mem,
+    ".arff": read_arff_mem,
+    ".csv": read_csv_mem,
+    ".txt": read_raw_mem,
 }
 
 _READ_BACKENDS_SEQUENTIAL: Dict[str, Type[SequentialReader]] = {
@@ -535,14 +588,14 @@ def register_format(
     if suffix[0] != ".":
         suffix = "." + suffix
     if read is not None:
-        _READ_BACKENDS[suffix] = read
+        _READ_BACKENDS_MEM[suffix] = read
     if write is not None:
         SequentialWriter._write_backends[suffix] = write
 
 
 def find_features_file(files: Iterable[Path]) -> Path:
     files = list(files)
-    for suffix in _READ_BACKENDS:
+    for suffix in _READ_BACKENDS_MEM:
         file = next((x for x in files if x.suffix == suffix), None)
         if file is not None:
             return file
@@ -550,10 +603,10 @@ def find_features_file(files: Iterable[Path]) -> Path:
 
 
 def read_features(path: PathOrStr, **kwargs) -> FeaturesData:
-    """Read features from given path."""
+    """Read features from given path into memory."""
 
     path = Path(path)
-    meth = _READ_BACKENDS.get(path.suffix)
+    meth = _READ_BACKENDS_MEM.get(path.suffix)
     if meth is None:
         raise ValueError(f"File format {path.suffix} not supported.")
     logger.debug(f"Reading features from {path}")
@@ -561,7 +614,7 @@ def read_features(path: PathOrStr, **kwargs) -> FeaturesData:
 
 
 def read_features_iterable(path: PathOrStr, **kwargs) -> SequentialReader:
-    """Read features from given path as an iterable."""
+    """Read features from given path either sequentially or by index."""
 
     path = Path(path)
     meth = _READ_BACKENDS_SEQUENTIAL.get(path.suffix)
@@ -577,11 +630,31 @@ def write_features(
     names: List[str],
     corpus: str = "",
     feature_names: List[str] = [],
-    slices: Union[np.ndarray, List[int]] = None,
+    slices: Union[np.ndarray, List[int], None] = None,
     **kwargs,
 ) -> None:
-    """Convenience function to write features to given path. Arguments
-    are the same as those passed to IterableWriter.
+    """Convenience function to write features to given path.
+
+    Parameters
+    ----------
+    path : PathOrStr
+        Path to write features to.
+    features : Union[Iterable[np.ndarray], np.ndarray]
+        Features to write. If a 3D array is given, the dimensions are
+        assumed to be (instances, frames, features). If a 2D array is
+        given, the dimensions are assumed to be (frames, features), and
+        the `slices` parameter is required. If an iterable of arrays is
+        given, each 1D or 2D array is assumed to be a single instance.
+    names : List[str]
+        Instance names.
+    corpus : str
+        Name of corpus. Default is empty string.
+    feature_names : List[str]
+        Feature names.
+    slices : Union[np.ndarray, List[int]], optional
+        Number of frames per instance. Only required if a 2D matrix is
+        given, and the first dimension is different than the number of
+        instances.
     """
     if slices is not None:
         if not isinstance(features, np.ndarray):

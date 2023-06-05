@@ -1,3 +1,5 @@
+"""Scikit-learn classification functions."""
+
 import json
 import logging
 import time
@@ -13,6 +15,8 @@ from sklearn.pipeline import Pipeline
 from ertk.sklearn.utils import get_base_estimator, get_estimator_tree
 from ertk.train import ExperimentResult, get_pipeline_params, get_scores
 from ertk.utils import ScoreFunction
+
+__all__ = ["sk_cross_validate", "sk_train_val_test"]
 
 logger = logging.getLogger("ertk.sklearn.classification")
 

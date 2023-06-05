@@ -1,4 +1,21 @@
-"""Scikit-learn implementations of various models"""
+"""Scikit-learn implementations of various models.
+
+.. autosummary::
+    :toctree:
+
+    get_sk_model
+    get_sk_model_fn
+    SkModelConfig
+
+
+Models
+------
+.. autosummary::
+    :toctree:
+
+    svm
+    mtl
+"""
 
 from typing import Callable
 
@@ -11,6 +28,18 @@ from sklearn.neural_network import MLPClassifier
 from ._base import ERTKSkModel, SkModelConfig, SkWrapperConfig, SkWrapperModel
 from .mtl import MTFLClassifier, MultiDimensionalCC
 from .svm import PrecomputedSVC
+
+__all__ = [
+    "ERTKSkModel",
+    "SkModelConfig",
+    "SkWrapperConfig",
+    "SkWrapperModel",
+    "MTFLClassifier",
+    "MultiDimensionalCC",
+    "PrecomputedSVC",
+    "get_sk_model",
+    "get_sk_model_fn",
+]
 
 CLASSIFIER_MAP = {
     "svm": PrecomputedSVC,

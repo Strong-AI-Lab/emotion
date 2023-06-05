@@ -1,3 +1,21 @@
+"""
+Classification functions.
+
+This module contains functions for performing classification tasks.
+
+.. autosummary::
+    :toctree: generated/
+
+    binary_accuracy_score
+    standard_class_scoring
+    cross_validate
+    dataset_cross_validation
+    dataset_train_val_test
+    get_balanced_class_weights
+    get_balanced_sample_weights
+    class_ratings_to_probs
+"""
+
 import logging
 import time
 from functools import partial
@@ -18,6 +36,18 @@ from sklearn.utils.multiclass import unique_labels
 
 from ertk.dataset import Dataset
 from ertk.train import ExperimentResult, get_cv_splitter, scores_to_df
+from ertk.utils import ScoreFunction
+
+__all__ = [
+    "binary_accuracy_score",
+    "standard_class_scoring",
+    "cross_validate",
+    "dataset_cross_validation",
+    "dataset_train_val_test",
+    "get_balanced_class_weights",
+    "get_balanced_sample_weights",
+    "class_ratings_to_probs",
+]
 
 
 def binary_accuracy_score(
@@ -121,10 +151,90 @@ def standard_class_scoring(classes: Sequence[str]):
     return scoring
 
 
+def cross_validate(
+    clf_lib: str,
+    clf,
+    x: np.ndarray,
+    y: Optional[np.ndarray] = None,
+    *,
+    groups: Optional[np.ndarray] = None,
+    cv: BaseCrossValidator = None,
+    scoring: Union[
+        str, List[str], Dict[str, ScoreFunction], Callable[..., float]
+    ] = "accuracy",
+    verbose: int = 0,
+    n_jobs: int = 1,
+    fit_params: Dict[str, Any] = {},
+):
+    """Cross validate a classifier.
+
+    Parameters
+    ----------
+    clf_lib: str
+        Classifier library to use. Must be one of "sk", "tf", or "pt".
+    clf:
+        Classifier to cross validate.
+    x: np.ndarray
+        Input data.
+    y: np.ndarray, optional
+        Target labels.
+    groups: np.ndarray, optional
+        Groups to split data into for cross validation.
+    cv: BaseCrossValidator, optional
+        Cross validation strategy. If None, use StratifiedKFold.
+    scoring: str, list, dict, or callable, optional
+        Scoring metric(s) to use. If a string, must be a valid
+        scikit-learn scorer.
+    verbose: int, optional
+        Verbosity level.
+    n_jobs: int, optional
+        Number of jobs to run in parallel. Only used for scikit-learn.
+    fit_params: dict, optional
+        Parameters to pass to the classifier's fit method.
+
+    Returns
+    -------
+    result: ExperimentResult
+        Cross validation results.
+    """
+    cross_validate_fn: Callable[..., ExperimentResult]
+    if clf_lib == "sk":
+        from ertk.sklearn.classification import sk_cross_validate
+
+        # We have to set n_jobs here because using a
+        # `with joblib.Parallel...` clause doesn't work properly
+        cross_validate_fn = partial(sk_cross_validate, n_jobs=n_jobs)
+    elif clf_lib == "tf":
+        from ertk.tensorflow.classification import tf_cross_validate
+
+        n_jobs = 1
+        cross_validate_fn = tf_cross_validate
+    elif clf_lib == "pt":
+        from ertk.pytorch.classification import pt_cross_validate
+
+        n_jobs = 1
+        cross_validate_fn = pt_cross_validate
+    else:
+        raise ValueError(f"Unknown classifier type: {clf_lib}")
+
+    result = cross_validate_fn(
+        clf,
+        x,
+        y,
+        groups=groups,
+        cv=cv,
+        scoring=scoring,
+        verbose=verbose,
+        n_jobs=n_jobs,
+        fit_params=fit_params,
+    )
+    return result
+
+
 def dataset_cross_validation(
     clf,
     dataset: Dataset,
-    clf_lib: Optional[str] = None,
+    clf_lib: str,
     partition: Optional[str] = None,
     label: str = "label",
     cv: Union[BaseCrossValidator, int] = 10,
@@ -176,34 +286,18 @@ def dataset_cross_validation(
     if scoring is None:
         scoring = standard_class_scoring(dataset.get_group_names(label))
 
-    cross_validate_fn: Callable[..., ExperimentResult]
-    if clf_lib == "sk":
-        from ertk.sklearn.classification import sk_cross_validate
-
-        # We have to set n_jobs here because using a
-        # `with joblib.Parallel...` clause doesn't work properly
-        cross_validate_fn = partial(sk_cross_validate, n_jobs=n_jobs)
-    elif clf_lib == "tf":
-        from ertk.tensorflow.classification import tf_cross_validate
-
-        n_jobs = 1
-        cross_validate_fn = tf_cross_validate
-    elif clf_lib == "pt":
-        from ertk.pytorch.classification import pt_cross_validate
-
-        n_jobs = 1
-        cross_validate_fn = pt_cross_validate
-
-    start_time = time.perf_counter()
     logging.info(f"Starting cross-validation with n_jobs={n_jobs}")
-    result = cross_validate_fn(
+    start_time = time.perf_counter()
+    result = cross_validate(
+        clf_lib,
         clf,
         dataset.x,
         dataset.get_group_indices(label),
+        groups=groups,
         cv=cv,
         scoring=scoring,
-        groups=groups,
         verbose=verbose,
+        n_jobs=n_jobs,
         fit_params=fit_params,
     )
     total_time = time.perf_counter() - start_time
@@ -224,7 +318,7 @@ def dataset_train_val_test(
     test_idx: Union[Sequence[int], np.ndarray, None] = None,
     label: str = "label",
     clf_lib: Optional[str] = None,
-    sample_weight: np.ndarray = None,
+    sample_weight: Optional[np.ndarray] = None,
     verbose: int = 0,
     scoring=None,
     fit_params: Dict[str, Any] = {},

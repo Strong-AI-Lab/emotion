@@ -1,3 +1,5 @@
+"""Dataset classes and related functions."""
+
 import copy
 import logging
 import os
@@ -36,6 +38,20 @@ from ertk.dataset.features import find_features_file, read_features
 from ertk.dataset.utils import get_audio_paths
 from ertk.transform import group_transform
 from ertk.utils import PathOrStr, clip_arrays, frame_arrays, pad_arrays, transpose_time
+
+__all__ = [
+    "Dataset",
+    "CombinedDataset",
+    "DatasetConfig",
+    "DataLoadConfig",
+    "DataSelector",
+    "SubsetInfo",
+    "MapGroups",
+    "RemoveGroups",
+    "CorpusInfo",
+    "load_multiple",
+    "load_datasets_config",
+]
 
 logger = logging.getLogger(__name__)
 

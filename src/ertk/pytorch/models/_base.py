@@ -13,17 +13,40 @@ from ertk.config import ERTKConfig
 
 @dataclass
 class PyTorchModelConfig(ERTKConfig):
+    """Base class for PyTorch model configuration dataclasses."""
+
     optimiser: str = "adam"
+    """The optimiser to use."""
     opt_params: Dict[str, Any] = field(default_factory=dict)
+    """Parameters to pass to the optimiser."""
     learning_rate: float = 1e-3
+    """The learning rate to use."""
     n_features: int = -1
+    """The number of features in the input data."""
     n_classes: int = -1
+    """The number of classes in the output data."""
     loss: str = "cross_entropy"
+    """The loss function to use."""
     loss_args: Dict[str, Any] = field(default_factory=dict)
+    """Arguments to pass to the loss function."""
 
 
 class ERTKPyTorchModel(pl.LightningModule, ABC):
+    """Base class for PyTorch models.
+
+    This class is a subclass of
+    :class:`pytorch_lightning.LightningModule` and implements the
+    :meth:`training_step` method. It also provides a
+    :meth:`get_model_class` method for retrieving a model class by name.
+
+    Parameters
+    ----------
+    config : PyTorchModelConfig
+        The model configuration.
+    """
+
     config: PyTorchModelConfig
+    """The model configuration."""
 
     _config_type: ClassVar[Type[PyTorchModelConfig]]
     _friendly_name: ClassVar[str]
@@ -65,6 +88,23 @@ class ERTKPyTorchModel(pl.LightningModule, ABC):
 
     @classmethod
     def get_model_class(cls, name: str) -> Type["ERTKPyTorchModel"]:
+        """Get a model class by name.
+
+        Parameters
+        ----------
+        name : str
+            The name of the model class to retrieve.
+
+        Returns
+        -------
+        Type[ERTKPyTorchModel]
+            The model class.
+
+        Raises
+        ------
+        ValueError
+            If no model class with the given name is registered.
+        """
         try:
             return cls._registry[name]
         except KeyError as e:
@@ -72,18 +112,58 @@ class ERTKPyTorchModel(pl.LightningModule, ABC):
 
     @classmethod
     def make_model(cls, name: str, config: PyTorchModelConfig) -> "ERTKPyTorchModel":
+        """Make a model by name.
+
+        Parameters
+        ----------
+        name : str
+            The name of the model class to retrieve.
+        config : PyTorchModelConfig
+            The model configuration.
+
+        Returns
+        -------
+        ERTKPyTorchModel
+            The model created with the given config.
+        """
         return cls.get_model_class(name)(config)
 
     @classmethod
     def get_config_type(cls) -> Type[PyTorchModelConfig]:
+        """Get the configuration dataclass for this model.
+
+        Returns
+        -------
+        Type[PyTorchModelConfig]
+            The configuration dataclass.
+
+        Notes
+        -----
+        This is a class method rather than a property because it is
+        needed before an instance of the model is created.
+        """
         return cls._config_type
 
     @classmethod
     def valid_models(cls) -> List[str]:
+        """Get a list of valid model names.
+
+        Returns
+        -------
+        List[str]
+            A list of valid model names.
+        """
         return list(cls._registry)
 
     @classmethod
     def get_default_config(cls) -> PyTorchModelConfig:
+        """Get the default configuration for this model.
+
+        Returns
+        -------
+        PyTorchModelConfig
+            The default configuration.
+        """
         return OmegaConf.structured(cls._config_type)
 
     @abstractmethod
@@ -94,6 +174,20 @@ class ERTKPyTorchModel(pl.LightningModule, ABC):
         """Perform any modifications to the input tensor `x`, which is
         extracted from a batch. This will typically have shape
         (batch_size, features) or (batch_size, timesteps, features).
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            The input tensor.
+
+        Returns
+        -------
+        torch.Tensor
+            The preprocessed input tensor.
+
+        Notes
+        -----
+        The default implementation returns `x` unchanged.
         """
         return x
 

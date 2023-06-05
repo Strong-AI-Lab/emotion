@@ -1,3 +1,5 @@
+"""PyTorch dataset utilities."""
+
 from typing import Any, Callable, Collection, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -9,6 +11,14 @@ from torch.utils.data import TensorDataset
 
 from ertk.dataset import Dataset, load_datasets_config
 from ertk.train import ExperimentConfig
+
+__all__ = [
+    "DatasetFuncWrapper",
+    "DataModuleAdapter",
+    "MTLDataModule",
+    "MTLDataset",
+    "create_mtl_dataloader",
+]
 
 
 class DatasetFuncWrapper(TorchDataset[Tuple[torch.Tensor, ...]]):
@@ -42,6 +52,7 @@ class DataModuleAdapter(pl.LightningDataModule):
 
     def __init__(
         self,
+        *,
         load_config: Optional[ExperimentConfig] = None,
         dataset: Optional[Dataset] = None,
         train_select: Union[str, Dict[str, Collection[str]], np.ndarray, None] = None,
@@ -57,21 +68,15 @@ class DataModuleAdapter(pl.LightningDataModule):
         self.batch_size = batch_size
         self.train_select = train_select
         self.val_select = val_select
-        self.test_select = test_select or val_select
+        self.test_select = test_select if test_select is not None else val_select
         self.dl_num_workers = dl_num_workers
 
     def setup(self, stage: Optional[str] = None) -> None:
         if self.load_config:
             data = load_datasets_config(self.load_config)
-            self.train_idx = data.get_idx_for_split(
-                self.load_config.eval.train_val_test.train
-            )
-            self.val_idx = data.get_idx_for_split(
-                self.load_config.eval.train_val_test.valid
-            )
-            self.test_idx = data.get_idx_for_split(
-                self.load_config.eval.train_val_test.test
-            )
+            self.train_idx = data.get_idx_for_split(self.load_config.eval.train)
+            self.val_idx = data.get_idx_for_split(self.load_config.eval.valid)
+            self.test_idx = data.get_idx_for_split(self.load_config.eval.test)
 
         if isinstance(self.train_select, np.ndarray):
             self.train_idx = self.train_select
@@ -135,16 +140,17 @@ class DataModuleAdapter(pl.LightningDataModule):
 class MTLDataModule(DataModuleAdapter):
     def __init__(
         self,
+        *,
         dataset: Dataset,
         tasks: List[str],
-        train_select: Union[str, Dict[str, Collection[str]]],
-        val_select: Union[str, Dict[str, Collection[str]]],
-        test_select: Union[str, Dict[str, Collection[str]], None] = None,
+        train_select: Union[str, Dict[str, Collection[str]], np.ndarray, None] = None,
+        val_select: Union[str, Dict[str, Collection[str]], np.ndarray, None] = None,
+        test_select: Union[str, Dict[str, Collection[str]], np.ndarray, None] = None,
         batch_size: int = 32,
         dl_num_workers: int = 0,
     ):
         super().__init__(
-            dataset,
+            dataset=dataset,
             train_select=train_select,
             val_select=val_select,
             test_select=test_select,

@@ -1,3 +1,5 @@
+"""Utilities for working with audio datasets."""
+
 import logging
 import subprocess
 from pathlib import Path
@@ -7,8 +9,12 @@ from joblib import delayed
 
 from ertk.utils import PathOrStr, TqdmParallel
 
-# The below is because mypy does not yet support type narrowing upon redefinition
-# mypy: allow-redefinition
+__all__ = [
+    "get_audio_paths",
+    "resample_audio",
+    "resample_rename_clips",
+    "write_filelist",
+]
 
 
 def get_audio_paths(path: PathOrStr, absolute: bool = True) -> List[Path]:

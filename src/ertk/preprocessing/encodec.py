@@ -1,3 +1,5 @@
+"""Encodec feature extractor."""
+
 from dataclasses import dataclass
 from enum import Enum
 from typing import List
@@ -9,6 +11,8 @@ from ertk.config import ERTKConfig
 from ertk.utils import is_mono_audio
 
 from ._base import AudioClipProcessor, FeatureExtractor
+
+__all__ = ["EncodecExtractorConfig", "EncodecExtractor"]
 
 
 class Agg(Enum):
@@ -24,17 +28,27 @@ class Model(Enum):
 
 @dataclass
 class EncodecExtractorConfig(ERTKConfig):
+    """Configuration for the Encodec feature extractor."""
+
     model: Model = Model.ENCODEC_48kHz
+    """The Encodec model to use."""
     aggregate: Agg = Agg.MEAN
+    """The aggregation method to use."""
     device: str = "cuda"
+    """The device to use for inference."""
     vq_ids: bool = False
+    """Whether to return the VQ-VAE IDs."""
     vq_ids_as_string: bool = True
+    """Whether to return the VQ-VAE IDs as a string."""
     max_input_len: int = 1500000
+    """The maximum input length for the model."""
 
 
 class EncodecExtractor(
     FeatureExtractor, AudioClipProcessor, fname="encodec", config=EncodecExtractorConfig
 ):
+    """Encodec feature extractor."""
+
     config: EncodecExtractorConfig
 
     def __init__(self, config: EncodecExtractorConfig) -> None:

@@ -1,3 +1,5 @@
+"""Miscellaneous utilities."""
+
 import multiprocessing
 import os
 from functools import partial
@@ -5,6 +7,8 @@ from typing import Iterable
 
 import joblib
 import tqdm
+
+__all__ = ["TqdmParallel", "TqdmMultiprocessing"]
 
 
 # Class adapted from user394430's answer here:

@@ -1,9 +1,11 @@
-"""Implementation of the model from [1].
+"""Implementation of the model from [1]_.
 
-[1] S. Latif, R. Rana, S. Khalifa, R. Jurdak, and J. Epps, 'Direct
-Modelling of Speech Emotion from Raw Speech', arXiv:1904.03833 [cs,
-eess], Jul. 2019, Accessed: Feb. 10, 2020. [Online]. Available:
-http://arxiv.org/abs/1904.03833.
+References
+----------
+.. [1] S. Latif, R. Rana, S. Khalifa, R. Jurdak, and J. Epps, 'Direct
+       Modelling of Speech Emotion from Raw Speech', arXiv:1904.03833
+       [cs, eess], Jul. 2019, Accessed: Feb. 10, 2020. [Online].
+       Available: http://arxiv.org/abs/1904.03833.
 """
 
 import tensorflow as tf

@@ -1,3 +1,5 @@
+"""Simple multi-layer perceptron (MLP) model."""
+
 from dataclasses import dataclass, field
 from typing import List
 
@@ -5,6 +7,8 @@ import torch
 
 from ._base import PyTorchModelConfig, SimpleClassificationModel
 from .layers import make_fc
+
+__all__ = ["MLPModel", "MLPConfig"]
 
 
 @dataclass
@@ -14,7 +18,7 @@ class MLPConfig(PyTorchModelConfig):
     activation: str = "relu"
 
 
-class Model(SimpleClassificationModel, fname="mlp", config=MLPConfig):
+class MLPModel(SimpleClassificationModel, fname="mlp", config=MLPConfig):
     config: MLPConfig
 
     def __init__(self, config: MLPConfig):

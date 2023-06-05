@@ -6,6 +6,7 @@
 !/datasets/CMU-MOSEI/splits.py
 
 # Misc. project related
+.env
 
 # Python related
 .venv*
@@ -14,11 +15,13 @@
 /build
 /dist
 /docs/_build
+/docs/api/generated
 __pycache__
 .mypy_cache
 .coverage*
 *.lcov
 .virtual_documents/
+.hypothesis/
 
 # NumPy
 *.npy
@@ -31,6 +34,7 @@ __pycache__
 # PyTorch
 *.pt
 whisper_checkpoints/
+pretrained_models/
 
 
 # Misc general

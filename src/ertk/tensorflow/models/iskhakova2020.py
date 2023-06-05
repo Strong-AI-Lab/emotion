@@ -1,13 +1,16 @@
-"""Implementation of model from [1].
+"""Implementation of model from [1]_.
 
-[1] A. O. Iskhakova, D. A. Wolf, R. R. Galin, and M. V. Mamchenko, ‘1-D
-convolutional neural network based on the inner ear principle to
-automatically assess human’s emotional state’, E3S Web Conf., vol. 224,
-p. 01023, 2020, doi: 10.1051/e3sconf/202022401023.
+References
+----------
+.. [1] A. O. Iskhakova, D. A. Wolf, R. R. Galin, and M. V. Mamchenko,
+       '1-D convolutional neural network based on the inner ear
+       principle to automatically assess human's emotional state', E3S
+       Web Conf., vol. 224, p. 01023, 2020, doi:
+       10.1051/e3sconf/202022401023.
 """
 
-from tensorflow.keras import Model
-from tensorflow.keras.layers import (
+from keras import Model
+from keras.layers import (
     BatchNormalization,
     Conv1D,
     Dense,

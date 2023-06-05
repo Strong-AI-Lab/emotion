@@ -1,3 +1,5 @@
+"""Audioset feature extractors."""
+
 import logging
 import os
 from dataclasses import dataclass
@@ -12,6 +14,13 @@ from ertk.preprocessing.spectrogram import spectrogram
 from ertk.utils import frame_array, is_mono_audio
 
 from .._base import AudioClipProcessor, FeatureExtractor
+
+__all__ = [
+    "YamnetExtractor",
+    "YamnetExtractorConfig",
+    "VGGishExtractor",
+    "VGGishExtractorConfig",
+]
 
 
 def _spectrogram(x: np.ndarray, sr: float) -> np.ndarray:
@@ -32,12 +41,17 @@ def _spectrogram(x: np.ndarray, sr: float) -> np.ndarray:
 
 @dataclass
 class YamnetExtractorConfig(ERTKConfig):
+    """Configuration for a Yamnet extractor."""
+
     model_dir: str = MISSING
+    """The directory containing the YAMNet model files."""
 
 
 class YamnetExtractor(
     FeatureExtractor, AudioClipProcessor, fname="yamnet", config=YamnetExtractorConfig
 ):
+    """A YAMNet extractor."""
+
     config: YamnetExtractorConfig
 
     def __init__(self, config: YamnetExtractorConfig) -> None:
@@ -108,13 +122,19 @@ class YamnetExtractor(
 
 @dataclass
 class VGGishExtractorConfig(ERTKConfig):
+    """Configuration for a VGGish extractor."""
+
     model_dir: str = MISSING
+    """The directory containing the VGGish model files."""
     postprocess: bool = True
+    """Whether to apply the VGGish postprocessing."""
 
 
 class VGGishExtractor(
     FeatureExtractor, AudioClipProcessor, fname="vggish", config=VGGishExtractorConfig
 ):
+    """A VGGish extractor."""
+
     config: VGGishExtractorConfig
 
     def __init__(self, config: VGGishExtractorConfig) -> None:

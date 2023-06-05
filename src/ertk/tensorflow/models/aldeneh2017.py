@@ -1,13 +1,15 @@
-"""Implementation of the final full model architecture from [1].
+"""Implementation of the model architecture from [1]_.
 
-[1] Z. Aldeneh and E. Mower Provost, 'Using regional saliency for speech
-emotion recognition', in 2017 IEEE International Conference on
-Acoustics, Speech and Signal Processing (ICASSP), Mar. 2017, pp.
-2741–2745, doi: 10.1109/ICASSP.2017.7952655.
+References
+----------
+.. [1] Z. Aldeneh and E. Mower Provost, 'Using regional saliency for
+       speech emotion recognition', in 2017 IEEE International
+       Conference on Acoustics, Speech and Signal Processing (ICASSP),
+       Mar. 2017, pp. 2741-2745, doi: 10.1109/ICASSP.2017.7952655.
 """
 
-from tensorflow.keras import Model
-from tensorflow.keras.layers import Conv1D, Dense, GlobalMaxPool1D, Input, concatenate
+from keras import Model
+from keras.layers import Conv1D, Dense, GlobalMaxPool1D, Input, concatenate
 
 __all__ = ["model"]
 

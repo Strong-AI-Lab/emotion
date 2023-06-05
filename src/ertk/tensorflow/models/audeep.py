@@ -1,3 +1,13 @@
+"""Implementation of auDeep model from [1]_.
+
+References
+----------
+.. [1] M. Freitag, S. Amiriparian, S. Pugachevskiy, N. Cummins, and B.
+       Schuller, “auDeep: Unsupervised learning of representations from
+       audio with deep recurrent neural networks,” The Journal of
+       Machine Learning Research, vol. 18, no. 1, pp. 6340-6344, 2017.
+"""
+
 import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras.layers import (

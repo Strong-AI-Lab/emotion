@@ -1,3 +1,5 @@
+"""OpenSMILE feature extraction."""
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List
@@ -10,12 +12,19 @@ from ertk.utils.array import is_mono_audio
 
 from ._base import AudioClipProcessor, FeatureExtractor
 
+__all__ = ["OpenSMILEExtractorConfig", "OpenSMILEExtractor"]
+
 
 @dataclass
 class OpenSMILEExtractorConfig(ERTKConfig):
+    """OpenSMILE feature extractor configuration."""
+
     opensmile_config: str = MISSING
+    """OpenSMILE config file."""
     levels: List[str] = field(default_factory=lambda: ["func"])
+    """OpenSMILE levels to extract."""
     opensmile_opts: Dict[str, str] = field(default_factory=dict)
+    """Additional OpenSMILE options."""
 
 
 class OpenSMILEExtractor(
@@ -24,6 +33,8 @@ class OpenSMILEExtractor(
     fname="opensmile",
     config=OpenSMILEExtractorConfig,
 ):
+    """OpenSMILE feature extractor."""
+
     config: OpenSMILEExtractorConfig
 
     def __init__(self, config: OpenSMILEExtractorConfig) -> None:
