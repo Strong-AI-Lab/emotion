@@ -9,17 +9,13 @@
 import sys
 from pathlib import Path
 
-import sphinx
-
-import ertk
-
 _docs_dir = Path(__file__).parent
 _src_dir = _docs_dir.parent / "src"
 sys.path.insert(0, str(_src_dir.resolve()))
 
+import ertk  # noqa: E402
 
 # -- Project information -----------------------------------------------------
-
 project = "ERTK"
 copyright = "2019, Aaron Keesing"
 author = "Aaron Keesing"
