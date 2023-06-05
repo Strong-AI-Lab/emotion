@@ -1,3 +1,5 @@
+"""Utilities for scikit-learn estimators."""
+
 import warnings
 from typing import List
 
@@ -9,6 +11,13 @@ from sklearn.multiclass import OneVsRestClassifier as _SKOvR
 from sklearn.multiclass import _ConstantPredictor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelBinarizer
+
+__all__ = [
+    "get_estimator_tree",
+    "get_base_estimator",
+    "OneVsRestClassifier",
+    "GridSearchVal",
+]
 
 
 # Workaround for OneVsRest

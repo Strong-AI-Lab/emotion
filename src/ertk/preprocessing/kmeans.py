@@ -1,3 +1,5 @@
+"""Kmeans vector quantiser."""
+
 from dataclasses import dataclass
 from typing import List
 
@@ -8,13 +10,20 @@ from ertk.config import ERTKConfig
 
 from ._base import FeatureExtractor
 
+__all__ = ["KMeansExtractorConfig", "KMeansExtractor"]
+
 
 @dataclass
 class KMeansExtractorConfig(ERTKConfig):
+    """KMeans feature extractor configuration."""
+
     pickle: str = MISSING
+    """Path to pickle file."""
 
 
 class KMeansExtractor(FeatureExtractor, fname="kmeans", config=KMeansExtractorConfig):
+    """KMeans vector quantiser."""
+
     config: KMeansExtractorConfig
 
     def __init__(self, config: KMeansExtractorConfig) -> None:

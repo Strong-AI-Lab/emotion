@@ -1,3 +1,5 @@
+"""OpenXBOW feature extractor."""
+
 import os
 import subprocess
 import tempfile
@@ -13,15 +15,22 @@ from ertk.config import ERTKConfig
 from ertk.dataset import write_features
 from ertk.preprocessing._base import FeatureExtractor
 
+__all__ = ["OpenXBOWExtractorConfig", "OpenXBOWExtractor"]
+
 
 @dataclass
 class OpenXBOWExtractorConfig(ERTKConfig):
+    """Configuration for the OpenXBOW feature extractor."""
+
     xbowargs: List[str] = MISSING
+    """The arguments to pass to OpenXBOW."""
 
 
 class OpenXBOWExtractor(
     FeatureExtractor, fname="openxbow", config=OpenXBOWExtractorConfig
 ):
+    """OpenXBOW feature extractor."""
+
     config: OpenXBOWExtractorConfig
     _dim = None
 

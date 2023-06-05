@@ -127,12 +127,24 @@ class InstanceProcessor(ABC):
 
     @classmethod
     def valid_processors(cls) -> List[str]:
-        """Get a list of all registered processor names."""
+        """Get a list of all registered processor names.
+
+        Returns
+        -------
+        names: list of str
+            The names of all registered processors.
+        """
         return sorted(cls._registry.keys() | cls._plugins.keys())
 
     @classmethod
     def get_default_config(cls) -> ERTKConfig:
-        """Get the default configuration for this processor."""
+        """Get the default configuration for this processor.
+
+        Returns
+        -------
+        config: ERTKConfig
+            The default configuration.
+        """
         return OmegaConf.structured(cls._config_type)
 
     @abstractmethod
@@ -207,6 +219,7 @@ class InstanceProcessor(ABC):
     @property
     @abstractmethod
     def feature_names(self) -> List[str]:
+        """The names of the features produced by this processor."""
         raise NotImplementedError()
 
 
@@ -268,6 +281,8 @@ class AudioClipProcessor(InstanceProcessor):
 
 
 class FeatureExtractor(InstanceProcessor):
+    """Extracts features from instances."""
+
     @property
     def dim(self) -> int:
         """The dimensionality of the extracted features."""

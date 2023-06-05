@@ -1,7 +1,11 @@
+"""TensorFlow training configuration."""
+
 from dataclasses import dataclass
 from typing import Optional
 
 from ertk.config import ERTKConfig
+
+__all__ = ["TFLoggingConfig", "TFTrainConfig"]
 
 
 @dataclass

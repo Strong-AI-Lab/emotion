@@ -1,3 +1,14 @@
+"""Implementation of the model from [1]_.
+
+References
+----------
+.. [1] Z. Zhang, B. Wu, and B. Schuller, 'Attention-augmented End-to-end
+       Multi-task Learning for Emotion Prediction from Speech', in 2019
+       IEEE International Conference on Acoustics, Speech and Signal
+       Processing, May 2019, pp. 6705-6709, doi:
+       10.1109/ICASSP.2019.8682896.
+"""
+
 import torch
 from torch import nn
 

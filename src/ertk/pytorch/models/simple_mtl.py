@@ -1,3 +1,7 @@
+"""Simple MTL model consisting of shared layers followed by
+task-specific layers.
+"""
+
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Dict, List
@@ -8,6 +12,8 @@ import torch.nn.functional as F
 
 from .layers import make_fc
 from .mtl import MTLModel, MTLModelConfig
+
+__all__ = ["SimpleMTLModel", "SimpleMTLModelConfig"]
 
 
 @dataclass

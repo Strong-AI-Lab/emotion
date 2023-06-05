@@ -1,3 +1,25 @@
+"""
+``ertk-cli`` scripts
+====================
+
+This module contains the ``ertk-cli`` scripts.
+
+.. autosummary::
+    :toctree:
+
+    cli
+
+
+Commands
+--------
+.. autosummary::
+    :toctree:
+
+    classify_main
+    exp_main
+    exp2_main
+"""
+
 import click
 
 from .classify import main as classify_main

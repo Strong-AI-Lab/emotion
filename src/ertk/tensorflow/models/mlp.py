@@ -1,9 +1,11 @@
-"""Basic MLP model."""
+"""Basic multi-layer perceptron (MLP) model."""
 
 from typing import Sequence
 
-from tensorflow.keras.layers import Dense, Dropout, Input
-from tensorflow.keras.models import Model
+from keras.layers import Dense, Dropout, Input
+from keras.models import Model
+
+__all__ = ["model"]
 
 
 def model(

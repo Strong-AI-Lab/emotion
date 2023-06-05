@@ -1,3 +1,5 @@
+"""Processing using SpeechBrain models."""
+
 from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional
@@ -11,14 +13,23 @@ from ertk.utils import is_mono_audio
 
 from ._base import AudioClipProcessor, FeatureExtractor
 
+__all__ = ["SpeechBrainExtractorConfig", "SpeechBrainExtractor"]
+
 
 class Task(Enum):
+    """Task to perform."""
+
     WHISPER = "whisper"
+    """Whisper speech recognition. Use for Whisper models."""
     EMBEDDINGS = "embeddings"
+    """Extract embeddings."""
     ASR = "asr"
+    """Automatic speech recognition."""
 
 
 class Agg(Enum):
+    """Aggregation method for extracting embeddings."""
+
     MEAN = "mean"
     MAX = "max"
     NONE = "none"
@@ -26,12 +37,20 @@ class Agg(Enum):
 
 @dataclass
 class SpeechBrainExtractorConfig(ERTKConfig):
+    """SpeechBrain feature extractor configuration."""
+
     model: str = MISSING
+    """Model name or path."""
     device: str = "cuda"
+    """Device to run model on."""
     task: Task = Task.EMBEDDINGS
+    """Task to perform."""
     agg: Optional[Agg] = Agg.MEAN
+    """Aggregation method for embeddings."""
     max_input_len: int = 1500000
+    """Maximum input length."""
     normalise: bool = True
+    """Normalise audio."""
 
 
 class SpeechBrainExtractor(
@@ -40,6 +59,8 @@ class SpeechBrainExtractor(
     fname="speechbrain",
     config=SpeechBrainExtractorConfig,
 ):
+    """Processing using SpeechBrain models."""
+
     config: SpeechBrainExtractorConfig
 
     def __init__(self, config: SpeechBrainExtractorConfig) -> None:

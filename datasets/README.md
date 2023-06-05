@@ -53,12 +53,10 @@ For most datasets this involves resampling to 16 kHz 16-bit WAV, and
 outputting annotations. The scripts for some datasets (e.g. IEMOCAP,
 MSP-IMPROV) print additional statistics about perceptual ratings.
 
-All scripts will output any annotation files in CSV format, as well as
-print the emotion label distribution and any inter-rater agreement
-metrics that can be calculated (e.g. Krippendorf's alpha, Fleiss'
-kappa).
+All scripts will output annotations in CSV format, and any inter-rater
+agreement metrics that can be calculated (e.g. Krippendorf's alpha,
+Fleiss' kappa) from ratings data.
 
-Once these steps are done, you can use the feature extraction scripts.
 
 ## File lists and subsets
 A list of file paths to the resampled audio clips will be created for

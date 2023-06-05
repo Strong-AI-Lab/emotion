@@ -1,3 +1,5 @@
+"""Fairseq processor."""
+
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
@@ -13,31 +15,55 @@ from ertk.utils import PathOrStr, is_mono_audio
 
 from ._base import AudioClipProcessor, FeatureExtractor
 
+__all__ = ["FairseqExtractorConfig", "FairseqExtractor"]
+
 
 class Agg(Enum):
+    """Aggregation method."""
+
     MEAN = "mean"
+    """Mean of the output sequence."""
     MAX = "max"
+    """Max of the output sequence."""
     NONE = "none"
+    """Return entire sequence."""
 
 
 @dataclass
 class FairseqExtractorConfig(ERTKConfig):
+    """Fairseq feature extractor configuration."""
+
     model_type: str = MISSING
+    """Model type."""
     checkpoint: str = MISSING
+    """Path to model checkpoint."""
     layer: str = "context"
+    """Layer to extract features from."""
     aggregate: Agg = Agg.MEAN
+    """Aggregation method."""
     device: str = "cuda"
+    """Device to run model on."""
     arg_overrides: Dict[str, Any] = field(default_factory=dict)
+    """Overrides for model arguments."""
     vq_path: Optional[str] = None
+    """Path to vector quantiser."""
     vq_ids: bool = False
+    """Whether to return VQ cluster ids."""
     vq_ids_as_string: bool = True
+    """Whether to return VQ cluster ids as a single string of integers
+    separated by spaces.
+    """
     max_input_len: int = 1500000
+    """Maximum input length."""
     mms_lang: str = "eng"
+    """Language to use for MMS models."""
 
 
 class FairseqExtractor(
     FeatureExtractor, AudioClipProcessor, fname="fairseq", config=FairseqExtractorConfig
 ):
+    """Fairseq processor."""
+
     config: FairseqExtractorConfig
 
     def __init__(self, config: FairseqExtractorConfig) -> None:

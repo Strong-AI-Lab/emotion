@@ -1,4 +1,36 @@
-"""TensorFlow implementations of various models."""
+"""TensorFlow implementations of various models.
+
+.. autosummary::
+    :toctree:
+
+    get_tf_model
+    get_tf_model_fn
+    TFModelConfig
+
+
+Models
+------
+.. autosummary::
+    :toctree:
+
+    aldeneh2017
+    audeep
+    depinto2020
+    iskhakova2020
+    latif2019
+    mlp
+    rbm
+    zhang2019
+    zhao2019
+
+
+Layers
+------
+.. autosummary::
+    :toctree:
+
+    layers
+"""
 
 import importlib
 from functools import partial
@@ -8,6 +40,8 @@ from keras.models import Model
 from ertk.tensorflow.utils import TFModelFunction
 
 from ._base import TFModelConfig
+
+__all__ = ["get_tf_model", "get_tf_model_fn", "TFModelConfig"]
 
 
 def get_tf_model_fn(name: str, **kwargs) -> TFModelFunction:

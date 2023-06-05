@@ -1,7 +1,29 @@
+"""Transforms to use in estimators.
+
+.. autosummary::
+    :toctree: generated/
+
+    group_transform
+    instance_transform
+    GroupTransformWrapper
+    InstanceTransformWrapper
+    SequenceTransform
+    SequenceTransformWrapper
+"""
+
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 
 from ertk.utils import flat_to_inst, inst_to_flat
+
+__all__ = [
+    "group_transform",
+    "instance_transform",
+    "GroupTransformWrapper",
+    "InstanceTransformWrapper",
+    "SequenceTransform",
+    "SequenceTransformWrapper",
+]
 
 
 def group_transform(

@@ -1,13 +1,13 @@
-"""Implementation of the model from [1].
+"""Implementation of the model from [1]_.
 
-[1] Z. Zhao et al., "Exploring Deep Spectrum Representations via
-Attention-Based Recurrent and Convolutional Neural Networks for Speech
-Emotion Recognition," IEEE Access, vol. 7, pp. 97515–97525, 2019, doi:
-10.1109/ACCESS.2019.2928625.
+.. [1] Z. Zhao et al., "Exploring Deep Spectrum Representations via
+       Attention-Based Recurrent and Convolutional Neural Networks for
+       Speech Emotion Recognition," IEEE Access, vol. 7, pp.
+       97515-97525, 2019, doi: 10.1109/ACCESS.2019.2928625.
 """
 
 import tensorflow as tf
-from tensorflow.keras.layers import (
+from keras.layers import (
     LSTM,
     RNN,
     BatchNormalization,
@@ -22,7 +22,7 @@ from tensorflow.keras.layers import (
     Reshape,
     concatenate,
 )
-from tensorflow.keras.models import Model
+from keras.models import Model
 
 from .layers import Attention1D
 

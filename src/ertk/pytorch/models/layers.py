@@ -1,3 +1,5 @@
+"""PyTorch layers for use in models."""
+
 import math
 from typing import Any, Callable, List, Sequence
 
@@ -7,8 +9,18 @@ from torch import nn
 
 from ertk.pytorch.utils import get_activation
 
+__all__ = ["Attention1D", "make_fc"]
+
 
 class Attention1D(nn.Module):
+    """1D attention layer.
+
+    Parameters
+    ----------
+    in_channels: int
+        The number of input channels.
+    """
+
     def __init__(self, in_channels: int) -> None:
         super().__init__()
 

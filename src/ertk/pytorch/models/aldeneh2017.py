@@ -1,3 +1,13 @@
+"""Implementation of the model architecture from [1]_.
+
+References
+----------
+.. [1] Z. Aldeneh and E. Mower Provost, 'Using regional saliency for
+       speech emotion recognition', in 2017 IEEE International
+       Conference on Acoustics, Speech and Signal Processing (ICASSP),
+       Mar. 2017, pp. 2741-2745, doi: 10.1109/ICASSP.2017.7952655.
+"""
+
 from dataclasses import dataclass, field
 from typing import List
 
@@ -7,6 +17,8 @@ from torch import nn
 
 from ._base import PyTorchModelConfig, SimpleClassificationModel
 
+__all__ = ["Aldeneh2017Config", "Aldeneh2017Model"]
+
 
 @dataclass
 class Aldeneh2017Config(PyTorchModelConfig):
@@ -15,7 +27,9 @@ class Aldeneh2017Config(PyTorchModelConfig):
     dense_dims: List[int] = field(default_factory=lambda: [1024, 1024])
 
 
-class Model(SimpleClassificationModel, fname="aldeneh2017", config=Aldeneh2017Config):
+class Aldeneh2017Model(
+    SimpleClassificationModel, fname="aldeneh2017", config=Aldeneh2017Config
+):
     def __init__(self, config: Aldeneh2017Config):
         super().__init__(config)
 

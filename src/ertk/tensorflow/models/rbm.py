@@ -1,3 +1,16 @@
+"""Implementation of Restricted Boltzmann Machines (RBMs) [1]_ in
+TensorFlow.
+
+References
+----------
+.. [1] G. E. Hinton, “A Practical Guide to Training Restricted Boltzmann
+       Machines,” in Neural Networks: Tricks of the Trade: Second
+       Edition, G. Montavon, G. B. Orr, and K.-R. Müller, Eds., in
+       Lecture Notes in Computer Science. Berlin, Heidelberg: Springer
+       Berlin Heidelberg, 2012, pp. 599-619. doi:
+       10.1007/978-3-642-35289-8_32.
+"""
+
 from enum import Enum
 from math import pi
 from pathlib import Path
@@ -35,11 +48,11 @@ class RBM:
 
     References
     ----------
-    [1] G. E. Hinton and R. R. Salakhutdinov, 'Reducing the
+    .. [1] G. E. Hinton and R. R. Salakhutdinov, 'Reducing the
     Dimensionality of Data with Neural Networks', Science, vol. 313, no.
     5786, pp. 504-507, Jul. 2006, doi: 10.1126/science.1127647.
 
-    [2] G. E. Hinton, 'A Practical Guide to Training Restricted
+    .. [2] G. E. Hinton, 'A Practical Guide to Training Restricted
     Boltzmann Machines', in Neural Networks: Tricks of the Trade: Second
     Edition, G. Montavon, G. B. Orr, and K.-R. Müller, Eds. Berlin,
     Heidelberg: Springer Berlin Heidelberg, 2012, pp. 599-619.
@@ -285,7 +298,7 @@ class RBM:
 
                 tf.summary.scalar("learining_rate", self.learning_rate, step=epoch)
                 tf.summary.scalar("momentum", self.momentum, step=epoch)
-                weights_l2 = tf.reduce_sum(self.W ** 2)
+                weights_l2 = tf.reduce_sum(self.W**2)
                 tf.summary.scalar("weights_l2", weights_l2, step=epoch)
 
                 if self.output_histograms:

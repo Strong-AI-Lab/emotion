@@ -1,3 +1,5 @@
+"""TensorFlow classification utils."""
+
 import logging
 import time
 from collections import defaultdict
@@ -11,17 +13,24 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.model_selection import BaseCrossValidator
 from sklearn.pipeline import Pipeline
 
-from ertk.tensorflow.utils import (
+from ertk.tensorflow.dataset import (
     DataFunction,
-    TFModelFunction,
     get_data_fn,
-    init_gpu_memory_growth,
     tf_dataset_gen,
     tf_dataset_mem,
     tf_dataset_mem_ragged,
 )
+from ertk.tensorflow.utils import TFModelFunction, init_gpu_memory_growth
 from ertk.train import ExperimentResult, get_scores
 from ertk.utils import ScoreFunction, filter_kwargs
+
+__all__ = [
+    "tf_train_val_test",
+    "tf_cross_validate",
+    "tf_classification_metrics",
+    "TFClassifierWrapper",
+    "BalancedSparseCategoricalAccuracy",
+]
 
 logger = logging.getLogger(__name__)
 

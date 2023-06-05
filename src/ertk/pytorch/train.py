@@ -1,3 +1,5 @@
+"""Training configuration for PyTorch models."""
+
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
@@ -5,6 +7,13 @@ import omegaconf
 
 from ertk.config import ERTKConfig
 from ertk.pytorch.models import PyTorchModelConfig
+
+__all__ = [
+    "PyTorchTrainConfig",
+    "PyTorchLoggingConfig",
+    "PyTorchDataConfig",
+    "PyTorchDataAugConfig",
+]
 
 
 @dataclass

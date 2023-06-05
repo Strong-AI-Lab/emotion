@@ -1,3 +1,5 @@
+"""PyTorch classification utilities."""
+
 import logging
 import warnings
 from collections import defaultdict
@@ -19,6 +21,12 @@ from ertk.pytorch.models.mtl import MTLModel
 from ertk.pytorch.train import PyTorchTrainConfig
 from ertk.train import ExperimentResult, get_scores
 from ertk.utils import ScoreFunction
+
+__all__ = [
+    "pt_cross_validate",
+    "pt_train_val_test",
+    "train_mtl_model",
+]
 
 
 def pt_cross_validate(

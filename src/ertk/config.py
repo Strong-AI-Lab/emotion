@@ -1,3 +1,27 @@
+"""
+Configuration utilities
+=======================
+
+This module provides utilities for working with configuration
+dataclasses and YAML files.
+
+
+Base classes
+------------
+.. autosummary::
+    :toctree: generated/
+
+    ERTKConfig
+
+
+Functions
+---------
+.. autosummary::
+    :toctree: generated/
+
+    get_arg_mapping
+"""
+
 from abc import ABC
 from collections import defaultdict
 from dataclasses import dataclass
@@ -8,6 +32,9 @@ import yaml
 from omegaconf import DictConfig, OmegaConf
 
 from ertk.utils import PathOrStr
+
+__all__ = ["ERTKConfig", "get_arg_mapping"]
+
 
 T = TypeVar("T", bound="ERTKConfig")
 
@@ -29,11 +56,30 @@ class ERTKConfig(ABC):
     """Base class for ERTK configuration dataclasses."""
 
     def to_dictconfig(self) -> DictConfig:
+        """Convert config to DictConfig.
+
+        Returns
+        -------
+        omegaconf.DictConfig
+            The structured config which behaves like the corresponding
+            dataclass.
+        """
         return DictConfig(self)
 
     @classmethod
     def from_config(cls: Type[T], config: Any) -> T:
-        """Create config from any omegaconf config."""
+        """Create config object from any compatible config.
+
+        Parameters
+        ----------
+        config: omegaconf.DictConfig or dict
+            The object to create the config from.
+
+        Returns
+        -------
+        ERKConfig
+            The resulting config.
+        """
         schema = OmegaConf.structured(cls)
         return cast(T, OmegaConf.merge(schema, config))
 
@@ -53,23 +99,48 @@ class ERTKConfig(ABC):
 
         Returns
         -------
-        omegaconf.DictConfig
-            The structured config which behaves like the corresponding
-            config dataclass.
+        ERKConfig
+            The resulting config.
         """
         config = OmegaConf.load(Path(path))
         if override is not None:
             config = OmegaConf.merge(config, OmegaConf.from_dotlist(override))
         return cls.from_config(config)
 
-    def to_string(self):
+    def to_string(self) -> str:
+        """Generate YAML string representation of config.
+
+        Returns
+        -------
+        str
+            YAML string representation of config.
+        """
         return OmegaConf.to_yaml(self)
 
-    def to_file(self, path: PathOrStr):
+    def to_file(self, path: PathOrStr) -> None:
+        """Write config to YAML file.
+
+        Parameters
+        ----------
+        path: os.Pathlike or str
+            The path to YAML file to write config to.
+        """
         with open(path, "w") as fid:
             fid.write(OmegaConf.to_yaml(self))
 
     def merge_with_args(self: T, args: Optional[List[str]] = None) -> T:
+        """Merge config with command-line arguments.
+
+        Parameters
+        ----------
+        args: list of str, optional
+            Argument overrides in the form of key=value pairs.
+
+        Returns
+        -------
+        ERKConfig
+            The resulting config.
+        """
         return cast(T, OmegaConf.merge(self, OmegaConf.from_cli(args)))
 
 

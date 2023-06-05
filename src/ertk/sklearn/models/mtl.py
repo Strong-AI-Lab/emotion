@@ -1,3 +1,5 @@
+"""Multi-task learning models."""
+
 import warnings
 
 import liblinear.liblinearutil as liblinearutil
@@ -11,6 +13,8 @@ from sklearn.multioutput import ClassifierChain
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_is_fitted
+
+__all__ = ["BaseMTFL", "MTFLClassifier", "MultiDimensionalCC"]
 
 _EPS = 1e-15
 
@@ -83,7 +87,7 @@ class BaseMTFL(BaseEstimator):
         return a / a.sum()
 
     def Dmin_eps(self, a, eps):
-        return self.Dmin(np.sqrt(a ** 2 + eps))
+        return self.Dmin(np.sqrt(a**2 + eps))
 
     def fit(self, X, y, tasks, sample_weight=None):
         self._fit_feat(X, y, tasks)

@@ -1,3 +1,41 @@
+"""
+Training and evaluation classes and functions
+=============================================
+
+Config classes
+--------------
+.. autosummary::
+    :toctree: generated/
+
+    TrainConfig
+    ExperimentResult
+    ExperimentConfig
+    ModelConfig
+    CrossValidationConfig
+    EvalConfig
+
+
+Splitting classes and functions
+-------------------------------
+.. autosummary::
+    :toctree: generated/
+
+    TrainValidation
+    ShuffleGroupKFold
+    ValidationSplit
+    get_cv_splitter
+
+
+Miscellaneous functions
+-----------------------
+.. autosummary::
+    :toctree: generated/
+
+    get_pipeline_params
+    get_scores
+    scores_to_df
+"""
+
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -25,6 +63,22 @@ from sklearn.utils import check_array
 from ertk.config import ERTKConfig
 from ertk.dataset.dataset import DataLoadConfig, DataSelector
 from ertk.utils import PathOrStr, ScoreFunction, filter_kwargs
+
+__all__ = [
+    "TrainConfig",
+    "ExperimentResult",
+    "ExperimentConfig",
+    "ModelConfig",
+    "CrossValidationConfig",
+    "EvalConfig",
+    "TrainValidation",
+    "ShuffleGroupKFold",
+    "ValidationSplit",
+    "get_cv_splitter",
+    "get_pipeline_params",
+    "get_scores",
+    "scores_to_df",
+]
 
 
 class TrainValidation(BaseCrossValidator):
@@ -88,7 +142,15 @@ class ShuffleGroupKFold(_BaseKFold):
 
 
 class ValidationSplit(BaseCrossValidator):
-    """Validation method that uses a pre-defined validation set."""
+    """Validation method that uses a pre-defined validation set.
+
+    Parameters
+    ----------
+    train_idx: list of int or np.ndarray
+        Indices of the training set.
+    valid_idx: list of int or np.ndarray
+        Indices of the validation set.
+    """
 
     def __init__(
         self,
@@ -277,36 +339,89 @@ def scores_to_df(
 
 @dataclass
 class ExperimentResult:
+    """Class to hold results of an experiment."""
+
     scores_dict: Dict[str, np.ndarray] = field(default_factory=dict)
+    """Dictionary of scores. Each key is a string and all values are
+    either scalar or arrays.
+    """
     scores_df: pd.DataFrame = field(default_factory=pd.DataFrame)
+    """Scores dataframe, with a column per key in `scores_dict` and row
+    per evaluation.
+    """
     predictions: Optional[np.ndarray] = None
+    """Array of predictions. If not given, this is None."""
 
 
 @dataclass
 class ModelConfig(ERTKConfig):
+    """Class to hold model configuration."""
+
     type: str = omegaconf.MISSING
+    """Model type. This is used to determine which model class to
+    instantiate.
+    """
     config: Any = None
+    """Model configuration. This is passed to the model class
+    constructor.
+    """
     args: Dict[str, Any] = field(default_factory=dict)
+    """Model arguments. These are passed to the model class constructor
+    as keyword arguments.
+    """
     args_path: Optional[str] = None
+    """Path to a YAML file containing model arguments. These are passed
+    to the model class constructor as keyword arguments.
+    """
     param_grid: Dict[str, Any] = field(default_factory=dict)
+    """Parameter grid for hyperparameter search. This is passed to
+    scikit-learn's `GridSearchCV` class.
+    """
     param_grid_path: Optional[str] = None
+    """Path to a YAML file containing a parameter grid for
+    hyperparameter search. This is passed to scikit-learn's
+    `GridSearchCV` class.
+    """
 
 
 @dataclass
 class CrossValidationConfig(ERTKConfig):
+    """Class to hold cross-validation configuration."""
+
     part: Optional[str] = None
+    """Partition to use for cross-validation. If not given, then
+    cross-validation is performed over instances instead of groups.
+    """
     kfold: int = omegaconf.MISSING
+    """Number of folds for cross-validation."""
     test_size: float = 0.2
+    """Fraction of data to use for testing. This is only used if `kfold`
+    is 1.
+    """
 
 
 @dataclass
 class EvalConfig(ERTKConfig):
+    """Class to hold evaluation configuration."""
+
     cv: Optional[CrossValidationConfig] = None
+    """Cross-validation configuration. If not given, then no
+    cross-validation is performed.
+    """
     train: Optional[DataSelector] = None
+    """Data selector for training data."""
     valid: Optional[DataSelector] = None
+    """Data selector for validation data."""
     test: Optional[DataSelector] = None
+    """Data selector for testing data."""
     inner_kfold: Optional[int] = None
+    """Number of folds for inner cross-validation, if using
+    hyperparameter search.
+    """
     inner_part: Optional[str] = None
+    """Partition to use for inner cross-validation, if using
+    hyperparameter search.
+    """
 
 
 class TransformClass(Enum):
@@ -316,17 +431,32 @@ class TransformClass(Enum):
 
 @dataclass
 class TrainConfig(ERTKConfig):
+    """Class to hold training configuration."""
+
     balanced: bool = True
+    """Whether to use class-balanced sample weights."""
     reps: int = 1
+    """Number of repetitions."""
     normalise: str = "online"
+    """Normalisation method. Can be one of "online", or "none"."""
     transform: TransformClass = TransformClass.std
+    """Transform method for normalisation. Can be one of "std",
+    "minmax", or "none".
+    """
     seq_transform: str = "global"
+    """Transform method for sequence normalisation."""
     n_jobs: int = 1
+    """Number of jobs to run in parallel."""
     verbose: int = 0
+    """Verbosity level."""
     label: str = "label"
+    """Name of label column."""
     sklearn: Any = None
+    """Scikit-learn configuration."""
     pytorch: Any = None
+    """PyTorch configuration."""
     tensorflow: Any = None
+    """TensorFlow configuration."""
 
 
 T = TypeVar("T", bound="ExperimentConfig")
@@ -334,13 +464,22 @@ T = TypeVar("T", bound="ExperimentConfig")
 
 @dataclass
 class ExperimentConfig(ERTKConfig):
+    """Class to hold experiment configuration."""
+
     name: str = "default"
+    """Experiment name."""
     data: DataLoadConfig = omegaconf.MISSING
+    """Data loading configuration."""
     model: ModelConfig = omegaconf.MISSING
+    """Model configuration."""
     eval: Optional[EvalConfig] = None
+    """Evaluation configuration."""
     evals: Dict[str, EvalConfig] = field(default_factory=dict)
+    """Dictionary of evaluation configurations."""
     training: TrainConfig = field(default_factory=TrainConfig)
+    """Training configuration."""
     results: str = ""
+    """Path to output results."""
 
     @classmethod
     def from_file(

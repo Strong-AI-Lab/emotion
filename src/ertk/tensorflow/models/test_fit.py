@@ -5,7 +5,8 @@ import numpy as np
 
 from ertk.config import get_arg_mapping
 from ertk.tensorflow import get_tf_model
-from ertk.tensorflow.utils import init_gpu_memory_growth, tf_dataset_gen, tf_dataset_mem
+from ertk.tensorflow.dataset import tf_dataset_gen, tf_dataset_mem
+from ertk.tensorflow.utils import init_gpu_memory_growth
 
 
 @click.command()

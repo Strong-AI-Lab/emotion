@@ -1,3 +1,5 @@
+"""General utilities."""
+
 from itertools import chain, combinations, permutations, zip_longest
 from typing import (
     Any,
@@ -11,6 +13,15 @@ from typing import (
     TypeVar,
     overload,
 )
+
+__all__ = [
+    "itmap",
+    "ordered_intersect",
+    "batch_iterable",
+    "filter_kwargs",
+    "subsets",
+    "ordered_subsets",
+]
 
 T = TypeVar("T")
 T1 = TypeVar("T1")
@@ -125,7 +136,7 @@ def batch_iterable(
         `batch_size` doesn't divide the iterable length.)
 
     Yields
-    -------
+    ------
     tuple
         A tuple of length `batch_size` with successive elements from the
         original iterable. If `return_last == False` then the last batch

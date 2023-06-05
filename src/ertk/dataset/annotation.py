@@ -1,9 +1,13 @@
+"""Functions for reading and writing annotations."""
+
 from typing import Dict, Mapping, Optional, Type, Union
 
 import pandas as pd
 from typing_extensions import Literal
 
 from ertk.utils import PathOrStr
+
+__all__ = ["read_annotations", "write_annotations"]
 
 
 def read_annotations(
