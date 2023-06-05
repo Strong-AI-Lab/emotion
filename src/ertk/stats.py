@@ -1,3 +1,5 @@
+"""Statistical functions."""
+
 from functools import partial
 from typing import Callable, List, Union
 
@@ -7,7 +9,60 @@ from scipy.stats import friedmanchisquare, rankdata
 from sklearn.metrics.pairwise import pairwise_distances
 from statsmodels.stats.libqsturng import qsturng
 
+__all__ = [
+    "holm_bonferroni",
+    "friedman_nemenyi",
+    "bhattacharyya_dist",
+    "corr_ratio",
+    "dunn",
+    "alpha",
+    "kappa",
+]
+
+
 Matrix = List[List[float]]
+
+
+def holm_bonferroni(
+    keys: Union[List[str], np.ndarray],
+    pvals: Union[List[float], np.ndarray],
+    alpha: float = 0.05,
+):
+    """Runs Holm-Bonferroni correction on given p-values.
+
+    Parameters
+    ----------
+    keys: List[str]
+        The keys corresponding to the p-values.
+    pvals: List[float]
+        The p-values to correct.
+    alpha: float
+        Significance level, must be in the range (0, 1), default is
+        0.05.
+
+    Returns
+    -------
+    rejected: List[str]
+        The keys of the hypotheses that were rejected.
+    failed: List[str]
+        The keys of the hypotheses that were not rejected.
+    """
+    keys = np.array(keys)
+    pvals = np.array(pvals)
+    sort = np.argsort(pvals)
+    pvals = pvals[sort]
+    keys = keys[sort]
+
+    n = len(keys)
+    for i in range(n):
+        if pvals[i] >= alpha / (n - i):
+            break
+    else:
+        i = n
+
+    rejected = keys[:i]
+    failed = keys[i:]
+    return rejected, failed
 
 
 def friedman_nemenyi(table: pd.DataFrame, alpha: float = 0.05):
@@ -35,25 +90,21 @@ def friedman_nemenyi(table: pd.DataFrame, alpha: float = 0.05):
         "mean_rank", "mean", "std", "median", "mad", "effect_size".
     """
     _, pval = friedmanchisquare(*table.transpose().to_numpy())
-    names = list(table.columns)
     avgrank = rankdata(-table.to_numpy(), axis=1).mean(0)
     df = pd.DataFrame(
         {
             "mean_rank": avgrank,
             "mean": table.mean(),
             "std": table.std(),
+            "mad": (table - table.mean()).abs().mean(),
             "median": table.median(),
-            "mad": table.mad(),
         },
-        index=names,
+        index=table.columns,
     ).sort_values("mean_rank")
 
     topclf = df.index[0]
     n, k = table.shape
-    # Effect size is calculated in terms of differences in MAD
-    df["effect_size"] = (df.loc[topclf, "median"] - df["median"]) / np.sqrt(
-        ((n - 1) * df.loc[topclf, "mad"] ** 2 + (n - 1) * df["mad"] ** 2) / (2 * n - 2)
-    )
+    df["effect_size"] = (df.loc[topclf, "mean"] - df["mean"]) / df["std"]
     cd = qsturng(1 - alpha, k, np.inf) * np.sqrt((k * (k + 1)) / (12 * n))
     return pval, cd, df
 
@@ -217,9 +268,9 @@ def kappa(data: np.ndarray):
 
     p_j = np.sum(counts, axis=0) / (N * n)
     assert np.isclose(np.sum(p_j), 1)
-    Pe = np.sum(p_j ** 2)
+    Pe = np.sum(p_j**2)
 
-    P = (np.sum(counts ** 2, 1) - n) / (n * (n - 1))
+    P = (np.sum(counts**2, 1) - n) / (n * (n - 1))
     Pbar = np.mean(P)
 
     return (Pbar - Pe) / (1 - Pe)
@@ -271,7 +322,7 @@ def alpha(
             sum(count_sum[g] for g in range(c, k + 1))
             - (count_sum[c] + count_sum[k]) / 2
         )
-        return s ** 2
+        return s**2
 
     if isinstance(delta, str):
         delta = {
