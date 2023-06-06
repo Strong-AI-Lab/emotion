@@ -8,7 +8,7 @@ import numpy as np
 from omegaconf import MISSING
 
 from ertk.config import ERTKConfig
-from ertk.utils.array import is_mono_audio
+from ertk.utils import is_mono_audio
 
 from ._base import AudioClipProcessor, FeatureExtractor
 

@@ -7,7 +7,8 @@ import numpy as np
 import resampy
 
 from ertk.config import ERTKConfig
-from ertk.preprocessing._base import AudioClipProcessor
+
+from ._base import AudioClipProcessor
 
 __all__ = ["ResampleConfig", "Resampler"]
 
