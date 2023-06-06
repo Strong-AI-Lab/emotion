@@ -49,7 +49,10 @@ class OpenXBOWExtractor(
         xs = list(batch)
         names = [str(i) for i in range(len(xs))]
         self.logger.info(f"Writing temp CSV to {tmpin}")
-        write_features(tmpin, xs, names=names, header=False)
+        feature_names = [f"feat_{i}" for i in range(xs[0].shape[1])]
+        write_features(
+            tmpin, xs, names=names, feature_names=feature_names, header=False
+        )
 
         add_args = []
         for arg in self.config.xbowargs:
