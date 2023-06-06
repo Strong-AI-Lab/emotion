@@ -1,3 +1,13 @@
+"""Implementation of auDeep model from [1]_.
+
+References
+----------
+.. [1] M. Freitag, S. Amiriparian, S. Pugachevskiy, N. Cummins, and B.
+       Schuller, “auDeep: Unsupervised learning of representations from
+       audio with deep recurrent neural networks,” The Journal of
+       Machine Learning Research, vol. 18, no. 1, pp. 6340-6344, 2017.
+"""
+
 import time
 from pathlib import Path
 from typing import Any, Dict, Tuple, Union
@@ -15,10 +25,28 @@ from tqdm import tqdm
 from ertk.dataset import read_features, write_features
 from ertk.utils import PathOrStr
 
-DEVICE = torch.device("cuda")
+__all__ = ["TimeRecurrentAutoencoder"]
 
 
 class TimeRecurrentAutoencoder(nn.Module):
+    """Time recurrent autoencoder model.
+
+    Parameters
+    ----------
+    n_features : int
+        Number of features in the input data.
+    n_units : int, optional
+        Number of units in each layer of the encoder and decoder.
+    n_layers : int, optional
+        Number of layers in the encoder and decoder.
+    dropout : float, optional
+        Dropout probability.
+    bidirectional_encoder : bool, optional
+        Whether to use a bidirectional encoder.
+    bidirectional_decoder : bool, optional
+        Whether to use a bidirectional decoder.
+    """
+
     def __init__(
         self,
         n_features: int,
@@ -100,23 +128,9 @@ class TimeRecurrentAutoencoder(nn.Module):
         return reconstruction, representation
 
 
-def rmse_loss(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-    """Root-mean-square error loss function."""
-    return torch.sqrt(torch.mean((x - y) ** 2))
-
-
-def get_latest_save(directory: Union[str, Path]) -> Path:
+def _get_latest_save(directory: Union[str, Path]) -> Path:
     """Gets the path to the latest model checkpoint, assuming it was saved with
     the format 'model-XXXX.pt'
-
-    Parameters
-    ----------
-    directory: Path or str
-        The path to a directory containing the model save files.
-
-    Returns:
-        The path to the latest model save file (i.e. the one with the highest
-        epoch number).
     """
     directory = Path(directory)
     saves = list(directory.glob("model-*.pt"))
@@ -125,7 +139,7 @@ def get_latest_save(directory: Union[str, Path]) -> Path:
     return max(saves, key=lambda p: int(p.stem.split("-")[1]))
 
 
-def save_model(
+def _save_model(
     directory: Union[Path, str],
     epoch: int,
     model: TimeRecurrentAutoencoder,
@@ -148,7 +162,13 @@ def save_model(
     print(f"Saved model to {save_path}.")
 
 
-def get_data(path: PathOrStr, shuffle: bool = False):
+def _scale(x, low: float = -1, high: float = 1):
+    xmin = np.min(x, axis=(1, 2), keepdims=True)
+    xmax = np.max(x, axis=(1, 2), keepdims=True)
+    return (high - low) * (x - xmin) / (xmax - xmin) + low
+
+
+def _get_data(path: PathOrStr, shuffle: bool = False):
     """Get data and metadata from netCDF dataset. Optionally shuffle x."""
     dataset = read_features(path)
     x = dataset.features
@@ -159,14 +179,8 @@ def get_data(path: PathOrStr, shuffle: bool = False):
         x = x[perm]
         names = names[perm]
 
-    x = scale(x, -1, 1)
+    x = _scale(x, -1, 1)
     return x, names, dataset.corpus
-
-
-def scale(x, low: float = -1, high: float = 1):
-    xmin = np.min(x, axis=(1, 2), keepdims=True)
-    xmax = np.max(x, axis=(1, 2), keepdims=True)
-    return (high - low) * (x - xmin) / (xmax - xmin) + low
 
 
 @click.command()
@@ -183,6 +197,7 @@ def scale(x, low: float = -1, high: float = 1):
 @click.option("--valid_fraction", type=float, default=0.1)
 @click.option("--continue", "cont", is_flag=True)
 @click.option("--save_every", type=int, default=20)
+@click.option("--device", type=str, default="cuda")
 def train(
     input: Path,
     logs: Path,
@@ -197,9 +212,10 @@ def train(
     valid_fraction: float,
     cont: bool,
     save_every: int,
+    device: str,
 ):
     print("Reading input from {}".format(input))
-    x = get_data(input, shuffle=True)[0]
+    x = _get_data(input, shuffle=True)[0]
     x = torch.tensor(x)
 
     n_valid = int(valid_fraction * x.size(0))
@@ -211,7 +227,7 @@ def train(
     valid_dl = DataLoader(valid_data, batch_size=batch_size, pin_memory=True)
 
     if cont:
-        save_path = get_latest_save(logs)
+        save_path = _get_latest_save(logs)
         load_dict = torch.load(save_path)
         model_args = load_dict["model_args"]
         optimiser_args = load_dict["optimiser_args"]
@@ -230,7 +246,7 @@ def train(
     final_epoch = initial_epoch + epochs - 1
 
     model = TimeRecurrentAutoencoder(**model_args)
-    model = model.cuda(DEVICE)
+    model = model.to(device=device)
     optimiser = Adam(model.parameters(), **optimiser_args)
 
     if cont:
@@ -242,10 +258,9 @@ def train(
     train_writer = SummaryWriter(logs / "train")
     valid_writer = SummaryWriter(logs / "valid")
     with torch.no_grad():
-        batch = next(iter(train_dl))[0].to(DEVICE)
+        batch = next(iter(train_dl))[0].to(device=device)
         train_writer.add_graph(model, input_to_model=batch)
 
-    loss_fn = rmse_loss
     for epoch in range(initial_epoch, final_epoch + 1):
         start_time = time.perf_counter()
         model.train()
@@ -253,11 +268,11 @@ def train(
         for (x,) in tqdm(
             train_dl, desc=f"Epoch {epoch:03d}", unit="batch", leave=False
         ):
-            x = x.to(DEVICE)
+            x = x.to(device=device)
             optimiser.zero_grad()
             reconstruction, representation = model(x)
 
-            loss = loss_fn(x, reconstruction)
+            loss = F.mse_loss(x, reconstruction, reduction="mean")
             train_losses.append(loss.item())
 
             loss.backward()
@@ -273,9 +288,9 @@ def train(
             it = iter(valid_dl)
 
             # Get loss and write summaries for first batch
-            x = next(it)[0].to(DEVICE)
+            x = next(it)[0].to(device=device)
             reconstruction, representation = model(x)
-            loss = loss_fn(x, reconstruction)
+            loss = F.mse_loss(x, reconstruction, reduction="mean")
             valid_losses.append(loss.item())
 
             if epoch % 10 == 0:
@@ -291,9 +306,9 @@ def train(
 
             # Just get the loss for the rest, no summaries
             for (x,) in it:
-                x = x.to(DEVICE)
+                x = x.to(device=device)
                 reconstruction, representation = model(x)
-                loss = loss_fn(x, reconstruction)
+                loss = F.mse_loss(x, reconstruction, reduction="mean")
                 valid_losses.append(loss.item())
             valid_loss = np.mean(valid_losses)
 
@@ -309,7 +324,7 @@ def train(
             )
 
         if epoch % save_every == 0:
-            save_model(
+            _save_model(
                 logs,
                 epoch=epoch,
                 model=model,
@@ -318,7 +333,7 @@ def train(
                 optimiser_args=optimiser_args,
             )
 
-    save_model(
+    _save_model(
         logs,
         epoch=final_epoch,
         model=model,
@@ -338,9 +353,12 @@ def train(
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
 )
 @click.option("--batch_size", type=int, default=128)
-def generate(input: Path, output: Path, model_path: Path, batch_size: int):
+@click.option("--device", type=str, default="cuda")
+def generate(
+    input: Path, output: Path, model_path: Path, batch_size: int, device: str = "cuda"
+):
     if model_path.is_dir():
-        save_path = get_latest_save(model_path)
+        save_path = _get_latest_save(model_path)
     else:
         save_path = model_path
     print(f"Restoring model from {save_path}")
@@ -349,13 +367,13 @@ def generate(input: Path, output: Path, model_path: Path, batch_size: int):
     model.cuda()
     model.load_state_dict(load_dict["model_state_dict"])
 
-    x, names, corpus = get_data(input)
+    x, names, corpus = _get_data(input)
 
     representations = np.empty((len(x), model.embedding_size))
     with torch.no_grad():
         model.eval()
         for i in range(0, len(x), batch_size):
-            batch = torch.tensor(x[i : i + batch_size], device=DEVICE)
+            batch = torch.tensor(x[i : i + batch_size], device=device)
             _, representation = model(batch)
             representations[i : i + batch_size, :] = representation.cpu()
 
@@ -382,7 +400,9 @@ def main():
     _tensorflow.io.gfile = _gfile
 
 
+main.add_command(generate)
+main.add_command(train)
+
+
 if __name__ == "__main__":
-    main.add_command(generate)
-    main.add_command(train)
     main()
