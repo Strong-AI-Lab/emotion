@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import List
 
 import numpy as np
-import resampy
 
 from ertk.config import ERTKConfig
 
@@ -28,8 +27,15 @@ class Resampler(AudioClipProcessor, fname="resample", config=ResampleConfig):
 
     config: ResampleConfig
 
+    def __init__(self, config: ERTKConfig) -> None:
+        super().__init__(config)
+
+        import resampy
+
+        self.resample = resampy.resample
+
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
-        return resampy.resample(
+        return self.resample(
             x,
             kwargs.pop("sr"),
             self.config.sample_rate,
