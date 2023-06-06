@@ -1,0 +1,4 @@
+recursive-exclude papers *
+recursive-exclude docs *
+recursive-exclude third_party *
+exclude .*
