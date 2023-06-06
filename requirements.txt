@@ -1,7 +1,9 @@
 click>=8.0.0
 click-option-group
+importlib_metadata
 joblib
 liac-arff
+liblinear-official
 librosa
 matplotlib>=3.0.0
 netCDF4
@@ -16,4 +18,5 @@ soundfile
 statsmodels
 tensorflow>=2.3
 torch
+torchaudio
 tqdm
