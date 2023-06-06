@@ -48,4 +48,9 @@ ERTK can use the following third-party libraries if they are installed:
 
 To install ERTK with these dependencies, use the ``[all]`` extra::
 
-    pip install ertk[all]
+    pip install ertk[all-preprocessors]
+
+Note that fairseq is not updated on PyPI and so must be installed from
+GitHub directly::
+
+    pip install git+https://github.com/facebookresearch/fairseq.git@ae59bd6d04871f6174351ad46c90992e1dca7ac7

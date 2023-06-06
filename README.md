@@ -2,6 +2,8 @@
 ![Version](https://img.shields.io/pypi/v/ertk)
 ![Python version](https://img.shields.io/pypi/pyversions/ertk)
 ![Python wheel](https://img.shields.io/pypi/wheel/ertk)
+![Read the Docs](https://img.shields.io/readthedocs/ertk)
+![GitHub stars](https://img.shields.io/github/stars/Strong-AI-Lab/emotion?style=social)
 
 # ERTK: Emotion Recognition ToolKit
 This is a Python library with utilities for processing emotional
@@ -36,6 +38,22 @@ Or, if you want to develop continuously:
 ```
 pip install -e .
 ```
+
+### Optional dependencies
+Optional dependencies can be install via:
+```
+pip install -r requirements-dev.txt
+```
+Or via PyPI:
+```
+pip install ertk[all-preprocessors]
+```
+Note that if installing from PyPI, fairseq is not updated on PyPI and so
+must be installed from GitHub directly:
+```
+pip install git+https://github.com/facebookresearch/fairseq.git@ae59bd6d04871f6174351ad46c90992e1dca7ac7
+```
+
 
 ## Using CLI tools
 Upon installation, you should be able to use common tools using the CLI
