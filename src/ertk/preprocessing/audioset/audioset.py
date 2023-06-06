@@ -16,8 +16,8 @@ from ertk.utils import frame_array, is_mono_audio
 from .._base import AudioClipProcessor, FeatureExtractor
 
 __all__ = [
-    "YamnetExtractor",
-    "YamnetExtractorConfig",
+    "YAMNetExtractor",
+    "YAMNetExtractorConfig",
     "VGGishExtractor",
     "VGGishExtractorConfig",
 ]
@@ -40,21 +40,21 @@ def _spectrogram(x: np.ndarray, sr: float) -> np.ndarray:
 
 
 @dataclass
-class YamnetExtractorConfig(ERTKConfig):
+class YAMNetExtractorConfig(ERTKConfig):
     """Configuration for a Yamnet extractor."""
 
     model_dir: str = MISSING
     """The directory containing the YAMNet model files."""
 
 
-class YamnetExtractor(
-    FeatureExtractor, AudioClipProcessor, fname="yamnet", config=YamnetExtractorConfig
+class YAMNetExtractor(
+    FeatureExtractor, AudioClipProcessor, fname="yamnet", config=YAMNetExtractorConfig
 ):
     """A YAMNet extractor."""
 
-    config: YamnetExtractorConfig
+    config: YAMNetExtractorConfig
 
-    def __init__(self, config: YamnetExtractorConfig) -> None:
+    def __init__(self, config: YAMNetExtractorConfig) -> None:
         super().__init__(config)
 
         import tensorflow as tf

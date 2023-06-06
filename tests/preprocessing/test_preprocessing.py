@@ -60,8 +60,8 @@ class TestAudioset:
 
     @pytest.mark.filterwarnings("ignore::UserWarning")
     def test_yamnet(self, audio):
-        config = audioset.YamnetExtractorConfig(model_dir=f"{AUDIOSET_DIR}/yamnet")
-        ext = audioset.YamnetExtractor(config)
+        config = audioset.YAMNetExtractorConfig(model_dir=f"{AUDIOSET_DIR}/yamnet")
+        ext = audioset.YAMNetExtractor(config)
         feats = list(ext.process_all(audio, batch_size=32, sr=16000))
         assert len(feats) == len(files)
         assert ext.dim == 1024

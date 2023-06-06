@@ -16,6 +16,6 @@ This module contains feature extractors for the Audioset dataset.
 from .audioset import (
     VGGishExtractor,
     VGGishExtractorConfig,
-    YamnetExtractor,
-    YamnetExtractorConfig,
+    YAMNetExtractor,
+    YAMNetExtractorConfig,
 )
