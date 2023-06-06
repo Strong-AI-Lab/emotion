@@ -3,3 +3,7 @@
 # C = 2^(-6) to 2^6 in multiples of 4
 C: [0.015625, 0.0625, 0.25, 1.0, 4.0, 16.0, 64.0]
 coef0: [-1, 0, 1]
+
+kernel: ["poly"]
+degree: [3]
+gamma: ["auto"]
