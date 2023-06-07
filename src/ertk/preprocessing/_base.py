@@ -216,6 +216,9 @@ class InstanceProcessor(ABC):
         models, etc.)
         """
 
+    def __del__(self) -> None:
+        self.finish()
+
     @property
     @abstractmethod
     def feature_names(self) -> List[str]:

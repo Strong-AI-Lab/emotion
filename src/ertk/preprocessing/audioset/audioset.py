@@ -140,47 +140,38 @@ class VGGishExtractor(
     def __init__(self, config: VGGishExtractorConfig) -> None:
         super().__init__(config)
 
-        import tensorflow.compat.v1 as tf
+        import tensorflow as tf
+
+        from ertk.tensorflow.utils import init_gpu_memory_growth
 
         self._old_env_log_level = os.environ.get("TF_CPP_MIN_LOG_LEVEL")
         os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"  # Ignore INFO messages
         self._old_log_level = tf.get_logger().level
         tf.get_logger().setLevel(logging.WARNING)
-        tf.disable_eager_execution()
-        for gpu in tf.config.list_physical_devices("GPU"):
-            tf.config.experimental.set_memory_growth(gpu, True)
+        init_gpu_memory_growth()
 
+        from ._vggish import VGGish
         from ._vggish.vggish_postprocess import Postprocessor
-        from ._vggish.vggish_slim import define_vggish_slim, load_vggish_slim_checkpoint
 
         pca_params = str(Path(config.model_dir, "vggish_pca_params.npz"))
         self.processor = Postprocessor(pca_params)
 
-        self.sess = tf.Session()
-
-        define_vggish_slim()
         ckpt = str(Path(config.model_dir, "vggish_model.ckpt"))
-        load_vggish_slim_checkpoint(self.sess, ckpt)
-
-        self.features_tensor = self.sess.graph.get_tensor_by_name(
-            "vggish/input_features:0"
-        )
-        self.embedding_tensor = self.sess.graph.get_tensor_by_name("vggish/embedding:0")
+        self.model = VGGish(ckpt)
 
     def finish(self) -> None:
-        self.sess.close()
         if self._old_env_log_level is not None:
             os.environ["TF_CPP_MIN_LOG_LEVEL"] = self._old_env_log_level
-        import tensorflow.compat.v1 as tf
+        import tensorflow as tf
 
         tf.get_logger().setLevel(self._old_log_level)
 
     def _process_frames(self, frames: np.ndarray) -> np.ndarray:
-        [embeddings] = self.sess.run(
-            [self.embedding_tensor], feed_dict={self.features_tensor: frames}
-        )
+        embeddings = self.model(frames)
         if self.config.postprocess:
-            embeddings = self.processor.postprocess(embeddings).astype(np.float32)
+            embeddings = self.processor.postprocess(embeddings.numpy()).astype(
+                np.float32
+            )
         return embeddings
 
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:
