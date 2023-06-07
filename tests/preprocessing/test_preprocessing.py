@@ -45,6 +45,16 @@ AUDIOSET_DIR = os.environ["AUDIOSET_DIR"]
 FAIRSEQ_DIR = os.environ["FAIRSEQ_DIR"]
 
 
+def _tfslim_installed() -> bool:
+    try:
+        import tf_slim  # noqa F401
+
+        return True
+    except ImportError:
+        return False
+
+
+@pytest.mark.skipif(not _tfslim_installed(), reason="TF-Slim not installed.")
 class TestAudioset:
     @pytest.mark.filterwarnings("ignore::UserWarning")
     def test_vggish(self, audio):
@@ -69,6 +79,16 @@ class TestAudioset:
         assert all(x.shape == (ext.dim,) for x in feats)
 
 
+def _encodec_installed() -> bool:
+    try:
+        import encodec  # noqa F401
+
+        return True
+    except ImportError:
+        return False
+
+
+@pytest.mark.skipif(not _encodec_installed(), reason="Encodec not installed.")
 class TestEncodec:
     @pytest.mark.parametrize(
         ["model", "dim"],
@@ -107,6 +127,15 @@ class TestEncodec:
         assert all(x.shape[1] == ext.dim for x in feats)
 
 
+def _fairseq_installed() -> bool:
+    try:
+        import fairseq  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+@pytest.mark.skipif(not _fairseq_installed(), reason="fairseq not installed.")
 class TestFairseq:
     @pytest.mark.parametrize("layer", ["context", "encoder"])
     @pytest.mark.parametrize(
@@ -153,6 +182,7 @@ class TestFairseq:
         assert not ext.is_sequence
         assert all(x.shape == (ext.dim,) for x in feats)
 
+    @pytest.mark.filterwarnings("ignore:.*MiniBatchKMeans.*:UserWarning")
     def test_fairseq_hubert_vq(self, audio):
         config = fairseq.FairseqExtractorConfig(
             model_type="hubert",
@@ -171,6 +201,15 @@ class TestFairseq:
         assert all(x.shape[1] == ext.dim for x in feats)
 
 
+def _transformers_installed() -> bool:
+    try:
+        import transformers  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+@pytest.mark.skipif(not _transformers_installed(), reason="Requires transformers.")
 class TestHuggingFace:
     def test_hf_w2v2(self, audio):
         config = huggingface.HuggingFaceExtractorConfig(
@@ -195,9 +234,18 @@ class TestKerasApps:
         assert all(x.shape == (ext.dim,) for x in feats)
 
 
+def _opensmile_installed() -> bool:
+    try:
+        import opensmile  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+@pytest.mark.skipif(not _opensmile_installed(), reason="OpenSMILE not installed.")
 class TestOpenSMILE:
     def test_eGeMAPS(self, audio):
-        config = opensmile.OpenSMILEExtractorConfig(opensmile_config="eGeMAPS")
+        config = opensmile.OpenSMILEExtractorConfig(opensmile_config="eGeMAPSv02")
         ext = opensmile.OpenSMILEExtractor(config)
         feats = list(ext.process_all(audio, batch_size=1, sr=16000))
         assert len(feats) == len(files)
@@ -231,6 +279,16 @@ class TestOpenXBOW:
         assert all(x.shape == (ext.dim,) for x in feats)
 
 
+def _festival_installed() -> bool:
+    try:
+        from phonemizer.backend.festival.festival import FestivalBackend
+
+        return FestivalBackend.is_available()
+    except ImportError:
+        return False
+
+
+@pytest.mark.skipif(not _festival_installed(), reason="Festival not installed.")
 class TestPhonemize:
     def test_phonemize(self, transcript):
         config = phonemize.PhonemizeConfig(language="en-us", backend="festival")
@@ -251,6 +309,16 @@ class TestPhonemize:
         assert all(x.shape == (ext.dim,) for x in feats)
 
 
+def _resampy_installed() -> bool:
+    try:
+        import resampy  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
+@pytest.mark.skipif(not _resampy_installed(), reason="Resampy not installed.")
 class TestResample:
     def test_resample(self, audio):
         config = resample.ResampleConfig(sample_rate=8000)
@@ -272,6 +340,16 @@ class TestSpectrogram:
         assert all(x.shape[1] == ext.dim for x in feats)
 
 
+def _speechbrain_installed() -> bool:
+    try:
+        import speechbrain  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
+@pytest.mark.skipif(not _speechbrain_installed(), reason="SpeechBrain not installed.")
 class TestSpeechBrain:
     def test_speechbrain(self, audio):
         config = speechbrain.SpeechBrainExtractorConfig(
