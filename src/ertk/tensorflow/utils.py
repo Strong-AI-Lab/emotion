@@ -10,7 +10,7 @@ from keras.losses import Loss
 from keras.metrics import Metric
 from keras.models import Model
 from keras.optimizers import Optimizer
-from keras.optimizers import get as get_optimiser
+from keras.optimizers.adam import Adam
 from sklearn.pipeline import Pipeline
 
 __all__ = [
@@ -26,7 +26,7 @@ TFModelFunction = Callable[..., Union[Model, Pipeline]]
 
 def compile_wrap(
     model_fn: Optional[TFModelFunction] = None,
-    opt_cls: Type[Optimizer] = get_optimiser("adam"),
+    opt_cls: Type[Optimizer] = Adam,
     opt_kwargs: Dict[str, Any] = dict(learning_rate=0.0001),
     metrics: List[Union[str, Metric]] = ["sparse_categorical_accuracy"],
     loss: Union[str, Loss] = "sparse_categorical_crossentropy",
