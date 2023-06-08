@@ -49,7 +49,9 @@ def get_audio_paths(path: PathOrStr, absolute: bool = True) -> List[Path]:
     return paths
 
 
-def resample_rename_clips(mapping: Mapping[Path, Path], sr: int = 16000):
+def resample_rename_clips(
+    mapping: Mapping[Path, Path], sr: int = 16000, *, n_jobs: int = -1
+):
     """Resample given audio clips to 16 kHz 16-bit WAV.
 
     Parameters
@@ -63,10 +65,23 @@ def resample_rename_clips(mapping: Mapping[Path, Path], sr: int = 16000):
     for dir in dst_dirs:
         dir.mkdir(exist_ok=True, parents=True)
 
-    opts = ["-nostdin", "-ar", f"{sr:d}", "-sample_fmt", "s16", "-ac", "1", "-y"]
+    opts = [
+        "-nostdin",
+        "-ar",
+        "-threads",
+        "1" if n_jobs == -1 else "0",
+        f"{sr:d}",
+        "-sample_fmt",
+        "s16",
+        "-ac",
+        "1",
+        "-y",
+    ]
     logging.info(f"Resampling {len(mapping)} audio files")
     logging.info(f"Using FFmpeg options: {' '.join(opts)}")
-    TqdmParallel(desc="Resampling audio", total=len(mapping), unit="file", n_jobs=-1)(
+    TqdmParallel(
+        desc="Resampling audio", total=len(mapping), unit="file", n_jobs=n_jobs
+    )(
         delayed(subprocess.run)(
             ["ffmpeg", "-i", str(src), *opts, str(dst)],
             stdout=subprocess.DEVNULL,
@@ -76,7 +91,9 @@ def resample_rename_clips(mapping: Mapping[Path, Path], sr: int = 16000):
     )
 
 
-def resample_audio(paths: Iterable[PathOrStr], dir: PathOrStr, sr: int = 16000):
+def resample_audio(
+    paths: Iterable[PathOrStr], dir: PathOrStr, sr: int = 16000, *, n_jobs: int = -1
+):
     """Resample given audio clips to 16 kHz 16-bit WAV, and place in
     direcotory given by `dir`.
 
@@ -93,7 +110,9 @@ def resample_audio(paths: Iterable[PathOrStr], dir: PathOrStr, sr: int = 16000):
     if len(paths) == 0:
         raise FileNotFoundError("No audio files found.")
 
-    resample_rename_clips({x: Path(dir, f"{x.stem}.wav") for x in paths}, sr=sr)
+    resample_rename_clips(
+        {x: Path(dir, f"{x.stem}.wav") for x in paths}, sr=sr, n_jobs=n_jobs
+    )
 
 
 def write_filelist(paths: Iterable[PathOrStr], path: PathOrStr):
