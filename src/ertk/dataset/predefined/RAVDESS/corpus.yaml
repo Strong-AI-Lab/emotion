@@ -23,4 +23,4 @@ subsets:
     clips: files_song
     description: Files with singing audio
 default_subset: speech
-features_dir: ../../features/RAVDESS
+features_dir: features

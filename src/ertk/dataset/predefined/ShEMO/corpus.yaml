@@ -15,4 +15,4 @@ subsets:
     clips: files_5class
     description: Files with one of 5 main classes
 default_subset: 5class
-features_dir: ../../features/ShEMO
+features_dir: features

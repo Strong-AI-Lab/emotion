@@ -29,4 +29,4 @@ subsets:
     clips: files_Test2
     description: Files from test2 set
 default_subset: train
-features_dir: ../../features/MSP-PODCAST
+features_dir: features

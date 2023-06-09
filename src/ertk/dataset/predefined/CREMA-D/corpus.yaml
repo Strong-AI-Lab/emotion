@@ -25,4 +25,4 @@ subsets:
     clips: files_all
     description: All files
 default_subset: all
-features_dir: ../../features/CREMA-D
+features_dir: features

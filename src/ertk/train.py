@@ -177,7 +177,7 @@ def get_cv_splitter(
     k: int,
     test_size: float = 0.2,
     shuffle: bool = False,
-    random_state: int = None,
+    random_state: Optional[int] = None,
 ) -> BaseCrossValidator:
     """Gets an appropriate cross-validation splitter for the given
     number of folds and groups, or a single random split.

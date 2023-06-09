@@ -23,4 +23,4 @@ subsets:
     clips: files_4class
     description: Files with primary emotions
 default_subset: 4class
-features_dir: ../../features/IEMOCAP
+features_dir: features

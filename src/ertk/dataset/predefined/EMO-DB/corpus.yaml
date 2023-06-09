@@ -15,4 +15,4 @@ subsets:
     clips: files_all
     description: All files
 default_subset: all
-features_dir: ../../features/EMO-DB
+features_dir: features

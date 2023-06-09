@@ -15,5 +15,5 @@ subsets:
   11class:
     clips: files_11class
     description: Files from 11 class (10 emotions + neutral) subset
-features_dir: ../../features/VENEC_full
+features_dir: features
 default_subset: all

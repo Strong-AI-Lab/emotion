@@ -18,4 +18,4 @@ subsets:
     clips: files_18class_complete
     description: Files with speakers containing all emotions
 default_subset: 18class
-features_dir: ../../features/VENEC
+features_dir: features

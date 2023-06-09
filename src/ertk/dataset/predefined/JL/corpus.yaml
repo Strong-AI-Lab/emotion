@@ -20,4 +20,4 @@ subsets:
     clips: files_secondary
     description: Files with secondary emotions
 default_subset: primary
-features_dir: ../../features/JL
+features_dir: features

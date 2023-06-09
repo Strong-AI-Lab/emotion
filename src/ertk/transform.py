@@ -128,7 +128,7 @@ class InstanceTransformWrapper(TransformerMixin, BaseEstimator):
         return self
 
     def transform(self, X, **fit_params):
-        raise instance_transform(X, self.transformer, inplace=False, **fit_params)
+        return instance_transform(X, self.transformer, inplace=False, **fit_params)
 
 
 class SequenceTransform(TransformerMixin, BaseEstimator):
@@ -180,7 +180,7 @@ class SequenceTransformWrapper(SequenceTransform):
             ).reshape(flat_shape)
         return flat_to_inst(flat_x, slices)
 
-    def __repr__(self, N_CHAR_MAX=700):
+    def __repr__(self):
         return (
             f"{self.__class__.__name__}(transformer={self.transformer}, "
             f"method={self.method})"

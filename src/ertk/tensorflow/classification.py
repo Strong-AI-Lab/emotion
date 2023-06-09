@@ -3,6 +3,7 @@
 import logging
 import time
 from collections import defaultdict
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -43,7 +44,7 @@ def tf_train_val_test(
     scoring: Union[
         str, List[str], Dict[str, ScoreFunction], Callable[..., float]
     ] = "accuracy",
-    data_fn: Union[DataFunction, str] = None,
+    data_fn: Union[DataFunction, str, None] = None,
     batch_size: int = 32,
     verbose: int = 0,
     fit_params: Dict[str, Any] = {},
@@ -131,6 +132,7 @@ def tf_train_val_test(
     valid_dataset = data_fn(*valid_data, batch_size=batch_size, shuffle=False)
     test_dataset = data_fn(*test_data, batch_size=batch_size, shuffle=False)
 
+    clf.build(train_dataset.element_spec[0].shape)
     clf.summary(print_fn=logging.info)
 
     fit_params = filter_kwargs(fit_params, clf.fit)
@@ -200,7 +202,7 @@ def tf_cross_validate(
     """
     init_gpu_memory_growth()
 
-    log_dir = fit_params.pop("log_dir", None)
+    log_dir = Path(fit_params.pop("log_dir", None))
     sw = fit_params.pop("sample_weight", None)
     data_fn = fit_params.pop("data_fn", None)
 

@@ -1,0 +1,43 @@
+data:
+  datasets:
+    CREMA-D:
+      path: CREMA-D/corpus.yaml
+    EMO-DB:
+      path: EMO-DB/corpus.yaml
+    RAVDESS:
+      path: RAVDESS/corpus.yaml
+      subset: speech
+  remove_groups:
+    label:
+      keep:
+      - anger
+      - disgust
+      - fear
+      - happiness
+      - neutral
+      - sadness
+  features: # Will be set on command line
+model: # Will be set on command line
+  type: _not_set_
+  config: {}
+training:
+  normalise: online
+  transform: std
+  seq_transform: feature
+  tensorflow:
+    batch_size: 32
+    epochs: 50
+    logging:
+      log_dir: logs/tf
+    data_fn: null
+  pytorch:
+    batch_size: 32
+    epochs: 50
+    logging:
+      log_dir: logs/pt
+eval:
+  cv:
+    part: corpus
+    kfold: -1
+  inner_kfold: 2
+results: "" # Will be set on command line

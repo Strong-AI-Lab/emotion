@@ -22,4 +22,4 @@ subsets:
     clips: files_test
     description: Pre-defined test set
 default_subset: train
-features_dir: ../../features/ESD
+features_dir: features

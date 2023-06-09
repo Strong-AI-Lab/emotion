@@ -1,0 +1,30 @@
+name: EMO-DB
+data:
+  datasets:
+    EMO-DB:
+      path: EMO-DB/corpus.yaml
+  features: wav2vec_c_mean
+model:
+  type: sk/lr
+  config: ${cwdpath:../conf/clf/sk/lr/default.yaml}
+training:
+  normalise: online
+  transform: std
+  seq_transform: feature
+  tensorflow:
+    batch_size: 32
+    epochs: 50
+    logging:
+      log_dir: logs/tf
+    data_fn: null
+  pytorch:
+    batch_size: 32
+    epochs: 50
+    logging:
+      log_dir: logs/pt
+eval:
+  cv:
+    part: speaker
+    kfold: -1
+  inner_kfold: 2
+  inner_part: speaker

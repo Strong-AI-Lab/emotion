@@ -125,6 +125,10 @@ more information about the supported datasets and the required
 processing.
 
 
+# Examples
+See the `examples` directory for examples.
+
+
 # Papers
 Papers that we have published will have associated code in the `papers`
 directory. See [`papers/README.md`](papers/README.md) for more

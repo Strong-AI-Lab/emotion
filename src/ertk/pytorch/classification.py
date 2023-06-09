@@ -10,10 +10,12 @@ import pandas as pd
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint, ModelSummary
 from pytorch_lightning.loggers import CSVLogger, Logger, TensorBoardLogger
 from sklearn.model_selection import BaseCrossValidator, LeaveOneGroupOut
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset as TorchDataset
 
 from ertk.pytorch.dataset import MTLDataModule
 from ertk.pytorch.models import LightningWrapper
@@ -78,6 +80,35 @@ def pt_cross_validate(
     return ExperimentResult({k: np.array(scores[k]) for k in scores}, predictions=preds)
 
 
+class PTDataset(TorchDataset):
+    def __init__(self, data: Tuple[np.ndarray, ...]) -> None:
+        x, y, *sw = data
+        self.x = x
+        self.y = y
+        self.sw = sw[0] if sw else None
+
+    def __getitem__(self, index) -> Tuple[torch.Tensor, float, Optional[float]]:
+        return (
+            torch.from_numpy(self.x[index]),
+            self.y[index],
+            self.sw[index] if self.sw is not None else None,
+        )
+
+    def __len__(self) -> int:
+        return len(self.x)
+
+
+def collator(
+    batch: List[Tuple[torch.Tensor, float, Optional[float]]]
+) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+    xs, ys, sws = zip(*batch)
+    max_len = max(len(x) for x in xs)
+    x = torch.stack([F.pad(x, (0, 0, 0, max_len - len(x))) for x in xs])
+    y = torch.tensor(ys)
+    sw = torch.tensor(sws) if sws[0] is not None else None
+    return x, y, sw
+
+
 def pt_train_val_test(
     model_fn: Callable[..., Union[nn.Module, pl.LightningModule]],
     train_data: Tuple[np.ndarray, ...],
@@ -130,26 +161,37 @@ def pt_train_val_test(
     if not isinstance(clf, pl.LightningModule):
         clf = LightningWrapper(clf, train_config.wrapper_model_config)
 
-    train_data_pt = tuple(torch.from_numpy(x) for x in train_data)
-    valid_data_pt = tuple(torch.from_numpy(x) for x in valid_data)
-    test_data_pt = tuple(torch.from_numpy(x) for x in test_data)
-
-    train_ds = TensorDataset(*train_data_pt)
-    valid_ds = TensorDataset(*valid_data_pt)
-    test_ds = TensorDataset(*test_data_pt)
+    train_ds = PTDataset(train_data)
+    valid_ds = PTDataset(valid_data)
+    test_ds = PTDataset(test_data)
     train_dl = DataLoader(
-        train_ds, batch_size=batch_size, shuffle=True, pin_memory=True
+        train_ds,
+        batch_size=batch_size,
+        shuffle=True,
+        pin_memory=True,
+        collate_fn=collator,
     )
     valid_dl = DataLoader(
-        valid_ds, batch_size=batch_size, shuffle=False, pin_memory=True
+        valid_ds,
+        batch_size=batch_size,
+        shuffle=False,
+        pin_memory=True,
+        collate_fn=collator,
     )
-    test_dl = DataLoader(test_ds, batch_size=batch_size, shuffle=False, pin_memory=True)
+    test_dl = DataLoader(
+        test_ds,
+        batch_size=batch_size,
+        shuffle=False,
+        pin_memory=True,
+        collate_fn=collator,
+    )
 
     if verbose <= 0:
         logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
         warnings.simplefilter("ignore", UserWarning)
     trainer = pl.Trainer(
-        gpus=train_config.n_gpus,
+        accelerator="gpu",
+        devices=train_config.n_gpus,
         strategy=train_config.dist_strategy,
         max_epochs=train_config.epochs,
         logger=loggers if loggers else False,
@@ -164,7 +206,11 @@ def pt_train_val_test(
         val_dataloaders=valid_dl,
         ckpt_path=train_config.resume_checkpoint,
     )
-    y_pred = torch.cat(trainer.predict(clf, test_dl)).cpu().numpy()
+    preds = []
+    for batch in test_dl:
+        with torch.no_grad():
+            preds.append(clf.predict_step(batch, 0))
+    y_pred = torch.cat(preds).cpu().numpy()
     if verbose <= 0:
         logging.getLogger("pytorch_lightning").setLevel(logging.INFO)
         warnings.simplefilter("default", UserWarning)
@@ -186,7 +232,8 @@ def train_mtl_model(
     verbose: int = 0,
 ):
     trainer = pl.Trainer(
-        gpus=1,
+        accelerator="gpu",
+        devices=1,
         max_epochs=epochs,
         logger=bool(verbose),
         enable_progress_bar=bool(verbose),

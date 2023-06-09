@@ -11,4 +11,4 @@ subsets:
     clips: files_all
     description: All files
 default_subset: all
-features_dir: ../../features/TESS
+features_dir: features

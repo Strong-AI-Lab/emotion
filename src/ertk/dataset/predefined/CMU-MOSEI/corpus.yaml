@@ -43,4 +43,4 @@ subsets:
     clips: files_labels
     description: Clips with emotion and sentiment information
 default_subset: labels
-features_dir: ../../features/CMU-MOSEI
+features_dir: features

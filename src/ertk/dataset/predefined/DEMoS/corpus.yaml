@@ -19,4 +19,4 @@ subsets:
     clips: files_NP
     description: Non-prototypical emotions (excludes neutral)
 default_subset: PR
-features_dir: ../../features/DEMoS
+features_dir: features

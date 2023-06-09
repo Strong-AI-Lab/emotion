@@ -17,4 +17,4 @@ subsets:
     clips: files_02
     description: Files from version 2
 default_subset: all
-features_dir: ../../features/OréauFR
+features_dir: features

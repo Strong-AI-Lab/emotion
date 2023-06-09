@@ -13,4 +13,4 @@ subsets:
     clips: files_core
     description: Files in the core set
 default_subset: all
-features_dir: ../../features/VIVAE
+features_dir: features

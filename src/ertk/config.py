@@ -39,16 +39,16 @@ __all__ = ["ERTKConfig", "get_arg_mapping"]
 T = TypeVar("T", bound="ERTKConfig")
 
 
-def resolve_files(key):
+def _resolve_files(key):  # pragma: no cover
     return key
 
 
-def resolve_files_load(key):
+def _resolve_files_load(key):  # pragma: no cover
     return OmegaConf.load(key)
 
 
-OmegaConf.register_resolver("file", resolve_files)
-OmegaConf.register_resolver("cwdpath", resolve_files_load)
+OmegaConf.register_resolver("file", _resolve_files)
+OmegaConf.register_resolver("cwdpath", _resolve_files_load)
 
 
 @dataclass
@@ -144,7 +144,7 @@ class ERTKConfig(ABC):
         return cast(T, OmegaConf.merge(self, OmegaConf.from_cli(args)))
 
 
-def get_arg_mapping(s: Union[Path, str]) -> Dict[str, Any]:
+def get_arg_mapping(s: Union[Path, str]) -> Dict[str, str]:
     """Given a mapping on the command-line, returns a dict representing
     that mapping. Mapping can be a string or a more complex YAML file.
 
@@ -160,7 +160,7 @@ def get_arg_mapping(s: Union[Path, str]) -> Dict[str, Any]:
 
     Returns
     -------
-    mapping: dict
+    dict
         A dictionary mapping keys to values from the string.
     """
     if isinstance(s, Path) or Path(s).exists():

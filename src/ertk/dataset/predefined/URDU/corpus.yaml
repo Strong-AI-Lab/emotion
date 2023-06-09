@@ -10,4 +10,4 @@ subsets:
     clips: files_all
     description: All files
 default_subset: all
-features_dir: ../../features/URDU
+features_dir: features

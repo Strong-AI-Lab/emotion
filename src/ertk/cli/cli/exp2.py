@@ -18,7 +18,12 @@ from ertk.cli._utils import debug_args
 from ertk.config import get_arg_mapping
 from ertk.dataset import load_datasets_config
 from ertk.sklearn.utils import GridSearchVal
-from ertk.train import ExperimentConfig, ValidationSplit, get_cv_splitter
+from ertk.train import (
+    ExperimentConfig,
+    TransformClass,
+    ValidationSplit,
+    get_cv_splitter,
+)
 from ertk.transform import SequenceTransformWrapper
 
 
@@ -39,15 +44,20 @@ def main(config_path: Path, restargs: Tuple[str], verbose: int):
 
     dataset = load_datasets_config(config.data)
 
-    transform = config.training.transform.name
-    transformer = {"std": StandardScaler, "minmax": MinMaxScaler}[transform]()
-    normalise = config.training.normalise
-    if normalise == "none":
-        transformer = None
-    elif normalise == "online" and len(dataset.x[0].shape) > 1:
+    transform = config.training.transform
+    if isinstance(transform, str):
+        transform = TransformClass[transform]
+    transformer = {
+        TransformClass.std: StandardScaler,
+        TransformClass.minmax: MinMaxScaler,
+    }[transform]()
+    if len(dataset.x[0].shape) > 1:
         transformer = SequenceTransformWrapper(
             transformer, config.training.seq_transform
         )
+    normalise = config.training.normalise
+    if normalise == "none":
+        transformer = None
     elif normalise != "online":
         dataset.normalise(normaliser=transformer, partition=normalise)
         transformer = None
@@ -142,9 +152,7 @@ def main(config_path: Path, restargs: Tuple[str], verbose: int):
                 fit_params["groups"] = dataset.get_group_indices(evaluation.inner_part)
     elif clf_lib == "tf":
         from keras.callbacks import TensorBoard
-        from keras.optimizers import get as get_optimizer
 
-        from ertk.tensorflow.classification import tf_classification_metrics
         from ertk.tensorflow.models import TFModelConfig, get_tf_model
         from ertk.tensorflow.train import TFTrainConfig
 
@@ -181,11 +189,6 @@ def main(config_path: Path, restargs: Tuple[str], verbose: int):
 
         def model_fn():
             model = get_tf_model(clf_type, **model_config)
-            model.compile(
-                get_optimizer("adam", learning_rate=model_config.learning_rate),
-                loss="sparse_categorical_crossentropy",
-                weighted_metrics=tf_classification_metrics(),
-            )
             return Pipeline([("transform", transformer), ("clf", model)])
 
         params = {
@@ -209,8 +212,11 @@ def main(config_path: Path, restargs: Tuple[str], verbose: int):
         n_jobs = 1
         fit_params.update({"train_config": pt_config})
 
-        model_cls = ERTKPyTorchModel.get_model_class(clf_type)
-        model_config = model_cls.get_config_type().from_config(config.model.config)
+        model_config = (
+            ERTKPyTorchModel.get_model_class(clf_type)
+            .get_config_type()
+            .from_config(config.model.config)
+        )
         if model_config.n_features == -1:
             model_config.n_features = dataset.n_features
         elif model_config.n_features != dataset.n_features:

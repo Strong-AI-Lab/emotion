@@ -36,6 +36,7 @@ class Aldeneh2017Model(
         if len(config.conv_dims) != len(config.kernel_sizes):
             raise ValueError("`conv_dims` must be the same size as `kernel_sizes`.")
 
+        self.norm = nn.LayerNorm(config.n_features, elementwise_affine=False)
         self.convs = nn.ModuleList()
         for dim, ksize in zip(config.conv_dims, config.kernel_sizes):
             self.convs.append(nn.Conv1d(config.n_features, dim, kernel_size=ksize))
@@ -48,6 +49,9 @@ class Aldeneh2017Model(
         self.dense.append(nn.Linear(dense_dims[-1], config.n_classes))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # type: ignore
+        with torch.no_grad():
+            self.norm(x)
+
         # (B, T, D) -> (B, D, T)
         x = x.transpose(1, 2)
         cs = []

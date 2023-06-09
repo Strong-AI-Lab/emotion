@@ -21,4 +21,4 @@ subsets:
     clips: files_test
     description: Files in the test split
 default_subset: train
-features_dir: ../../features/EmoryNLP
+features_dir: features
