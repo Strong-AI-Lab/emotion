@@ -1,0 +1,16 @@
+name: BAVED
+description: Basic Arabic Vocal Emotions Dataset (BAVED) dataset
+annotations:
+- age
+partitions:
+- level
+- language
+- speaker
+- gender
+- word
+subsets:
+  all:
+    clips: files_all
+    description: All files
+default_subset: all
+features_dir: ../../features/BAVED

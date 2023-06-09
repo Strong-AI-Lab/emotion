@@ -1,0 +1,16 @@
+name: SUBESCO
+description: SUST Bangla Emotional Speech Corpus
+annotations: []
+partitions:
+- label
+- language
+- speaker
+- speaker_name
+- sentence
+- gender
+subsets:
+  all:
+    clips: files_all
+    description: All files
+default_subset: all
+features_dir: ../../features/SUBESCO

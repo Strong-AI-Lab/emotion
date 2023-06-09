@@ -1,0 +1,16 @@
+name: VIVAE
+description: The Variably Intense Vocalizations of Affect and Emotion Corpus (VIVAE)
+annotations: []
+partitions:
+- label
+- speaker
+- intensity
+subsets:
+  all:
+    clips: files_all
+    description: All files
+  core:
+    clips: files_core
+    description: Files in the core set
+default_subset: all
+features_dir: ../../features/VIVAE

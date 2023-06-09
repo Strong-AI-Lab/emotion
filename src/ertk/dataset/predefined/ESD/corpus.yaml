@@ -1,0 +1,25 @@
+name: ESD
+description: Emotional speech database (ESD)
+annotations: []
+partitions:
+- label
+- language
+- speaker
+- gender
+- transcript
+- split
+subsets:
+  all:
+    clips: files_all
+    description: All files
+  train:
+    clips: files_train
+    description: Pre-defined train set
+  evaluation:
+    clips: files_evaluation
+    description: Pre-defined evaluation set
+  test:
+    clips: files_test
+    description: Pre-defined test set
+default_subset: train
+features_dir: ../../features/ESD

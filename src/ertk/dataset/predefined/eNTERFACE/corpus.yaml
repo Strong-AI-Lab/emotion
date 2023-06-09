@@ -1,0 +1,16 @@
+name: eNTERFACE
+description: eNTERFACE dataset
+annotations: []
+partitions:
+- label
+- speaker
+- language
+subsets:
+  all:
+    clips: files_all
+    description: All files
+  no_s6:
+    clips: files_no_s6
+    description: Files without speaker 6 due to imbalance.
+default_subset: no_s6
+features_dir: ../../features/eNTERFACE

@@ -1,0 +1,18 @@
+name: ShEMO
+description: ShEMO dataset
+annotations: []
+partitions:
+- label
+- speaker
+- gender
+- language
+- country
+subsets:
+  all:
+    clips: files_all
+    description: All files
+  5class:
+    clips: files_5class
+    description: Files with one of 5 main classes
+default_subset: 5class
+features_dir: ../../features/ShEMO

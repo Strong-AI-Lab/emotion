@@ -1,0 +1,21 @@
+name: VENEC
+description: VENEC dataset (Cowen paper subset)
+annotations: []
+partitions:
+- label
+- speaker
+- language
+- country
+- intensity
+subsets:
+  all:
+    clips: files_all
+    description: All files
+  18class:
+    clips: files_18class
+    description: Files with all emotions except neutral
+  18class_complete:
+    clips: files_18class_complete
+    description: Files with speakers containing all emotions
+default_subset: 18class
+features_dir: ../../features/VENEC

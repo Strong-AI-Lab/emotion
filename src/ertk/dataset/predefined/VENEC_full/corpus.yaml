@@ -1,0 +1,19 @@
+name: VENEC
+description: VENEC dataset (Full, balanced set)
+annotations:
+  - transcript
+partitions:
+  - label
+  - speaker
+  - language
+  - country
+  - intensity
+subsets:
+  all:
+    clips: files_all
+    description: All files
+  11class:
+    clips: files_11class
+    description: Files from 11 class (10 emotions + neutral) subset
+features_dir: ../../features/VENEC_full
+default_subset: all

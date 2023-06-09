@@ -1,0 +1,28 @@
+name: CREMA-D
+description: CREMA-D dataset
+annotations:
+- age
+- transcript
+partitions:
+- label
+- label_multimodal
+- label_face
+- label_voice
+- speaker
+- language
+- country
+- sentence
+- level
+- race
+- sex
+- ethnicity
+ratings:
+- ratings_both
+- ratings_face
+- ratings_voice
+subsets:
+  all:
+    clips: files_all
+    description: All files
+default_subset: all
+features_dir: ../../features/CREMA-D

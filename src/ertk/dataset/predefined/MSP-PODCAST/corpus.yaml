@@ -1,0 +1,32 @@
+name: MSP-PODCAST
+description: MSP-PODCAST dataset
+annotations:
+- EmoAct
+- EmoDom
+- EmoVal
+partitions:
+- label
+- speaker
+- gender
+- language
+- split
+ratings:
+- ratings
+subsets:
+  all:
+    clips: files_all
+    description: All files
+  train:
+    clips: files_Train
+    description: Files from train set
+  validation:
+    clips: files_Validation
+    description: Files from validation set
+  test1:
+    clips: files_Test1
+    description: Files from test1 set
+  test2:
+    clips: files_Test2
+    description: Files from test2 set
+default_subset: train
+features_dir: ../../features/MSP-PODCAST

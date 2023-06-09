@@ -1,0 +1,16 @@
+name: ASED
+description: Amharic Speech Emotional Dataset (ASED) v1
+annotations: []
+partitions:
+- label
+- language
+- speaker
+- gender
+- sentence
+- repetition
+subsets:
+  all:
+    clips: files_all
+    description: All files
+default_subset: all
+features_dir: ../../features/ASED

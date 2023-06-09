@@ -1,0 +1,18 @@
+name: EMO-DB
+description: EMO-DB (Berlin) dataset
+annotations:
+- syllables
+partitions:
+- label
+- speaker
+- language
+- gender
+- sentence
+- transcript
+- version
+subsets:
+  all:
+    clips: files_all
+    description: All files
+default_subset: all
+features_dir: ../../features/EMO-DB

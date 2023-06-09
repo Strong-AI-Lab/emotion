@@ -1,0 +1,16 @@
+name: EmoV-DB
+description: EmoV-DB dataset
+annotations: []
+partitions:
+- label
+- speaker
+- language
+- gender
+- sentence
+- country
+subsets:
+  all:
+    clips: files_all
+    description: All files
+default_subset: all
+features_dir: ../../features/EmoV-DB

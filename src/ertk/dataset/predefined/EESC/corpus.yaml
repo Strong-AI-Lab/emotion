@@ -1,0 +1,14 @@
+name: EESC
+description: Estonian emotional speech corpus
+annotations: []
+partitions:
+- label
+- language
+- country
+- transcript
+subsets:
+  all:
+    clips: files_all
+    description: All files
+default_subset: all
+features_dir: ../../features/EESC

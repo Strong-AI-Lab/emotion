@@ -34,6 +34,7 @@ from .filter_clips import main as filter_clips_main
 from .info import main as info_main
 from .process import main as process_main
 from .remove_instances import main as remove_instances_main
+from .setup import main as setup_main
 from .vis import main as vis_main
 
 
@@ -50,4 +51,5 @@ cli.add_command(filter_clips_main, "filter_clips")
 cli.add_command(info_main, "info")
 cli.add_command(process_main, "process")
 cli.add_command(remove_instances_main, "remove_instances")
+cli.add_command(setup_main, "setup")
 cli.add_command(vis_main, "vis")

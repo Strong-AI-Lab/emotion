@@ -1,0 +1,15 @@
+name: MLEndSND
+description: MLEnd Spoken Numerals dataset
+partitions:
+- label
+- language
+- speaker
+- numeral
+- nationality
+- l1
+subsets:
+  all:
+    clips: files_all
+    description: All files
+default_subset: all
+features_dir: ../../features/MLEndSND

@@ -1,0 +1,13 @@
+name: Portuguese
+description: Portuguese dataset
+annotations: []
+partitions:
+- label
+- speaker
+- language
+subsets:
+  all:
+    clips: files_all
+    description: All files
+default_subset: all
+features_dir: ../../features/Portuguese

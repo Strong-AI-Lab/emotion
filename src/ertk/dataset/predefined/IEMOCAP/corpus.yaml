@@ -1,0 +1,26 @@
+name: IEMOCAP
+description: IEMOCAP dataset
+annotations:
+- activation
+- dominance
+- valence
+- transcript
+partitions:
+- label
+- speaker
+- gender
+- language
+- country
+- session
+- sess_type
+ratings:
+- ratings
+subsets:
+  all:
+    clips: files_all
+    description: All files
+  4class:
+    clips: files_4class
+    description: Files with primary emotions
+default_subset: 4class
+features_dir: ../../features/IEMOCAP
