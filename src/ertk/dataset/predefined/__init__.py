@@ -13,7 +13,13 @@ __all__ = ["process_dataset", "list_predefined_datasets"]
 
 
 def list_predefined_datasets() -> List[str]:
-    """List all predefined datasets."""
+    """List all predefined datasets.
+
+    Returns
+    -------
+    List[str]
+        A list of all predefined datasets by name.
+    """
     return [
         x.name
         for x in Path(__file__).parent.iterdir()
@@ -57,10 +63,10 @@ def process_dataset(
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     os.chdir(output_dir)
     func([str(input_dir)] + ["--resample"] if resample else [], standalone_mode=False)
-    with importlib_resources.path(
-        f"ertk.dataset.predefined.{name}", "corpus.yaml"
-    ) as conf_path:
-        with open(conf_path) as fid:
-            conf = fid.read()
+    conf = (
+        importlib_resources.files(f"ertk.dataset.predefined.{name}")
+        .joinpath("corpus.yaml")
+        .read_text()
+    )
     with open("corpus.yaml", "w") as fid:
         fid.write(conf)

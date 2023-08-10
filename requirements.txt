@@ -1,6 +1,7 @@
 click>=8.0.0
 click-option-group
 importlib_metadata
+importlib_resources
 joblib
 liac-arff
 liblinear-official
