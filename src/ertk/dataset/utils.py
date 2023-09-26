@@ -68,9 +68,9 @@ def resample_rename_clips(
     opts = [
         "-nostdin",
         "-ar",
+        f"{sr:d}",
         "-threads",
         "1" if n_jobs == -1 else "0",
-        f"{sr:d}",
         "-sample_fmt",
         "s16",
         "-ac",
