@@ -9,8 +9,7 @@ from keras.layers import Layer, Wrapper
 from keras.losses import Loss
 from keras.metrics import Metric
 from keras.models import Model
-from keras.optimizers import Optimizer
-from keras.optimizers.adam import Adam
+from keras.optimizers import Adam, Optimizer
 from sklearn.pipeline import Pipeline
 
 __all__ = [
