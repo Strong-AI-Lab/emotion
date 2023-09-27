@@ -145,7 +145,7 @@ class InstanceProcessor(ABC):
         config: ERTKConfig
             The default configuration.
         """
-        return OmegaConf.structured(cls._config_type)
+        return cls._config_type.default()
 
     @abstractmethod
     def process_instance(self, x: np.ndarray, **kwargs) -> np.ndarray:

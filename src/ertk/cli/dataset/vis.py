@@ -75,8 +75,8 @@ def xy(
     if data_conf or corpus_info:
         if data_conf:
             print(f"Loading data from {data_conf}")
-            conf = DataLoadConfig()
-            conf = DataLoadConfig.from_file(data_conf, override=list(restargs))
+            conf = DataLoadConfig.from_file(data_conf)
+            conf = DataLoadConfig.merge_with_args(conf, restargs)
             data = load_datasets_config(conf)
         else:
             if features is None:

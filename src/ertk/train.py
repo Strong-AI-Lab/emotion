@@ -482,11 +482,9 @@ class ExperimentConfig(ERTKConfig):
     """Path to output results."""
 
     @classmethod
-    def from_file(
-        cls: Type[T], path: PathOrStr, override: Optional[List[str]] = None
-    ) -> T:
+    def from_file(cls: Type[T], path: PathOrStr) -> T:
         path = Path(path)
-        conf = super().from_file(path, override)
+        conf = super().from_file(path)
         if isinstance(conf.data, str):
             conf.data = DataLoadConfig.from_file(path.parent / conf.data)
         return conf

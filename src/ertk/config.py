@@ -26,7 +26,7 @@ from abc import ABC
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type, TypeVar, Union, cast
+from typing import Any, Collection, Dict, List, Type, TypeVar, Union, cast
 
 import yaml
 from omegaconf import DictConfig, OmegaConf
@@ -80,13 +80,21 @@ class ERTKConfig(ABC):
         ERKConfig
             The resulting config.
         """
-        schema = OmegaConf.structured(cls)
-        return cast(T, OmegaConf.merge(schema, config))
+        return cast(T, OmegaConf.merge(OmegaConf.structured(cls), config))
 
     @classmethod
-    def from_file(
-        cls: Type[T], path: PathOrStr, override: Optional[List[str]] = None
-    ) -> T:
+    def default(cls: Type[T]) -> T:
+        """Create default config.
+
+        Returns
+        -------
+        ERKConfig
+            The default config.
+        """
+        return cast(T, OmegaConf.structured(cls))
+
+    @classmethod
+    def from_file(cls: Type[T], path: PathOrStr) -> T:
         """Create config from YAML file and optionlly override some
         values.
 
@@ -94,7 +102,7 @@ class ERTKConfig(ABC):
         ----------
         path: os.Pathlike or str
             The path to YAML file containing config.
-        override: list of str, optional
+        override: collection of str, optional
             Argument overrides in the form of key=value pairs.
 
         Returns
@@ -102,10 +110,7 @@ class ERTKConfig(ABC):
         ERKConfig
             The resulting config.
         """
-        config = OmegaConf.load(Path(path))
-        if override is not None:
-            config = OmegaConf.merge(config, OmegaConf.from_dotlist(override))
-        return cls.from_config(config)
+        return cls.from_config(OmegaConf.load(Path(path)))
 
     def to_string(self) -> str:
         """Generate YAML string representation of config.
@@ -128,12 +133,27 @@ class ERTKConfig(ABC):
         with open(path, "w") as fid:
             fid.write(OmegaConf.to_yaml(self))
 
-    def merge_with_args(self: T, args: Optional[List[str]] = None) -> T:
+    def merge_with_config(self: T, config: Any) -> T:
+        """Merge other config into this config.
+
+        Parameters
+        ----------
+        config: omegaconf.DictConfig or dict
+            The object to create the config from.
+
+        Returns
+        -------
+        ERKConfig
+            The resulting config.
+        """
+        return cast(T, OmegaConf.merge(self, config))
+
+    def merge_with_args(self: T, args: Collection[str]) -> T:
         """Merge config with command-line arguments.
 
         Parameters
         ----------
-        args: list of str, optional
+        args: collection of str
             Argument overrides in the form of key=value pairs.
 
         Returns
@@ -141,7 +161,7 @@ class ERTKConfig(ABC):
         ERKConfig
             The resulting config.
         """
-        return cast(T, OmegaConf.merge(self, OmegaConf.from_cli(args)))
+        return cast(T, OmegaConf.merge(self, OmegaConf.from_dotlist(list(args))))
 
 
 def get_arg_mapping(s: Union[Path, str]) -> Dict[str, str]:

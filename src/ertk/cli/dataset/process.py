@@ -93,13 +93,12 @@ def main(
 
     extractor_cls = InstanceProcessor.get_processor_class(processor)
     config_cls = extractor_cls.get_config_type()
-    if config:
-        conf = OmegaConf.load(config)
-    else:
-        conf = extractor_cls.get_default_config()
-    conf = OmegaConf.merge(conf, OmegaConf.from_dotlist(list(restargs)))
+    conf = (
+        config_cls.from_file(config) if config else extractor_cls.get_default_config()
+    )
+    conf = config_cls.merge_with_args(conf, restargs)
     logger.info("Using configuration:")
-    logger.info(pprint.pformat(dict(conf)))
+    logger.info(pprint.pformat(config_cls.to_dictconfig(conf)))
     extractor = extractor_cls(config_cls.from_config(conf))
 
     input_data = read_features_iterable(input, sample_rate=sample_rate)

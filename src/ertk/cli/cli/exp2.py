@@ -34,7 +34,8 @@ from ertk.transform import SequenceTransformWrapper
 @click.argument("restargs", type=str, nargs=-1)
 @debug_args
 def main(config_path: Path, restargs: Tuple[str], verbose: int):
-    config = ExperimentConfig.from_file(config_path, override=list(restargs))
+    config = ExperimentConfig.from_file(config_path)
+    config = ExperimentConfig.merge_with_args(config, restargs)
 
     np.set_printoptions(precision=4, threshold=10)
     if verbose > 0:
