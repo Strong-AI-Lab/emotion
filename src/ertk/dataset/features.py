@@ -548,18 +548,20 @@ class SequentialWriter:
     ):
         """Write raw audio files."""
 
-        output_dir = Path(path).with_suffix("")
+        path = Path(path)
+        output_dir = path.with_suffix("")
         output_dir.mkdir(exist_ok=True, parents=True)
         for name, audio in zip(self.names, features):
             output_path = output_dir / f"{name}.wav"
             soundfile.write(output_path, audio, subtype="PCM_16", samplerate=sr)
-        write_filelist(output_dir.glob("*.wav"), path)
+        write_filelist(output_dir.glob("*.wav"), path.with_suffix(".txt"))
 
     _write_backends: Dict[str, Callable] = {
         ".arff": write_arff,
         ".csv": write_csv,
         ".nc": write_netcdf,
         ".txt": write_raw,
+        "": write_raw,
     }
 
 
