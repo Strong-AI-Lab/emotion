@@ -284,6 +284,7 @@ def main(config_path: Path, restargs: Tuple[str], verbose: int):
                 clf_lib=clf_lib,
                 sample_weight=sample_weight,
                 verbose=config.training.verbose,
+                scoring=config.metrics,
                 fit_params=fit_params,
             )
         elif cv_conf:
@@ -296,6 +297,7 @@ def main(config_path: Path, restargs: Tuple[str], verbose: int):
                 cv=cv,
                 verbose=config.training.verbose,
                 n_jobs=n_jobs,
+                scoring=config.metrics,
                 fit_params=fit_params,
             )
         else:

@@ -480,6 +480,7 @@ class ExperimentConfig(ERTKConfig):
     """Training configuration."""
     results: str = ""
     """Path to output results."""
+    metrics: List[str] = field(default_factory=list)
 
     @classmethod
     def from_file(cls: Type[T], path: PathOrStr) -> T:

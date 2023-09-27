@@ -6,7 +6,6 @@ This module contains functions for performing classification tasks.
 .. autosummary::
     :toctree: generated/
 
-    binary_accuracy_score
     standard_class_scoring
     cross_validate
     dataset_cross_validation
@@ -24,7 +23,6 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 import numpy as np
 import pandas as pd
 from sklearn.metrics import (
-    accuracy_score,
     f1_score,
     get_scorer,
     make_scorer,
@@ -32,14 +30,13 @@ from sklearn.metrics import (
     recall_score,
 )
 from sklearn.model_selection import BaseCrossValidator, LeaveOneGroupOut
-from sklearn.utils.multiclass import unique_labels
 
 from ertk.dataset import Dataset
+from ertk.metrics import binary_accuracy_score, make_scoring_dict
 from ertk.train import ExperimentResult, get_cv_splitter, scores_to_df
 from ertk.utils import ScoreFunction
 
 __all__ = [
-    "binary_accuracy_score",
     "standard_class_scoring",
     "cross_validate",
     "dataset_cross_validation",
@@ -50,59 +47,7 @@ __all__ = [
 ]
 
 
-def binary_accuracy_score(
-    y_true, y_pred, *, labels=None, average="binary", sample_weight=None
-):
-    """Calculated binary accuracy. Binary accuracy is the same as
-    accuracy considering only a single class.
-
-    Parameters
-    ----------
-    y_true:
-        Ground truth labels.
-    y_pred:
-        Predicted labels.
-    labels: list, optional
-        Labels to include for average != "binary". If None, all unique
-        labels in y_true or y_pred are included.
-    average: str, optional
-        Method to compute average. If "binary" then simply return
-        accuracy. If "macro" then return mean binary accuracy. If
-        "weighted" then weight the mean binary accuracy by ground truth
-        support. If None then return an array of values, one for each
-        label in labels.
-
-    Returns
-    -------
-    label_accs: float or list
-        Binary accuracies for labels in labels or average if `average`
-        is not None.
-    """
-    all_labels = unique_labels(y_true, y_pred)
-    if average == "binary":
-        if len(all_labels) != 2:
-            raise ValueError("Must only have two labels when `average` is 'binary'.")
-        return accuracy_score(y_true, y_pred, sample_weight=sample_weight)
-
-    if y_true.ndim != 1 or y_pred.ndim != 1:
-        raise ValueError("y_true and y_pred must be 1D arrays.")
-    if labels is None:
-        labels = all_labels
-    accs = {l: 0 for l in labels}
-    for lab in all_labels:
-        acc = accuracy_score(y_true == lab, y_pred == lab, sample_weight=sample_weight)
-        accs[lab] = acc
-    label_accs = [accs[l] for l in labels]
-    if average == "macro":
-        return np.mean(label_accs)
-    elif average == "weighted":
-        counts = [np.count_nonzero(y_true == l) for l in labels]
-        return np.average(label_accs, weights=counts)
-    elif average is None:
-        return label_accs[0] if len(label_accs) == 1 else label_accs
-
-
-def standard_class_scoring(classes: Sequence[str]):
+def standard_class_scoring(classes: Sequence[str]) -> Dict[str, Callable]:
     """Given a list of classes, returns scikit-learn scorers for overall
     metrics and per-class metrics, for multiclass classification.
 
@@ -240,7 +185,9 @@ def dataset_cross_validation(
     cv: Union[BaseCrossValidator, int] = 10,
     verbose: int = 0,
     n_jobs: int = 1,
-    scoring=None,
+    scoring: Union[
+        str, List[str], Dict[str, ScoreFunction], Callable[..., float], None
+    ] = None,
     fit_params: Dict[str, Any] = {},
 ) -> ExperimentResult:
     """Cross validates a `Classifier` instance on a single dataset.
@@ -283,7 +230,9 @@ def dataset_cross_validation(
     groups = None if partition is None else dataset.get_group_indices(partition)
     if isinstance(cv, int):
         cv = get_cv_splitter(bool(partition), cv)
-    if scoring is None:
+    if isinstance(scoring, list) or callable(scoring):
+        scoring = make_scoring_dict(scoring)
+    if scoring is None or len(scoring) == 0:
         scoring = standard_class_scoring(dataset.get_group_names(label))
 
     logging.info(f"Starting cross-validation with n_jobs={n_jobs}")
@@ -320,7 +269,9 @@ def dataset_train_val_test(
     clf_lib: Optional[str] = None,
     sample_weight: Optional[np.ndarray] = None,
     verbose: int = 0,
-    scoring=None,
+    scoring: Union[
+        str, List[str], Dict[str, ScoreFunction], Callable[..., float], None
+    ] = None,
     fit_params: Dict[str, Any] = {},
 ) -> ExperimentResult:
     """Trains a `Classifier` instance on some training data, optionally
@@ -351,7 +302,9 @@ def dataset_train_val_test(
     df: pandas.DataFrame
         A dataframe holding the results from all runs with this model.
     """
-    if scoring is None:
+    if isinstance(scoring, list) or callable(scoring):
+        scoring = make_scoring_dict(scoring)
+    if scoring is None or len(scoring) == 0:
         scoring = standard_class_scoring(dataset.get_group_names(label))
 
     train_val_test_fn: Callable[..., ExperimentResult]
