@@ -136,16 +136,21 @@ information about scripts for individual publications.
 
 
 # Citing
-If you use ERTK, please cite our paper:
+Our paper has now been publised at [ACM Multimedia 2023](
+https://dl.acm.org/doi/10.1145/3581783.3613459). If you use ERTK, please
+cite our paper:
 ```
-@inproceedings{keesingAcousticFeaturesNeural2021,
-    title = {Acoustic {{Features}} and {{Neural Representations}} for {{Categorical Emotion Recognition}} from {{Speech}}},
-    booktitle = {Interspeech 2021},
-    author = {Keesing, Aaron and Koh, Yun Sing and Witbrock, Michael},
-    year = {2021},
-    month = aug,
-    pages = {3415--3419},
-    publisher = {{ISCA}},
-    doi = {10.21437/Interspeech.2021-2217},
+@inproceedings{keesingEmotionRecognitionToolKit2023,
+  title = {Emotion {{Recognition ToolKit}} ({{ERTK}}): {{Standardising Tools For Emotion Recognition Research}}},
+  shorttitle = {Emotion {{Recognition ToolKit}} ({{ERTK}})},
+  booktitle = {Proceedings of the 31st {{ACM International Conference}} on {{Multimedia}}},
+  author = {Keesing, Aaron and Koh, Yun Sing and Yogarajan, Vithya and Witbrock, Michael},
+  year = {2023},
+  month = oct,
+  series = {{{MM}} '23},
+  pages = {9693--9696},
+  publisher = {{Association for Computing Machinery}},
+  address = {{New York, NY, USA}},
+  doi = {10.1145/3581783.3613459},
 }
 ```
