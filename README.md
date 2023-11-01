@@ -129,12 +129,6 @@ processing.
 See the `examples` directory for examples.
 
 
-# Papers
-Papers that we have published will have associated code in the `papers`
-directory. See [`papers/README.md`](papers/README.md) for more
-information about scripts for individual publications.
-
-
 # Citing
 Our paper has now been publised at [ACM Multimedia 2023](
 https://dl.acm.org/doi/10.1145/3581783.3613459). If you use ERTK, please
