@@ -22,6 +22,7 @@ __pycache__
 *.lcov
 .virtual_documents/
 .hypothesis/
+cov.xml
 
 # NumPy
 *.npy

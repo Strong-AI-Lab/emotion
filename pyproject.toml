@@ -21,12 +21,17 @@ filterwarnings = [
     'ignore:.*pkg_resources\.declare_namespace.*:DeprecationWarning',
     'ignore:.*Jupyter is migrating.*:DeprecationWarning',
 ]
-addopts = ["--cov=src/ertk", "--cov-report=term-missing", "--cov-report=lcov"]
+addopts = [
+    "--cov=src/ertk",
+    "--cov-report=term-missing",
+    "--cov-report=xml:cov.xml",
+]
 
 [tool.mypy]
 follow_imports = "silent"
 ignore_missing_imports = true
 files = ["src", "scripts", "tests"]
+python_version = "3.8"
 
 [tool.coverage.run]
 omit = [
@@ -35,6 +40,7 @@ omit = [
     "src/ertk/preprocessing/audioset/_vggish/*",
     "src/ertk/preprocessing/audioset/_yamnet/*",
     "src/ertk/cli/_utils.py",
+    "src/**/__main__.py",
 ]
 branch = true
 
@@ -42,3 +48,11 @@ branch = true
 skip_covered = true
 show_missing = true
 skip_empty = true
+exclude_also = [
+    "def __repr__",
+    "def __str__",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+    "click\\.echo",
+]
