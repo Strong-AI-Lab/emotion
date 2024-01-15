@@ -12,21 +12,26 @@ If you use ERTK in your research, please cite our paper [1]_:
 
 .. code-block:: bibtex
 
-    @inproceedings{keesingAcousticFeaturesNeural2021,
-        title = {Acoustic Features and Neural Representations for Categorical Rmotion Recognition from Speech},
-        booktitle = {Interspeech 2021},
-        author = {Keesing, Aaron and Koh, Yun Sing and Witbrock, Michael},
-        year = {2021},
-        month = aug,
-        pages = {3415--3419},
-        publisher = {{ISCA}},
-        doi = {10.21437/Interspeech.2021-2217}
+    @inproceedings{keesingEmotionRecognitionToolKit2023,
+        title = {Emotion {{Recognition ToolKit}} ({{ERTK}}): {{Standardising Tools For Emotion Recognition Research}}},
+        shorttitle = {Emotion {{Recognition ToolKit}} ({{ERTK}})},
+        booktitle = {Proceedings of the 31st {{ACM International Conference}} on {{Multimedia}}},
+        author = {Keesing, Aaron and Koh, Yun Sing and Yogarajan, Vithya and Witbrock, Michael},
+        year = {2023},
+        month = oct,
+        series = {{{MM}} '23},
+        pages = {9693--9696},
+        publisher = {{Association for Computing Machinery}},
+        address = {{New York, NY, USA}},
+        doi = {10.1145/3581783.3613459},
     }
 
-.. [1] A. Keesing, Y. S. Koh, and M. Witbrock, "Acoustic Features and Neural
-       Representations for Categorical Emotion Recognition from Speech," in
-       Interspeech 2021, ISCA, Aug. 2021, pp. 3415-3419. doi:
-       10.21437/Interspeech.2021-2217
+.. [1] A. Keesing, Y. S. Koh, V. Yogarajan, and M. Witbrock, "Emotion
+       Recognition ToolKit (ERTK): Standardising Tools For Emotion Recognition
+       Research," in Proceedings of the 31st ACM International Conference on
+       Multimedia, in MM '23. New York, NY, USA: Association for Computing
+       Machinery, Oct. 2023, pp. 9693-9696. doi: 10.1145/3581783.3613459.
+
 
 
 .. toctree::
