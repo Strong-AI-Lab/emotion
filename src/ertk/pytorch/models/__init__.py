@@ -36,7 +36,7 @@ from typing import Callable
 from torch.nn import Module
 
 # Needed for registration
-from . import aldeneh2017, mlp, wav2vec_ft, zhang2019
+from . import aldeneh2017, mlp, wav2vec_ft, zhang2019  # noqa: F401
 from ._base import (
     ERTKPyTorchModel,
     LightningWrapper,

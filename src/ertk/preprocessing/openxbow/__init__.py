@@ -13,3 +13,5 @@ the OpenXBOW Java program.
 """
 
 from .openxbow import OpenXBOWExtractor, OpenXBOWExtractorConfig
+
+__all__ = ["OpenXBOWExtractor", "OpenXBOWExtractorConfig"]

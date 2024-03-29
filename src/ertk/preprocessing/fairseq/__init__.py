@@ -13,3 +13,5 @@ vq-wav2vec models
 """
 
 from .fairseq import FairseqExtractor, FairseqExtractorConfig
+
+__all__ = ["FairseqExtractor", "FairseqExtractorConfig"]

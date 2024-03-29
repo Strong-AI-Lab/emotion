@@ -38,3 +38,5 @@ Plugins
 """
 
 from ._base import AudioClipProcessor, FeatureExtractor, InstanceProcessor
+
+__all__ = ["AudioClipProcessor", "FeatureExtractor", "InstanceProcessor"]

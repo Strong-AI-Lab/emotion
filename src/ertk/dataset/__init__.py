@@ -80,3 +80,27 @@ from .utils import (
     resample_rename_clips,
     write_filelist,
 )
+
+__all__ = [
+    "read_annotations",
+    "write_annotations",
+    "CombinedDataset",
+    "CorpusInfo",
+    "DataLoadConfig",
+    "DataSelector",
+    "Dataset",
+    "DatasetConfig",
+    "MapGroups",
+    "RemoveGroups",
+    "SubsetInfo",
+    "load_datasets_config",
+    "load_multiple",
+    "read_features",
+    "read_features_iterable",
+    "register_format",
+    "write_features",
+    "get_audio_paths",
+    "resample_audio",
+    "resample_rename_clips",
+    "write_filelist",
+]

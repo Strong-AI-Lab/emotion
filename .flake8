@@ -1,6 +1,4 @@
 [flake8]
-per-file-ignores =
-    src/ertk/*/__init__.py:F401
 max-line-length = 88
 extend-ignore = E203, E741, W503
 extend-exclude =

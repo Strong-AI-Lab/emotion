@@ -16,3 +16,11 @@ This package contains the TensorFlow backend for the ERTK.
 
 from .models import get_tf_model, get_tf_model_fn
 from .utils import compile_wrap, init_gpu_memory_growth, test_fit
+
+__all__ = [
+    "get_tf_model",
+    "get_tf_model_fn",
+    "compile_wrap",
+    "init_gpu_memory_growth",
+    "test_fit",
+]

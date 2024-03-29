@@ -19,3 +19,10 @@ from .audioset import (
     YAMNetExtractor,
     YAMNetExtractorConfig,
 )
+
+__all__ = [
+    "VGGishExtractor",
+    "VGGishExtractorConfig",
+    "YAMNetExtractor",
+    "YAMNetExtractorConfig",
+]
