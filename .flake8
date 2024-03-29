@@ -1,10 +1,8 @@
 [flake8]
-ignore = E741, # ambiguous variable name
-         W503  # line-break before binary operator
 per-file-ignores =
     src/ertk/*/__init__.py:F401
 max-line-length = 88
-extend-ignore = E203
+extend-ignore = E203, E741, W503
 extend-exclude =
     third_party/,
     .venv

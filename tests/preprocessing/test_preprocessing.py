@@ -1,3 +1,4 @@
+import importlib
 import os
 from pathlib import Path
 from typing import List
@@ -40,22 +41,34 @@ def transcript() -> np.ndarray:
     return df.to_numpy()
 
 
-load_dotenv()
-AUDIOSET_DIR = os.environ["AUDIOSET_DIR"]
-FAIRSEQ_DIR = os.environ["FAIRSEQ_DIR"]
-
-
-def _tfslim_installed() -> bool:
+def installed(package: str) -> bool:
     try:
-        import tf_slim  # noqa F401
-
+        importlib.import_module(package)
         return True
     except ImportError:
         return False
 
 
-@pytest.mark.skipif(not _tfslim_installed(), reason="TF-Slim not installed.")
+def skip_missing_import(package: str):
+    return pytest.mark.skipif(
+        not installed(package), reason=f"{package} not installed."
+    )
+
+
+def skip_missing_path(path: str):
+    return pytest.mark.skipif(
+        not Path(path).exists(), reason=f"Path {path} doesn't exist."
+    )
+
+
+load_dotenv()
+AUDIOSET_DIR = os.environ["AUDIOSET_DIR"]
+FAIRSEQ_DIR = os.environ["FAIRSEQ_DIR"]
+
+
+@skip_missing_import("tf_slim")
 class TestAudioset:
+    @skip_missing_path(f"{AUDIOSET_DIR}/vggish")
     @pytest.mark.filterwarnings("ignore::UserWarning")
     def test_vggish(self, audio):
         config = audioset.VGGishExtractorConfig(
@@ -68,6 +81,7 @@ class TestAudioset:
         assert all(x.shape == (ext.dim,) for x in feats)
         assert not ext.is_sequence
 
+    @skip_missing_path(f"{AUDIOSET_DIR}/yamnet")
     @pytest.mark.filterwarnings("ignore::UserWarning")
     def test_yamnet(self, audio):
         config = audioset.YAMNetExtractorConfig(model_dir=f"{AUDIOSET_DIR}/yamnet")
@@ -79,16 +93,7 @@ class TestAudioset:
         assert all(x.shape == (ext.dim,) for x in feats)
 
 
-def _encodec_installed() -> bool:
-    try:
-        import encodec  # noqa F401
-
-        return True
-    except ImportError:
-        return False
-
-
-@pytest.mark.skipif(not _encodec_installed(), reason="Encodec not installed.")
+@skip_missing_import("encodec")
 class TestEncodec:
     @pytest.mark.parametrize(
         ["model", "dim"],
@@ -127,16 +132,8 @@ class TestEncodec:
         assert all(x.shape[1] == ext.dim for x in feats)
 
 
-def _fairseq_installed() -> bool:
-    try:
-        import fairseq  # noqa: F401
-    except ImportError:
-        return False
-    return True
-
-
-@pytest.mark.skipif(not _fairseq_installed(), reason="fairseq not installed.")
 class TestFairseq:
+    @skip_missing_path(f"{FAIRSEQ_DIR}/wav2vec")
     @pytest.mark.parametrize("layer", ["context", "encoder"])
     @pytest.mark.parametrize(
         "checkpoint",
@@ -146,9 +143,7 @@ class TestFairseq:
         ],
     )
     def test_fairseq_w2v(self, layer, checkpoint, audio):
-        config = fairseq.FairseqExtractorConfig(
-            model_type="wav2vec", checkpoint=checkpoint, layer=layer
-        )
+        config = fairseq.FairseqExtractorConfig(checkpoint=checkpoint, layer=layer)
         ext = fairseq.FairseqExtractor(config)
         feats = list(ext.process_all(audio, batch_size=1, sr=16000))
         assert len(feats) == len(files)
@@ -156,60 +151,8 @@ class TestFairseq:
         assert not ext.is_sequence
         assert all(x.shape == (ext.dim,) for x in feats)
 
-    @pytest.mark.parametrize(
-        ["model_type", "checkpoint", "layer", "dim"],
-        [
-            ("wav2vec2", f"{FAIRSEQ_DIR}/wav2vec2/libri960_big.pt", "context", 1024),
-            ("wav2vec2", f"{FAIRSEQ_DIR}/wav2vec2/wav2vec_small.pt", "context", 768),
-            ("wav2vec2", f"{FAIRSEQ_DIR}/wav2vec2/xlsr_53_56k.pt", "context", 1024),
-            ("data2vec", f"{FAIRSEQ_DIR}/data2vec/audio_base_ls.pt", "context", 768),
-            ("hubert", f"{FAIRSEQ_DIR}/hubert/hubert_base_ls960.pt", "context", 768),
-            ("wav2vec2", f"{FAIRSEQ_DIR}/wav2vec2/libri960_big.pt", "encoder", 512),
-            ("wav2vec2", f"{FAIRSEQ_DIR}/wav2vec2/wav2vec_small.pt", "encoder", 512),
-            ("wav2vec2", f"{FAIRSEQ_DIR}/wav2vec2/xlsr_53_56k.pt", "encoder", 512),
-            ("data2vec", f"{FAIRSEQ_DIR}/data2vec/audio_base_ls.pt", "encoder", 512),
-            ("hubert", f"{FAIRSEQ_DIR}/hubert/hubert_base_ls960.pt", "encoder", 512),
-        ],
-    )
-    def test_fairseq_w2v2(self, model_type, checkpoint, layer, dim, audio):
-        config = fairseq.FairseqExtractorConfig(
-            model_type=model_type, checkpoint=checkpoint, layer=layer
-        )
-        ext = fairseq.FairseqExtractor(config)
-        feats = list(ext.process_all(audio, batch_size=1, sr=16000))
-        assert len(feats) == len(files)
-        assert ext.dim == dim
-        assert not ext.is_sequence
-        assert all(x.shape == (ext.dim,) for x in feats)
 
-    @pytest.mark.filterwarnings("ignore:.*MiniBatchKMeans.*:UserWarning")
-    def test_fairseq_hubert_vq(self, audio):
-        config = fairseq.FairseqExtractorConfig(
-            model_type="hubert",
-            checkpoint=f"{FAIRSEQ_DIR}/hubert/hubert_base_ls960.pt",
-            layer="context",
-            aggregate=fairseq.Agg.NONE,
-            vq_path=f"{FAIRSEQ_DIR}/textless_nlp/gslm/hubert/km200/km.bin",
-            vq_ids=True,
-            vq_ids_as_string=False,
-        )
-        ext = fairseq.FairseqExtractor(config)
-        feats = list(ext.process_all(audio, batch_size=1, sr=16000))
-        assert len(feats) == len(files)
-        assert ext.is_sequence
-        assert ext.dim == 1
-        assert all(x.shape[1] == ext.dim for x in feats)
-
-
-def _transformers_installed() -> bool:
-    try:
-        import transformers  # noqa: F401
-    except ImportError:
-        return False
-    return True
-
-
-@pytest.mark.skipif(not _transformers_installed(), reason="Requires transformers.")
+@skip_missing_import("transformers")
 class TestHuggingFace:
     def test_hf_w2v2(self, audio):
         config = huggingface.HuggingFaceExtractorConfig(
@@ -234,15 +177,7 @@ class TestKerasApps:
         assert all(x.shape == (ext.dim,) for x in feats)
 
 
-def _opensmile_installed() -> bool:
-    try:
-        import opensmile  # noqa: F401
-    except ImportError:
-        return False
-    return True
-
-
-@pytest.mark.skipif(not _opensmile_installed(), reason="OpenSMILE not installed.")
+@skip_missing_import("opensmile")
 class TestOpenSMILE:
     def test_eGeMAPS(self, audio):
         config = opensmile.OpenSMILEExtractorConfig(opensmile_config="eGeMAPSv02")
@@ -279,16 +214,7 @@ class TestOpenXBOW:
         assert all(x.shape == (ext.dim,) for x in feats)
 
 
-def _festival_installed() -> bool:
-    try:
-        from phonemizer.backend.festival.festival import FestivalBackend
-
-        return FestivalBackend.is_available()
-    except ImportError:
-        return False
-
-
-@pytest.mark.skipif(not _festival_installed(), reason="Festival not installed.")
+@skip_missing_import("phonemizer.backend.festival.festival")
 class TestPhonemize:
     def test_phonemize(self, transcript):
         config = phonemize.PhonemizeConfig(language="en-us", backend="festival")
@@ -309,16 +235,7 @@ class TestPhonemize:
         assert all(x.shape == (ext.dim,) for x in feats)
 
 
-def _resampy_installed() -> bool:
-    try:
-        import resampy  # noqa: F401
-
-        return True
-    except ImportError:
-        return False
-
-
-@pytest.mark.skipif(not _resampy_installed(), reason="Resampy not installed.")
+@skip_missing_import("resampy")
 class TestResample:
     def test_resample(self, audio):
         config = resample.ResampleConfig(sample_rate=8000)
@@ -340,16 +257,7 @@ class TestSpectrogram:
         assert all(x.shape[1] == ext.dim for x in feats)
 
 
-def _speechbrain_installed() -> bool:
-    try:
-        import speechbrain  # noqa: F401
-
-        return True
-    except ImportError:
-        return False
-
-
-@pytest.mark.skipif(not _speechbrain_installed(), reason="SpeechBrain not installed.")
+@skip_missing_import("speechbrain")
 class TestSpeechBrain:
     def test_speechbrain(self, audio):
         config = speechbrain.SpeechBrainExtractorConfig(

@@ -20,6 +20,7 @@ testpaths = ["tests"]
 filterwarnings = [
     'ignore:.*pkg_resources\.declare_namespace.*:DeprecationWarning',
     'ignore:.*Jupyter is migrating.*:DeprecationWarning',
+    "ignore:'(aifc|audioop|sunau)' is deprecated:DeprecationWarning",
 ]
 addopts = [
     "--cov=src/ertk",

@@ -1,5 +1,4 @@
 encodec
-git+https://github.com/facebookresearch/fairseq.git@ae59bd6d04871f6174351ad46c90992e1dca7ac7
 opensmile>=2.4.0
 phonemizer
 resampy>=0.4.0
