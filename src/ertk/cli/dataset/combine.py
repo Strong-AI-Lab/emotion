@@ -20,7 +20,7 @@ def main(input: Tuple[Path], output: Path, prefix_corpus: bool, corpus: str):
     """Combines multiple INPUT features and writes to OUTPUT."""
 
     if len(input) == 0:
-        raise ValueError("No input files specified.")
+        raise click.UsageError("No input files specified.")
 
     feature_names: List[str] = []
     features = []

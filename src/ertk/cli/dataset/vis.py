@@ -34,7 +34,7 @@ def main():
 )
 @click.option(
     "--transform",
-    type=click.Choice(["pca", "umap", "tsne", "std", "minmax"]),
+    type=click.Choice(["pca", "umap", "tsne", "std", "norm", "minmax"]),
     default=("pca",),
     multiple=True,
 )
@@ -94,9 +94,9 @@ def xy(
         style = None
 
     try:
-        sample = int(float(sample_str) * len(x))
-    except ValueError:
         sample = int(sample_str)
+    except ValueError:
+        sample = int(float(sample_str) * len(x))
     print(f"Using {sample} instances for visualisation")
     if sample < len(x):
         rng = np.random.default_rng()

@@ -486,6 +486,7 @@ class ExperimentConfig(ERTKConfig):
     def from_file(cls: Type[T], path: PathOrStr) -> T:
         path = Path(path)
         conf = super().from_file(path)
+        # TODO: Make more general (i.e. arbitrary keys referencing paths)
         if isinstance(conf.data, str):
             conf.data = DataLoadConfig.from_file(path.parent / conf.data)
         return conf

@@ -27,8 +27,8 @@ def main(
     sel_groups: Tuple[str],
     remove_groups: Tuple[str],
     map_groups: Tuple[str],
-    clip_seq: int,
-    pad_seq: int,
+    clip_seq: int,  # unused
+    pad_seq: int,  # unused
     verbose: int,
     output_list: Path,
 ):
@@ -71,11 +71,6 @@ def main(
     for m in remove_groups:
         grp_del.update(get_arg_mapping(m))
     dataset.map_and_select(grp_map, grp_sel, grp_del)
-
-    if clip_seq:
-        dataset.clip_arrays(clip_seq)
-    if pad_seq:
-        dataset.pad_arrays(pad_seq)
 
     print(dataset)
     if output_list:

@@ -4,11 +4,12 @@ import os
 import subprocess
 import tempfile
 from dataclasses import dataclass
-from importlib.resources import path as res_path
 from typing import Iterable, List, Union
 
 import numpy as np
 import pandas as pd
+from importlib_resources import as_file
+from importlib_resources import files as res_files
 from omegaconf import MISSING
 
 from ertk.config import ERTKConfig
@@ -58,7 +59,7 @@ class OpenXBOWExtractor(
         for arg in self.config.xbowargs:
             add_args.extend(arg.split("=", maxsplit=1))
 
-        with res_path("ertk.preprocessing.openxbow", "openXBOW.jar") as jar:
+        with as_file(res_files("ertk.preprocessing.openxbow") / "openXBOW.jar") as jar:
             xbow_args = [
                 "java",
                 "-jar",

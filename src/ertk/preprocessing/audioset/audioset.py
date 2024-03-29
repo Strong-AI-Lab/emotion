@@ -160,11 +160,12 @@ class VGGishExtractor(
         self.model = VGGish(ckpt)
 
     def finish(self) -> None:
-        if self._old_env_log_level is not None:
-            os.environ["TF_CPP_MIN_LOG_LEVEL"] = self._old_env_log_level
+        if getattr(self, "_old_env_log_level", None) is not None:
+            os.environ["TF_CPP_MIN_LOG_LEVEL"] = self._old_env_log_level  # type: ignore
         import tensorflow as tf
 
-        tf.get_logger().setLevel(self._old_log_level)
+        if hasattr(self, "_old_log_level"):
+            tf.get_logger().setLevel(self._old_log_level)
 
     def _process_frames(self, frames: np.ndarray) -> np.ndarray:
         embeddings = self.model(frames)
