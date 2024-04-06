@@ -47,8 +47,8 @@ def _resolve_files_load(key):  # pragma: no cover
     return OmegaConf.load(key)
 
 
-OmegaConf.register_resolver("file", _resolve_files)
-OmegaConf.register_resolver("cwdpath", _resolve_files_load)
+OmegaConf.register_new_resolver("file", _resolve_files)
+OmegaConf.register_new_resolver("cwdpath", _resolve_files_load)
 
 
 @dataclass

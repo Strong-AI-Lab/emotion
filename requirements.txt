@@ -10,7 +10,7 @@ librosa
 matplotlib>=3.0.0
 netCDF4
 numpy
-omegaconf
+omegaconf>=2.1
 pandas>=1.4.0
 pytorch_lightning
 seaborn
