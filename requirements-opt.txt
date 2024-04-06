@@ -4,4 +4,4 @@ phonemizer
 resampy>=0.4.0
 speechbrain<1
 transformers
-tf-slim
+tensorflow-hub

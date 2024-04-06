@@ -62,18 +62,13 @@ def skip_missing_path(path: str):
 
 
 load_dotenv()
-AUDIOSET_DIR = os.environ["AUDIOSET_DIR"]
 FAIRSEQ_DIR = os.environ["FAIRSEQ_DIR"]
 
 
-@skip_missing_import("tf_slim")
+@skip_missing_import("tensorflow_hub")
 class TestAudioset:
-    @skip_missing_path(f"{AUDIOSET_DIR}/vggish")
-    @pytest.mark.filterwarnings("ignore::UserWarning")
     def test_vggish(self, audio):
-        config = audioset.VGGishExtractorConfig(
-            model_dir=f"{AUDIOSET_DIR}/vggish", postprocess=True
-        )
+        config = audioset.VGGishExtractorConfig()
         ext = audioset.VGGishExtractor(config)
         feats = list(ext.process_all(audio, batch_size=32, sr=16000))
         assert len(feats) == len(files)
@@ -81,10 +76,8 @@ class TestAudioset:
         assert all(x.shape == (ext.dim,) for x in feats)
         assert not ext.is_sequence
 
-    @skip_missing_path(f"{AUDIOSET_DIR}/yamnet")
-    @pytest.mark.filterwarnings("ignore::UserWarning")
     def test_yamnet(self, audio):
-        config = audioset.YAMNetExtractorConfig(model_dir=f"{AUDIOSET_DIR}/yamnet")
+        config = audioset.YAMNetExtractorConfig()
         ext = audioset.YAMNetExtractor(config)
         feats = list(ext.process_all(audio, batch_size=32, sr=16000))
         assert len(feats) == len(files)
@@ -190,12 +183,12 @@ class TestOpenSMILE:
 
     def test_eGeMAPS_lld(self, audio):
         config = opensmile.OpenSMILEExtractorConfig(
-            opensmile_config="eGeMAPS", levels=["lld"]
+            opensmile_config="eGeMAPSv02", levels=["lld"]
         )
         ext = opensmile.OpenSMILEExtractor(config)
         feats = list(ext.process_all(audio, batch_size=1, sr=16000))
         assert len(feats) == len(files)
-        assert ext.dim == 23
+        assert ext.dim == 25
         assert ext.is_sequence
         assert all(x.shape[1] == ext.dim for x in feats)
 
