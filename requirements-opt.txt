@@ -2,6 +2,6 @@ encodec
 opensmile>=2.4.0
 phonemizer
 resampy>=0.4.0
-speechbrain
+speechbrain<1
 transformers
 tf-slim
