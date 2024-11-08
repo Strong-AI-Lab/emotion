@@ -44,9 +44,9 @@ dependencies = [
     "scipy",
     "soundfile",
     "statsmodels",
-    "tensorflow >= 2.3.0",
-    "torch",
-    "torchaudio",
+    "tensorflow ~= 2.17.0",
+    "torch ~= 2.3.1",
+    "torchaudio ~= 2.3.1",
     "tqdm",
 ]
 
@@ -57,7 +57,7 @@ huggingface = ["transformers"]
 opensmile = ["opensmile >= 2.4.0"]
 phonemize = ["phonemizer"]
 resample = ["resampy >= 0.4.0"]
-speechbrain = ["speechbrain < 1.0.0"]
+speechbrain = ["speechbrain >= 1.0.0"]
 all-preprocessors = [
     "tensorflow-hub",
     "encodec",
@@ -65,7 +65,7 @@ all-preprocessors = [
     "opensmile >= 2.4.0",
     "phonemizer",
     "resampy >= 0.4.0",
-    "speechbrain < 1.0.0",
+    "speechbrain >= 1.0.0",
 ]
 dev = [
     "mypy==1.9.0",

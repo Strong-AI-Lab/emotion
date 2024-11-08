@@ -28,7 +28,7 @@ def test_process_opensmile(tmp_path):
                 "opensmile",
                 f"{test_data_dir}/all_clips.txt",
                 f"{tmp_path}/opensmile.csv",
-                "opensmile_config=eGeMAPS",
+                "opensmile_config=eGeMAPSv02",
             ]
         )
     assert excinfo.value.code == 0

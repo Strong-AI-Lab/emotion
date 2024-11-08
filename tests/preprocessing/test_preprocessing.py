@@ -61,7 +61,7 @@ def skip_missing_path(path: str):
 
 
 load_dotenv()
-FAIRSEQ_DIR = os.environ["FAIRSEQ_DIR"]
+FAIRSEQ_DIR = os.getenv("FAIRSEQ_DIR")
 
 
 @skip_missing_import("tensorflow_hub")
@@ -207,6 +207,7 @@ class TestOpenXBOW:
 
 
 @skip_missing_import("phonemizer.backend.festival.festival")
+@pytest.mark.skipif(os.system("command -v festival") != 0, reason="festival not found")
 class TestPhonemize:
     def test_phonemize(self, transcript):
         config = phonemize.PhonemizeConfig(language="en-us", backend="festival")

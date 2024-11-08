@@ -71,7 +71,7 @@ class SpeechBrainExtractor(
     config: SpeechBrainExtractorConfig
 
     def __init__(self, config: SpeechBrainExtractorConfig) -> None:
-        from speechbrain.pretrained import (
+        from speechbrain.inference import (
             EncoderClassifier,
             EncoderDecoderASR,
             WhisperASR,

@@ -55,7 +55,7 @@ def sk_cross_validate(
         groups=groups,
         n_jobs=n_jobs,
         verbose=verbose,
-        fit_params=fit_params,
+        params=fit_params,
         error_score="raise",
         return_estimator=True,
     )
