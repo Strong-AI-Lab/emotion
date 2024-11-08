@@ -1,6 +1,119 @@
+[project]
+name = "ertk"
+description = "Tools for processing emotion recognition datasets, extracting features, and running experiments."
+authors = [{ name = "Aaron Keesing", email = "akee511@aucklanduni.ac.nz" }]
+readme = { file = "README.md", content-type = "text/markdown" }
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Environment :: GPU :: NVIDIA CUDA",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio :: Analysis",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development",
+]
+dynamic = ["version"]
+dependencies = [
+    "click >= 8.0.0",
+    "click-option-group",
+    "importlib_metadata",
+    "importlib_resources",
+    "joblib",
+    "keras",
+    "liac-arff",
+    "liblinear-official",
+    "librosa",
+    "matplotlib >= 3.0.0",
+    "netCDF4",
+    "numpy",
+    "omegaconf >= 2.1",
+    "pandas >= 1.4.0",
+    "pytorch_lightning",
+    "seaborn",
+    "scikit-learn",
+    "scipy",
+    "soundfile",
+    "statsmodels",
+    "tensorflow >= 2.3.0",
+    "torch",
+    "torchaudio",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+audioset = ["tensorflow-hub"]
+encodec = ["encodec"]
+huggingface = ["transformers"]
+opensmile = ["opensmile >= 2.4.0"]
+phonemize = ["phonemizer"]
+resample = ["resampy >= 0.4.0"]
+speechbrain = ["speechbrain < 1.0.0"]
+all-preprocessors = [
+    "tensorflow-hub",
+    "encodec",
+    "transformers",
+    "opensmile >= 2.4.0",
+    "phonemizer",
+    "resampy >= 0.4.0",
+    "speechbrain < 1.0.0",
+]
+dev = [
+    "mypy==1.9.0",
+    "black==24.10.0",
+    "isort==5.13.2",
+    "flake8==7.1.1",
+    "pre-commit==4.0.1",
+    "pytest==8.1.1",
+    "pytest-cov==5.0.0",
+    "coverage==7.4.4",
+    "python-dotenv==1.0.1",
+    "build==1.2.1",
+    "twine==5.0.0",
+]
+
+[project.scripts]
+ertk-cli = "ertk.cli.cli:cli"
+ertk-dataset = "ertk.cli.dataset:cli"
+ertk-util = "ertk.cli.util:cli"
+
+[project.entry-points."ertk.processors"]
+encodec = "ertk.preprocessing.encodec:EncodecExtractor"
+fairseq = "ertk.preprocessing.fairseq:FairseqExtractor"
+huggingface = "ertk.preprocessing.huggingface:HuggingFaceExtractor"
+keras_apps = "ertk.preprocessing.keras_apps:KerasAppsExtractor"
+kmeans = "ertk.preprocessing.kmeans:KMeansExtractor"
+opensmile = "ertk.preprocessing.opensmile:OpenSMILEExtractor"
+openxbow = "ertk.preprocessing.openxbow:OpenXBOWExtractor"
+phonemize = "ertk.preprocessing.phonemize:Phonemizer"
+resample = "ertk.preprocessing.resample:Resampler"
+spectrogram = "ertk.preprocessing.spectrogram:SpectrogramExtractor"
+speechbrain = "ertk.preprocessing.speechbrain:SpeechBrainExtractor"
+vad_trim = "ertk.preprocessing.vad_trim:VADTrimmer"
+vggish = "ertk.preprocessing.audioset:VGGishExtractor"
+yamnet = "ertk.preprocessing.audioset:YAMNetExtractor"
+
+[project.urls]
+homepage = "https://github.com/Strong-AI-Lab/emotion"
+source = "https://github.com/Strong-AI-Lab/emotion"
+releasenotes = "https://github.com/Strong-AI-Lab/emotion/releases"
+documentation = "https://ertk.readthedocs.io/en/stable/"
+
 [build-system]
 requires = ["setuptools", "setuptools_scm[toml]", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+dynamic.version = { attr = "ertk.__version__" }
 
 [tool.isort]
 profile = "black"
@@ -8,6 +121,7 @@ extend_skip = ["third_party"]
 
 [tool.black]
 target-version = ["py39"]
+extend-exclude = "papers/.*"
 
 [tool.pyright]
 include = ["src", "scripts", "datasets/*", "tests"]
