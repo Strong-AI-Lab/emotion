@@ -3,8 +3,9 @@
 import os
 import subprocess
 import tempfile
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, List, Union
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -23,7 +24,7 @@ __all__ = ["OpenXBOWExtractorConfig", "OpenXBOWExtractor"]
 class OpenXBOWExtractorConfig(ERTKConfig):
     """Configuration for the OpenXBOW feature extractor."""
 
-    xbowargs: List[str] = MISSING
+    xbowargs: list[str] = MISSING
     """The arguments to pass to OpenXBOW."""
 
 
@@ -43,7 +44,7 @@ class OpenXBOWExtractor(
 
     def process_batch(
         self, batch: Union[Iterable[np.ndarray], np.ndarray], **kwargs
-    ) -> List[np.ndarray]:
+    ) -> list[np.ndarray]:
         _, tmpin = tempfile.mkstemp(prefix="openxbow_", suffix=".csv")
         _, tmpout = tempfile.mkstemp(prefix="openxbow_", suffix=".csv")
 
@@ -110,5 +111,5 @@ class OpenXBOWExtractor(
         return False
 
     @property
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         return [f"bow_{i}" for i in range(self.dim)]

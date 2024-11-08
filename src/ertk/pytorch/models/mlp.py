@@ -1,7 +1,6 @@
 """Simple multi-layer perceptron (MLP) model."""
 
 from dataclasses import dataclass, field
-from typing import List
 
 import torch
 
@@ -13,7 +12,7 @@ __all__ = ["MLPModel", "MLPConfig"]
 
 @dataclass
 class MLPConfig(PyTorchModelConfig):
-    units: List[int] = field(default_factory=lambda: [512])
+    units: list[int] = field(default_factory=lambda: [512])
     dropout: float = 0.5
     activation: str = "relu"
 

@@ -5,20 +5,11 @@ import itertools
 import logging
 import typing
 import warnings
+from collections.abc import Callable, Iterable, Iterator, Sized
 from abc import ABC, abstractmethod
 from collections import Counter
 from pathlib import Path
-from typing import (
-    Callable,
-    Dict,
-    Iterable,
-    Iterator,
-    List,
-    Optional,
-    Sized,
-    Type,
-    Union,
-)
+from typing import Optional, Union
 
 import arff
 import librosa
@@ -65,11 +56,11 @@ class FeaturesData:
         Features matrix. May be "flat" or per-instance. If flat,
         `slices` must also be present.
     names: list of str
-        List of instance names.
+        list of instance names.
     corpus: str
         Corpus for this dataset.
     feature_names: list of str, optional
-        List of feature names. If not given, the features will me named
+        list of feature names. If not given, the features will me named
         feature1, feature2, etc.
     slices: list or ndarray:
         Slices corresponding to "flat" `features` matrix.
@@ -80,11 +71,11 @@ class FeaturesData:
 
     def __init__(
         self,
-        features: Union[List[np.ndarray], np.ndarray],
-        names: List[str],
+        features: Union[list[np.ndarray], np.ndarray],
+        names: list[str],
         corpus: str = "",
-        feature_names: Optional[List[str]] = None,
-        slices: Union[np.ndarray, List[int], None] = None,
+        feature_names: Optional[list[str]] = None,
+        slices: Union[np.ndarray, list[int], None] = None,
     ):
         self._corpus = corpus
         self._names = list(names)
@@ -153,12 +144,12 @@ class FeaturesData:
         return self._slices
 
     @property
-    def names(self) -> List[str]:
+    def names(self) -> list[str]:
         """Instance names."""
         return self._names
 
     @property
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         """Names of features in feature matrix."""
         return self._feature_names
 
@@ -240,8 +231,8 @@ def read_raw_mem(path: PathOrStr, sample_rate: int = 16000) -> FeaturesData:
 class SequentialReader(Iterable[np.ndarray], Sized, ABC):
     """Base class for readers that read features sequentially."""
 
-    feature_names: List[str]
-    names: List[str]
+    feature_names: list[str]
+    names: list[str]
     corpus: str = ""
 
     def __init__(self, path: PathOrStr, **kwargs) -> None:
@@ -268,7 +259,7 @@ class RandomAccessReader(SequentialReader, ABC):
 
     @abstractmethod
     def __getitem__(
-        self, index: Union[int, slice, List[int], np.ndarray]
+        self, index: Union[int, slice, list[int], np.ndarray]
     ) -> np.ndarray:
         raise NotImplementedError()
 
@@ -314,7 +305,7 @@ class NetCDFReader(RandomAccessReader):
         self.dataset.close()
 
     def __getitem__(
-        self, index: Union[int, slice, List[int], np.ndarray]
+        self, index: Union[int, slice, list[int], np.ndarray]
     ) -> np.ndarray:
         feats_var = self.dataset.variables[self._feat_var]
         if self._is_2d:
@@ -358,7 +349,7 @@ class RawAudioReader(RandomAccessReader):
         self.feature_names = ["pcm"]
 
     def __getitem__(
-        self, index: Union[int, slice, List[int], np.ndarray]
+        self, index: Union[int, slice, list[int], np.ndarray]
     ) -> np.ndarray:
         if isinstance(index, int):
             return _read_audio_file(self.filepaths[index], self.sample_rate)
@@ -436,19 +427,19 @@ class SequentialWriter:
 
     Parameters
     ----------
-    names : List[str]
-        List of utterance names.
+    names : list[str]
+        list of utterance names.
     corpus : str
         Corpus name.
-    feature_names : List[str]
-        List of feature names.
+    feature_names : list[str]
+        list of feature names.
     """
 
     def __init__(
         self,
-        names: List[str],
+        names: list[str],
         corpus: str = "",
-        feature_names: List[str] = [],
+        feature_names: list[str] = [],
     ) -> None:
         self.names = names
         self.corpus = corpus
@@ -556,7 +547,7 @@ class SequentialWriter:
             soundfile.write(output_path, audio, subtype="PCM_16", samplerate=sr)
         write_filelist(output_dir.glob("*.wav"), path.with_suffix(".txt"))
 
-    _write_backends: Dict[str, Callable] = {
+    _write_backends: dict[str, Callable] = {
         ".arff": write_arff,
         ".csv": write_csv,
         ".nc": write_netcdf,
@@ -565,14 +556,14 @@ class SequentialWriter:
     }
 
 
-_READ_BACKENDS_MEM: Dict[str, Callable[..., FeaturesData]] = {
+_READ_BACKENDS_MEM: dict[str, Callable[..., FeaturesData]] = {
     ".nc": read_netcdf_mem,
     ".arff": read_arff_mem,
     ".csv": read_csv_mem,
     ".txt": read_raw_mem,
 }
 
-_READ_BACKENDS_SEQUENTIAL: Dict[str, Type[SequentialReader]] = {
+_READ_BACKENDS_SEQUENTIAL: dict[str, type[SequentialReader]] = {
     ".nc": NetCDFReader,
     ".arff": ARFFSequentialReader,
     ".csv": CSVSequentialReader,
@@ -629,10 +620,10 @@ def read_features_iterable(path: PathOrStr, **kwargs) -> SequentialReader:
 def write_features(
     path: PathOrStr,
     features: Union[Iterable[np.ndarray], np.ndarray],
-    names: List[str],
+    names: list[str],
     corpus: str = "",
-    feature_names: List[str] = [],
-    slices: Union[np.ndarray, List[int], None] = None,
+    feature_names: list[str] = [],
+    slices: Union[np.ndarray, list[int], None] = None,
     **kwargs,
 ) -> None:
     """Convenience function to write features to given path.
@@ -647,13 +638,13 @@ def write_features(
         given, the dimensions are assumed to be (frames, features), and
         the `slices` parameter is required. If an iterable of arrays is
         given, each 1D or 2D array is assumed to be a single instance.
-    names : List[str]
+    names : list[str]
         Instance names.
     corpus : str
         Name of corpus. Default is empty string.
-    feature_names : List[str]
+    feature_names : list[str]
         Feature names.
-    slices : Union[np.ndarray, List[int]], optional
+    slices : Union[np.ndarray, list[int]], optional
         Number of frames per instance. Only required if a 2D matrix is
         given, and the first dimension is different than the number of
         instances.

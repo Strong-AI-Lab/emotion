@@ -5,7 +5,6 @@ from datetime import datetime
 from pathlib import Path
 from queue import Queue
 from threading import Lock, Thread
-from typing import Tuple
 
 import click
 from click_option_group import RequiredMutuallyExclusiveOptionGroup, optgroup
@@ -21,7 +20,7 @@ from click_option_group import RequiredMutuallyExclusiveOptionGroup, optgroup
 @optgroup.group("Parallel method", cls=RequiredMutuallyExclusiveOptionGroup)
 @optgroup.option("--cpus", type=int, help="Number of CPU threads to use")
 @optgroup.option("--gpus", help="GPU IDs to run on.")
-def main(input: Tuple[Path], cpus: int, gpus: str, failed: Path):
+def main(input: tuple[Path], cpus: int, gpus: str, failed: Path):
     """Run all commands specified in the INPUT file(s), splitting the
     work across multiple CPU threads or GPUs such that each command runs
     solely on whichever thread/GPU is next available.

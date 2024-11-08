@@ -1,7 +1,6 @@
 import importlib
 import os
 from pathlib import Path
-from typing import List
 
 import numpy as np
 import pytest
@@ -27,7 +26,7 @@ files = list(test_data_dir.glob("resampled/*.wav"))
 
 
 @pytest.fixture(scope="module")
-def audio() -> List[np.ndarray]:
+def audio() -> list[np.ndarray]:
     import librosa
 
     return [librosa.load(x, sr=16000, mono=True)[0] for x in files]

@@ -1,4 +1,16 @@
-"""PyTorch utilities."""
+"""PyTorch utilities.
+
+.. autosummary::
+    :toctree:
+
+    get_activation
+    get_loss
+    load_tensorboard
+    frame_tensor
+    add_signal_awgn
+    add_gaussian
+    spectrogram
+"""
 
 from typing import Optional
 

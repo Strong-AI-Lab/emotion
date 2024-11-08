@@ -1,7 +1,6 @@
 import shutil
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List
 
 import click
 
@@ -23,7 +22,7 @@ def main(input: Path, output: Path, label_name: str, partition: str):
 
     dataset = Dataset(input)
     paths = get_audio_paths(dataset._subset_paths[dataset.subset])
-    group_paths: Dict[str, List[Path]] = defaultdict(list)
+    group_paths: dict[str, list[Path]] = defaultdict(list)
     for path in paths:
         group_paths[dataset.annotations.loc[path.stem, partition]].append(path)
 

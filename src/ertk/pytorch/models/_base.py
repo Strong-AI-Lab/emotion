@@ -1,7 +1,7 @@
 import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Dict, List, Optional, Tuple, Type, cast
+from typing import Any, ClassVar, Optional, cast
 
 import pytorch_lightning as pl
 import torch
@@ -17,7 +17,7 @@ class PyTorchModelConfig(ERTKConfig):
 
     optimiser: str = "adam"
     """The optimiser to use."""
-    opt_params: Dict[str, Any] = field(default_factory=dict)
+    opt_params: dict[str, Any] = field(default_factory=dict)
     """Parameters to pass to the optimiser."""
     learning_rate: float = 1e-3
     """The learning rate to use."""
@@ -27,7 +27,7 @@ class PyTorchModelConfig(ERTKConfig):
     """The number of classes in the output data."""
     loss: str = "cross_entropy"
     """The loss function to use."""
-    loss_args: Dict[str, Any] = field(default_factory=dict)
+    loss_args: dict[str, Any] = field(default_factory=dict)
     """Arguments to pass to the loss function."""
 
 
@@ -41,16 +41,16 @@ class ERTKPyTorchModel(pl.LightningModule, ABC):
 
     Parameters
     ----------
-    config : PyTorchModelConfig
+    config: PyTorchModelConfig
         The model configuration.
     """
 
     config: PyTorchModelConfig
     """The model configuration."""
 
-    _config_type: ClassVar[Type[PyTorchModelConfig]]
+    _config_type: ClassVar[type[PyTorchModelConfig]]
     _friendly_name: ClassVar[str]
-    _registry: ClassVar[Dict[str, Type["ERTKPyTorchModel"]]] = {}
+    _registry: ClassVar[dict[str, type["ERTKPyTorchModel"]]] = {}
 
     def __init__(
         self,
@@ -67,14 +67,14 @@ class ERTKPyTorchModel(pl.LightningModule, ABC):
         self.config = config
 
     def __init_subclass__(
-        cls, fname: str = None, config: Type[PyTorchModelConfig] = None
+        cls, fname: str = None, config: type[PyTorchModelConfig] = None
     ) -> None:
         cls._registry = {}
         if fname and config:
             cls._friendly_name = fname
             cls._config_type = config
             for t in cls.mro()[1:-1]:
-                t = cast(Type[ERTKPyTorchModel], t)  # For MyPy
+                t = cast(type[ERTKPyTorchModel], t)  # For MyPy
                 if not hasattr(t, "_registry"):
                     continue
                 if fname in t._registry:
@@ -87,17 +87,17 @@ class ERTKPyTorchModel(pl.LightningModule, ABC):
                 t._registry[fname] = cls
 
     @classmethod
-    def get_model_class(cls, name: str) -> Type["ERTKPyTorchModel"]:
+    def get_model_class(cls, name: str) -> type["ERTKPyTorchModel"]:
         """Get a model class by name.
 
         Parameters
         ----------
-        name : str
+        name: str
             The name of the model class to retrieve.
 
         Returns
         -------
-        Type[ERTKPyTorchModel]
+        type[ERTKPyTorchModel]
             The model class.
 
         Raises
@@ -116,9 +116,9 @@ class ERTKPyTorchModel(pl.LightningModule, ABC):
 
         Parameters
         ----------
-        name : str
+        name: str
             The name of the model class to retrieve.
-        config : PyTorchModelConfig
+        config: PyTorchModelConfig
             The model configuration.
 
         Returns
@@ -129,12 +129,12 @@ class ERTKPyTorchModel(pl.LightningModule, ABC):
         return cls.get_model_class(name)(config)
 
     @classmethod
-    def get_config_type(cls) -> Type[PyTorchModelConfig]:
+    def get_config_type(cls) -> type[PyTorchModelConfig]:
         """Get the configuration dataclass for this model.
 
         Returns
         -------
-        Type[PyTorchModelConfig]
+        type[PyTorchModelConfig]
             The configuration dataclass.
 
         Notes
@@ -145,12 +145,12 @@ class ERTKPyTorchModel(pl.LightningModule, ABC):
         return cls._config_type
 
     @classmethod
-    def valid_models(cls) -> List[str]:
+    def valid_models(cls) -> list[str]:
         """Get a list of valid model names.
 
         Returns
         -------
-        List[str]
+        list[str]
             A list of valid model names.
         """
         return list(cls._registry)
@@ -168,6 +168,13 @@ class ERTKPyTorchModel(pl.LightningModule, ABC):
 
     @abstractmethod
     def forward(self, x, **kwargs):  # type: ignore
+        """The forward method.
+
+        Parameters
+        ----------
+        x: torch.Tensor
+            The input tensor.
+        """
         raise NotImplementedError()
 
     def preprocess_input(self, x: torch.Tensor) -> torch.Tensor:
@@ -177,7 +184,7 @@ class ERTKPyTorchModel(pl.LightningModule, ABC):
 
         Parameters
         ----------
-        x : torch.Tensor
+        x: torch.Tensor
             The input tensor.
 
         Returns
@@ -204,7 +211,9 @@ class SimpleModel(ERTKPyTorchModel):
     loss: callable
         A callable that takes predictions yhat and ground truth y to
         yield a loss::
+
             l = loss(yhat, y)
+
         It is assumed that if sw is given then the returned loss is a 1D
         tensor of losses per instance in the batch.
     optim_fn: callable
@@ -231,11 +240,34 @@ class SimpleModel(ERTKPyTorchModel):
         self.learning_rate = config.learning_rate
 
     def training_step(self, batch, batch_idx: int) -> torch.Tensor:
+        """Training step.
+
+        Parameters
+        ----------
+        batch: Any
+            The batch of input.
+        batch_idx: int
+            The batch index within the dataloader.
+
+        Returns
+        -------
+        torch.Tensor
+            The loss.
+        """
         x, y, yhat, sw = self.get_outputs_for_batch(batch)
         loss = self.log_loss("train", y, yhat, sw)
         return loss
 
     def validation_step(self, batch, batch_idx: int) -> None:
+        """Validation step.
+
+        Parameters
+        ----------
+        batch: Any
+            The batch of input.
+        batch_idx: int
+            The batch index within the dataloader.
+        """
         x, y, yhat, sw = self.get_outputs_for_batch(batch)
         self.log_loss("val", y, yhat, sw)
 
@@ -252,7 +284,7 @@ class SimpleModel(ERTKPyTorchModel):
 
     def get_outputs_for_batch(
         self, batch
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
         x, y, *sw = batch
         sw = sw[0] if len(sw) > 0 else None
         with torch.no_grad():
@@ -260,11 +292,36 @@ class SimpleModel(ERTKPyTorchModel):
         yhat = self.forward(x)
         return x, y, yhat, sw
 
-    def predict_step(self, batch, batch_idx: int, dataloader_idx: int = 0):
+    def predict_step(
+        self, batch, batch_idx: int, dataloader_idx: int = 0
+    ) -> torch.Tensor:
+        """Validation step.
+
+        Parameters
+        ----------
+        batch: Any
+            The batch of input.
+        batch_idx: int
+            The batch index within the dataloader.
+        dataloader_idx: int
+            The dataloader index.
+
+        Returns
+        -------
+        torch.Tensor
+            The output of the :meth:`forward` method.
+        """
         x, *_ = self.get_outputs_for_batch(batch)
-        return self.forward(x)
+        return x
 
     def configure_optimizers(self):
+        """Configure model optimizers.
+
+        Returns
+        -------
+        torch.optim.Optimizer
+            An optimizer for this model.
+        """
         optim_fn = {
             "adam": torch.optim.Adam,
             "sgd": torch.optim.SGD,

@@ -10,7 +10,7 @@ References
 
 import time
 from pathlib import Path
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Union
 
 import click
 import numpy as np
@@ -97,7 +97,7 @@ class TimeRecurrentAutoencoder(nn.Module):
             nn.Linear(decoder_output_size, n_features), nn.Tanh()
         )
 
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         # x (B, T, F)
         targets = x.flip(1)
 
@@ -143,9 +143,9 @@ def _save_model(
     directory: Union[Path, str],
     epoch: int,
     model: TimeRecurrentAutoencoder,
-    model_args: Dict[str, Any],
+    model_args: dict[str, Any],
     optimiser: Adam,
-    optimiser_args: Dict[str, Any],
+    optimiser_args: dict[str, Any],
 ):
     """Saves the given model and associated training parameters."""
     save_path = Path(directory) / f"model-{epoch:04d}.pt"

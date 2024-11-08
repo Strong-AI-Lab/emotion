@@ -9,20 +9,19 @@ References
        May 2020, pp. 1-5, doi: 10.1109/EAIS48028.2020.9122698.
 """
 
-from keras import Model
-from keras.layers import Conv1D, Dense, Dropout, Flatten, Input, MaxPool1D, Reshape
+import keras
 
 __all__ = ["model"]
 
 
-def model(n_features: int, n_classes: int) -> Model:
-    inputs = Input((n_features,))
-    x = Reshape((n_features, 1))(inputs)
-    # x = Conv1D(128, 40, activation="relu", padding="same")(x)
-    # x = Dropout(0.2)(x)
-    # x = MaxPool1D(8)(x)
-    x = Conv1D(64, 5, activation="relu", padding="same")(x)
-    x = Dropout(0.2)(x)
-    x = Flatten()(x)
-    x = Dense(n_classes, activation="softmax")(x)
-    return Model(inputs=inputs, outputs=x)
+def model(n_features: int, n_classes: int) -> keras.Model:
+    inputs = keras.Input((n_features,))
+    x = keras.layers.Reshape((n_features, 1))(inputs)
+    # x = keras.layers.Conv1D(128, 40, activation="relu", padding="same")(x)
+    # x = keras.layers.Dropout(0.2)(x)
+    # x = keras.layers.MaxPool1D(8)(x)
+    x = keras.layers.Conv1D(64, 5, activation="relu", padding="same")(x)
+    x = keras.layers.Dropout(0.2)(x)
+    x = keras.layers.Flatten()(x)
+    x = keras.layers.Dense(n_classes, activation="softmax")(x)
+    return keras.Model(inputs=inputs, outputs=x)

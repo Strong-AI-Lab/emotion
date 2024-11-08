@@ -1,9 +1,8 @@
 """Basic multi-layer perceptron (MLP) model."""
 
-from typing import Sequence
+from collections.abc import Sequence
 
-from keras.layers import Dense, Dropout, Input
-from keras.models import Model
+import keras
 
 __all__ = ["model"]
 
@@ -13,14 +12,14 @@ def model(
     n_classes: int,
     units: Sequence[int] = [512],
     dropout: float = 0.5,
-) -> Model:
+) -> keras.Model:
     """Creates a Keras model with hidden layers and ReLU activation,
     with 50% dropout.
     """
-    inputs = Input((n_features,), name="input")
+    inputs = keras.Input((n_features,), name="input")
     x = inputs
     for n_units in units:
-        x = Dense(n_units, activation="relu")(x)
-        x = Dropout(dropout)(x)
-    x = Dense(n_classes, activation="softmax")(x)
-    return Model(inputs=inputs, outputs=x)
+        x = keras.layers.Dense(n_units, activation="relu")(x)
+        x = keras.layers.Dropout(dropout)(x)
+    x = keras.layers.Dense(n_classes, activation="softmax")(x)
+    return keras.Model(inputs=inputs, outputs=x)

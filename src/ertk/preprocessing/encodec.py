@@ -1,8 +1,14 @@
-"""Encodec feature extractor."""
+"""Encodec feature extractor.
+
+.. autosummary::
+    :toctree:
+
+    EncodecExtractorConfig
+    EncodecExtractor
+"""
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import List
 
 import numpy as np
 import torch
@@ -113,7 +119,7 @@ class EncodecExtractor(
         return self.config.vq_ids or self.config.aggregate == Agg.NONE
 
     @property
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         if self.config.vq_ids:
             if self.config.vq_ids_as_string:
                 return ["encodec_vq_ids"]

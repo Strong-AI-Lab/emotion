@@ -20,6 +20,7 @@ Models
     latif2019
     mlp
     rbm
+    transformer
     zhang2019
     zhao2019
 
@@ -35,7 +36,7 @@ Layers
 import importlib
 from functools import partial
 
-from keras.models import Model
+import keras
 
 from ertk.tensorflow.utils import TFModelFunction
 
@@ -70,7 +71,7 @@ def get_tf_model_fn(name: str, **kwargs) -> TFModelFunction:
     return partial(model_fn, **kwargs)
 
 
-def get_tf_model(name: str, **kwargs) -> Model:
+def get_tf_model(name: str, **kwargs) -> keras.Model:
     """Get a TensorFlow model by name.
 
     Parameters

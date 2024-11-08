@@ -1,6 +1,5 @@
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import List, Tuple
 
 import click
 import librosa
@@ -24,7 +23,7 @@ from ertk.utils import TqdmParallel
     help="Break the utterance at these annotation values.",
 )
 def main(
-    input: Tuple[Path], output: Path, prefix: str, tier: str, break_on: Tuple[str]
+    input: tuple[Path], output: Path, prefix: str, tier: str, break_on: tuple[str]
 ):
     """Splits ELAN (.eaf) files and associated audio into segments."""
 
@@ -59,8 +58,8 @@ def main(
             # No linguistic content
             return
 
-        group: List[Tuple[str, str, str]] = []  # [(start, end, word), ...]
-        utts: List[Tuple[str, str, str]] = []  # [(start, end, txt), ...]
+        group: list[tuple[str, str, str]] = []  # [(start, end, word), ...]
+        utts: list[tuple[str, str, str]] = []  # [(start, end, txt), ...]
         for annotation in phrases:
             alignable_annotation = annotation[0]
             ts1 = time_slots[alignable_annotation.attrib["TIME_SLOT_REF1"]]

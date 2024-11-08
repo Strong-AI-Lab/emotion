@@ -1,8 +1,14 @@
-"""Voice activity detection (VAD) trimming."""
+"""Voice activity detection (VAD) trimming.
+
+.. autosummary::
+    :toctree:
+
+    VADTrimmerConfig
+    VADTrimmer
+"""
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import List
 
 import librosa
 import numpy as np
@@ -198,5 +204,5 @@ class VADTrimmer(AudioClipProcessor, fname="vad_trim", config=VADTrimmerConfig):
         raise NotImplementedError(f"Method {self.config.method} not implemented.")
 
     @property
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         return ["pcm"]

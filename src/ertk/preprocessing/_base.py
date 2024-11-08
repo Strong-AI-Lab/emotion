@@ -1,8 +1,9 @@
 import logging
 import warnings
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from itertools import chain, tee
-from typing import ClassVar, Dict, Iterable, List, Optional, Type, Union, cast
+from typing import ClassVar, Optional, Union, cast
 
 import librosa
 import numpy as np
@@ -27,10 +28,10 @@ class InstanceProcessor(ABC):
     logger: logging.Logger
     """The logger for this processor."""
 
-    _config_type: ClassVar[Type[ERTKConfig]]
+    _config_type: ClassVar[type[ERTKConfig]]
     _friendly_name: ClassVar[str]
-    _registry: ClassVar[Dict[str, Type["InstanceProcessor"]]] = {}
-    _plugins: ClassVar[Dict[str, EntryPoint]] = {
+    _registry: ClassVar[dict[str, type["InstanceProcessor"]]] = {}
+    _plugins: ClassVar[dict[str, EntryPoint]] = {
         x.name: x for x in entry_points().select(group="ertk.processors")
     }
 
@@ -40,14 +41,14 @@ class InstanceProcessor(ABC):
         self.logger = logging.getLogger(cls_name)
 
     def __init_subclass__(
-        cls, fname: Optional[str] = None, config: Optional[Type[ERTKConfig]] = None
+        cls, fname: Optional[str] = None, config: Optional[type[ERTKConfig]] = None
     ) -> None:
         cls._registry = {}
         if fname and config:
             cls._friendly_name = fname
             cls._config_type = config
             for t in cls.mro()[1:-1]:
-                t = cast(Type[InstanceProcessor], t)  # For MyPy
+                t = cast(type[InstanceProcessor], t)  # For MyPy
                 if not hasattr(t, "_registry"):
                     continue
                 if fname in t._registry:
@@ -73,7 +74,7 @@ class InstanceProcessor(ABC):
         return cls._friendly_name
 
     @classmethod
-    def get_processor_class(cls, name: str) -> "Type[InstanceProcessor]":
+    def get_processor_class(cls, name: str) -> "type[InstanceProcessor]":
         """Get the class for the named processor.
 
         Parameters
@@ -83,7 +84,7 @@ class InstanceProcessor(ABC):
 
         Returns
         -------
-        processor: Type[InstanceProcessor]
+        processor: type[InstanceProcessor]
             The processor class.
         """
         if name not in cls._registry:
@@ -121,12 +122,12 @@ class InstanceProcessor(ABC):
         return cls.get_processor_class(name)(config)
 
     @classmethod
-    def get_config_type(cls) -> Type[ERTKConfig]:
+    def get_config_type(cls) -> type[ERTKConfig]:
         """Get the configuration type for this processor."""
         return cls._config_type
 
     @classmethod
-    def valid_processors(cls) -> List[str]:
+    def valid_processors(cls) -> list[str]:
         """Get a list of all registered processor names.
 
         Returns
@@ -165,7 +166,7 @@ class InstanceProcessor(ABC):
 
     def process_batch(
         self, batch: Union[Iterable[np.ndarray], np.ndarray], **kwargs
-    ) -> List[np.ndarray]:
+    ) -> list[np.ndarray]:
         """Process a batch of instances. By default this simply calls
         `process_instance()` on each instance in the batch.
 
@@ -221,7 +222,7 @@ class InstanceProcessor(ABC):
 
     @property
     @abstractmethod
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         """The names of the features produced by this processor."""
         raise NotImplementedError()
 

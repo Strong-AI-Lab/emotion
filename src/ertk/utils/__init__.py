@@ -45,7 +45,7 @@ Miscellaneous utilities
     TqdmParallel
 
 
-Type definitions
+type definitions
 ----------------
 .. autosummary::
     :toctree: generated/

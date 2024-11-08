@@ -2,8 +2,8 @@
 
 import importlib
 import os
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, List
 
 import importlib_resources
 
@@ -12,12 +12,12 @@ from ertk.utils import PathOrStr
 __all__ = ["process_dataset", "list_predefined_datasets"]
 
 
-def list_predefined_datasets() -> List[str]:
-    """List all predefined datasets.
+def list_predefined_datasets() -> list[str]:
+    """list all predefined datasets.
 
     Returns
     -------
-    List[str]
+    list[str]
         A list of all predefined datasets by name.
     """
     return [

@@ -12,7 +12,6 @@ This assumes the file structure from the original compressed file:
 
 import re
 from pathlib import Path
-from typing import Dict
 
 import click
 
@@ -61,7 +60,7 @@ def main(input_dir: Path, resample: bool):
         write_filelist(resample_dir.glob("*.wav"), "files_all")
 
     keys = ["label", "sentence", "speaker", "speaker_name", "gender", "transcript"]
-    annot: Dict[str, Dict[str, str]] = {x: {} for x in keys}
+    annot: dict[str, dict[str, str]] = {x: {} for x in keys}
     for p in paths:
         match = REGEX.match(p.stem)
         if not match:

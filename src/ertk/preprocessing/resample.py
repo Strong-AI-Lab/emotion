@@ -1,7 +1,13 @@
-"""Audio resampling using resampy."""
+"""Audio resampling using resampy.
+
+.. autosummary::
+    :toctree:
+
+    ResampleConfig
+    Resampler
+"""
 
 from dataclasses import dataclass
-from typing import List
 
 import numpy as np
 
@@ -44,5 +50,5 @@ class Resampler(AudioClipProcessor, fname="resample", config=ResampleConfig):
         )
 
     @property
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         return ["pcm"]

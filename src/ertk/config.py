@@ -24,9 +24,10 @@ Functions
 
 from abc import ABC
 from collections import defaultdict
+from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Collection, Dict, List, Type, TypeVar, Union, cast
+from typing import Any, TypeVar, Union, cast
 
 import yaml
 from omegaconf import DictConfig, OmegaConf
@@ -67,7 +68,7 @@ class ERTKConfig(ABC):
         return DictConfig(self)
 
     @classmethod
-    def from_config(cls: Type[T], config: Any) -> T:
+    def from_config(cls: type[T], config: Any) -> T:
         """Create config object from any compatible config.
 
         Parameters
@@ -83,7 +84,7 @@ class ERTKConfig(ABC):
         return cast(T, OmegaConf.merge(OmegaConf.structured(cls), config))
 
     @classmethod
-    def default(cls: Type[T]) -> T:
+    def default(cls: type[T]) -> T:
         """Create default config.
 
         Returns
@@ -94,7 +95,7 @@ class ERTKConfig(ABC):
         return cast(T, OmegaConf.structured(cls))
 
     @classmethod
-    def from_file(cls: Type[T], path: PathOrStr) -> T:
+    def from_file(cls: type[T], path: PathOrStr) -> T:
         """Create config from YAML file and optionlly override some
         values.
 
@@ -164,7 +165,7 @@ class ERTKConfig(ABC):
         return cast(T, OmegaConf.merge(self, OmegaConf.from_dotlist(list(args))))
 
 
-def get_arg_mapping(s: Union[Path, str]) -> Dict[str, str]:
+def get_arg_mapping(s: Union[Path, str]) -> dict[str, str]:
     """Given a mapping on the command-line, returns a dict representing
     that mapping. Mapping can be a string or a more complex YAML file.
 
@@ -186,7 +187,7 @@ def get_arg_mapping(s: Union[Path, str]) -> Dict[str, str]:
     if isinstance(s, Path) or Path(s).exists():
         with open(s) as fid:
             return yaml.safe_load(fid) or {}
-    mapping: Dict[str, List[str]] = defaultdict(list)
+    mapping: dict[str, list[str]] = defaultdict(list)
     for cls in s.split(","):
         key, val = cls.split(":")
         mapping[key].append(val)

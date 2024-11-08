@@ -1,7 +1,8 @@
 """PyTorch layers for use in models."""
 
 import math
-from typing import Any, Callable, List, Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 import torch
 import torch.nn.functional as F
@@ -35,7 +36,7 @@ class Attention1D(nn.Module):
 
 
 def make_fc(
-    dims: List[int],
+    dims: list[int],
     activation: str = "relu",
     activation_args: Sequence[Any] = [],
     init_fn: Callable = nn.init.xavier_uniform_,

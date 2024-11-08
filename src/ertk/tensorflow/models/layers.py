@@ -1,12 +1,12 @@
 """Custom Keras layers for use in TensorFlow models."""
 
 import tensorflow as tf
-from keras.layers import Layer
+import keras
 
 __all__ = ["Attention1D"]
 
 
-class Attention1D(Layer):
+class Attention1D(keras.Layer):
     """Layer that implements simple weighted pooling using softmax
     attention over a sequence of input vectors.
     """

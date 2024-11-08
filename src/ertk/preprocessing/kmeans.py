@@ -1,7 +1,13 @@
-"""Kmeans vector quantiser."""
+"""Kmeans vector quantiser.
+
+.. autosummary::
+    :toctree:
+
+    KMeansExtractorConfig
+    KMeansExtractor
+"""
 
 from dataclasses import dataclass
-from typing import List
 
 import numpy as np
 from omegaconf import MISSING
@@ -41,5 +47,5 @@ class KMeansExtractor(FeatureExtractor, fname="kmeans", config=KMeansExtractorCo
         return True
 
     @property
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         return ["cluster_id"]

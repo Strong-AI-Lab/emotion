@@ -1,8 +1,8 @@
 """Multi-task learning MTL utilities."""
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List
 
 import omegaconf
 import torch
@@ -19,18 +19,18 @@ __all__ = ["MTLModelConfig", "MTLModel", "MTLTaskConfig"]
 class MTLTaskConfig(ERTKConfig):
     output_dim: int = omegaconf.MISSING
     loss: str = omegaconf.MISSING
-    metrics: List[str] = field(default_factory=list)
+    metrics: list[str] = field(default_factory=list)
     weight: float = 1
 
 
 @dataclass
 class MTLModelConfig(PyTorchModelConfig):
-    tasks: Dict[str, MTLTaskConfig] = omegaconf.MISSING
+    tasks: dict[str, MTLTaskConfig] = omegaconf.MISSING
 
 
 class MTLModel(ERTKPyTorchModel, ABC):
-    tasks: Dict[str, MTLTaskConfig]
-    losses: Dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]]
+    tasks: dict[str, MTLTaskConfig]
+    losses: dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]]
     config: MTLModelConfig
 
     def __init__(self, config: MTLModelConfig) -> None:
@@ -39,7 +39,7 @@ class MTLModel(ERTKPyTorchModel, ABC):
         self.losses = {n: get_loss(t.loss) for n, t in self.tasks.items()}
 
     @abstractmethod
-    def forward(self, x: torch.Tensor, **kwargs) -> Dict[str, torch.Tensor]:
+    def forward(self, x: torch.Tensor, **kwargs) -> dict[str, torch.Tensor]:
         raise NotImplementedError()
 
     def training_step(self, batch, batch_idx: int) -> torch.Tensor:

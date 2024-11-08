@@ -1,7 +1,7 @@
 import warnings
 from abc import ABC
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Dict, List, Optional, Type, cast
+from typing import Any, ClassVar, Optional, cast
 
 import yaml
 from omegaconf import MISSING, OmegaConf
@@ -34,13 +34,13 @@ TRANSFORM_MAP = {
 class SkModelConfig(ERTKConfig):
     """Configuration for a scikit-learn model."""
 
-    kwargs: Dict[str, Any] = field(default_factory=dict)
+    kwargs: dict[str, Any] = field(default_factory=dict)
     """Keyword arguments to pass to the model constructor."""
     transform: Optional[str] = "std"
     """The name of the transform to use."""
-    transform_kwargs: Dict[str, Any] = field(default_factory=dict)
+    transform_kwargs: dict[str, Any] = field(default_factory=dict)
     """Keyword arguments to pass to the transform constructor."""
-    param_grid: Dict[str, Any] = field(default_factory=dict)
+    param_grid: dict[str, Any] = field(default_factory=dict)
     """The parameter grid to use for grid search."""
     param_grid_path: Optional[str] = None
     """The path to a YAML file containing the parameter grid to use for
@@ -60,9 +60,9 @@ class ERTKSkModel(ABC):
     config: SkModelConfig
     """The model configuration."""
 
-    _config_type: ClassVar[Type[SkModelConfig]]
+    _config_type: ClassVar[type[SkModelConfig]]
     _friendly_name: ClassVar[str]
-    _registry: ClassVar[Dict[str, Type["ERTKSkModel"]]] = {}
+    _registry: ClassVar[dict[str, type["ERTKSkModel"]]] = {}
 
     def __init__(self, config: SkModelConfig) -> None:
         full_config = OmegaConf.merge(type(self).get_default_config(), config)
@@ -72,14 +72,14 @@ class ERTKSkModel(ABC):
         self.config = config
 
     def __init_subclass__(
-        cls, fname: str = None, config: Type[SkModelConfig] = None
+        cls, fname: str = None, config: type[SkModelConfig] = None
     ) -> None:
         cls._registry = {}
         if fname and config:
             cls._friendly_name = fname
             cls._config_type = config
             for t in cls.mro()[1:-1]:
-                t = cast(Type[ERTKSkModel], t)  # For MyPy
+                t = cast(type[ERTKSkModel], t)  # For MyPy
                 if not hasattr(t, "_registry"):
                     continue
                 if fname in t._registry:
@@ -92,7 +92,7 @@ class ERTKSkModel(ABC):
                 t._registry[fname] = cls
 
     @classmethod
-    def get_model_class(cls, name: str) -> Type["ERTKSkModel"]:
+    def get_model_class(cls, name: str) -> type["ERTKSkModel"]:
         try:
             return cls._registry[name]
         except KeyError as e:
@@ -103,11 +103,11 @@ class ERTKSkModel(ABC):
         return cls.get_model_class(name)(config)
 
     @classmethod
-    def get_config_type(cls) -> Type[SkModelConfig]:
+    def get_config_type(cls) -> type[SkModelConfig]:
         return cls._config_type
 
     @classmethod
-    def valid_models(cls) -> List[str]:
+    def valid_models(cls) -> list[str]:
         return list(cls._registry)
 
     @classmethod

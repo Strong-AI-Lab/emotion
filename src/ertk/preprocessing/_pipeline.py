@@ -1,6 +1,7 @@
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, Iterable, List, Union
+from typing import Any, Union
 
 import numpy as np
 from omegaconf import MISSING
@@ -19,7 +20,7 @@ class ProcessorConfig:
     """The type of processor to use (friendly name)."""
     batch_size: int = 1
     """The batch size to use for processing."""
-    config: Dict[str, Any] = field(default_factory=lambda: {})
+    config: dict[str, Any] = field(default_factory=lambda: {})
     """The processor configuration."""
 
 
@@ -42,9 +43,9 @@ class ProcessingPipelineConfig(ERTKConfig):
     """Where to write the output data."""
     chaining: ChainingType = ChainingType.IN_MEMORY
     """The type of chaining to use for the pipeline"""
-    pipeline: List[str] = MISSING
+    pipeline: list[str] = MISSING
     """The processors to use in the pipeline, in order"""
-    processors: Dict[str, ProcessorConfig] = MISSING
+    processors: dict[str, ProcessorConfig] = MISSING
     """The processors to use in the pipeline, and their configurations"""
 
 
@@ -57,7 +58,7 @@ class ProcessingPipeline(InstanceProcessor):
         The configuration for the pipeline.
     """
 
-    pipeline: List[InstanceProcessor]
+    pipeline: list[InstanceProcessor]
     """The processors in the pipeline."""
     chaining: ChainingType = ChainingType.IN_MEMORY
     """The type of chaining to use for the pipeline"""
@@ -93,7 +94,7 @@ class ProcessingPipeline(InstanceProcessor):
 
     def process_batch(
         self, batch: Union[Iterable[np.ndarray], np.ndarray], **kwargs
-    ) -> List[np.ndarray]:
+    ) -> list[np.ndarray]:
         for processor in self.pipeline:
             batch = processor.process_batch(batch, **kwargs)
         return list(batch)
@@ -112,7 +113,7 @@ class ProcessingPipeline(InstanceProcessor):
             processor.finish()
 
     @property
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         return self.pipeline[-1].feature_names
 
 

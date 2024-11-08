@@ -3,7 +3,6 @@ import pprint
 from dataclasses import asdict
 from functools import partial
 from pathlib import Path
-from typing import Tuple
 
 import click
 from omegaconf import OmegaConf
@@ -82,7 +81,7 @@ def main(
     sample_rate: int,
     n_jobs: int,
     verbose: int,
-    restargs: Tuple[str],
+    restargs: tuple[str],
 ):
     """Process features or audio files in INPUT, write to OUTPUT."""
 

@@ -17,8 +17,9 @@ This module contains functions for performing classification tasks.
 
 import logging
 import time
+from collections.abc import Callable, Sequence
 from functools import partial
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -47,7 +48,7 @@ __all__ = [
 ]
 
 
-def standard_class_scoring(classes: Sequence[str]) -> Dict[str, Callable]:
+def standard_class_scoring(classes: Sequence[str]) -> dict[str, Callable]:
     """Given a list of classes, returns scikit-learn scorers for overall
     metrics and per-class metrics, for multiclass classification.
 
@@ -105,11 +106,11 @@ def cross_validate(
     groups: Optional[np.ndarray] = None,
     cv: BaseCrossValidator = None,
     scoring: Union[
-        str, List[str], Dict[str, ScoreFunction], Callable[..., float]
+        str, list[str], dict[str, ScoreFunction], Callable[..., float]
     ] = "accuracy",
     verbose: int = 0,
     n_jobs: int = 1,
-    fit_params: Dict[str, Any] = {},
+    fit_params: dict[str, Any] = {},
 ):
     """Cross validate a classifier.
 
@@ -186,9 +187,9 @@ def dataset_cross_validation(
     verbose: int = 0,
     n_jobs: int = 1,
     scoring: Union[
-        str, List[str], Dict[str, ScoreFunction], Callable[..., float], None
+        str, list[str], dict[str, ScoreFunction], Callable[..., float], None
     ] = None,
-    fit_params: Dict[str, Any] = {},
+    fit_params: dict[str, Any] = {},
 ) -> ExperimentResult:
     """Cross validates a `Classifier` instance on a single dataset.
 
@@ -270,9 +271,9 @@ def dataset_train_val_test(
     sample_weight: Optional[np.ndarray] = None,
     verbose: int = 0,
     scoring: Union[
-        str, List[str], Dict[str, ScoreFunction], Callable[..., float], None
+        str, list[str], dict[str, ScoreFunction], Callable[..., float], None
     ] = None,
-    fit_params: Dict[str, Any] = {},
+    fit_params: dict[str, Any] = {},
 ) -> ExperimentResult:
     """Trains a `Classifier` instance on some training data, optionally
     using validation data, and returns results on given test data.
@@ -331,13 +332,13 @@ def dataset_train_val_test(
         raise ValueError("One of {train, val, test} indices are missing.")
 
     y = dataset.get_group_indices(label)
-    train_data: Tuple = (dataset.x[train_idx], y[train_idx])
+    train_data: tuple = (dataset.x[train_idx], y[train_idx])
     if sample_weight is not None:
         train_data = train_data + (sample_weight[train_idx],)
-    valid_data: Tuple = (dataset.x[valid_idx], y[valid_idx])
+    valid_data: tuple = (dataset.x[valid_idx], y[valid_idx])
     if sample_weight is not None:
         valid_data = valid_data + (sample_weight[valid_idx],)
-    test_data: Tuple = (dataset.x[test_idx], y[test_idx])
+    test_data: tuple = (dataset.x[test_idx], y[test_idx])
     if sample_weight is not None:
         test_data = test_data + (sample_weight[test_idx],)
 
@@ -359,7 +360,7 @@ def dataset_train_val_test(
     return result
 
 
-def get_balanced_sample_weights(labels: Union[List[int], np.ndarray]):
+def get_balanced_sample_weights(labels: Union[list[int], np.ndarray]):
     """Gets sample weights such that each unique label has the same
     total weight across all instances.
 
@@ -379,7 +380,7 @@ def get_balanced_sample_weights(labels: Union[List[int], np.ndarray]):
     return sample_weights
 
 
-def get_balanced_class_weights(classes: Union[List[int], np.ndarray]):
+def get_balanced_class_weights(classes: Union[list[int], np.ndarray]):
     """Gets class weights such that each class has the same total weight
     across all instances.
 
@@ -399,7 +400,7 @@ def get_balanced_class_weights(classes: Union[List[int], np.ndarray]):
 
 
 def class_ratings_to_probs(
-    ratings: pd.Series, classes: Optional[List[str]] = None
+    ratings: pd.Series, classes: Optional[list[str]] = None
 ) -> np.ndarray:
     """Convert annotator ratings into distribution over classes for each
     instance.

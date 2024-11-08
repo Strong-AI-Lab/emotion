@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict
+from typing import Any
 
 from ertk.config import ERTKConfig
 
@@ -12,7 +12,7 @@ class TFModelConfig(ERTKConfig):
 
     optimiser: str = "adam"
     """The optimiser to use."""
-    opt_params: Dict[str, Any] = field(default_factory=dict)
+    opt_params: dict[str, Any] = field(default_factory=dict)
     """The parameters to pass to the optimiser."""
     learning_rate: float = 1e-3
     """The learning rate to use."""

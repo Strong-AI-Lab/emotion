@@ -1,7 +1,8 @@
-"""Type definitions."""
+"""type definitions."""
 
+from collections.abc import Callable
 from os import PathLike
-from typing import Callable, Union
+from typing import Union
 
 import numpy as np
 

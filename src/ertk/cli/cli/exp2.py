@@ -1,7 +1,6 @@
 import json
 import logging
 from pathlib import Path
-from typing import Tuple
 
 import click
 import numpy as np
@@ -33,7 +32,7 @@ from ertk.transform import SequenceTransformWrapper
 )
 @click.argument("restargs", type=str, nargs=-1)
 @debug_args
-def main(config_path: Path, restargs: Tuple[str], verbose: int):
+def main(config_path: Path, restargs: tuple[str], verbose: int):
     config = ExperimentConfig.from_file(config_path)
     config = ExperimentConfig.merge_with_args(config, restargs)
 

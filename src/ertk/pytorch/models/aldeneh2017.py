@@ -9,7 +9,6 @@ References
 """
 
 from dataclasses import dataclass, field
-from typing import List
 
 import torch
 import torch.nn.functional as F
@@ -22,9 +21,9 @@ __all__ = ["Aldeneh2017Config", "Aldeneh2017Model"]
 
 @dataclass
 class Aldeneh2017Config(PyTorchModelConfig):
-    conv_dims: List[int] = field(default_factory=lambda: [384] * 4)
-    kernel_sizes: List[int] = field(default_factory=lambda: [8, 16, 32, 64])
-    dense_dims: List[int] = field(default_factory=lambda: [1024, 1024])
+    conv_dims: list[int] = field(default_factory=lambda: [384] * 4)
+    kernel_sizes: list[int] = field(default_factory=lambda: [8, 16, 32, 64])
+    dense_dims: list[int] = field(default_factory=lambda: [1024, 1024])
 
 
 class Aldeneh2017Model(

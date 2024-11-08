@@ -2,7 +2,7 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 from xml.etree import ElementTree as ET
 
 import click
@@ -21,7 +21,7 @@ class SessionInfo:
     user_audio_path: Optional[Path] = None
     words_user_path: Optional[Path] = None
     transcript_path: Optional[Path] = None
-    annotations: Dict[str, Dict[int, Path]] = field(
+    annotations: dict[str, dict[int, Path]] = field(
         default_factory=lambda: defaultdict(dict)
     )
 
@@ -35,7 +35,7 @@ def main(input_dir: Path, resample: bool):
     """Processes all sessions in the SEMAINE corpus and puts combined
     audio/transcripts/ratings into the OUTPUT directory.
     """
-    recordings: Dict[str, List[SessionInfo]] = defaultdict(list)
+    recordings: dict[str, list[SessionInfo]] = defaultdict(list)
     for session_dir in (input_dir / "Sessions").glob("*"):
         session_file = session_dir / "session.xml"
         session_xml = ET.parse(session_file).getroot()
@@ -75,8 +75,8 @@ def main(input_dir: Path, resample: bool):
     df = pd.DataFrame(columns=["Activation", "Expectation", "Power", "Valence"])
     for recording in sorted(recordings, key=lambda x: int(x)):
         duration = 0
-        concat_user_audio: List[np.ndarray] = []
-        concat_operator_audio: List[np.ndarray] = []
+        concat_user_audio: list[np.ndarray] = []
+        concat_operator_audio: list[np.ndarray] = []
         concat_words_user = ""
         concat_words_operator = ""
         concat_transcript = ""
@@ -209,8 +209,8 @@ def main(input_dir: Path, resample: bool):
         emotions = pd.DataFrame(emotion_data, index=pd.Index(times, name="Time"))
         emotions.to_csv(output_dir / "emotions.csv")
 
-        user_turns: Dict[int, List[Tuple[int, int, str]]] = {}
-        operator_turns: Dict[int, List[Tuple[int, int, str]]] = {}
+        user_turns: dict[int, list[tuple[int, int, str]]] = {}
+        operator_turns: dict[int, list[tuple[int, int, str]]] = {}
         for d, s in [
             (user_turns, concat_words_user),
             (operator_turns, concat_words_operator),

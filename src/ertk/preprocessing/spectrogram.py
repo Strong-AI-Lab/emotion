@@ -1,8 +1,16 @@
-"""Spectrogram extraction."""
+"""Spectrogram extraction.
+
+.. autosummary::
+    :toctree:
+
+    SpectrogramExtractorConfig
+    SpectrogramExtractor
+    spectrogram
+"""
 
 import warnings
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional
 
 import librosa
 import numpy as np
@@ -228,5 +236,5 @@ class SpectrogramExtractor(
         return True
 
     @property
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         return [f"{self.config.kind}_{i}" for i in range(self.dim)]

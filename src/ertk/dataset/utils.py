@@ -2,8 +2,8 @@
 
 import logging
 import subprocess
+from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Iterable, List, Mapping
 
 from joblib import delayed
 
@@ -17,7 +17,7 @@ __all__ = [
 ]
 
 
-def get_audio_paths(path: PathOrStr, absolute: bool = True) -> List[Path]:
+def get_audio_paths(path: PathOrStr, absolute: bool = True) -> list[Path]:
     """Given a path to a dir or list of audio files, return a sequence
     of absolute paths to those files. Note that this method handles
     relative paths but returns absolute paths, and doesn't resolve
@@ -34,7 +34,7 @@ def get_audio_paths(path: PathOrStr, absolute: bool = True) -> List[Path]:
 
     Returns
     -------
-    List of paths to audio files. Paths will be absolute paths if
+    list of paths to audio files. Paths will be absolute paths if
     `absolute=True`.
     """
     path = Path(path)

@@ -1,7 +1,16 @@
-"""Training configuration for PyTorch models."""
+"""Training configuration for PyTorch models.
+
+.. autosummary::
+    :toctree:
+
+    PyTorchTrainConfig
+    PyTorchLoggingConfig
+    PyTorchDataConfig
+    PyTorchDataAugConfig
+"""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import omegaconf
 
@@ -26,14 +35,14 @@ class PyTorchLoggingConfig(ERTKConfig):
 @dataclass
 class PyTorchDataAugConfig(ERTKConfig):
     spec: str = omegaconf.MISSING
-    kwargs: Dict[str, Any] = field(default_factory=dict)
+    kwargs: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class PyTorchDataConfig(ERTKConfig):
-    train_data_processing: Dict[str, PyTorchDataAugConfig] = field(default_factory=dict)
-    valid_data_processing: Dict[str, PyTorchDataAugConfig] = field(default_factory=dict)
-    test_data_processing: Dict[str, PyTorchDataAugConfig] = field(default_factory=dict)
+    train_data_processing: dict[str, PyTorchDataAugConfig] = field(default_factory=dict)
+    valid_data_processing: dict[str, PyTorchDataAugConfig] = field(default_factory=dict)
+    test_data_processing: dict[str, PyTorchDataAugConfig] = field(default_factory=dict)
 
 
 @dataclass

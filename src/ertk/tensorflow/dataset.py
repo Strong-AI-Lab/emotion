@@ -1,10 +1,22 @@
-"""Dataset utilities for TensorFlow."""
+"""Dataset utilities for TensorFlow.
 
-from typing import Callable, List, Optional, Tuple, Union
+.. autosummary::
+    :toctree:
 
+    tf_dataset_gen
+    tf_dataset_mem_ragged
+    tf_dataset_mem
+    BatchedSequence
+    BatchedFrameSequence
+    DataFunction
+"""
+
+from collections.abc import Callable
+from typing import Optional, Union
+
+import keras
 import numpy as np
 import tensorflow as tf
-from keras.utils.data_utils import Sequence
 
 from ertk.utils import batch_arrays_by_length, shuffle_multiple
 
@@ -63,7 +75,7 @@ def tf_dataset_gen(
             for i in perm:
                 yield x[i], y[i], sample_weight[i]
 
-    sig: Tuple[tf.TensorSpec, ...] = (
+    sig: tuple[tf.TensorSpec, ...] = (
         tf.TensorSpec(shape=x[0].shape, dtype=tf.float32),
         tf.TensorSpec(shape=(), dtype=tf.int64),
     )
@@ -176,7 +188,7 @@ def tf_dataset_mem_ragged(
     return data.prefetch(2)
 
 
-class BatchedFrameSequence(Sequence):
+class BatchedFrameSequence(keras.utils.Sequence):
     """Creates a sequence of batches of frames to process.
 
     Parameters
@@ -195,7 +207,7 @@ class BatchedFrameSequence(Sequence):
 
     def __init__(
         self,
-        x: Union[np.ndarray, List[np.ndarray]],
+        x: Union[np.ndarray, list[np.ndarray]],
         y: np.ndarray,
         prebatched: bool = False,
         batch_size: int = 32,
@@ -217,7 +229,7 @@ class BatchedFrameSequence(Sequence):
         return self.x[idx], self.y[idx]
 
 
-class BatchedSequence(Sequence):
+class BatchedSequence(keras.utils.Sequence):
     """Creates a sequence of batches to process.
 
     Parameters

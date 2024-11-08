@@ -1,7 +1,15 @@
-"""Audioset feature extractors."""
+"""Audioset feature extractors.
+
+.. autosummary::
+    :toctree:
+
+    YAMNetExtractor
+    YAMNetExtractorConfig
+    VGGishExtractor
+    VGGishExtractorConfig
+"""
 
 from dataclasses import dataclass
-from typing import List
 
 import numpy as np
 
@@ -58,7 +66,7 @@ class YAMNetExtractor(
         return False
 
     @property
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         return [f"yamnet_{i}" for i in range(self.dim)]
 
 
@@ -102,5 +110,5 @@ class VGGishExtractor(
         return False
 
     @property
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         return [f"vggish_{i}" for i in range(self.dim)]

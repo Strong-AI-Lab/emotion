@@ -1,7 +1,7 @@
 """Support Vector Machine (SVM) models for scikit-learn."""
 
 from functools import partial
-from typing import Any, Dict, Union
+from typing import Any, Union
 
 from sklearn.base import BaseEstimator
 from sklearn.metrics.pairwise import kernel_metrics
@@ -79,7 +79,7 @@ class PrecomputedSVC(SVC):
             self.kernel_name, degree=self.degree, gamma=self.gamma, coef0=self.coef0
         )
 
-    def get_params(self, deep: bool = True) -> Dict[str, Any]:
+    def get_params(self, deep: bool = True) -> dict[str, Any]:
         params = super().get_params(deep=deep)
         params["kernel"] = self.kernel_name
         return params

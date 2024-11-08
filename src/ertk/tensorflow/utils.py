@@ -1,15 +1,22 @@
-"""Utility functions for TensorFlow models."""
+"""Utility functions for TensorFlow models.
+
+.. autosummary::
+    :toctree:
+
+    compile_wrap
+    test_fit
+    init_gpu_memory_growth
+    print_linear_model_structure
+    TFModelFunction
+"""
 
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from collections.abc import Callable
+from typing import Any, Optional, Union
 
+import keras
 import numpy as np
 import tensorflow as tf
-from keras.layers import Layer, Wrapper
-from keras.losses import Loss
-from keras.metrics import Metric
-from keras.models import Model
-from keras.optimizers import Adam, Optimizer
 from sklearn.pipeline import Pipeline
 
 __all__ = [
@@ -20,15 +27,15 @@ __all__ = [
     "TFModelFunction",
 ]
 
-TFModelFunction = Callable[..., Union[Model, Pipeline]]
+TFModelFunction = Callable[..., Union[keras.Model, Pipeline]]
 
 
 def compile_wrap(
     model_fn: Optional[TFModelFunction] = None,
-    opt_cls: Type[Optimizer] = Adam,
-    opt_kwargs: Dict[str, Any] = dict(learning_rate=0.0001),
-    metrics: List[Union[str, Metric]] = ["sparse_categorical_accuracy"],
-    loss: Union[str, Loss] = "sparse_categorical_crossentropy",
+    opt_cls: type[keras.Optimizer] = keras.optimizers.Adam,
+    opt_kwargs: dict[str, Any] = dict(learning_rate=0.0001),
+    metrics: list[Union[str, keras.Metric]] = ["sparse_categorical_accuracy"],
+    loss: Union[str, keras.Loss] = "sparse_categorical_crossentropy",
     **compile_kwargs,
 ):
     """Wrapper that takes a model creation function and gives a new
@@ -44,16 +51,16 @@ def compile_wrap(
     opt_kwargs: dict
         Keyword arguments to pass to opt_cls.
     metrics: list
-        List of metrics to use.
+        list of metrics to use.
     loss: Loss
         The loss function to use.
     **compile_kwargs: dict
         Other keyword arguments to pass to the model's compile() method.
     """
 
-    def _wrapper(func: Callable[..., Model]):
+    def _wrapper(func: Callable[..., keras.Model]):
         @wraps(func)
-        def new_model_fn(*args, **kwargs) -> Model:
+        def new_model_fn(*args, **kwargs) -> keras.Model:
             model = func(*args, **kwargs)
             model.compile(
                 optimizer=opt_cls(**opt_kwargs),
@@ -73,7 +80,7 @@ def compile_wrap(
 
 def test_fit(
     model_fn: TFModelFunction,
-    input_size: Tuple[int, ...],
+    input_size: tuple[int, ...],
     *args,
     batch_size: int = 64,
     num_instances: int = 7000,
@@ -117,7 +124,7 @@ def test_fit(
     model.fit(train_data, validation_data=valid_data, epochs=2, verbose=1)
 
 
-def print_linear_model_structure(model: Model) -> None:
+def print_linear_model_structure(model: keras.Model) -> None:
     """Prints the structure of a "sequential" model by listing the layer
     types and shapes in order.
 
@@ -127,9 +134,9 @@ def print_linear_model_structure(model: Model) -> None:
         The model to describe.
     """
 
-    def print_inner(model: Layer, depth: int = 0):
+    def print_inner(model: keras.Layer, depth: int = 0):
         indent = "\t" * depth
-        if not isinstance(model, Model):
+        if not isinstance(model, keras.Model):
             print(indent, model.name, model.output_shape)
             return
 
@@ -139,9 +146,9 @@ def print_linear_model_structure(model: Model) -> None:
                 name = name[12:]
 
             print(indent, name, layer.output_shape)
-            if isinstance(layer, Model):
+            if isinstance(layer, keras.Model):
                 print_inner(layer, depth + 1)
-            elif isinstance(layer, Wrapper):
+            elif isinstance(layer, keras.layers.Wrapper):
                 print_inner(layer.layer, depth + 1)
 
     print_inner(model)

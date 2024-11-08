@@ -17,9 +17,9 @@ Commands
 
     convert_audeep_main
     create_cv_dirs_main
-    grid_to_conf_main
     names_to_filenames_main
     parallel_jobs_main
+    pgrid_to_confs_main
     split_chat_main
     split_elan_main
 """

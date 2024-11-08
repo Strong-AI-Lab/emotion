@@ -1,6 +1,5 @@
 import logging
 from pathlib import Path
-from typing import Tuple
 
 import click
 from omegaconf.errors import OmegaConfBaseException
@@ -21,12 +20,12 @@ def write_list(dataset, output_list):
 @debug_args
 @click.option("--output_list", type=Path)
 def main(
-    corpus_info: Tuple[Path],
+    corpus_info: tuple[Path],
     data_config: Path,
-    subset: Tuple[str],
-    sel_groups: Tuple[str],
-    remove_groups: Tuple[str],
-    map_groups: Tuple[str],
+    subset: tuple[str],
+    sel_groups: tuple[str],
+    remove_groups: tuple[str],
+    map_groups: tuple[str],
     clip_seq: int,  # unused
     pad_seq: int,  # unused
     verbose: int,

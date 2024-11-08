@@ -1,7 +1,6 @@
 import re
 import warnings
 from pathlib import Path
-from typing import Tuple
 
 import click
 import librosa
@@ -19,7 +18,7 @@ REGEX = re.compile(
 @click.argument("input", type=click.Path(exists=True, path_type=Path), nargs=-1)
 @click.argument("output", type=Path)
 @click.option("--prefix", type=str, default="")
-def main(input: Tuple[Path], output: Path, prefix: str):
+def main(input: tuple[Path], output: Path, prefix: str):
     """Splits CHAT (.cha) files and associated audio into segments."""
 
     def process(path: Path):

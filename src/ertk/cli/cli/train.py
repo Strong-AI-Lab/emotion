@@ -1,7 +1,6 @@
 import pickle
 import warnings
 from pathlib import Path
-from typing import Tuple
 
 import click
 from sklearn.model_selection import GridSearchCV, GroupKFold
@@ -69,7 +68,7 @@ from ertk.transform import SequenceTransformWrapper
 )
 @click.option("--verbose", count=True, help="Verbose training.")
 def main(
-    input: Tuple[Path],
+    input: tuple[Path],
     features: str,
     clf_type: str,
     save: Path,
@@ -77,9 +76,9 @@ def main(
     normalise: str,
     transform: str,
     balanced: bool,
-    subset: Tuple[str],
-    map_groups: Tuple[str],
-    sel_groups: Tuple[str],
+    subset: tuple[str],
+    map_groups: tuple[str],
+    sel_groups: tuple[str],
     clip_seq: int,
     pad_seq: int,
     target: str,

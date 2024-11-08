@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import List, Tuple
 
 import click
 import matplotlib.pyplot as plt
@@ -19,13 +18,13 @@ from ertk.dataset import get_audio_paths
     help="File with names to include for statistics.",
 )
 @click.option("--dtype")
-def main(input: Tuple[Path], plot: bool, files: Path, dtype: str):
+def main(input: tuple[Path], plot: bool, files: Path, dtype: str):
     """Calculate statistics from annotations in INPUT(s). If multiple
     INPUTs are given, additional statistics for the other INPUTs are
     shown for each level of INPUT.
     """
 
-    dfs: List[pd.DataFrame] = []
+    dfs: list[pd.DataFrame] = []
     _dtype = {0: str}
     if dtype == "str":
         _dtype[1] = str

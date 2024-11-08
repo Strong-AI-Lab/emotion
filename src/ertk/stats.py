@@ -1,7 +1,8 @@
 """Statistical functions."""
 
 from functools import partial
-from typing import Callable, List, Union
+from collections.abc import Callable
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -20,21 +21,21 @@ __all__ = [
 ]
 
 
-Matrix = List[List[float]]
+Matrix = list[list[float]]
 
 
 def holm_bonferroni(
-    keys: Union[List[str], np.ndarray],
-    pvals: Union[List[float], np.ndarray],
+    keys: Union[list[str], np.ndarray],
+    pvals: Union[list[float], np.ndarray],
     alpha: float = 0.05,
 ):
     """Runs Holm-Bonferroni correction on given p-values.
 
     Parameters
     ----------
-    keys: List[str]
+    keys: list[str]
         The keys corresponding to the p-values.
-    pvals: List[float]
+    pvals: list[float]
         The p-values to correct.
     alpha: float
         Significance level, must be in the range (0, 1), default is
@@ -42,9 +43,9 @@ def holm_bonferroni(
 
     Returns
     -------
-    rejected: List[str]
+    rejected: list[str]
         The keys of the hypotheses that were rejected.
-    failed: List[str]
+    failed: list[str]
         The keys of the hypotheses that were not rejected.
     """
     keys = np.array(keys)
@@ -154,7 +155,7 @@ def bhattacharyya_dist(x: np.ndarray, y: np.ndarray, pinv: bool = False):
     return db.item()
 
 
-def corr_ratio(x: np.ndarray, groups: Union[List[int], np.ndarray]):
+def corr_ratio(x: np.ndarray, groups: Union[list[int], np.ndarray]):
     """Calculates correlation ratio for each feature using the given
     groups.
 
@@ -191,7 +192,7 @@ def corr_ratio(x: np.ndarray, groups: Union[List[int], np.ndarray]):
 
 def dunn(
     x: np.ndarray,
-    clusters: Union[List[int], np.ndarray],
+    clusters: Union[list[int], np.ndarray],
     intra_method: str = "mean",
     inter_method: str = "cent",
     metric: Union[Callable, str] = "l2",
@@ -288,7 +289,7 @@ class Deltas:
 
 def alpha(
     data: np.ndarray,
-    delta: Union[Callable[[int, int], float], List[List[float]], str] = "nominal",
+    delta: Union[Callable[[int, int], float], list[list[float]], str] = "nominal",
 ):
     """Calculates Krippendorff's alpha coefficient [1, sec. 11.3] for
     inter-rater agreement.

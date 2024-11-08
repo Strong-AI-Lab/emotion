@@ -19,3 +19,5 @@ repos:
     hooks:
       - id: flake8
 exclude: "^third_party/.*$"
+default_language_version:
+  python: python3.9

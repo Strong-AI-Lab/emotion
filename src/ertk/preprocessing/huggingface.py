@@ -1,8 +1,16 @@
-"""Processor using HuggingFace models."""
+"""Processor using HuggingFace models.
 
+.. autosummary::
+    :toctree:
+
+    HuggingFaceExtractorConfig
+    HuggingFaceExtractor
+"""
+
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Iterable, List, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 import torch
@@ -166,7 +174,7 @@ class HuggingFaceExtractor(
 
     def process_batch(
         self, batch: Union[Iterable[np.ndarray], np.ndarray], **kwargs
-    ) -> List[np.ndarray]:
+    ) -> list[np.ndarray]:
         processed = self.processor(
             [x.squeeze()[: self.config.max_input_len] for x in batch],
             sampling_rate=kwargs.pop("sr"),
@@ -218,7 +226,7 @@ class HuggingFaceExtractor(
         return False
 
     @property
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         if self.config.task in [Task.CTC, Task.W2V2, Task.WHISPER, Task.S2T]:
             return ["text"]
         return [f"{self.config.model}_{i}" for i in range(self.dim)]

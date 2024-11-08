@@ -1,18 +1,8 @@
 """General utilities."""
 
+from collections.abc import Callable, Container, Iterable
 from itertools import chain, combinations, permutations, zip_longest
-from typing import (
-    Any,
-    Callable,
-    Container,
-    Dict,
-    Iterable,
-    List,
-    Optional,
-    Tuple,
-    TypeVar,
-    overload,
-)
+from typing import Any, Optional, TypeVar, overload
 
 __all__ = [
     "itmap",
@@ -45,16 +35,13 @@ def itmap(s: Callable[[T1], T2]):
     """
 
     @overload
-    def _map(x: T1) -> T2:
-        ...
+    def _map(x: T1) -> T2: ...
 
     @overload
-    def _map(x: List[T1]) -> List[T2]:
-        ...
+    def _map(x: list[T1]) -> list[T2]: ...
 
     @overload
-    def _map(x: Tuple[T1, ...]) -> Tuple[T2, ...]:
-        ...
+    def _map(x: tuple[T1, ...]) -> tuple[T2, ...]: ...
 
     def _map(x):
         if isinstance(x, (list, tuple)):
@@ -65,7 +52,7 @@ def itmap(s: Callable[[T1], T2]):
     return _map
 
 
-def ordered_intersect(a: Iterable, b: Container) -> List:
+def ordered_intersect(a: Iterable, b: Container) -> list:
     """Returns a list of the intersection of `a` and `b`, in the order
     elements appear in `a`.
 
@@ -84,7 +71,7 @@ def ordered_intersect(a: Iterable, b: Container) -> List:
     return [x for x in a if x in b]
 
 
-def filter_kwargs(kwargs: Dict[str, Any], method: Callable) -> Dict[str, Any]:
+def filter_kwargs(kwargs: dict[str, Any], method: Callable) -> dict[str, Any]:
     """Removes incompatible keyword arguments. This ignores any
     `**kwargs` catchall in method signature, and only returns args
     specifically present as keywords in the method signature which are
@@ -122,7 +109,7 @@ def batch_iterable(
     it: Iterable[T],
     batch_size: int,
     return_last: bool = True,
-) -> Iterable[Tuple[T, ...]]:
+) -> Iterable[tuple[T, ...]]:
     """Batches an iterable into chunks of size `batch_size`.
 
     Parameters
@@ -151,7 +138,7 @@ def batch_iterable(
         yield from zip(*iterables)
 
 
-def subsets(it: Iterable[T], max_size: Optional[int] = None) -> Iterable[Tuple[T, ...]]:
+def subsets(it: Iterable[T], max_size: Optional[int] = None) -> Iterable[tuple[T, ...]]:
     """Iterate over all subsets of the iterable `it`, up to a given
     maximum size. This will generate subsets in size order and then
     index-sorted order (i.e. the order items appear in `it`).
@@ -177,7 +164,7 @@ def subsets(it: Iterable[T], max_size: Optional[int] = None) -> Iterable[Tuple[T
 
 def ordered_subsets(
     it: Iterable[T], max_size: Optional[int] = None
-) -> Iterable[Tuple[T, ...]]:
+) -> Iterable[tuple[T, ...]]:
     """Iterate over all ordered subsets of the iterable `it`, up to a
     given maximum size. This will generate subsets in size order and
     then index-sorted order (i.e. the order items appear in `it`).

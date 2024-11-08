@@ -1,4 +1,11 @@
-"""TensorFlow training configuration."""
+"""TensorFlow training configuration.
+
+.. autosummary::
+    :toctree:
+
+    TFLoggingConfig
+    TFTrainConfig
+"""
 
 from dataclasses import dataclass
 from typing import Optional

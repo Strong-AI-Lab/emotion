@@ -1,9 +1,10 @@
 """Functions for reading and writing annotations."""
 
-from typing import Dict, Mapping, Optional, Type, Union
+from collections.abc import Mapping
+from typing import Optional, Union
 
 import pandas as pd
-from typing_extensions import Literal
+from typing import Literal
 
 from ertk.utils import PathOrStr
 
@@ -11,7 +12,7 @@ __all__ = ["read_annotations", "write_annotations"]
 
 
 def read_annotations(
-    filename: PathOrStr, dtype: Optional[Union[Type, Literal["category"]]] = None
+    filename: PathOrStr, dtype: Optional[Union[type, Literal["category"]]] = None
 ) -> pd.Series:
     """Returns a pd.Series containing values for this annotation for
     each instance, indexed by name.
@@ -19,7 +20,7 @@ def read_annotations(
     _dtype = dtype
     if _dtype == "category":
         _dtype = str
-    dtypes: Dict[int, Type] = {0: str}
+    dtypes: dict[int, type] = {0: str}
     if _dtype is not None:
         dtypes[1] = _dtype
     df = pd.read_csv(filename, index_col=0, header=0, dtype=dtypes, low_memory=False)

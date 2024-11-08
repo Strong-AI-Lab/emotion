@@ -1,6 +1,16 @@
-"""PyTorch dataset utilities."""
+"""PyTorch dataset utilities.
 
-from typing import Any, Callable, Collection, Dict, List, Optional, Tuple, Union
+.. autosummary::
+    :toctree:
+
+    DatasetFuncWrapper
+    DataModuleAdapter
+    MTLDataModule
+    MTLDataset
+    create_mtl_dataloader
+"""
+from collections.abc import Callable, Collection
+from typing import Any, Optional, Union
 
 import numpy as np
 import pytorch_lightning as pl
@@ -21,8 +31,8 @@ __all__ = [
 ]
 
 
-class DatasetFuncWrapper(TorchDataset[Tuple[torch.Tensor, ...]]):
-    funcs: List[Callable[[torch.Tensor], torch.Tensor]]
+class DatasetFuncWrapper(TorchDataset[tuple[torch.Tensor, ...]]):
+    funcs: list[Callable[[torch.Tensor], torch.Tensor]]
 
     def __init__(self, dataset: TorchDataset) -> None:
         super().__init__()
@@ -32,7 +42,7 @@ class DatasetFuncWrapper(TorchDataset[Tuple[torch.Tensor, ...]]):
     def add_func(self, func: Callable[[torch.Tensor], torch.Tensor]):
         self.funcs.append(func)
 
-    def __getitem__(self, index: Any) -> Tuple[torch.Tensor, ...]:
+    def __getitem__(self, index: Any) -> tuple[torch.Tensor, ...]:
         x, *rest = self.dataset[index]
         for func in self.funcs:
             x = func(x)
@@ -55,9 +65,9 @@ class DataModuleAdapter(pl.LightningDataModule):
         *,
         load_config: Optional[ExperimentConfig] = None,
         dataset: Optional[Dataset] = None,
-        train_select: Union[str, Dict[str, Collection[str]], np.ndarray, None] = None,
-        val_select: Union[str, Dict[str, Collection[str]], np.ndarray, None] = None,
-        test_select: Union[str, Dict[str, Collection[str]], np.ndarray, None] = None,
+        train_select: Union[str, dict[str, Collection[str]], np.ndarray, None] = None,
+        val_select: Union[str, dict[str, Collection[str]], np.ndarray, None] = None,
+        test_select: Union[str, dict[str, Collection[str]], np.ndarray, None] = None,
         batch_size: int = 32,
         dl_num_workers: int = 0,
     ):
@@ -142,10 +152,10 @@ class MTLDataModule(DataModuleAdapter):
         self,
         *,
         dataset: Dataset,
-        tasks: List[str],
-        train_select: Union[str, Dict[str, Collection[str]], np.ndarray, None] = None,
-        val_select: Union[str, Dict[str, Collection[str]], np.ndarray, None] = None,
-        test_select: Union[str, Dict[str, Collection[str]], np.ndarray, None] = None,
+        tasks: list[str],
+        train_select: Union[str, dict[str, Collection[str]], np.ndarray, None] = None,
+        val_select: Union[str, dict[str, Collection[str]], np.ndarray, None] = None,
+        test_select: Union[str, dict[str, Collection[str]], np.ndarray, None] = None,
         batch_size: int = 32,
         dl_num_workers: int = 0,
     ):
@@ -172,8 +182,8 @@ class MTLDataModule(DataModuleAdapter):
             setattr(self, f"{name}_dataset", MTLDataset(x, ys))
 
 
-class MTLDataset(TorchDataset[Tuple[torch.Tensor, Dict[str, torch.Tensor]]]):
-    def __init__(self, x: torch.Tensor, y: Dict[str, torch.Tensor]):
+class MTLDataset(TorchDataset[tuple[torch.Tensor, dict[str, torch.Tensor]]]):
+    def __init__(self, x: torch.Tensor, y: dict[str, torch.Tensor]):
         self.x = x
         self.y = y
 
@@ -185,8 +195,8 @@ class MTLDataset(TorchDataset[Tuple[torch.Tensor, Dict[str, torch.Tensor]]]):
 
 
 def create_mtl_dataloader(
-    data: Dataset, tasks: List[str], batch_size: int = 32, shuffle: bool = False
-) -> DataLoader[Tuple[torch.Tensor, Dict[str, torch.Tensor]]]:
+    data: Dataset, tasks: list[str], batch_size: int = 32, shuffle: bool = False
+) -> DataLoader[tuple[torch.Tensor, dict[str, torch.Tensor]]]:
     x = torch.as_tensor(data.x)
     task_data = {k: torch.as_tensor(data.get_group_indices(k)) for k in tasks}
     dataset = MTLDataset(x, task_data)

@@ -1,8 +1,15 @@
-"""Processing using SpeechBrain models."""
+"""Processing using SpeechBrain models.
+
+.. autosummary::
+    :toctree:
+
+    SpeechBrainExtractorConfig
+    SpeechBrainExtractor
+"""
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
 import torch
@@ -123,7 +130,7 @@ class SpeechBrainExtractor(
         return False
 
     @property
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         if self.config.task in [Task.WHISPER, Task.ASR]:
             return ["text"]
         return [f"{self.config.model}_{i}" for i in range(self.dim)]

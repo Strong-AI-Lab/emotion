@@ -2,8 +2,8 @@
 
 import multiprocessing
 import os
+from collections.abc import Iterable
 from functools import partial
-from typing import Iterable
 
 import joblib
 import tqdm

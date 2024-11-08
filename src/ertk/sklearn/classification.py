@@ -1,9 +1,17 @@
-"""Scikit-learn classification functions."""
+"""Scikit-learn classification functions.
+
+.. autosummary::
+    :toctree:
+
+    sk_cross_validate
+    sk_train_val_test
+"""
 
 import json
 import logging
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import Any, Optional, Union
 
 import numpy as np
 from sklearn.base import ClassifierMixin
@@ -29,11 +37,11 @@ def sk_cross_validate(
     groups: Optional[np.ndarray] = None,
     cv: BaseCrossValidator = None,
     scoring: Union[
-        str, List[str], Dict[str, ScoreFunction], Callable[..., float]
+        str, list[str], dict[str, ScoreFunction], Callable[..., float]
     ] = "accuracy",
     verbose: int = 0,
     n_jobs: int = 1,
-    fit_params: Dict[str, Any] = {},
+    fit_params: dict[str, Any] = {},
 ) -> ExperimentResult:
     logger.debug(f"cross_validate(): filtered fit_params={fit_params}")
     logger.info(f"cross_validate(): verbose={verbose}")
@@ -66,14 +74,14 @@ def sk_cross_validate(
 
 def sk_train_val_test(
     clf: ClassifierMixin,
-    train_data: Tuple[np.ndarray, ...],
-    valid_data: Tuple[np.ndarray, ...],
-    test_data: Optional[Tuple[np.ndarray, ...]] = None,
+    train_data: tuple[np.ndarray, ...],
+    valid_data: tuple[np.ndarray, ...],
+    test_data: Optional[tuple[np.ndarray, ...]] = None,
     verbose: int = 0,
     scoring: Union[
-        str, List[str], Dict[str, ScoreFunction], Callable[..., float]
+        str, list[str], dict[str, ScoreFunction], Callable[..., float]
     ] = "accuracy",
-    fit_params: Dict[str, Any] = {},
+    fit_params: dict[str, Any] = {},
 ) -> ExperimentResult:
     sw_kw = {"sample_weight": train_data[2] if len(train_data) > 2 else None}
     for est in get_estimator_tree(clf):
@@ -92,7 +100,7 @@ def sk_train_val_test(
     start_time = time.perf_counter()
     y_pred = clf.predict(test_data[0])
     score_time = time.perf_counter() - start_time
-    scores: Dict[str, Any] = {
+    scores: dict[str, Any] = {
         "fit_time": fit_time,
         "score_time": score_time,
         **get_scores(scoring, y_pred, test_data[1]),

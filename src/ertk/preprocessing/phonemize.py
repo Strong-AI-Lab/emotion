@@ -1,10 +1,18 @@
-"""Phonemize text using the phonemizer library."""
+"""Phonemize text using the phonemizer library.
+
+.. autosummary::
+    :toctree:
+
+    PhonemizeConfig
+    Phonemizer
+"""
 
 import os
 import re
 import warnings
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import numpy as np
 
@@ -41,7 +49,7 @@ class PhonemizeConfig(ERTKConfig):
     """
 
 
-def _festival_punct(texts: List[str]) -> Tuple[List[str], int]:
+def _festival_punct(texts: list[str]) -> tuple[list[str], int]:
     newtexts = []
     invalid = 0
     for x in texts:
@@ -98,7 +106,7 @@ class Phonemizer(FeatureExtractor, fname="phonemize", config=PhonemizeConfig):
 
     def process_batch(
         self, batch: Union[Iterable[np.ndarray], np.ndarray], **kwargs
-    ) -> List[np.ndarray]:
+    ) -> list[np.ndarray]:
         if isinstance(batch, np.ndarray):
             text = batch.squeeze().tolist()
         else:
@@ -130,5 +138,5 @@ class Phonemizer(FeatureExtractor, fname="phonemize", config=PhonemizeConfig):
         return False
 
     @property
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         return ["phones"]

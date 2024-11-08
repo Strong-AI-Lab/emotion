@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Union
 
 import click
 import matplotlib.pyplot as plt
@@ -62,11 +62,11 @@ def xy(
     data_conf: Path,
     features: Path,
     corpus_info: Path,
-    transform: Tuple[str],
+    transform: tuple[str],
     colour_part: str,
     style_part: str,
     sample_str: str,
-    restargs: Tuple[str],
+    restargs: tuple[str],
 ):
     """Plots INPUT in 2D using one of a number of transforms. INPUT can
     either be a features file or data load config.

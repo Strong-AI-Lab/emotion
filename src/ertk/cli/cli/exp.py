@@ -1,7 +1,6 @@
 import json
 import warnings
 from pathlib import Path
-from typing import Tuple
 
 import click
 import numpy as np
@@ -38,7 +37,7 @@ from ertk.transform import SequenceTransformWrapper
 @debug_args
 def main(
     clf_type: str,
-    corpus_info: Tuple[Path],
+    corpus_info: tuple[Path],
     data_config: Path,
     features: str,
     cv_part: str,
@@ -53,15 +52,15 @@ def main(
     normalise: str,
     transform: str,
     balanced: bool,
-    subset: Tuple[str],
-    map_groups: Tuple[str],
-    sel_groups: Tuple[str],
-    remove_groups: Tuple[str],
+    subset: tuple[str],
+    map_groups: tuple[str],
+    sel_groups: tuple[str],
+    remove_groups: tuple[str],
     clip_seq: int,
     pad_seq: int,
     verbose: int,
-    clf_args_file: Tuple[Path],
-    param_grid_file: Tuple[Path],
+    clf_args_file: tuple[Path],
+    param_grid_file: tuple[Path],
     learning_rate: float,
     batch_size: int,
     epochs: int,

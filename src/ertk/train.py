@@ -36,10 +36,11 @@ Miscellaneous functions
     scores_to_df
 """
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Type, TypeVar, Union
+from typing import Any, Optional, TypeVar, Union
 
 import numpy as np
 import omegaconf
@@ -154,8 +155,8 @@ class ValidationSplit(BaseCrossValidator):
 
     def __init__(
         self,
-        train_idx: Union[List[int], np.ndarray],
-        valid_idx: Union[List[int], np.ndarray],
+        train_idx: Union[list[int], np.ndarray],
+        valid_idx: Union[list[int], np.ndarray],
     ):
         self.train_idx = train_idx
         self.valid_idx = valid_idx
@@ -221,7 +222,7 @@ def get_cv_splitter(
     return LeaveOneOut()
 
 
-def get_pipeline_params(params: Dict[str, Any], pipeline: Pipeline):
+def get_pipeline_params(params: dict[str, Any], pipeline: Pipeline):
     """Modifies parameter names to pass to a Pipeline instance's `fit()`
     method.
 
@@ -251,10 +252,10 @@ def get_pipeline_params(params: Dict[str, Any], pipeline: Pipeline):
 
 
 def get_scores(
-    scoring: Union[str, List[str], Dict[str, ScoreFunction], Callable[..., float]],
+    scoring: Union[str, list[str], dict[str, ScoreFunction], Callable[..., float]],
     y_pred: np.ndarray,
     y_true: np.ndarray,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get dictionary of scores for predictions.
 
     Parameters
@@ -304,7 +305,7 @@ def get_scores(
 
 
 def scores_to_df(
-    scores: Dict[str, np.ndarray], index: Union[pd.Index, Iterable, None] = None
+    scores: dict[str, np.ndarray], index: Union[pd.Index, Iterable, None] = None
 ):
     """Convert scikit-learn scores dictionary to pandas dataframe.
 
@@ -341,7 +342,7 @@ def scores_to_df(
 class ExperimentResult:
     """Class to hold results of an experiment."""
 
-    scores_dict: Dict[str, np.ndarray] = field(default_factory=dict)
+    scores_dict: dict[str, np.ndarray] = field(default_factory=dict)
     """Dictionary of scores. Each key is a string and all values are
     either scalar or arrays.
     """
@@ -365,7 +366,7 @@ class ModelConfig(ERTKConfig):
     """Model configuration. This is passed to the model class
     constructor.
     """
-    args: Dict[str, Any] = field(default_factory=dict)
+    args: dict[str, Any] = field(default_factory=dict)
     """Model arguments. These are passed to the model class constructor
     as keyword arguments.
     """
@@ -373,7 +374,7 @@ class ModelConfig(ERTKConfig):
     """Path to a YAML file containing model arguments. These are passed
     to the model class constructor as keyword arguments.
     """
-    param_grid: Dict[str, Any] = field(default_factory=dict)
+    param_grid: dict[str, Any] = field(default_factory=dict)
     """Parameter grid for hyperparameter search. This is passed to
     scikit-learn's `GridSearchCV` class.
     """
@@ -474,16 +475,16 @@ class ExperimentConfig(ERTKConfig):
     """Model configuration."""
     eval: Optional[EvalConfig] = None
     """Evaluation configuration."""
-    evals: Dict[str, EvalConfig] = field(default_factory=dict)
+    evals: dict[str, EvalConfig] = field(default_factory=dict)
     """Dictionary of evaluation configurations."""
     training: TrainConfig = field(default_factory=TrainConfig)
     """Training configuration."""
     results: str = ""
     """Path to output results."""
-    metrics: List[str] = field(default_factory=list)
+    metrics: list[str] = field(default_factory=list)
 
     @classmethod
-    def from_file(cls: Type[T], path: PathOrStr) -> T:
+    def from_file(cls: type[T], path: PathOrStr) -> T:
         path = Path(path)
         conf = super().from_file(path)
         # TODO: Make more general (i.e. arbitrary keys referencing paths)

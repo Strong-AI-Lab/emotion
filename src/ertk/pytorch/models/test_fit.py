@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import List, Tuple
 
 import click
 import pytorch_lightning as pl
@@ -11,9 +10,9 @@ from ertk.pytorch import get_pt_model
 from ertk.pytorch.models import PyTorchModelConfig
 
 
-class RandomDataset(Dataset[Tuple[torch.Tensor, ...]]):
+class RandomDataset(Dataset[tuple[torch.Tensor, ...]]):
     def __init__(
-        self, total: int, shapes: List[Tuple[int]], dtypes: List[torch.dtype]
+        self, total: int, shapes: list[tuple[int]], dtypes: list[torch.dtype]
     ) -> None:
         super().__init__()
         self.total = total
@@ -21,7 +20,7 @@ class RandomDataset(Dataset[Tuple[torch.Tensor, ...]]):
         for shape, dtype in zip(shapes, dtypes):
             self.data.append(torch.zeros(shape, dtype=dtype))
 
-    def __getitem__(self, index) -> Tuple[torch.Tensor, ...]:
+    def __getitem__(self, index) -> tuple[torch.Tensor, ...]:
         return tuple(self.data)
 
     def __len__(self) -> int:
@@ -49,7 +48,7 @@ def test_fit(
     model_config: Path,
     train: int,
     valid: int,
-    restargs: Tuple[str],
+    restargs: tuple[str],
 ):
     """Trains a model for 2 epochs with random data and prints timing
     information for testing purposes.

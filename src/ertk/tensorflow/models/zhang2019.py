@@ -11,21 +11,9 @@ References
 
 from typing import Optional
 
+import keras
 import numpy as np
 import tensorflow as tf
-from keras.layers import (
-    GRU,
-    RNN,
-    Conv1D,
-    Dense,
-    Dropout,
-    GRUCell,
-    Input,
-    MaxPool1D,
-    Reshape,
-    TimeDistributed,
-)
-from keras.models import Model, Sequential
 
 from ertk.tensorflow.dataset import tf_dataset_mem
 
@@ -63,25 +51,27 @@ def model(n_classes: int, n_features: int = 1):
     # samples per 40ms segment. Each subsequent vector is shifted 10ms
     # from the previous. We assume the sequences are zero-padded to a
     # multiple of 640 samples.
-    inputs = Input((500, 640), name="input")
+    inputs = keras.Input((500, 640), name="input")
     frames = tf.expand_dims(inputs, -1)
-    dropout = Dropout(0.1)(frames)
+    dropout = keras.layers.Dropout(0.1)(frames)
 
     # Conv + maxpool over the 640 samples
-    extraction = Sequential()
-    extraction.add(Conv1D(40, 40, padding="same", activation="relu"))
-    extraction.add(MaxPool1D(2))
-    extraction.add(Conv1D(40, 40, padding="same", activation="relu"))
-    extraction.add(MaxPool1D(10, data_format="channels_first"))
-    extraction.add(Reshape((1280,)))
-    features = TimeDistributed(extraction)(dropout)
+    extraction = keras.Sequential()
+    extraction.add(keras.layers.Conv1D(40, 40, padding="same", activation="relu"))
+    extraction.add(keras.layers.MaxPool1D(2))
+    extraction.add(keras.layers.Conv1D(40, 40, padding="same", activation="relu"))
+    extraction.add(keras.layers.MaxPool1D(10, data_format="channels_first"))
+    extraction.add(keras.layers.Reshape((1280,)))
+    features = keras.layers.TimeDistributed(extraction)(dropout)
 
     # Sequence modelling
     # gru = GRU(128, return_sequences=True)(features)
-    gru = RNN([GRUCell(128), GRUCell(128)], return_sequences=True)(features)
+    gru = keras.layers.RNN(
+        [keras.layers.GRUCell(128), keras.layers.GRUCell(128)], return_sequences=True
+    )(features)
 
     # Attention
     att = Attention1D()(gru)
 
-    x = Dense(n_classes, activation="softmax")(att)
-    return Model(inputs=inputs, outputs=x)
+    x = keras.layers.Dense(n_classes, activation="softmax")(att)
+    return keras.Model(inputs=inputs, outputs=x)

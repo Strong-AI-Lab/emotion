@@ -1,29 +1,40 @@
-"""TensorFlow classification utils."""
+"""TensorFlow classification utils.
+
+.. autosummary::
+    :toctree:
+
+    tf_train_val_test
+    tf_cross_validate
+    tf_classification_metrics
+    TFClassifierWrapper
+    BalancedSparseCategoricalAccuracy
+"""
 
 import logging
 import time
 from collections import defaultdict
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
+import keras
 import numpy as np
 import tensorflow as tf
-from keras.callbacks import TensorBoard
-from keras.metrics import SparseCategoricalAccuracy
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.model_selection import BaseCrossValidator
 from sklearn.pipeline import Pipeline
 
-from ertk.tensorflow.dataset import (
+from ertk.train import ExperimentResult, get_scores
+from ertk.utils import ScoreFunction, filter_kwargs
+
+from .dataset import (
     DataFunction,
     get_data_fn,
     tf_dataset_gen,
     tf_dataset_mem,
     tf_dataset_mem_ragged,
 )
-from ertk.tensorflow.utils import TFModelFunction, init_gpu_memory_growth
-from ertk.train import ExperimentResult, get_scores
-from ertk.utils import ScoreFunction, filter_kwargs
+from .utils import TFModelFunction, init_gpu_memory_growth
 
 __all__ = [
     "tf_train_val_test",
@@ -38,16 +49,16 @@ logger = logging.getLogger(__name__)
 
 def tf_train_val_test(
     model_fn: TFModelFunction,
-    train_data: Tuple[np.ndarray, ...],
-    valid_data: Tuple[np.ndarray, ...],
-    test_data: Optional[Tuple[np.ndarray, ...]] = None,
+    train_data: tuple[np.ndarray, ...],
+    valid_data: tuple[np.ndarray, ...],
+    test_data: Optional[tuple[np.ndarray, ...]] = None,
     scoring: Union[
-        str, List[str], Dict[str, ScoreFunction], Callable[..., float]
+        str, list[str], dict[str, ScoreFunction], Callable[..., float]
     ] = "accuracy",
     data_fn: Union[DataFunction, str, None] = None,
     batch_size: int = 32,
     verbose: int = 0,
-    fit_params: Dict[str, Any] = {},
+    fit_params: dict[str, Any] = {},
 ) -> ExperimentResult:
     """Trains on given data, using given validation data, and tests on
     given test data.
@@ -57,7 +68,7 @@ def tf_train_val_test(
     model_fn: callable
         The function used to create a compiled Model.
     train_data: tuple
-        The training data. Tuple elements will be used as positional
+        The training data. tuple elements will be used as positional
         arguments to data_fn.
     valid_data: tuple
         Validation data.
@@ -112,7 +123,7 @@ def tf_train_val_test(
     if any(x[2] is not None for x in [train_data, valid_data, test_data]):
         logger.debug("Using sample weights")
 
-    tf.keras.backend.clear_session()
+    keras.backend.clear_session()
 
     clf = model_fn()
     logger.debug(clf)
@@ -123,7 +134,7 @@ def tf_train_val_test(
         train_data = (new_pipeline.transform(train_data[0]), *train_data[1:])
         valid_data = (new_pipeline.transform(valid_data[0]), *valid_data[1:])
         test_data = (new_pipeline.transform(test_data[0]), *test_data[1:])
-    if not isinstance(clf, tf.keras.models.Model):
+    if not isinstance(clf, keras.models.Model):
         raise TypeError(
             "model_fn must return a Model or a Pipeline which ends in a Model."
         )
@@ -147,7 +158,7 @@ def tf_train_val_test(
     y_pred = np.array(clf.predict(test_dataset))
     score_time = time.perf_counter() - start_time
 
-    scores: Dict[str, Any] = {
+    scores: dict[str, Any] = {
         "fit_time": fit_time,
         "score_time": score_time,
         **get_scores(scoring, np.argmax(y_pred, -1), y_true),
@@ -165,10 +176,10 @@ def tf_cross_validate(
     groups: Optional[np.ndarray] = None,
     verbose: int = 0,
     scoring: Union[
-        str, List[str], Dict[str, ScoreFunction], Callable[..., float]
+        str, list[str], dict[str, ScoreFunction], Callable[..., float]
     ] = "accuracy",
     n_jobs: int = 1,
-    fit_params: Dict[str, Any] = {},
+    fit_params: dict[str, Any] = {},
 ) -> ExperimentResult:
     """Performs cross-validation on a TensorFlow model. This works with
     both sequence models and single vector models.
@@ -229,8 +240,8 @@ def tf_cross_validate(
         callbacks = []
         if log_dir is not None:
             callbacks.append(
-                TensorBoard(
-                    log_dir=log_dir / str(fold + 1),
+                keras.callbacks.TensorBoard(
+                    log_dir=str(log_dir / str(fold + 1)),
                     profile_batch=0,
                     write_graph=False,
                     write_images=False,
@@ -269,8 +280,7 @@ class TFClassifierWrapper(ClassifierMixin, BaseEstimator):
         class weights.
     data_fn: callable, optional
         Callable that takes x and y as input and returns a
-        tensorflow.keras.Sequence object or a tensorflow.data.Dataset
-        object.
+        keras.utils.Sequence object or a tensorflow.data.Dataset object.
     callbacks: list, optional
         A list of tensorflow.keras.callbacks.Callback objects to use during
         training. Default is an empty list, so that the default Keras
@@ -283,7 +293,7 @@ class TFClassifierWrapper(ClassifierMixin, BaseEstimator):
         self,
         model_fn: TFModelFunction,
         data_fn: Optional[DataFunction] = None,
-        fit_params: Dict = {},
+        fit_params: dict = {},
         val_method: Optional[str] = None,
     ):
         self.model_fn = model_fn
@@ -313,10 +323,10 @@ class TFClassifierWrapper(ClassifierMixin, BaseEstimator):
         self,
         x: np.ndarray,
         y: np.ndarray,
-        sample_weight: np.ndarray = None,
+        sample_weight: Optional[np.ndarray] = None,
     ):
         # Clear graph
-        tf.keras.backend.clear_session()
+        keras.backend.clear_session()
         self.model = self.model_fn()
 
         train_data = self.data_fn(x, y, sample_weight, shuffle=True)
@@ -336,7 +346,7 @@ class TFClassifierWrapper(ClassifierMixin, BaseEstimator):
         return y_pred
 
 
-class BalancedSparseCategoricalAccuracy(SparseCategoricalAccuracy):
+class BalancedSparseCategoricalAccuracy(keras.metrics.SparseCategoricalAccuracy):
     """Calculates categorical accuracy with class weights inversely
     proportional to their size. This behaves as if classes are balanced
     having the same number of instances, and is equivalent to the
@@ -360,6 +370,6 @@ class BalancedSparseCategoricalAccuracy(SparseCategoricalAccuracy):
 
 def tf_classification_metrics():
     return [
-        SparseCategoricalAccuracy(name="war"),
+        keras.metrics.SparseCategoricalAccuracy(name="war"),
         BalancedSparseCategoricalAccuracy(name="uar"),
     ]

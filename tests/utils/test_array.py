@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import numpy as np
 import pytest
 
@@ -61,12 +59,12 @@ def test_check_3d():
     ],
 )
 def test_frame_array_shape(
-    shape: Tuple[int],
+    shape: tuple[int],
     frame_size: int,
     frame_shift: int,
     pad: bool,
     axis: int,
-    expected_shape: Tuple[int],
+    expected_shape: tuple[int],
 ):
     rng = np.random.default_rng()
     x = rng.random(size=shape)
@@ -86,7 +84,7 @@ def test_frame_array_shape(
     ],
 )
 def test_frame_array_small_nopad(
-    shape: Tuple[int], frame_size: int, frame_shift: int, axis: int
+    shape: tuple[int], frame_size: int, frame_shift: int, axis: int
 ):
     rng = np.random.default_rng()
     x = rng.random(size=shape)
@@ -103,7 +101,7 @@ def test_frame_array_small_nopad(
     ],
 )
 def test_frame_array_pad_nocopy(
-    shape: Tuple[int], frame_size: int, frame_shift: int, axis: int
+    shape: tuple[int], frame_size: int, frame_shift: int, axis: int
 ):
     rng = np.random.default_rng()
     x = rng.random(size=shape)
@@ -167,11 +165,11 @@ def test_frame_arrays_2d():
     ],
 )
 def test_pad_array(
-    shape: Tuple[int],
+    shape: tuple[int],
     to_multiple: int,
     to_size: int,
     axis: int,
-    expected_shape: Tuple[int],
+    expected_shape: tuple[int],
 ):
     rng = np.random.default_rng()
     x = rng.random(size=shape)

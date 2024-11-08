@@ -15,26 +15,15 @@ from pathlib import Path
 import netCDF4
 import numpy as np
 import tensorflow as tf
-from keras import Model
-from keras.layers import (
-    RNN,
-    AbstractRNNCell,
-    Bidirectional,
-    Dense,
-    GRUCell,
-    Input,
-    StackedRNNCells,
-    concatenate,
-)
-from keras.models import load_model
+import keras
 from tqdm import tqdm
 
 __all__ = ["audeep_trae"]
 
 
-def _dropout_gru_cell(units: int = 256, dropout: float = 0.8) -> AbstractRNNCell:
-    return tf.nn.RNNCellDropoutWrapper(
-        GRUCell(units, name="gru_cell"), 1 - dropout, 1 - dropout
+def _dropout_gru_cell(units: int = 256, dropout: float = 0.8) -> keras.layers.Layer:
+    return keras.layers.GRUCell(
+        units, name="gru_cell", dropout=1 - dropout, recurrent_dropout=1 - dropout
     )
 
 
@@ -44,10 +33,10 @@ def _make_rnn(
     bidirectional: bool = False,
     dropout: float = 0.2,
     name="rnn",
-) -> RNN:
+) -> keras.layers.RNN:
     cells = [_dropout_gru_cell(units, dropout) for _ in range(layers)]
-    stacked_cell = StackedRNNCells(cells)
-    rnn = RNN(
+    stacked_cell = keras.layers.StackedRNNCells(cells)
+    rnn = keras.layers.RNN(
         stacked_cell,
         return_sequences=True,
         return_state=True,
@@ -55,7 +44,7 @@ def _make_rnn(
         name=name,
     )
     if bidirectional:
-        rnn = Bidirectional(rnn, name="bidirectional_" + name)
+        rnn = keras.layers.Bidirectional(rnn, name="bidirectional_" + name)
     return rnn
 
 
@@ -65,24 +54,24 @@ def audeep_trae(
     layers: int = 2,
     bidirectional_encoder: bool = False,
     bidirectional_decoder: bool = False,
-) -> Model:
-    inputs = Input(input_shape)
+) -> keras.Model:
+    inputs = keras.Input(input_shape)
 
     trans = tf.transpose(inputs, [1, 0, 2])
 
     # Make encoder layers
     encoder = _make_rnn(units, layers, bidirectional_encoder, name="encoder")
     enc_states = encoder(trans)[1:]
-    encoder_output = concatenate(enc_states, name="encoder_output_state")
+    encoder_output = keras.layers.concatenate(enc_states, name="encoder_output_state")
 
     # Fully connected needs to have output dimension equal to dimension of
     # decoder state
     dec_dim = units * layers
     if bidirectional_decoder:
         dec_dim *= 2
-    representation = Dense(dec_dim, activation="tanh", name="representation")(
-        encoder_output
-    )
+    representation = keras.layers.Dense(
+        dec_dim, activation="tanh", name="representation"
+    )(encoder_output)
 
     # Initial state of decoder
     decoder_init_state = tf.split(
@@ -102,13 +91,13 @@ def audeep_trae(
     decoder_output = decoder(dec_inputs, initial_state=decoder_init_state)[0]
 
     n_features = input_shape[-1]
-    reconstruction = Dense(n_features, activation="tanh", name="reconstruction")(
-        decoder_output
-    )
+    reconstruction = keras.layers.Dense(
+        n_features, activation="tanh", name="reconstruction"
+    )(decoder_output)
 
     reconstruction = tf.transpose(reconstruction, [1, 0, 2])
 
-    model = Model(inputs=inputs, outputs=[reconstruction, representation])
+    model = keras.Model(inputs=inputs, outputs=[reconstruction, representation])
     return model
 
 
@@ -211,7 +200,7 @@ def train(args):
             bidirectional_decoder=args.bidirectional_decoder,
         )
         # Using epsilon=1e-5 seems to offer better stability.
-        optimizer = tf.optimizers.Adam(learning_rate=args.learning_rate, epsilon=1e-5)
+        optimizer = keras.optimizers.Adam(learning_rate=args.learning_rate, epsilon=1e-5)
         model.compile(optimizer=optimizer)
         checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer, step=step)
     print()
@@ -224,7 +213,7 @@ def train(args):
     print()
 
     # Write the graph only
-    tf.keras.callbacks.TensorBoard(
+    keras.callbacks.TensorBoard(
         args.logs / "graph", write_graph=True, profile_batch=0
     ).set_model(model)
 
@@ -309,7 +298,7 @@ def generate(args):
     corpus = dataset.corpus
     dataset.close()
 
-    model = load_model(args.model)
+    model = keras.models.load_model(args.model)
     # Optimise model call function
     model.call = tf.function(model.call)
 

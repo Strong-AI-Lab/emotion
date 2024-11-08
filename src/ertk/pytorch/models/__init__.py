@@ -30,8 +30,8 @@ Layers
     layers
 """
 
+from collections.abc import Callable
 from functools import partial
-from typing import Callable
 
 from torch.nn import Module
 

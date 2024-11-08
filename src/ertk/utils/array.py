@@ -1,6 +1,7 @@
 """Utility functions for working with numpy arrays."""
 
-from typing import List, Optional, Sequence, Tuple, Union, overload
+from collections.abc import Sequence
+from typing import Optional, Union, overload
 
 import numpy as np
 
@@ -21,7 +22,7 @@ __all__ = [
 ]
 
 
-def make_array_array(x: List[np.ndarray]) -> np.ndarray:
+def make_array_array(x: list[np.ndarray]) -> np.ndarray:
     """Helper function to make an array of arrays.
 
     Parameters
@@ -173,7 +174,7 @@ def frame_array(
 
 
 def frame_arrays(
-    arrays: Union[List[np.ndarray], np.ndarray],
+    arrays: Union[list[np.ndarray], np.ndarray],
     frame_size: int,
     frame_shift: int,
     max_frames: Optional[int] = None,
@@ -273,7 +274,7 @@ def pad_array(
 
 
 @overload
-def pad_arrays(arrays: List[np.ndarray], pad: int) -> List[np.ndarray]:
+def pad_arrays(arrays: list[np.ndarray], pad: int) -> list[np.ndarray]:
     pass
 
 
@@ -282,7 +283,7 @@ def pad_arrays(arrays: np.ndarray, pad: int) -> np.ndarray:
     pass
 
 
-def pad_arrays(arrays: Union[List[np.ndarray], np.ndarray], pad: int = 32):
+def pad_arrays(arrays: Union[list[np.ndarray], np.ndarray], pad: int = 32):
     """Pads each array to the nearest multiple of ``pad`` greater than the
     array size.  This is mainly a wrapper around `pad_array()` that
     takes care of padding ragged or non-contiguous arrays.
@@ -310,12 +311,12 @@ def pad_arrays(arrays: Union[List[np.ndarray], np.ndarray], pad: int = 32):
             return np.stack(new_arrays)
         # Array of variable-length arrays
         return make_array_array(new_arrays)
-    # List
+    # list
     return new_arrays
 
 
 @overload
-def clip_arrays(arrays: List[np.ndarray], length: int, copy: bool) -> List[np.ndarray]:
+def clip_arrays(arrays: list[np.ndarray], length: int, copy: bool) -> list[np.ndarray]:
     pass
 
 
@@ -325,7 +326,7 @@ def clip_arrays(arrays: np.ndarray, length: int, copy: bool) -> np.ndarray:
 
 
 def clip_arrays(
-    arrays: Union[List[np.ndarray], np.ndarray], length: int, copy: bool = True
+    arrays: Union[list[np.ndarray], np.ndarray], length: int, copy: bool = True
 ):
     """Clips each array to the specified maximum sequence length.
 
@@ -354,7 +355,7 @@ def clip_arrays(
 
 
 @overload
-def transpose_time(arrays: List[np.ndarray]) -> List[np.ndarray]:
+def transpose_time(arrays: list[np.ndarray]) -> list[np.ndarray]:
     pass
 
 
@@ -363,7 +364,7 @@ def transpose_time(arrays: np.ndarray) -> np.ndarray:
     pass
 
 
-def transpose_time(arrays: Union[List[np.ndarray], np.ndarray]):
+def transpose_time(arrays: Union[list[np.ndarray], np.ndarray]):
     """Transpose the time and feature axis of each array. Requires each
     array be 2-D.
 
@@ -422,12 +423,12 @@ def shuffle_multiple(
 
 
 def batch_arrays_by_length(
-    arrays_x: Union[np.ndarray, List[np.ndarray]],
+    arrays_x: Union[np.ndarray, list[np.ndarray]],
     y: np.ndarray,
     batch_size: int = 32,
     shuffle: bool = True,
     uniform_batch_size: bool = False,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """Batches a list of arrays of different sizes, grouping them by
     size. This is designed for use with variable length sequences. Each
     batch will have a maximum of batch_size arrays, but may have less if
@@ -497,7 +498,7 @@ def batch_arrays_by_length(
     return x_batch, y_batch
 
 
-def flat_to_inst(x: np.ndarray, slices: Union[np.ndarray, List[int]]) -> np.ndarray:
+def flat_to_inst(x: np.ndarray, slices: Union[np.ndarray, list[int]]) -> np.ndarray:
     """Takes a concatenated 2D data array and converts it to either a
     contiguous 2D/3D array or a variable-length 3D array, with one
     feature vector/matrix per instance.
@@ -532,7 +533,7 @@ def flat_to_inst(x: np.ndarray, slices: Union[np.ndarray, List[int]]) -> np.ndar
         return make_array_array(np.split(x, start_idx, axis=0))
 
 
-def inst_to_flat(x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+def inst_to_flat(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """The inverse of flat_to_inst(). Takes an instance 'matrix' and
     converts to a "flattened" 2D matrix.
 

@@ -3,9 +3,12 @@
 .. autosummary::
     :toctree:
 
+    ERTKSkModel
+    SkModelConfig
+    SkWrapperConfig
+    SkWrapperModel
     get_sk_model
     get_sk_model_fn
-    SkModelConfig
 
 
 Models
@@ -17,7 +20,7 @@ Models
     mtl
 """
 
-from typing import Callable
+from collections.abc import Callable
 
 from sklearn.base import BaseEstimator
 from sklearn.ensemble import RandomForestClassifier

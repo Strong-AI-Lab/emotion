@@ -1,7 +1,15 @@
-"""Utilities for scikit-learn estimators."""
+"""Utilities for scikit-learn estimators.
+
+.. autosummary::
+    :toctree:
+
+    get_estimator_tree
+    get_base_estimator
+    OneVsRestClassifier
+    GridSearchVal
+"""
 
 import warnings
-from typing import List
 
 import numpy as np
 from joblib import Parallel, delayed
@@ -64,7 +72,7 @@ class OneVsRestClassifier(_SKOvR):
         return self
 
 
-def get_estimator_tree(clf) -> List:
+def get_estimator_tree(clf) -> list:
     """Gets the estimator list of nested estimators.
 
     Parameters

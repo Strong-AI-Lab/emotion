@@ -77,7 +77,7 @@ Other utilities
 .. click:: ertk.cli.util.create_cv_dirs:main
     :prog: ertk-util create_cv_dirs
 
-.. click:: ertk.cli.util.grid_to_conf:main
+.. click:: ertk.cli.util.pgrid_to_confs:main
     :prog: ertk-util grid_to_conf
 
 .. click:: ertk.cli.util.names_to_filenames:main

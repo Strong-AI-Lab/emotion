@@ -1,8 +1,16 @@
-"""Feature extractor using Keras applications."""
+"""Feature extractor using Keras applications.
 
+.. autosummary::
+    :toctree:
+
+    KerasAppsExtractorConfig
+    KerasAppsExtractor
+"""
+
+from collections.abc import Iterable
 from dataclasses import dataclass
 from types import ModuleType
-from typing import Iterable, List, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 from omegaconf import MISSING
@@ -28,53 +36,42 @@ MODEL_MAP = {}
 
 
 def _init_models():
-    from keras.applications import (
-        densenet,
-        efficientnet,
-        inception_resnet_v2,
-        inception_v3,
-        mobilenet,
-        mobilenet_v2,
-        mobilenet_v3,
-        nasnet,
-        resnet,
-        vgg16,
-        vgg19,
-        xception,
-    )
+    import keras
+
+    apps = keras.applications
 
     global MODEL_MAP
     MODEL_MAP = {
-        "densenet121": _ModelArgs(densenet, "DenseNet121", 224),
-        "densenet169": _ModelArgs(densenet, "DenseNet169", 224),
-        "densenet201": _ModelArgs(densenet, "DenseNet201", 224),
-        "efficientnet_b0": _ModelArgs(efficientnet, "EfficientNetB0", 224),
-        "efficientnet_b1": _ModelArgs(efficientnet, "EfficientNetB1", 240),
-        "efficientnet_b2": _ModelArgs(efficientnet, "EfficientNetB2", 260),
-        "efficientnet_b3": _ModelArgs(efficientnet, "EfficientNetB3", 300),
-        "efficientnet_b4": _ModelArgs(efficientnet, "EfficientNetB4", 380),
-        "efficientnet_b5": _ModelArgs(efficientnet, "EfficientNetB5", 456),
-        "efficientnet_b6": _ModelArgs(efficientnet, "EfficientNetB6", 528),
-        "efficientnet_b7": _ModelArgs(efficientnet, "EfficientNetB7", 600),
+        "densenet121": _ModelArgs(apps.densenet, "DenseNet121", 224),
+        "densenet169": _ModelArgs(apps.densenet, "DenseNet169", 224),
+        "densenet201": _ModelArgs(apps.densenet, "DenseNet201", 224),
+        "efficientnet_b0": _ModelArgs(apps.efficientnet, "EfficientNetB0", 224),
+        "efficientnet_b1": _ModelArgs(apps.efficientnet, "EfficientNetB1", 240),
+        "efficientnet_b2": _ModelArgs(apps.efficientnet, "EfficientNetB2", 260),
+        "efficientnet_b3": _ModelArgs(apps.efficientnet, "EfficientNetB3", 300),
+        "efficientnet_b4": _ModelArgs(apps.efficientnet, "EfficientNetB4", 380),
+        "efficientnet_b5": _ModelArgs(apps.efficientnet, "EfficientNetB5", 456),
+        "efficientnet_b6": _ModelArgs(apps.efficientnet, "EfficientNetB6", 528),
+        "efficientnet_b7": _ModelArgs(apps.efficientnet, "EfficientNetB7", 600),
         "inception_resnet_v2": _ModelArgs(
-            inception_resnet_v2, "InceptionResNetV2", 299
+            apps.inception_resnet_v2, "InceptionResNetV2", 299
         ),
-        "inception_v3": _ModelArgs(inception_v3, "InceptionV3", 299),
-        "mobilenet": _ModelArgs(mobilenet, "MobileNet", 224),
-        "mobilenet_v2": _ModelArgs(mobilenet_v2, "MobileNetV2", 224),
-        "mobilenet_v3_large": _ModelArgs(mobilenet_v3, "MobileNetV3Large", 224),
-        "mobilenet_v3_small": _ModelArgs(mobilenet_v3, "MobileNetV3Small", 224),
-        "nasnet_large": _ModelArgs(nasnet, "NASNetLarge", 331),
-        "nasnet_mobile": _ModelArgs(nasnet, "NASNetMobile", 224),
-        "resnet50": _ModelArgs(resnet, "ResNet50", 224),
-        "resnet50_v2": _ModelArgs(resnet, "ResNet50V2", 224),
-        "resnet101": _ModelArgs(resnet, "ResNet101", 224),
-        "resnet101_v2": _ModelArgs(resnet, "ResNet101V2", 224),
-        "resnet152": _ModelArgs(resnet, "ResNet152", 224),
-        "resnet152_v2": _ModelArgs(resnet, "ResNet152V2", 224),
-        "vgg16": _ModelArgs(vgg16, "VGG16", 224),
-        "vgg19": _ModelArgs(vgg19, "VGG19", 224),
-        "xception": _ModelArgs(xception, "Xception", 299),
+        "inception_v3": _ModelArgs(apps.inception_v3, "InceptionV3", 299),
+        "mobilenet": _ModelArgs(apps.mobilenet, "MobileNet", 224),
+        "mobilenet_v2": _ModelArgs(apps.mobilenet_v2, "MobileNetV2", 224),
+        "mobilenet_v3_large": _ModelArgs(apps.mobilenet_v3, "MobileNetV3Large", 224),
+        "mobilenet_v3_small": _ModelArgs(apps.mobilenet_v3, "MobileNetV3Small", 224),
+        "nasnet_large": _ModelArgs(apps.nasnet, "NASNetLarge", 331),
+        "nasnet_mobile": _ModelArgs(apps.nasnet, "NASNetMobile", 224),
+        "resnet50": _ModelArgs(apps.resnet, "ResNet50", 224),
+        "resnet50_v2": _ModelArgs(apps.resnet, "ResNet50V2", 224),
+        "resnet101": _ModelArgs(apps.resnet, "ResNet101", 224),
+        "resnet101_v2": _ModelArgs(apps.resnet, "ResNet101V2", 224),
+        "resnet152": _ModelArgs(apps.resnet, "ResNet152", 224),
+        "resnet152_v2": _ModelArgs(apps.resnet, "ResNet152V2", 224),
+        "vgg16": _ModelArgs(apps.vgg16, "VGG16", 224),
+        "vgg19": _ModelArgs(apps.vgg19, "VGG19", 224),
+        "xception": _ModelArgs(apps.xception, "Xception", 299),
     }
 
 
@@ -93,7 +90,7 @@ class KerasAppsExtractorConfig(ERTKConfig):
     n_mels: int = 128
     """Number of mel bands for spectrogram extraction."""
     spec_type: str = "mel"
-    """Type of spectrogram to extract. Can be either 'mel' or 'linear'."""
+    """type of spectrogram to extract. Can be either 'mel' or 'linear'."""
     fmax: int = 8000
     """Maximum frequency for spectrogram extraction."""
 
@@ -165,7 +162,7 @@ class KerasAppsExtractor(
 
     def process_batch(
         self, batch: Union[Iterable[np.ndarray], np.ndarray], **kwargs
-    ) -> List[np.ndarray]:
+    ) -> list[np.ndarray]:
         batch = list(batch)
         if any(is_mono_audio(x) for x in batch):
             if any(not is_mono_audio(x) for x in batch):
@@ -186,5 +183,5 @@ class KerasAppsExtractor(
         return False
 
     @property
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         return [f"{self.config.model}_{i}" for i in range(self.dim)]

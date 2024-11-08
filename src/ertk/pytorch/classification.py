@@ -1,9 +1,18 @@
-"""PyTorch classification utilities."""
+"""PyTorch classification utilities.
+
+.. autosummary::
+    :toctree:
+
+    pt_cross_validate
+    pt_train_val_test
+    train_mtl_model
+"""
 
 import logging
 import warnings
 from collections import defaultdict
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -39,11 +48,11 @@ def pt_cross_validate(
     groups: Optional[np.ndarray] = None,
     cv: BaseCrossValidator = LeaveOneGroupOut(),
     scoring: Union[
-        str, List[str], Dict[str, ScoreFunction], Callable[..., float]
+        str, list[str], dict[str, ScoreFunction], Callable[..., float]
     ] = "accuracy",
     verbose: int = 0,
     n_jobs: int = 1,
-    fit_params: Dict[str, Any] = {},
+    fit_params: dict[str, Any] = {},
 ) -> ExperimentResult:
     sw = fit_params.pop("sample_weight", None)
 
@@ -81,13 +90,13 @@ def pt_cross_validate(
 
 
 class PTDataset(TorchDataset):
-    def __init__(self, data: Tuple[np.ndarray, ...]) -> None:
+    def __init__(self, data: tuple[np.ndarray, ...]) -> None:
         x, y, *sw = data
         self.x = x
         self.y = y
         self.sw = sw[0] if sw else None
 
-    def __getitem__(self, index) -> Tuple[torch.Tensor, float, Optional[float]]:
+    def __getitem__(self, index) -> tuple[torch.Tensor, float, Optional[float]]:
         return (
             torch.from_numpy(self.x[index]),
             self.y[index],
@@ -99,8 +108,8 @@ class PTDataset(TorchDataset):
 
 
 def collator(
-    batch: List[Tuple[torch.Tensor, float, Optional[float]]]
-) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+    batch: list[tuple[torch.Tensor, float, Optional[float]]]
+) -> tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
     xs, ys, sws = zip(*batch)
     max_len = max(len(x) for x in xs)
     x = torch.stack([F.pad(x, (0, 0, 0, max_len - len(x))) for x in xs])
@@ -111,14 +120,14 @@ def collator(
 
 def pt_train_val_test(
     model_fn: Callable[..., Union[nn.Module, pl.LightningModule]],
-    train_data: Tuple[np.ndarray, ...],
-    valid_data: Tuple[np.ndarray, ...],
-    test_data: Optional[Tuple[np.ndarray, ...]] = None,
+    train_data: tuple[np.ndarray, ...],
+    valid_data: tuple[np.ndarray, ...],
+    test_data: Optional[tuple[np.ndarray, ...]] = None,
     scoring: Union[
-        str, List[str], Dict[str, ScoreFunction], Callable[..., float]
+        str, list[str], dict[str, ScoreFunction], Callable[..., float]
     ] = "accuracy",
     verbose: int = 0,
-    fit_params: Dict[str, Any] = {},
+    fit_params: dict[str, Any] = {},
 ) -> ExperimentResult:
     train_config: PyTorchTrainConfig = fit_params.pop("train_config")
     log_dir = train_config.logging.log_dir
@@ -126,8 +135,8 @@ def pt_train_val_test(
 
     logging.debug(f"train_config={train_config}")
 
-    loggers: List[Logger] = []
-    callbacks: List[Callback] = []
+    loggers: list[Logger] = []
+    callbacks: list[Callback] = []
     if verbose:
         callbacks.append(ModelSummary(5))
     if log_dir:
@@ -223,7 +232,7 @@ def pt_train_val_test(
 
 def train_mtl_model(
     model: MTLModel,
-    tasks: Dict[int, int],
+    tasks: dict[int, int],
     data: Optional[MTLDataModule],
     train_data: Optional[DataLoader] = None,
     valid_data: Optional[DataLoader] = None,

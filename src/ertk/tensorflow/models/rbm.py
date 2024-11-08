@@ -11,10 +11,11 @@ References
        10.1007/978-3-642-35289-8_32.
 """
 
+from collections.abc import Sequence
 from enum import Enum
 from math import pi
 from pathlib import Path
-from typing import Optional, Sequence, Tuple
+from typing import Optional
 
 import click
 import numpy as np
@@ -64,7 +65,7 @@ class RBM:
     def __init__(
         self,
         n_hidden: int,
-        input_shape: Tuple[int, ...],
+        input_shape: tuple[int, ...],
         logdir: PathOrStr = "logs/rbm",
         output_histograms: bool = False,
     ):
@@ -225,7 +226,7 @@ class RBM:
         final_learning_rate: float
             The final learning rate to set. Default is 0.001
         learning_rate_decay: DecayType, optional
-            Type of learning rate decay. Default is None, meaning no decay.
+            type of learning rate decay. Default is None, meaning no decay.
         learning_rate_decay_param: float
             Parameter for learning rate decay. Use depends on type. For step
             decay, this is the fraction of epochs after which to change
@@ -235,7 +236,7 @@ class RBM:
         final_momentum: float
             The final momentum to set. Default is 0.9.
         momentum_decay: DecayType, optional
-            Type of momentum decay. Default is None, meaning no decay.
+            type of momentum decay. Default is None, meaning no decay.
         n_epochs: int
             The number of epochs to train for. A single epoch is one pass over
             the training data. Default is 100.
@@ -470,7 +471,7 @@ class DBN:
 
     def __init__(
         self,
-        input_shape: Tuple[int],
+        input_shape: tuple[int],
         n_layers: int = 3,
         layer_nodes: Sequence[int] = [512, 256, 128],
         logdir: PathOrStr = "logs/dbn",

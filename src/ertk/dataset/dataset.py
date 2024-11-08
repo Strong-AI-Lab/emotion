@@ -4,25 +4,12 @@ import copy
 import logging
 import os
 import warnings
+from collections.abc import Collection, Iterable, Mapping, Sequence, Set
 from dataclasses import dataclass, field
 from functools import partial, reduce
 from itertools import chain
 from pathlib import Path
-from typing import (
-    Any,
-    Collection,
-    Dict,
-    Iterable,
-    List,
-    Mapping,
-    Optional,
-    Sequence,
-    Set,
-    Tuple,
-    Type,
-    Union,
-    overload,
-)
+from typing import Any, Literal, Optional, Union, overload
 
 import numpy as np
 import pandas as pd
@@ -30,7 +17,6 @@ from numpy.lib.arraysetops import setdiff1d
 from omegaconf import MISSING, OmegaConf
 from sklearn.base import TransformerMixin
 from sklearn.preprocessing import StandardScaler
-from typing_extensions import Literal
 
 from ertk.config import ERTKConfig, get_arg_mapping
 from ertk.dataset.annotation import read_annotations
@@ -60,15 +46,15 @@ logger = logging.getLogger(__name__)
 class MapGroups:
     """Defined a mapping between categorical groups."""
 
-    map: Dict[str, str] = MISSING
+    map: dict[str, str] = MISSING
 
 
 @dataclass
 class RemoveGroups:
     """Defines a set of groups to keep or remove from a dataset."""
 
-    drop: List[str] = field(default_factory=list)
-    keep: List[str] = field(default_factory=list)
+    drop: list[str] = field(default_factory=list)
+    keep: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -84,7 +70,7 @@ class DataSelector(ERTKConfig):
     """Defines a selection of data to keep."""
 
     subset: str = ""
-    groups: Dict[str, RemoveGroups] = field(default_factory=dict)
+    groups: dict[str, RemoveGroups] = field(default_factory=dict)
 
 
 @dataclass
@@ -93,10 +79,10 @@ class CorpusInfo(ERTKConfig):
 
     name: str = MISSING
     description: str = ""
-    annotations: List[str] = field(default_factory=list)
-    partitions: List[str] = field(default_factory=list)
-    ratings: List[str] = field(default_factory=list)
-    subsets: Dict[str, SubsetInfo] = field(default_factory=dict)
+    annotations: list[str] = field(default_factory=list)
+    partitions: list[str] = field(default_factory=list)
+    ratings: list[str] = field(default_factory=list)
+    subsets: dict[str, SubsetInfo] = field(default_factory=dict)
     default_subset: str = "all"
     features_dir: str = "features"
 
@@ -107,11 +93,11 @@ class DatasetConfig(ERTKConfig):
 
     path: str = MISSING
     features: Optional[str] = None
-    read_kwargs: Dict[str, Any] = field(default_factory=dict)
+    read_kwargs: dict[str, Any] = field(default_factory=dict)
     subset: str = "default"
-    map_groups: Dict[str, MapGroups] = field(default_factory=dict)
-    remove_groups: Dict[str, RemoveGroups] = field(default_factory=dict)
-    rename_annotations: Dict[str, str] = field(default_factory=dict)
+    map_groups: dict[str, MapGroups] = field(default_factory=dict)
+    remove_groups: dict[str, RemoveGroups] = field(default_factory=dict)
+    rename_annotations: dict[str, str] = field(default_factory=dict)
     select: Optional[DataSelector] = None
     clip_seq: Optional[int] = None
     pad_seq: Optional[int] = None
@@ -121,11 +107,11 @@ class DatasetConfig(ERTKConfig):
 class DataLoadConfig(ERTKConfig):
     """Defines a configuration for loading one or more datasets."""
 
-    datasets: Dict[str, DatasetConfig] = MISSING
+    datasets: dict[str, DatasetConfig] = MISSING
     features: Optional[str] = None
     label: Optional[str] = None
-    map_groups: Dict[str, MapGroups] = field(default_factory=dict)
-    remove_groups: Dict[str, RemoveGroups] = field(default_factory=dict)
+    map_groups: dict[str, MapGroups] = field(default_factory=dict)
+    remove_groups: dict[str, RemoveGroups] = field(default_factory=dict)
     select: Optional[DataSelector] = None
     clip_seq: Optional[int] = None
     pad_seq: Optional[int] = None
@@ -160,14 +146,14 @@ class Dataset:
 
     _annotations: pd.DataFrame
     _corpus: str = ""
-    _feature_names: List[str]
+    _feature_names: list[str]
     _names: pd.Index
     _partitions: Set[str]
     _subset: str = ""
-    _subsets: Dict[str, List[str]]
+    _subsets: dict[str, list[str]]
     _x: np.ndarray
     _label_annot: str = ""
-    _ratings: Dict[str, pd.DataFrame]
+    _ratings: dict[str, pd.DataFrame]
     _description: str = ""
 
     # "Private" vars
@@ -175,7 +161,7 @@ class Dataset:
     _features: str = ""
     _features_path: Optional[Path] = None
     _features_dir: Path = Path()
-    _subset_paths: Dict[str, Path]
+    _subset_paths: dict[str, Path]
 
     def __init__(
         self,
@@ -369,24 +355,22 @@ class Dataset:
     @overload
     def get_idx_for_split(
         self,
-        split: Union[str, Dict[str, Collection[str]], DataSelector],
+        split: Union[str, dict[str, Collection[str]], DataSelector],
         return_complement: Literal[False] = False,
-    ) -> np.ndarray:
-        ...
+    ) -> np.ndarray: ...
 
     @overload
     def get_idx_for_split(
         self,
-        split: Union[str, Dict[str, Collection[str]], DataSelector],
+        split: Union[str, dict[str, Collection[str]], DataSelector],
         return_complement: Literal[True],
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        ...
+    ) -> tuple[np.ndarray, np.ndarray]: ...
 
     def get_idx_for_split(
         self,
-        split: Union[str, Dict[str, Collection[str]], DataSelector],
+        split: Union[str, dict[str, Collection[str]], DataSelector],
         return_complement: bool = False,
-    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+    ) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
         """Gets indices of instances corresponding to the selection
         given by `split`.
 
@@ -425,7 +409,7 @@ class Dataset:
                 for k, v in split.groups.items()
             }
 
-        indices_parts: Dict[str, np.ndarray] = {}
+        indices_parts: dict[str, np.ndarray] = {}
         for part_name in mapping:
             sel = mapping[part_name]
             sel = [sel] if isinstance(sel, str) else sel
@@ -451,7 +435,7 @@ class Dataset:
         self,
         annot_name: str,
         annotations: Union[PathOrStr, Mapping[str, Any], Sequence[Any], pd.Series],
-        dtype: Optional[Union[Type, Literal["category"]]] = None,
+        dtype: Optional[Union[type, Literal["category"]]] = None,
     ) -> None:
         """Add or update an annotation.
 
@@ -713,7 +697,7 @@ class Dataset:
         """
         return self.ratings[rating_set].loc[self.names, name]
 
-    def annotation_type(self, annot_name: str) -> Type:
+    def annotation_type(self, annot_name: str) -> type:
         return self.annotations[annot_name].dtype
 
     def get_group_indices(self, annot_name: str) -> np.ndarray:
@@ -753,7 +737,7 @@ class Dataset:
         )
         return counts
 
-    def get_group_names(self, annot_name: str) -> List[str]:
+    def get_group_names(self, annot_name: str) -> list[str]:
         """Get the names of groups in a partition.
 
         Parameters
@@ -873,8 +857,8 @@ class Dataset:
         return len(self.names)
 
     @property
-    def feature_names(self) -> List[str]:
-        """List of feature names."""
+    def feature_names(self) -> list[str]:
+        """list of feature names."""
         return self._feature_names
 
     @property
@@ -883,8 +867,8 @@ class Dataset:
         return len(self.feature_names)
 
     @property
-    def speaker_names(self) -> List[str]:
-        """List of unique speakers in this dataset."""
+    def speaker_names(self) -> list[str]:
+        """list of unique speakers in this dataset."""
         return self.get_group_names("speaker")
 
     @property
@@ -918,13 +902,13 @@ class Dataset:
         return self._annotations.loc[self.names]
 
     @property
-    def ratings(self) -> Dict[str, pd.DataFrame]:
+    def ratings(self) -> dict[str, pd.DataFrame]:
         """Full ratings for dataset."""
         return self._ratings
 
     @property
     def names(self) -> pd.Index:
-        """List of instance names."""
+        """list of instance names."""
         return self._names
 
     @property
@@ -933,8 +917,8 @@ class Dataset:
         return self._subset
 
     @property
-    def subsets(self) -> Dict[str, List[str]]:
-        """Dict from subset name to set of clip names."""
+    def subsets(self) -> dict[str, list[str]]:
+        """dict from subset name to set of clip names."""
         return self._subsets
 
     @property
@@ -964,8 +948,8 @@ class Dataset:
         self.remove_groups(self.label_annot, drop=drop, keep=keep)
 
     @property
-    def classes(self) -> List[str]:
-        """List of unique class labels."""
+    def classes(self) -> list[str]:
+        """list of unique class labels."""
         return self.get_group_names(self.label_annot)
 
     @property
@@ -980,7 +964,7 @@ class Dataset:
 
     @property
     def labels(self) -> np.ndarray:
-        """List of labels for instances."""
+        """list of labels for instances."""
         return self.get_annotations(self.label_annot)
 
     @property
@@ -1129,8 +1113,8 @@ class CombinedDataset(Dataset):
             self.label_annot = next(d.label_annot for d in datasets)
 
     @property
-    def corpus_names(self) -> List[str]:
-        """List of corpora in this CombinedDataset."""
+    def corpus_names(self) -> list[str]:
+        """list of corpora in this CombinedDataset."""
         return self.get_group_names("corpus")
 
     @property
@@ -1200,7 +1184,7 @@ def load_datasets_config(config: Union[PathOrStr, DataLoadConfig]) -> Dataset:
     """
     if isinstance(config, (str, os.PathLike)):
         config = DataLoadConfig.from_file(config)
-    datasets: List[Dataset] = []
+    datasets: list[Dataset] = []
     for corpus, dataset_conf in config.datasets.items():
         logger.info(f"Loading {dataset_conf.path}")
         dataset = Dataset(dataset_conf.path, subset=dataset_conf.subset)

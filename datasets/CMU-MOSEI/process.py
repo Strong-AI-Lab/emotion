@@ -24,7 +24,6 @@ This assumes the file structure from the original compressed file:
 import json
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict
 
 import click
 import h5py
@@ -130,7 +129,7 @@ def main(input_dir: Path, resample: bool):
 
     labels_maj = {}
     labels_plu = {}
-    dim_vals: Dict[str, Dict[str, float]] = defaultdict(dict)
+    dim_vals: dict[str, dict[str, float]] = defaultdict(dict)
     for name in tqdm(trn_df.index, "Processing labels"):
         video = trn_df.loc[name, "video"]
         if video in labelled_videos:

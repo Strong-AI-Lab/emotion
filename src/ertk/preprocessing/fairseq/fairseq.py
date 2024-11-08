@@ -1,9 +1,8 @@
 """Fairseq processor."""
 
-import sys
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 import joblib
 import numpy as np
@@ -63,12 +62,14 @@ class FairseqExtractor(
     def __init__(self, config: FairseqExtractorConfig) -> None:
         super().__init__(config)
 
-        from . import _fairseq
+        # from . import _fairseq
 
-        sys.modules["fairseq"] = _fairseq
+        # sys.modules["fairseq"] = _fairseq
+
+        from ._fairseq import load_model
 
         print(f"Loading model from {config.checkpoint}")
-        model, _ = _fairseq.load_model(config.checkpoint)
+        model, _ = load_model(config.checkpoint)
         model.to(device=config.device)
         model.eval()
         self.model = model
@@ -140,7 +141,7 @@ class FairseqExtractor(
         return self.config.aggregate == Agg.NONE
 
     @property
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         if self.config.vq_ids:
             return ["wav2vec_vq_tok"]
         return [f"wav2vec_{i}" for i in range(self.dim)]

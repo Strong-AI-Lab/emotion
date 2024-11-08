@@ -1,29 +1,19 @@
 """Basic Transformer model for time series classification."""
 
+import keras
 import numpy as np
 import tensorflow as tf
-from keras import Model
-from keras.layers import (
-    Dense,
-    GlobalAveragePooling1D,
-    GlobalMaxPooling1D,
-    Input,
-    LayerNormalization,
-    MultiHeadAttention,
-    ReLU,
-    add,
-)
 
 __all__ = ["model"]
 
 
 def _encoder_layer(x, num_heads: int, model_dim: int):
-    att = MultiHeadAttention(num_heads=num_heads, key_dim=model_dim)(x, x)
-    x = LayerNormalization()(x + att)
-    ff = Dense(2048)(x)
-    ff = ReLU()(ff)
-    ff = Dense(model_dim)(ff)
-    return LayerNormalization()(x + ff)
+    att = keras.layers.MultiHeadAttention(num_heads=num_heads, key_dim=model_dim)(x, x)
+    x = keras.layers.LayerNormalization()(x + att)
+    ff = keras.layers.Dense(2048)(x)
+    ff = keras.layers.ReLU()(ff)
+    ff = keras.layers.Dense(model_dim)(ff)
+    return keras.layers.LayerNormalization()(x + ff)
 
 
 def _positional_encoding(seq_len: int, model_dim: int):
@@ -47,15 +37,17 @@ def model(
     seq_len: int = 512,
     model_dim: int = 512,
     pool: str = "max",
-) -> Model:
-    inputs = Input((seq_len, n_features))
-    x = Dense(model_dim, name="projection")(inputs)
-    x = add([x, _positional_encoding(seq_len, model_dim)], name="positional_encoding")
+) -> keras.Model:
+    inputs = keras.Input((seq_len, n_features))
+    x = keras.layers.Dense(model_dim, name="projection")(inputs)
+    x = keras.layers.add(
+        [x, _positional_encoding(seq_len, model_dim)], name="positional_encoding"
+    )
     for _ in range(enc_layers):
         x = _encoder_layer(x, num_heads=num_heads, model_dim=model_dim)
     if pool == "max":
-        x = GlobalMaxPooling1D()(x)
+        x = keras.layers.GlobalMaxPooling1D()(x)
     else:
-        x = GlobalAveragePooling1D()(x)
-    x = Dense(n_classes, activation="softmax")(x)
-    return Model(inputs=inputs, outputs=x)
+        x = keras.layers.GlobalAveragePooling1D()(x)
+    x = keras.layers.Dense(n_classes, activation="softmax")(x)
+    return keras.Model(inputs=inputs, outputs=x)

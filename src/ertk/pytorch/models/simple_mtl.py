@@ -4,7 +4,6 @@ task-specific layers.
 
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Dict, List
 
 import torch
 import torch.nn as nn
@@ -18,8 +17,8 @@ __all__ = ["SimpleMTLModel", "SimpleMTLModelConfig"]
 
 @dataclass
 class SimpleMTLModelConfig(MTLModelConfig):
-    shared_units: List[int] = field(default_factory=lambda: [512])
-    task_units: List[int] = field(default_factory=lambda: [512])
+    shared_units: list[int] = field(default_factory=lambda: [512])
+    task_units: list[int] = field(default_factory=lambda: [512])
 
 
 class SimpleMTLModel(MTLModel, fname="simple_mtl", config=SimpleMTLModelConfig):
@@ -50,7 +49,7 @@ class SimpleMTLModel(MTLModel, fname="simple_mtl", config=SimpleMTLModelConfig):
             )
             self.add_module(name, submod)
 
-    def forward(self, x: torch.Tensor, **kwargs) -> Dict[str, torch.Tensor]:
+    def forward(self, x: torch.Tensor, **kwargs) -> dict[str, torch.Tensor]:
         x = F.relu(self.shared(x))
         task_embeddings = {k: self.task_layer[k](x) for k in self.tasks}
         if kwargs.pop("embeddings_only", False):

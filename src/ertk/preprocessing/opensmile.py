@@ -1,8 +1,14 @@
-"""OpenSMILE feature extraction."""
+"""OpenSMILE feature extraction.
+
+.. autosummary::
+    :toctree:
+
+    OpenSMILEExtractorConfig
+    OpenSMILEExtractor
+"""
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List
 
 import numpy as np
 from omegaconf import MISSING
@@ -21,9 +27,9 @@ class OpenSMILEExtractorConfig(ERTKConfig):
 
     opensmile_config: str = MISSING
     """OpenSMILE config file."""
-    levels: List[str] = field(default_factory=lambda: ["func"])
+    levels: list[str] = field(default_factory=lambda: ["func"])
     """OpenSMILE levels to extract."""
-    opensmile_opts: Dict[str, str] = field(default_factory=dict)
+    opensmile_opts: dict[str, str] = field(default_factory=dict)
     """Additional OpenSMILE options."""
 
 
@@ -75,5 +81,5 @@ class OpenSMILEExtractor(
         return "func" not in self.levels
 
     @property
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         return self._feature_names
