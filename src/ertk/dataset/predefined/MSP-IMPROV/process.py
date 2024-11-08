@@ -13,7 +13,6 @@ This assumes the file structure from the original compressed file:
     ...
 """
 
-
 import re
 from pathlib import Path
 

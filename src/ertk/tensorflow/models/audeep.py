@@ -12,10 +12,10 @@ import argparse
 import time
 from pathlib import Path
 
+import keras
 import netCDF4
 import numpy as np
 import tensorflow as tf
-import keras
 from tqdm import tqdm
 
 __all__ = ["audeep_trae"]
@@ -200,7 +200,9 @@ def train(args):
             bidirectional_decoder=args.bidirectional_decoder,
         )
         # Using epsilon=1e-5 seems to offer better stability.
-        optimizer = keras.optimizers.Adam(learning_rate=args.learning_rate, epsilon=1e-5)
+        optimizer = keras.optimizers.Adam(
+            learning_rate=args.learning_rate, epsilon=1e-5
+        )
         model.compile(optimizer=optimizer)
         checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer, step=step)
     print()

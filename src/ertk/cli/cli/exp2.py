@@ -151,9 +151,9 @@ def main(config_path: Path, restargs: tuple[str], verbose: int):
             if evaluation.inner_part:
                 fit_params["groups"] = dataset.get_group_indices(evaluation.inner_part)
     elif clf_lib == "tf":
-        from keras.callbacks import TensorBoard
+        import keras
 
-        from ertk.tensorflow.models import TFModelConfig, get_tf_model
+        from ertk.tensorflow.models import get_tf_model
         from ertk.tensorflow.train import TFTrainConfig
 
         if config.training.tensorflow:
@@ -164,7 +164,7 @@ def main(config_path: Path, restargs: tuple[str], verbose: int):
         callbacks = []
         if tf_config.logging.log_dir is not None:
             callbacks.append(
-                TensorBoard(
+                keras.callbacks.TensorBoard(
                     log_dir=tf_config.logging.log_dir,
                     profile_batch=0,
                     write_graph=False,

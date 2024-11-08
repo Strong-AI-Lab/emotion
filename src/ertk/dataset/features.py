@@ -5,9 +5,9 @@ import itertools
 import logging
 import typing
 import warnings
-from collections.abc import Callable, Iterable, Iterator, Sized
 from abc import ABC, abstractmethod
 from collections import Counter
+from collections.abc import Callable, Iterable, Iterator, Sized
 from pathlib import Path
 from typing import Optional, Union
 

@@ -7,7 +7,6 @@
     binary_accuracy_score
 """
 
-
 import copy
 from collections.abc import Callable
 from typing import Union

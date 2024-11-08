@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 
 import omegaconf
-from ertk.preprocessing.fairseq._fairseq import load_model
 from torch import nn
+
+from ertk.preprocessing.fairseq._fairseq import load_model
 
 from ._base import PyTorchModelConfig, SimpleClassificationModel
 

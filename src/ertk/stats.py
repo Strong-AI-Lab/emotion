@@ -1,7 +1,7 @@
 """Statistical functions."""
 
-from functools import partial
 from collections.abc import Callable
+from functools import partial
 from typing import Union
 
 import numpy as np

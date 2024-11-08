@@ -5,7 +5,6 @@ from functools import partial
 from pathlib import Path
 
 import click
-from omegaconf import OmegaConf
 from tqdm import tqdm
 
 from ertk.dataset import read_features_iterable, write_features

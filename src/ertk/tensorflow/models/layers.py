@@ -1,7 +1,7 @@
 """Custom Keras layers for use in TensorFlow models."""
 
-import tensorflow as tf
 import keras
+import tensorflow as tf
 
 __all__ = ["Attention1D"]
 

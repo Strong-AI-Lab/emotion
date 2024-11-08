@@ -15,7 +15,6 @@ from collections.abc import Callable
 from typing import Any, Optional, Union
 
 import numpy as np
-import pandas as pd
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
@@ -248,13 +247,6 @@ def train_mtl_model(
         enable_progress_bar=bool(verbose),
         enable_model_summary=bool(verbose),
         enable_checkpointing=False,
-    )
-    cols = [f"{x}_acc" for x in tasks] + [f"{x}_loss" for x in tasks]
-    stats_df = pd.DataFrame(
-        columns=pd.Index(cols, name="metric"),
-        index=pd.MultiIndex.from_product(
-            [range(epochs), ["train", "val"]], names=["epoch", "phase"]
-        ),
     )
 
     if data is not None:

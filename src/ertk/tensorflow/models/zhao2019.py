@@ -6,8 +6,8 @@
        97515-97525, 2019, doi: 10.1109/ACCESS.2019.2928625.
 """
 
-import tensorflow as tf
 import keras
+import tensorflow as tf
 
 from ertk.tensorflow.classification import tf_classification_metrics
 

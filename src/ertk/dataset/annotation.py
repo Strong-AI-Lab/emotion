@@ -1,10 +1,9 @@
 """Functions for reading and writing annotations."""
 
 from collections.abc import Mapping
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 import pandas as pd
-from typing import Literal
 
 from ertk.utils import PathOrStr
 
