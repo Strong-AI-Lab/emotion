@@ -11,7 +11,7 @@ import json
 import logging
 import time
 from collections.abc import Callable
-from typing import Any, Optional, Union
+from typing import Any
 
 import numpy as np
 from sklearn.base import ClassifierMixin
@@ -32,13 +32,13 @@ logger = logging.getLogger("ertk.sklearn.classification")
 def sk_cross_validate(
     clf: ClassifierMixin,
     x: np.ndarray,
-    y: Optional[np.ndarray] = None,
+    y: np.ndarray | None = None,
     *,
-    groups: Optional[np.ndarray] = None,
+    groups: np.ndarray | None = None,
     cv: BaseCrossValidator = None,
-    scoring: Union[
-        str, list[str], dict[str, ScoreFunction], Callable[..., float]
-    ] = "accuracy",
+    scoring: (
+        str | list[str] | dict[str, ScoreFunction] | Callable[..., float]
+    ) = "accuracy",
     verbose: int = 0,
     n_jobs: int = 1,
     fit_params: dict[str, Any] = {},
@@ -76,11 +76,11 @@ def sk_train_val_test(
     clf: ClassifierMixin,
     train_data: tuple[np.ndarray, ...],
     valid_data: tuple[np.ndarray, ...],
-    test_data: Optional[tuple[np.ndarray, ...]] = None,
+    test_data: tuple[np.ndarray, ...] | None = None,
     verbose: int = 0,
-    scoring: Union[
-        str, list[str], dict[str, ScoreFunction], Callable[..., float]
-    ] = "accuracy",
+    scoring: (
+        str | list[str] | dict[str, ScoreFunction] | Callable[..., float]
+    ) = "accuracy",
     fit_params: dict[str, Any] = {},
 ) -> ExperimentResult:
     sw_kw = {"sample_weight": train_data[2] if len(train_data) > 2 else None}

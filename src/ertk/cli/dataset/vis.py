@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Union
 
 import click
 import matplotlib.pyplot as plt
@@ -141,7 +140,7 @@ def feats(input: Path, instance: str):
 
     data = read_features(input)
     if instance.isdigit():
-        idx: Union[int, slice] = int(instance)
+        idx: int | slice = int(instance)
     else:
         _i = instance.find(":")
         if _i != -1:

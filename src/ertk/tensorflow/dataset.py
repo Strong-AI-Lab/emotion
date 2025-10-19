@@ -12,7 +12,6 @@
 """
 
 from collections.abc import Callable
-from typing import Optional, Union
 
 import keras
 import numpy as np
@@ -36,7 +35,7 @@ DataFunction = Callable[..., tf.data.Dataset]
 def tf_dataset_gen(
     x: np.ndarray,
     y: np.ndarray,
-    sample_weight: Optional[np.ndarray] = None,
+    sample_weight: np.ndarray | None = None,
     *,
     batch_size: int = 64,
     shuffle: bool = True,
@@ -88,7 +87,7 @@ def tf_dataset_gen(
 def tf_dataset_mem(
     x: np.ndarray,
     y: np.ndarray,
-    sample_weight: Optional[np.ndarray] = None,
+    sample_weight: np.ndarray | None = None,
     *,
     batch_size: int = 64,
     shuffle: bool = True,
@@ -127,7 +126,7 @@ def tf_dataset_mem(
 def tf_dataset_mem_ragged(
     x: np.ndarray,
     y: np.ndarray,
-    sample_weight: Optional[np.ndarray] = None,
+    sample_weight: np.ndarray | None = None,
     *,
     batch_size: int = 64,
     shuffle: bool = True,
@@ -207,7 +206,7 @@ class BatchedFrameSequence(keras.utils.Sequence):
 
     def __init__(
         self,
-        x: Union[np.ndarray, list[np.ndarray]],
+        x: np.ndarray | list[np.ndarray],
         y: np.ndarray,
         prebatched: bool = False,
         batch_size: int = 32,

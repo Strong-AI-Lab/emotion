@@ -722,7 +722,7 @@ class Wav2VecPredictionsModel(nn.Module):
                 if weights is not None:
                     weights[start : start + pos_num] = 1.0
             start = end
-        assert end == predictions.numel(), "{} != {}".format(end, predictions.numel())
+        assert end == predictions.numel(), f"{end} != {predictions.numel()}"
 
         if self.infonce:
             predictions = predictions.view(-1, copies)
@@ -787,7 +787,7 @@ def base_wav2vec_architecture(args):
 
 def load_model(filename, arg_overrides=None):
     if not os.path.exists(filename):
-        raise IOError("Model file not found: {}".format(filename))
+        raise OSError(f"Model file not found: {filename}")
     state = torch.load(filename, map_location="cpu")
 
     args = state["args"]

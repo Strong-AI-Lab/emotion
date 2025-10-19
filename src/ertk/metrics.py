@@ -9,7 +9,6 @@
 
 import copy
 from collections.abc import Callable
-from typing import Union
 
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score, get_scorer, make_scorer
@@ -100,7 +99,7 @@ def get_metric(metric: str) -> Callable:
         return copy.deepcopy(_SCORERS[metric])
 
 
-def make_scoring_dict(scoring: Union[list[str], Callable]) -> dict[str, Callable]:
+def make_scoring_dict(scoring: list[str] | Callable) -> dict[str, Callable]:
     """Make a list of scorer names into the equivalent dict.
 
     Parameters

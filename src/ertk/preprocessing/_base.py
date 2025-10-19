@@ -3,7 +3,7 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from itertools import chain, tee
-from typing import ClassVar, Optional, Union, cast
+from typing import ClassVar, cast
 
 import librosa
 import numpy as np
@@ -41,7 +41,7 @@ class InstanceProcessor(ABC):
         self.logger = logging.getLogger(cls_name)
 
     def __init_subclass__(
-        cls, fname: Optional[str] = None, config: Optional[type[ERTKConfig]] = None
+        cls, fname: str | None = None, config: type[ERTKConfig] | None = None
     ) -> None:
         cls._registry = {}
         if fname and config:
@@ -165,7 +165,7 @@ class InstanceProcessor(ABC):
         raise NotImplementedError()
 
     def process_batch(
-        self, batch: Union[Iterable[np.ndarray], np.ndarray], **kwargs
+        self, batch: Iterable[np.ndarray] | np.ndarray, **kwargs
     ) -> list[np.ndarray]:
         """Process a batch of instances. By default this simply calls
         `process_instance()` on each instance in the batch.
@@ -183,7 +183,7 @@ class InstanceProcessor(ABC):
         return [self.process_instance(x, **kwargs) for x in batch]
 
     def process_all(
-        self, xs: Union[Iterable[np.ndarray], np.ndarray], batch_size: int, **kwargs
+        self, xs: Iterable[np.ndarray] | np.ndarray, batch_size: int, **kwargs
     ) -> Iterable[np.ndarray]:
         """Process all instances in batches.
 
@@ -230,7 +230,7 @@ class InstanceProcessor(ABC):
 class AudioClipProcessor(InstanceProcessor):
     """Processes raw audio data."""
 
-    def process_file(self, path: PathOrStr, sr: Optional[float] = None) -> np.ndarray:
+    def process_file(self, path: PathOrStr, sr: float | None = None) -> np.ndarray:
         """Process individual audio file.
 
         Parameters
@@ -251,7 +251,7 @@ class AudioClipProcessor(InstanceProcessor):
         return self.process_instance(audio, sr=_sr)
 
     def process_files(
-        self, paths: Iterable[PathOrStr], batch_size: int, sr: Optional[float] = None
+        self, paths: Iterable[PathOrStr], batch_size: int, sr: float | None = None
     ) -> Iterable[np.ndarray]:
         """Process a set of files.
 

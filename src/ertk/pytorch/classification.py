@@ -12,7 +12,7 @@ import logging
 import warnings
 from collections import defaultdict
 from collections.abc import Callable
-from typing import Any, Optional, Union
+from typing import Any
 
 import numpy as np
 import pytorch_lightning as pl
@@ -40,15 +40,15 @@ __all__ = [
 
 
 def pt_cross_validate(
-    model_fn: Callable[..., Union[nn.Module, pl.LightningModule]],
+    model_fn: Callable[..., nn.Module | pl.LightningModule],
     x: np.ndarray,
     y: np.ndarray,
     *,
-    groups: Optional[np.ndarray] = None,
+    groups: np.ndarray | None = None,
     cv: BaseCrossValidator = LeaveOneGroupOut(),
-    scoring: Union[
-        str, list[str], dict[str, ScoreFunction], Callable[..., float]
-    ] = "accuracy",
+    scoring: (
+        str | list[str] | dict[str, ScoreFunction] | Callable[..., float]
+    ) = "accuracy",
     verbose: int = 0,
     n_jobs: int = 1,
     fit_params: dict[str, Any] = {},
@@ -95,7 +95,7 @@ class PTDataset(TorchDataset):
         self.y = y
         self.sw = sw[0] if sw else None
 
-    def __getitem__(self, index) -> tuple[torch.Tensor, float, Optional[float]]:
+    def __getitem__(self, index) -> tuple[torch.Tensor, float, float | None]:
         return (
             torch.from_numpy(self.x[index]),
             self.y[index],
@@ -107,8 +107,8 @@ class PTDataset(TorchDataset):
 
 
 def collator(
-    batch: list[tuple[torch.Tensor, float, Optional[float]]]
-) -> tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+    batch: list[tuple[torch.Tensor, float, float | None]],
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
     xs, ys, sws = zip(*batch)
     max_len = max(len(x) for x in xs)
     x = torch.stack([F.pad(x, (0, 0, 0, max_len - len(x))) for x in xs])
@@ -118,13 +118,13 @@ def collator(
 
 
 def pt_train_val_test(
-    model_fn: Callable[..., Union[nn.Module, pl.LightningModule]],
+    model_fn: Callable[..., nn.Module | pl.LightningModule],
     train_data: tuple[np.ndarray, ...],
     valid_data: tuple[np.ndarray, ...],
-    test_data: Optional[tuple[np.ndarray, ...]] = None,
-    scoring: Union[
-        str, list[str], dict[str, ScoreFunction], Callable[..., float]
-    ] = "accuracy",
+    test_data: tuple[np.ndarray, ...] | None = None,
+    scoring: (
+        str | list[str] | dict[str, ScoreFunction] | Callable[..., float]
+    ) = "accuracy",
     verbose: int = 0,
     fit_params: dict[str, Any] = {},
 ) -> ExperimentResult:
@@ -232,9 +232,9 @@ def pt_train_val_test(
 def train_mtl_model(
     model: MTLModel,
     tasks: dict[int, int],
-    data: Optional[MTLDataModule],
-    train_data: Optional[DataLoader] = None,
-    valid_data: Optional[DataLoader] = None,
+    data: MTLDataModule | None,
+    train_data: DataLoader | None = None,
+    valid_data: DataLoader | None = None,
     epochs: int = 200,
     device: str = "cuda:0",
     verbose: int = 0,

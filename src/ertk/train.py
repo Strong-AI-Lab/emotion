@@ -40,7 +40,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional, TypeVar, Union
+from typing import Any, TypeVar
 
 import numpy as np
 import omegaconf
@@ -155,8 +155,8 @@ class ValidationSplit(BaseCrossValidator):
 
     def __init__(
         self,
-        train_idx: Union[list[int], np.ndarray],
-        valid_idx: Union[list[int], np.ndarray],
+        train_idx: list[int] | np.ndarray,
+        valid_idx: list[int] | np.ndarray,
     ):
         self.train_idx = train_idx
         self.valid_idx = valid_idx
@@ -178,7 +178,7 @@ def get_cv_splitter(
     k: int,
     test_size: float = 0.2,
     shuffle: bool = False,
-    random_state: Optional[int] = None,
+    random_state: int | None = None,
 ) -> BaseCrossValidator:
     """Gets an appropriate cross-validation splitter for the given
     number of folds and groups, or a single random split.
@@ -252,7 +252,7 @@ def get_pipeline_params(params: dict[str, Any], pipeline: Pipeline):
 
 
 def get_scores(
-    scoring: Union[str, list[str], dict[str, ScoreFunction], Callable[..., float]],
+    scoring: str | list[str] | dict[str, ScoreFunction] | Callable[..., float],
     y_pred: np.ndarray,
     y_true: np.ndarray,
 ) -> dict[str, Any]:
@@ -305,7 +305,7 @@ def get_scores(
 
 
 def scores_to_df(
-    scores: dict[str, np.ndarray], index: Union[pd.Index, Iterable, None] = None
+    scores: dict[str, np.ndarray], index: pd.Index | Iterable | None = None
 ):
     """Convert scikit-learn scores dictionary to pandas dataframe.
 
@@ -350,7 +350,7 @@ class ExperimentResult:
     """Scores dataframe, with a column per key in `scores_dict` and row
     per evaluation.
     """
-    predictions: Optional[np.ndarray] = None
+    predictions: np.ndarray | None = None
     """Array of predictions. If not given, this is None."""
 
 
@@ -370,7 +370,7 @@ class ModelConfig(ERTKConfig):
     """Model arguments. These are passed to the model class constructor
     as keyword arguments.
     """
-    args_path: Optional[str] = None
+    args_path: str | None = None
     """Path to a YAML file containing model arguments. These are passed
     to the model class constructor as keyword arguments.
     """
@@ -378,7 +378,7 @@ class ModelConfig(ERTKConfig):
     """Parameter grid for hyperparameter search. This is passed to
     scikit-learn's `GridSearchCV` class.
     """
-    param_grid_path: Optional[str] = None
+    param_grid_path: str | None = None
     """Path to a YAML file containing a parameter grid for
     hyperparameter search. This is passed to scikit-learn's
     `GridSearchCV` class.
@@ -389,7 +389,7 @@ class ModelConfig(ERTKConfig):
 class CrossValidationConfig(ERTKConfig):
     """Class to hold cross-validation configuration."""
 
-    part: Optional[str] = None
+    part: str | None = None
     """Partition to use for cross-validation. If not given, then
     cross-validation is performed over instances instead of groups.
     """
@@ -405,21 +405,21 @@ class CrossValidationConfig(ERTKConfig):
 class EvalConfig(ERTKConfig):
     """Class to hold evaluation configuration."""
 
-    cv: Optional[CrossValidationConfig] = None
+    cv: CrossValidationConfig | None = None
     """Cross-validation configuration. If not given, then no
     cross-validation is performed.
     """
-    train: Optional[DataSelector] = None
+    train: DataSelector | None = None
     """Data selector for training data."""
-    valid: Optional[DataSelector] = None
+    valid: DataSelector | None = None
     """Data selector for validation data."""
-    test: Optional[DataSelector] = None
+    test: DataSelector | None = None
     """Data selector for testing data."""
-    inner_kfold: Optional[int] = None
+    inner_kfold: int | None = None
     """Number of folds for inner cross-validation, if using
     hyperparameter search.
     """
-    inner_part: Optional[str] = None
+    inner_part: str | None = None
     """Partition to use for inner cross-validation, if using
     hyperparameter search.
     """
@@ -473,7 +473,7 @@ class ExperimentConfig(ERTKConfig):
     """Data loading configuration."""
     model: ModelConfig = omegaconf.MISSING
     """Model configuration."""
-    eval: Optional[EvalConfig] = None
+    eval: EvalConfig | None = None
     """Evaluation configuration."""
     evals: dict[str, EvalConfig] = field(default_factory=dict)
     """Dictionary of evaluation configurations."""

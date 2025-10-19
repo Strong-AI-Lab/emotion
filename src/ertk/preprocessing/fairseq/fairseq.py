@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Union
 
 import joblib
 import numpy as np
@@ -40,7 +39,7 @@ class FairseqExtractorConfig(ERTKConfig):
     """Aggregation method."""
     device: str = "cuda"
     """Device to run model on."""
-    vq_path: Optional[str] = None
+    vq_path: str | None = None
     """Path to vector quantiser."""
     vq_ids: bool = False
     """Whether to return VQ cluster ids."""
@@ -91,7 +90,7 @@ class FairseqExtractor(
             x, dtype=torch.float32, device=self.config.device
         ).unsqueeze(0)
 
-        layer: Union[str, int]
+        layer: str | int
         try:
             layer = int(self.config.layer)
         except ValueError:
@@ -128,7 +127,7 @@ class FairseqExtractor(
             feats = self.vq.cluster_centers_[self.vq.predict(feats)]
         return feats
 
-    def process_file(self, path: PathOrStr, sr: Optional[float] = None) -> np.ndarray:
+    def process_file(self, path: PathOrStr, sr: float | None = None) -> np.ndarray:
         # Require 16 kHz sample rate
         return super().process_file(path, 16000)
 

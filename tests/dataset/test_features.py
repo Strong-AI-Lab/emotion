@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Optional
 
 import arff
 import netCDF4
@@ -81,7 +80,7 @@ def test_write_features(
     format: str,
     name: str,
     features: np.ndarray,
-    slices: Optional[list[int]],
+    slices: list[int] | None,
     tmp_path: Path,
 ):
     filename = name + format
@@ -131,7 +130,7 @@ def test_featuresdata_names(names: list[str]):
 
 
 @pytest.mark.parametrize("feature_names", [["f", "g"], ["f1", "f2"], None])
-def test_featuresdata_feature_names(feature_names: Optional[list[str]]):
+def test_featuresdata_feature_names(feature_names: list[str] | None):
     data = FeaturesData(
         np.array([[0.1, 0.2], [0.2, 0.1]]),
         names=["test1", "test2"],

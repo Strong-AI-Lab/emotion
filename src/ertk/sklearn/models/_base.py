@@ -1,7 +1,7 @@
 import warnings
 from abc import ABC
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Optional, cast
+from typing import Any, ClassVar, cast
 
 import yaml
 from omegaconf import MISSING, OmegaConf
@@ -36,13 +36,13 @@ class SkModelConfig(ERTKConfig):
 
     kwargs: dict[str, Any] = field(default_factory=dict)
     """Keyword arguments to pass to the model constructor."""
-    transform: Optional[str] = "std"
+    transform: str | None = "std"
     """The name of the transform to use."""
     transform_kwargs: dict[str, Any] = field(default_factory=dict)
     """Keyword arguments to pass to the transform constructor."""
     param_grid: dict[str, Any] = field(default_factory=dict)
     """The parameter grid to use for grid search."""
-    param_grid_path: Optional[str] = None
+    param_grid_path: str | None = None
     """The path to a YAML file containing the parameter grid to use for
     grid search.
     """

@@ -9,8 +9,6 @@ References
        10.1109/ICASSP.2019.8682896.
 """
 
-from typing import Optional
-
 import keras
 import numpy as np
 import tensorflow as tf
@@ -25,7 +23,7 @@ __all__ = ["model", "create_windowed_dataset"]
 def create_windowed_dataset(
     x: np.ndarray,
     y: np.ndarray,
-    sample_weight: Optional[np.ndarray] = None,
+    sample_weight: np.ndarray | None = None,
     batch_size: int = 64,
     shuffle: bool = True,
 ) -> tf.data.Dataset:

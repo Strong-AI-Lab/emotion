@@ -9,7 +9,6 @@ from abc import ABC, abstractmethod
 from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Sized
 from pathlib import Path
-from typing import Optional, Union
 
 import arff
 import librosa
@@ -71,11 +70,11 @@ class FeaturesData:
 
     def __init__(
         self,
-        features: Union[list[np.ndarray], np.ndarray],
+        features: list[np.ndarray] | np.ndarray,
         names: list[str],
         corpus: str = "",
-        feature_names: Optional[list[str]] = None,
-        slices: Union[np.ndarray, list[int], None] = None,
+        feature_names: list[str] | None = None,
+        slices: np.ndarray | list[int] | None = None,
     ):
         self._corpus = corpus
         self._names = list(names)
@@ -258,9 +257,7 @@ class RandomAccessReader(SequentialReader, ABC):
     """Base class for readers that can access features by index."""
 
     @abstractmethod
-    def __getitem__(
-        self, index: Union[int, slice, list[int], np.ndarray]
-    ) -> np.ndarray:
+    def __getitem__(self, index: int | slice | list[int] | np.ndarray) -> np.ndarray:
         raise NotImplementedError()
 
     def close(self) -> None:
@@ -304,9 +301,7 @@ class NetCDFReader(RandomAccessReader):
     def close(self) -> None:
         self.dataset.close()
 
-    def __getitem__(
-        self, index: Union[int, slice, list[int], np.ndarray]
-    ) -> np.ndarray:
+    def __getitem__(self, index: int | slice | list[int] | np.ndarray) -> np.ndarray:
         feats_var = self.dataset.variables[self._feat_var]
         if self._is_2d:
             # Shortcut when we don't have to manipulate indices
@@ -348,9 +343,7 @@ class RawAudioReader(RandomAccessReader):
         self.names = [x.stem for x in self.filepaths]
         self.feature_names = ["pcm"]
 
-    def __getitem__(
-        self, index: Union[int, slice, list[int], np.ndarray]
-    ) -> np.ndarray:
+    def __getitem__(self, index: int | slice | list[int] | np.ndarray) -> np.ndarray:
         if isinstance(index, int):
             return _read_audio_file(self.filepaths[index], self.sample_rate)
         return make_array_array(
@@ -573,8 +566,8 @@ _READ_BACKENDS_SEQUENTIAL: dict[str, type[SequentialReader]] = {
 
 def register_format(
     suffix: str,
-    read: Optional[Callable[..., FeaturesData]],
-    write: Optional[Callable[..., None]],
+    read: Callable[..., FeaturesData] | None,
+    write: Callable[..., None] | None,
 ):
     """Register new read/write functions for a given file format."""
 
@@ -619,11 +612,11 @@ def read_features_iterable(path: PathOrStr, **kwargs) -> SequentialReader:
 
 def write_features(
     path: PathOrStr,
-    features: Union[Iterable[np.ndarray], np.ndarray],
+    features: Iterable[np.ndarray] | np.ndarray,
     names: list[str],
     corpus: str = "",
     feature_names: list[str] = [],
-    slices: Union[np.ndarray, list[int], None] = None,
+    slices: np.ndarray | list[int] | None = None,
     **kwargs,
 ) -> None:
     """Convenience function to write features to given path.

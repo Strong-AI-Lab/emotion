@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Type
+from typing import Any
 
 import pytest
 from omegaconf import MISSING, DictConfig, OmegaConf
@@ -37,7 +37,7 @@ def test_to_dictconfig():
     ],
 )
 @pytest.mark.parametrize("cls", [MyConfig, MyMissingConfig])
-def test_from_config(conf: Any, cls: Type[ERTKConfig]):
+def test_from_config(conf: Any, cls: type[ERTKConfig]):
     config = cls.from_config(conf)
     assert config == cls(a=1, b="hello", c=False)
 
@@ -57,7 +57,7 @@ def test_from_config_missing_error(conf: Any):
 
 
 @pytest.mark.parametrize("cls", [MyConfig, MyMissingConfig])
-def test_from_file(tmp_path, cls: Type[ERTKConfig]):
+def test_from_file(tmp_path, cls: type[ERTKConfig]):
     config_file = tmp_path / "config.yaml"
     config_file.write_text(
         """

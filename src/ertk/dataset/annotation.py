@@ -1,7 +1,7 @@
 """Functions for reading and writing annotations."""
 
 from collections.abc import Mapping
-from typing import Literal, Optional, Union
+from typing import Literal
 
 import pandas as pd
 
@@ -11,7 +11,7 @@ __all__ = ["read_annotations", "write_annotations"]
 
 
 def read_annotations(
-    filename: PathOrStr, dtype: Optional[Union[type, Literal["category"]]] = None
+    filename: PathOrStr, dtype: type | Literal["category"] | None = None
 ) -> pd.Series:
     """Returns a pd.Series containing values for this annotation for
     each instance, indexed by name.
@@ -29,9 +29,9 @@ def read_annotations(
 
 
 def write_annotations(
-    annotations: Union[Mapping[str, object], pd.DataFrame, pd.Series],
-    name: Optional[str] = None,
-    path: Optional[PathOrStr] = None,
+    annotations: Mapping[str, object] | pd.DataFrame | pd.Series,
+    name: str | None = None,
+    path: PathOrStr | None = None,
 ) -> None:
     """Write sorted annotations CSV.
 

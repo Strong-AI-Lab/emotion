@@ -9,7 +9,6 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 import numpy as np
 import torch
@@ -52,7 +51,7 @@ class SpeechBrainExtractorConfig(ERTKConfig):
     """Device to run model on."""
     task: Task = Task.EMBEDDINGS
     """Task to perform."""
-    agg: Optional[Agg] = Agg.MEAN
+    agg: Agg | None = Agg.MEAN
     """Aggregation method for embeddings."""
     max_input_len: int = 1500000
     """Maximum input length."""

@@ -11,7 +11,7 @@
 """
 
 from collections.abc import Callable, Collection
-from typing import Any, Optional, Union
+from typing import Any
 
 import numpy as np
 import pytorch_lightning as pl
@@ -64,11 +64,11 @@ class DataModuleAdapter(pl.LightningDataModule):
     def __init__(
         self,
         *,
-        load_config: Optional[ExperimentConfig] = None,
-        dataset: Optional[Dataset] = None,
-        train_select: Union[str, dict[str, Collection[str]], np.ndarray, None] = None,
-        val_select: Union[str, dict[str, Collection[str]], np.ndarray, None] = None,
-        test_select: Union[str, dict[str, Collection[str]], np.ndarray, None] = None,
+        load_config: ExperimentConfig | None = None,
+        dataset: Dataset | None = None,
+        train_select: str | dict[str, Collection[str]] | np.ndarray | None = None,
+        val_select: str | dict[str, Collection[str]] | np.ndarray | None = None,
+        test_select: str | dict[str, Collection[str]] | np.ndarray | None = None,
         batch_size: int = 32,
         dl_num_workers: int = 0,
     ):
@@ -82,7 +82,7 @@ class DataModuleAdapter(pl.LightningDataModule):
         self.test_select = test_select if test_select is not None else val_select
         self.dl_num_workers = dl_num_workers
 
-    def setup(self, stage: Optional[str] = None) -> None:
+    def setup(self, stage: str | None = None) -> None:
         if self.load_config:
             data = load_datasets_config(self.load_config)
             self.train_idx = data.get_idx_for_split(self.load_config.eval.train)
@@ -154,9 +154,9 @@ class MTLDataModule(DataModuleAdapter):
         *,
         dataset: Dataset,
         tasks: list[str],
-        train_select: Union[str, dict[str, Collection[str]], np.ndarray, None] = None,
-        val_select: Union[str, dict[str, Collection[str]], np.ndarray, None] = None,
-        test_select: Union[str, dict[str, Collection[str]], np.ndarray, None] = None,
+        train_select: str | dict[str, Collection[str]] | np.ndarray | None = None,
+        val_select: str | dict[str, Collection[str]] | np.ndarray | None = None,
+        test_select: str | dict[str, Collection[str]] | np.ndarray | None = None,
         batch_size: int = 32,
         dl_num_workers: int = 0,
     ):

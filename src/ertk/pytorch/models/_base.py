@@ -1,7 +1,7 @@
 import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Optional, cast
+from typing import Any, ClassVar, cast
 
 import pytorch_lightning as pl
 import torch
@@ -272,7 +272,7 @@ class SimpleModel(ERTKPyTorchModel):
         self.log_loss("val", y, yhat, sw)
 
     def log_loss(
-        self, name: str, y: torch.Tensor, yhat: torch.Tensor, sw: Optional[torch.Tensor]
+        self, name: str, y: torch.Tensor, yhat: torch.Tensor, sw: torch.Tensor | None
     ) -> torch.Tensor:
         loss = self.loss(yhat, y)
         if sw is not None:
@@ -284,7 +284,7 @@ class SimpleModel(ERTKPyTorchModel):
 
     def get_outputs_for_batch(
         self, batch
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor | None]:
         x, y, *sw = batch
         sw = sw[0] if len(sw) > 0 else None
         with torch.no_grad():

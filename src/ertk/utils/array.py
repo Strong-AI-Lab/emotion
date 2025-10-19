@@ -1,7 +1,7 @@
 """Utility functions for working with numpy arrays."""
 
 from collections.abc import Sequence
-from typing import Optional, Union, overload
+from typing import overload
 
 import numpy as np
 
@@ -42,7 +42,7 @@ def make_array_array(x: list[np.ndarray]) -> np.ndarray:
     return arr
 
 
-def check_3d(arrays: Union[Sequence[np.ndarray], np.ndarray]) -> None:
+def check_3d(arrays: Sequence[np.ndarray] | np.ndarray) -> None:
     """Checks if an array is 3D or each array in a list is 2D. Raises an
     exception if this isn't the case.
 
@@ -174,10 +174,10 @@ def frame_array(
 
 
 def frame_arrays(
-    arrays: Union[list[np.ndarray], np.ndarray],
+    arrays: list[np.ndarray] | np.ndarray,
     frame_size: int,
     frame_shift: int,
-    max_frames: Optional[int] = None,
+    max_frames: int | None = None,
     vlen: bool = False,
 ) -> np.ndarray:
     """Creates sequences of frames from the given arrays. This is mainly
@@ -283,7 +283,7 @@ def pad_arrays(arrays: np.ndarray, pad: int) -> np.ndarray:
     pass
 
 
-def pad_arrays(arrays: Union[list[np.ndarray], np.ndarray], pad: int = 32):
+def pad_arrays(arrays: list[np.ndarray] | np.ndarray, pad: int = 32):
     """Pads each array to the nearest multiple of ``pad`` greater than the
     array size.  This is mainly a wrapper around `pad_array()` that
     takes care of padding ragged or non-contiguous arrays.
@@ -325,9 +325,7 @@ def clip_arrays(arrays: np.ndarray, length: int, copy: bool) -> np.ndarray:
     pass
 
 
-def clip_arrays(
-    arrays: Union[list[np.ndarray], np.ndarray], length: int, copy: bool = True
-):
+def clip_arrays(arrays: list[np.ndarray] | np.ndarray, length: int, copy: bool = True):
     """Clips each array to the specified maximum sequence length.
 
     Parameters
@@ -364,7 +362,7 @@ def transpose_time(arrays: np.ndarray) -> np.ndarray:
     pass
 
 
-def transpose_time(arrays: Union[list[np.ndarray], np.ndarray]):
+def transpose_time(arrays: list[np.ndarray] | np.ndarray):
     """Transpose the time and feature axis of each array. Requires each
     array be 2-D.
 
@@ -392,9 +390,9 @@ def transpose_time(arrays: Union[list[np.ndarray], np.ndarray]):
 
 
 def shuffle_multiple(
-    *arrays: Union[np.ndarray, Sequence],
+    *arrays: np.ndarray | Sequence,
     numpy_indexing: bool = True,
-    seed: Optional[int] = None,
+    seed: int | None = None,
 ):
     """Shuffles multiple arrays or lists in sync. Useful for shuffling the data
     and labels in a dataset separately while keeping them synchronised.
@@ -423,7 +421,7 @@ def shuffle_multiple(
 
 
 def batch_arrays_by_length(
-    arrays_x: Union[np.ndarray, list[np.ndarray]],
+    arrays_x: np.ndarray | list[np.ndarray],
     y: np.ndarray,
     batch_size: int = 32,
     shuffle: bool = True,
@@ -498,7 +496,7 @@ def batch_arrays_by_length(
     return x_batch, y_batch
 
 
-def flat_to_inst(x: np.ndarray, slices: Union[np.ndarray, list[int]]) -> np.ndarray:
+def flat_to_inst(x: np.ndarray, slices: np.ndarray | list[int]) -> np.ndarray:
     """Takes a concatenated 2D data array and converts it to either a
     contiguous 2D/3D array or a variable-length 3D array, with one
     feature vector/matrix per instance.

@@ -15,7 +15,6 @@ from collections.abc import Sequence
 from enum import Enum
 from math import pi
 from pathlib import Path
-from typing import Optional
 
 import click
 import numpy as np
@@ -202,14 +201,14 @@ class RBM:
     def train(
         self,
         train_data: tf.data.Dataset,
-        valid_data: Optional[tf.data.Dataset] = None,
+        valid_data: tf.data.Dataset | None = None,
         init_learning_rate: float = 0.01,
         final_learning_rate: float = 0.001,
-        learning_rate_decay: Optional[DecayType] = None,
+        learning_rate_decay: DecayType | None = None,
         learning_rate_decay_param: float = 0.5,
         init_momentum: float = 0.5,
         final_momentum: float = 0.9,
-        momentum_decay: Optional[DecayType] = None,
+        momentum_decay: DecayType | None = None,
         momentum_decay_param: float = 0.5,
         n_epochs: int = 100,
     ):
@@ -523,7 +522,7 @@ class DBN:
     def train(
         self,
         train_data: tf.data.Dataset,
-        valid_data: Optional[tf.data.Dataset] = None,
+        valid_data: tf.data.Dataset | None = None,
         n_epochs: int = 100,
         learning_rate: float = 0.01,
         momentum: float = 0.5,

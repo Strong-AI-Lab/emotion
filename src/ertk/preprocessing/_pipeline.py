@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Union
+from typing import Any
 
 import numpy as np
 from omegaconf import MISSING
@@ -93,14 +93,14 @@ class ProcessingPipeline(InstanceProcessor):
         return x
 
     def process_batch(
-        self, batch: Union[Iterable[np.ndarray], np.ndarray], **kwargs
+        self, batch: Iterable[np.ndarray] | np.ndarray, **kwargs
     ) -> list[np.ndarray]:
         for processor in self.pipeline:
             batch = processor.process_batch(batch, **kwargs)
         return list(batch)
 
     def process_all(
-        self, xs: Union[Iterable[np.ndarray], np.ndarray], batch_size: int, **kwargs
+        self, xs: Iterable[np.ndarray] | np.ndarray, batch_size: int, **kwargs
     ) -> Iterable[np.ndarray]:
         for processor in self.pipeline:
             xs = processor.process_all(xs, batch_size, **kwargs)

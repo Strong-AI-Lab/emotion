@@ -10,7 +10,7 @@
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 import omegaconf
 
@@ -27,7 +27,7 @@ __all__ = [
 
 @dataclass
 class PyTorchLoggingConfig(ERTKConfig):
-    log_dir: Optional[str] = ""
+    log_dir: str | None = ""
     tensorboard: bool = True
     csv: bool = True
 

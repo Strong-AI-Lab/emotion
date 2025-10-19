@@ -2,7 +2,6 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 from xml.etree import ElementTree as ET
 
 import click
@@ -16,11 +15,11 @@ import soundfile
 class SessionInfo:
     session_id: int
     character: str
-    operator_audio_path: Optional[Path] = None
-    words_operator_path: Optional[Path] = None
-    user_audio_path: Optional[Path] = None
-    words_user_path: Optional[Path] = None
-    transcript_path: Optional[Path] = None
+    operator_audio_path: Path | None = None
+    words_operator_path: Path | None = None
+    user_audio_path: Path | None = None
+    words_user_path: Path | None = None
+    transcript_path: Path | None = None
     annotations: dict[str, dict[int, Path]] = field(
         default_factory=lambda: defaultdict(dict)
     )

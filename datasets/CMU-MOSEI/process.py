@@ -66,7 +66,7 @@ def main(input_dir: Path, resample: bool):
     """
 
     audio_dir = input_dir / "Raw" / "Audio" / "Full" / "WAV_16000"
-    all_videos = sorted(set(x.stem for x in audio_dir.glob("*.wav")))
+    all_videos = sorted({x.stem for x in audio_dir.glob("*.wav")})
 
     transcripts_dir = input_dir / "Raw" / "Transcript" / "Segmented" / "Combined"
     transcripts = []

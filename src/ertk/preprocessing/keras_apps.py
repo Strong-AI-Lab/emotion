@@ -10,7 +10,6 @@
 from collections.abc import Iterable
 from dataclasses import dataclass
 from types import ModuleType
-from typing import Optional, Union
 
 import numpy as np
 from omegaconf import MISSING
@@ -83,7 +82,7 @@ class KerasAppsExtractorConfig(ERTKConfig):
     """Name of the model to use. See https://keras.io/api/applications/
     for the list of available models.
     """
-    size: Optional[int] = None
+    size: int | None = None
     """Size of the input image. If not specified, the default size of the
     model will be used.
     """
@@ -161,7 +160,7 @@ class KerasAppsExtractor(
         return self.model(x[None, :, :, :]).numpy()
 
     def process_batch(
-        self, batch: Union[Iterable[np.ndarray], np.ndarray], **kwargs
+        self, batch: Iterable[np.ndarray] | np.ndarray, **kwargs
     ) -> list[np.ndarray]:
         batch = list(batch)
         if any(is_mono_audio(x) for x in batch):

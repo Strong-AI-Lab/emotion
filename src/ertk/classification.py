@@ -19,7 +19,7 @@ import logging
 import time
 from collections.abc import Callable, Sequence
 from functools import partial
-from typing import Any, Optional, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -101,13 +101,13 @@ def cross_validate(
     clf_lib: str,
     clf,
     x: np.ndarray,
-    y: Optional[np.ndarray] = None,
+    y: np.ndarray | None = None,
     *,
-    groups: Optional[np.ndarray] = None,
+    groups: np.ndarray | None = None,
     cv: BaseCrossValidator = None,
-    scoring: Union[
-        str, list[str], dict[str, ScoreFunction], Callable[..., float]
-    ] = "accuracy",
+    scoring: (
+        str | list[str] | dict[str, ScoreFunction] | Callable[..., float]
+    ) = "accuracy",
     verbose: int = 0,
     n_jobs: int = 1,
     fit_params: dict[str, Any] = {},
@@ -181,14 +181,14 @@ def dataset_cross_validation(
     clf,
     dataset: Dataset,
     clf_lib: str,
-    partition: Optional[str] = None,
+    partition: str | None = None,
     label: str = "label",
-    cv: Union[BaseCrossValidator, int] = 10,
+    cv: BaseCrossValidator | int = 10,
     verbose: int = 0,
     n_jobs: int = 1,
-    scoring: Union[
-        str, list[str], dict[str, ScoreFunction], Callable[..., float], None
-    ] = None,
+    scoring: (
+        str | list[str] | dict[str, ScoreFunction] | Callable[..., float] | None
+    ) = None,
     fit_params: dict[str, Any] = {},
 ) -> ExperimentResult:
     """Cross validates a `Classifier` instance on a single dataset.
@@ -263,16 +263,16 @@ def dataset_cross_validation(
 def dataset_train_val_test(
     clf,
     dataset: Dataset,
-    train_idx: Union[Sequence[int], np.ndarray],
-    valid_idx: Union[Sequence[int], np.ndarray],
-    test_idx: Union[Sequence[int], np.ndarray, None] = None,
+    train_idx: Sequence[int] | np.ndarray,
+    valid_idx: Sequence[int] | np.ndarray,
+    test_idx: Sequence[int] | np.ndarray | None = None,
     label: str = "label",
-    clf_lib: Optional[str] = None,
-    sample_weight: Optional[np.ndarray] = None,
+    clf_lib: str | None = None,
+    sample_weight: np.ndarray | None = None,
     verbose: int = 0,
-    scoring: Union[
-        str, list[str], dict[str, ScoreFunction], Callable[..., float], None
-    ] = None,
+    scoring: (
+        str | list[str] | dict[str, ScoreFunction] | Callable[..., float] | None
+    ) = None,
     fit_params: dict[str, Any] = {},
 ) -> ExperimentResult:
     """Trains a `Classifier` instance on some training data, optionally
@@ -360,7 +360,7 @@ def dataset_train_val_test(
     return result
 
 
-def get_balanced_sample_weights(labels: Union[list[int], np.ndarray]):
+def get_balanced_sample_weights(labels: list[int] | np.ndarray):
     """Gets sample weights such that each unique label has the same
     total weight across all instances.
 
@@ -380,7 +380,7 @@ def get_balanced_sample_weights(labels: Union[list[int], np.ndarray]):
     return sample_weights
 
 
-def get_balanced_class_weights(classes: Union[list[int], np.ndarray]):
+def get_balanced_class_weights(classes: list[int] | np.ndarray):
     """Gets class weights such that each class has the same total weight
     across all instances.
 
@@ -400,7 +400,7 @@ def get_balanced_class_weights(classes: Union[list[int], np.ndarray]):
 
 
 def class_ratings_to_probs(
-    ratings: pd.Series, classes: Optional[list[str]] = None
+    ratings: pd.Series, classes: list[str] | None = None
 ) -> np.ndarray:
     """Convert annotator ratings into distribution over classes for each
     instance.

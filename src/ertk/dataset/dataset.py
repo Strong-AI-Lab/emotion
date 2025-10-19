@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from functools import partial, reduce
 from itertools import chain
 from pathlib import Path
-from typing import Any, Literal, Optional, Union, overload
+from typing import Any, Literal, overload
 
 import numpy as np
 import pandas as pd
@@ -92,15 +92,15 @@ class DatasetConfig(ERTKConfig):
     """Defines a dataset configuration."""
 
     path: str = MISSING
-    features: Optional[str] = None
+    features: str | None = None
     read_kwargs: dict[str, Any] = field(default_factory=dict)
     subset: str = "default"
     map_groups: dict[str, MapGroups] = field(default_factory=dict)
     remove_groups: dict[str, RemoveGroups] = field(default_factory=dict)
     rename_annotations: dict[str, str] = field(default_factory=dict)
-    select: Optional[DataSelector] = None
-    clip_seq: Optional[int] = None
-    pad_seq: Optional[int] = None
+    select: DataSelector | None = None
+    clip_seq: int | None = None
+    pad_seq: int | None = None
 
 
 @dataclass
@@ -108,13 +108,13 @@ class DataLoadConfig(ERTKConfig):
     """Defines a configuration for loading one or more datasets."""
 
     datasets: dict[str, DatasetConfig] = MISSING
-    features: Optional[str] = None
-    label: Optional[str] = None
+    features: str | None = None
+    label: str | None = None
     map_groups: dict[str, MapGroups] = field(default_factory=dict)
     remove_groups: dict[str, RemoveGroups] = field(default_factory=dict)
-    select: Optional[DataSelector] = None
-    clip_seq: Optional[int] = None
-    pad_seq: Optional[int] = None
+    select: DataSelector | None = None
+    clip_seq: int | None = None
+    pad_seq: int | None = None
 
 
 _AUDIO_PATH_KEY = "_audio_path"
@@ -159,14 +159,14 @@ class Dataset:
     # "Private" vars
     _default_subset: str = ""
     _features: str = ""
-    _features_path: Optional[Path] = None
+    _features_path: Path | None = None
     _features_dir: Path = Path()
     _subset_paths: dict[str, Path]
 
     def __init__(
         self,
         corpus_info: PathOrStr,
-        features: Optional[PathOrStr] = None,
+        features: PathOrStr | None = None,
         subset: str = "default",
         label: str = "label",
     ):
@@ -250,7 +250,7 @@ class Dataset:
         )
 
     def _verify_index(
-        self, df_or_series: Union[pd.DataFrame, pd.Series], msg: Optional[str] = None
+        self, df_or_series: pd.DataFrame | pd.Series, msg: str | None = None
     ):
         msg = msg or "Incomplete index"
         try:
@@ -258,7 +258,7 @@ class Dataset:
         except KeyError as e:
             raise RuntimeError(msg) from e
 
-    def _verify_annotations(self, msg: Optional[str] = "Incomplete annotation"):
+    def _verify_annotations(self, msg: str | None = "Incomplete annotation"):
         """Make sure there is a value for each instance for each annotation."""
         self._verify_index(self.annotations, msg=msg)
 
@@ -355,22 +355,22 @@ class Dataset:
     @overload
     def get_idx_for_split(
         self,
-        split: Union[str, dict[str, Collection[str]], DataSelector],
+        split: str | dict[str, Collection[str]] | DataSelector,
         return_complement: Literal[False] = False,
     ) -> np.ndarray: ...
 
     @overload
     def get_idx_for_split(
         self,
-        split: Union[str, dict[str, Collection[str]], DataSelector],
+        split: str | dict[str, Collection[str]] | DataSelector,
         return_complement: Literal[True],
     ) -> tuple[np.ndarray, np.ndarray]: ...
 
     def get_idx_for_split(
         self,
-        split: Union[str, dict[str, Collection[str]], DataSelector],
+        split: str | dict[str, Collection[str]] | DataSelector,
         return_complement: bool = False,
-    ) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
+    ) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
         """Gets indices of instances corresponding to the selection
         given by `split`.
 
@@ -434,8 +434,8 @@ class Dataset:
     def update_annotation(
         self,
         annot_name: str,
-        annotations: Union[PathOrStr, Mapping[str, Any], Sequence[Any], pd.Series],
-        dtype: Optional[Union[type, Literal["category"]]] = None,
+        annotations: PathOrStr | Mapping[str, Any] | Sequence[Any] | pd.Series,
+        dtype: type | Literal["category"] | None = None,
     ) -> None:
         """Add or update an annotation.
 
@@ -484,7 +484,7 @@ class Dataset:
     def update_ratings(
         self,
         rating_set: str,
-        ratings: Union[PathOrStr, Mapping[str, Mapping[str, Any]], pd.Series],
+        ratings: PathOrStr | Mapping[str, Mapping[str, Any]] | pd.Series,
     ) -> None:
         """Update a set of ratings.
 
@@ -594,8 +594,8 @@ class Dataset:
     def map_and_select(
         self,
         map: Mapping[str, Mapping[str, str]],
-        select: Mapping[str, Union[str, Collection[str]]],
-        remove: Mapping[str, Union[str, Collection[str]]],
+        select: Mapping[str, str | Collection[str]],
+        remove: Mapping[str, str | Collection[str]],
     ) -> None:
         """Convenience function for mapping one or more partitions and
         then selecting one or more groups.
@@ -825,7 +825,7 @@ class Dataset:
         self,
         frame_size: int,
         frame_shift: int,
-        max_frames: Optional[int] = None,
+        max_frames: int | None = None,
     ):
         """Create a sequence of frames from the raw signal."""
         logger.info(f"Framing arrays with size {frame_size} and shift {frame_shift}.")
@@ -930,7 +930,7 @@ class Dataset:
         return self.n_instances
 
     def update_labels(
-        self, labels: Union[PathOrStr, Mapping[str, str], Sequence[str], pd.Series]
+        self, labels: PathOrStr | Mapping[str, str] | Sequence[str] | pd.Series
     ):
         self.update_annotation(self.label_annot, labels, dtype=str)
 
@@ -1127,9 +1127,9 @@ class CombinedDataset(Dataset):
 
 def load_multiple(
     corpus_files: Iterable[PathOrStr],
-    features: Optional[str] = None,
-    subsets: Union[str, Mapping[str, str]] = "default",
-    label: Union[str, Mapping[str, str]] = "label",
+    features: str | None = None,
+    subsets: str | Mapping[str, str] = "default",
+    label: str | Mapping[str, str] = "label",
     **read_kwargs,
 ) -> CombinedDataset:
     """Load one or more datasets with the given features.
@@ -1168,7 +1168,7 @@ def load_multiple(
     return CombinedDataset(*datasets)
 
 
-def load_datasets_config(config: Union[PathOrStr, DataLoadConfig]) -> Dataset:
+def load_datasets_config(config: PathOrStr | DataLoadConfig) -> Dataset:
     """Load one or more datasets from a DataLoadConfig.
 
     Parameters

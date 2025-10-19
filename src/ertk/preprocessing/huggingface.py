@@ -10,7 +10,6 @@
 from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Union
 
 import numpy as np
 import torch
@@ -59,13 +58,13 @@ class HuggingFaceExtractorConfig(ERTKConfig):
     """Device to run model on."""
     task: Task = Task.CTC
     """Task to perform."""
-    agg: Optional[Agg] = Agg.MEAN
+    agg: Agg | None = Agg.MEAN
     """Aggregation method for embeddings."""
-    layer: Optional[str] = "context"
+    layer: str | None = "context"
     """Layer to extract embeddings from."""
     max_input_len: int = 1500000
     """Maximum input length."""
-    whisper_lang: Optional[str] = None
+    whisper_lang: str | None = None
     """Language to use for Whisper models."""
     max_new_tokens: int = 448
     """Maximum number of generated tokens for speech2text and Whisper
@@ -173,7 +172,7 @@ class HuggingFaceExtractor(
         return output.cpu().numpy()
 
     def process_batch(
-        self, batch: Union[Iterable[np.ndarray], np.ndarray], **kwargs
+        self, batch: Iterable[np.ndarray] | np.ndarray, **kwargs
     ) -> list[np.ndarray]:
         processed = self.processor(
             [x.squeeze()[: self.config.max_input_len] for x in batch],

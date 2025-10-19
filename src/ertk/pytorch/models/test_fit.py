@@ -70,8 +70,8 @@ def test_fit(
     print(model)
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total_params = sum(p.numel() for p in model.parameters())
-    print("Trainable parameters: {}".format(trainable_params))
-    print("Total parameters: {}".format(total_params))
+    print(f"Trainable parameters: {trainable_params}")
+    print(f"Total parameters: {total_params}")
     print()
 
     if summary_only:

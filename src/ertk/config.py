@@ -27,7 +27,7 @@ from collections import defaultdict
 from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TypeVar, Union, cast
+from typing import Any, TypeVar, cast
 
 import yaml
 from omegaconf import DictConfig, OmegaConf
@@ -165,7 +165,7 @@ class ERTKConfig(ABC):
         return cast(T, OmegaConf.merge(self, OmegaConf.from_dotlist(list(args))))
 
 
-def get_arg_mapping(s: Union[Path, str]) -> dict[str, str]:
+def get_arg_mapping(s: Path | str) -> dict[str, str]:
     """Given a mapping on the command-line, returns a dict representing
     that mapping. Mapping can be a string or a more complex YAML file.
 

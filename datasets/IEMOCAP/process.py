@@ -53,7 +53,7 @@ def _clean(words: str):
     words = " ".join(words.split("..."))
     words = " ".join(words.split(".."))
     words = " ".join(words.split("-"))
-    return " ".join((x.strip() for x in words.split()))
+    return " ".join(x.strip() for x in words.split())
 
 
 @click.command()

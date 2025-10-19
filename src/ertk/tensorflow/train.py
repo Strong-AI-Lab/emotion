@@ -8,7 +8,6 @@
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 from ertk.config import ERTKConfig
 
@@ -17,7 +16,7 @@ __all__ = ["TFLoggingConfig", "TFTrainConfig"]
 
 @dataclass
 class TFLoggingConfig(ERTKConfig):
-    log_dir: Optional[str] = None
+    log_dir: str | None = None
     name: str = ""
     version: str = ""
     tensorboard: bool = True
@@ -30,4 +29,4 @@ class TFTrainConfig(ERTKConfig):
     logging: TFLoggingConfig = TFLoggingConfig()
     n_gpus: int = 1
     epochs: int = 50
-    data_fn: Optional[str] = None
+    data_fn: str | None = None

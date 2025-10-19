@@ -2,7 +2,6 @@
 
 from collections.abc import Callable
 from functools import partial
-from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -25,8 +24,8 @@ Matrix = list[list[float]]
 
 
 def holm_bonferroni(
-    keys: Union[list[str], np.ndarray],
-    pvals: Union[list[float], np.ndarray],
+    keys: list[str] | np.ndarray,
+    pvals: list[float] | np.ndarray,
     alpha: float = 0.05,
 ):
     """Runs Holm-Bonferroni correction on given p-values.
@@ -110,7 +109,7 @@ def friedman_nemenyi(table: pd.DataFrame, alpha: float = 0.05):
     return pval, cd, df
 
 
-def _get_dist_func(metric: Union[Callable, str], **kwargs):
+def _get_dist_func(metric: Callable | str, **kwargs):
     if callable(metric):
         return partial(metric, **kwargs)
     else:
@@ -155,7 +154,7 @@ def bhattacharyya_dist(x: np.ndarray, y: np.ndarray, pinv: bool = False):
     return db.item()
 
 
-def corr_ratio(x: np.ndarray, groups: Union[list[int], np.ndarray]):
+def corr_ratio(x: np.ndarray, groups: list[int] | np.ndarray):
     """Calculates correlation ratio for each feature using the given
     groups.
 
@@ -192,10 +191,10 @@ def corr_ratio(x: np.ndarray, groups: Union[list[int], np.ndarray]):
 
 def dunn(
     x: np.ndarray,
-    clusters: Union[list[int], np.ndarray],
+    clusters: list[int] | np.ndarray,
     intra_method: str = "mean",
     inter_method: str = "cent",
-    metric: Union[Callable, str] = "l2",
+    metric: Callable | str = "l2",
     p: int = 2,
 ):
     """Calculates the Dunn index for cluster "goodness".
@@ -289,7 +288,7 @@ class Deltas:
 
 def alpha(
     data: np.ndarray,
-    delta: Union[Callable[[int, int], float], list[list[float]], str] = "nominal",
+    delta: Callable[[int, int], float] | list[list[float]] | str = "nominal",
 ):
     """Calculates Krippendorff's alpha coefficient [1, sec. 11.3] for
     inter-rater agreement.

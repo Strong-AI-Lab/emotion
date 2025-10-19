@@ -2,7 +2,7 @@
 
 from collections.abc import Callable, Container, Iterable
 from itertools import chain, combinations, permutations, zip_longest
-from typing import Any, Optional, TypeVar, overload
+from typing import Any, TypeVar, overload
 
 __all__ = [
     "itmap",
@@ -138,7 +138,7 @@ def batch_iterable(
         yield from zip(*iterables)
 
 
-def subsets(it: Iterable[T], max_size: Optional[int] = None) -> Iterable[tuple[T, ...]]:
+def subsets(it: Iterable[T], max_size: int | None = None) -> Iterable[tuple[T, ...]]:
     """Iterate over all subsets of the iterable `it`, up to a given
     maximum size. This will generate subsets in size order and then
     index-sorted order (i.e. the order items appear in `it`).
@@ -163,7 +163,7 @@ def subsets(it: Iterable[T], max_size: Optional[int] = None) -> Iterable[tuple[T
 
 
 def ordered_subsets(
-    it: Iterable[T], max_size: Optional[int] = None
+    it: Iterable[T], max_size: int | None = None
 ) -> Iterable[tuple[T, ...]]:
     """Iterate over all ordered subsets of the iterable `it`, up to a
     given maximum size. This will generate subsets in size order and

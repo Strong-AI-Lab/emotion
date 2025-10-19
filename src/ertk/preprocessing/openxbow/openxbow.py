@@ -5,7 +5,6 @@ import subprocess
 import tempfile
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -43,7 +42,7 @@ class OpenXBOWExtractor(
         raise NotImplementedError("Use batch_size=-1 for openxbow.")
 
     def process_batch(
-        self, batch: Union[Iterable[np.ndarray], np.ndarray], **kwargs
+        self, batch: Iterable[np.ndarray] | np.ndarray, **kwargs
     ) -> list[np.ndarray]:
         _, tmpin = tempfile.mkstemp(prefix="openxbow_", suffix=".csv")
         _, tmpout = tempfile.mkstemp(prefix="openxbow_", suffix=".csv")

@@ -1,7 +1,7 @@
 """Support Vector Machine (SVM) models for scikit-learn."""
 
 from functools import partial
-from typing import Any, Union
+from typing import Any
 
 from sklearn.base import BaseEstimator
 from sklearn.metrics.pairwise import kernel_metrics
@@ -13,7 +13,7 @@ __all__ = ["PrecomputedSVC"]
 def _get_kernel_func(
     kernel: str,
     degree: int = 3,
-    gamma: Union[str, float, None] = "auto",
+    gamma: str | float | None = "auto",
     coef0: float = 0.0,
 ):
     """Get the kernel function, with parameters, to use in fit() and

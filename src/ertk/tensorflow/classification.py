@@ -15,7 +15,7 @@ import time
 from collections import defaultdict
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 import keras
 import numpy as np
@@ -51,11 +51,11 @@ def tf_train_val_test(
     model_fn: TFModelFunction,
     train_data: tuple[np.ndarray, ...],
     valid_data: tuple[np.ndarray, ...],
-    test_data: Optional[tuple[np.ndarray, ...]] = None,
-    scoring: Union[
-        str, list[str], dict[str, ScoreFunction], Callable[..., float]
-    ] = "accuracy",
-    data_fn: Union[DataFunction, str, None] = None,
+    test_data: tuple[np.ndarray, ...] | None = None,
+    scoring: (
+        str | list[str] | dict[str, ScoreFunction] | Callable[..., float]
+    ) = "accuracy",
+    data_fn: DataFunction | str | None = None,
     batch_size: int = 32,
     verbose: int = 0,
     fit_params: dict[str, Any] = {},
@@ -173,11 +173,11 @@ def tf_cross_validate(
     y: np.ndarray,
     *,
     cv: BaseCrossValidator,
-    groups: Optional[np.ndarray] = None,
+    groups: np.ndarray | None = None,
     verbose: int = 0,
-    scoring: Union[
-        str, list[str], dict[str, ScoreFunction], Callable[..., float]
-    ] = "accuracy",
+    scoring: (
+        str | list[str] | dict[str, ScoreFunction] | Callable[..., float]
+    ) = "accuracy",
     n_jobs: int = 1,
     fit_params: dict[str, Any] = {},
 ) -> ExperimentResult:
@@ -292,9 +292,9 @@ class TFClassifierWrapper(ClassifierMixin, BaseEstimator):
     def __init__(
         self,
         model_fn: TFModelFunction,
-        data_fn: Optional[DataFunction] = None,
+        data_fn: DataFunction | None = None,
         fit_params: dict = {},
-        val_method: Optional[str] = None,
+        val_method: str | None = None,
     ):
         self.model_fn = model_fn
         self._data_fn = data_fn
@@ -305,7 +305,7 @@ class TFClassifierWrapper(ClassifierMixin, BaseEstimator):
         self,
         x: np.ndarray,
         y: np.ndarray,
-        sw: Optional[np.ndarray] = None,
+        sw: np.ndarray | None = None,
         *,
         shuffle: bool = True,
     ) -> tf.data.Dataset:
@@ -323,7 +323,7 @@ class TFClassifierWrapper(ClassifierMixin, BaseEstimator):
         self,
         x: np.ndarray,
         y: np.ndarray,
-        sample_weight: Optional[np.ndarray] = None,
+        sample_weight: np.ndarray | None = None,
     ):
         # Clear graph
         keras.backend.clear_session()

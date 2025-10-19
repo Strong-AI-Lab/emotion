@@ -12,7 +12,6 @@ import re
 import warnings
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Optional, Union
 
 import numpy as np
 
@@ -31,11 +30,11 @@ class PhonemizeConfig(ERTKConfig):
     """Language to use."""
     backend: str = "festival"
     """Backend to use."""
-    ph_sep: Optional[str] = " "
+    ph_sep: str | None = " "
     """Phoneme separator."""
-    syl_sep: Optional[str] = None
+    syl_sep: str | None = None
     """Syllable separator."""
-    word_sep: Optional[str] = None
+    word_sep: str | None = None
     """Word separator."""
     preserve_punctuation: bool = False
     """Preserve punctuation."""
@@ -105,7 +104,7 @@ class Phonemizer(FeatureExtractor, fname="phonemize", config=PhonemizeConfig):
         return np.array([res])
 
     def process_batch(
-        self, batch: Union[Iterable[np.ndarray], np.ndarray], **kwargs
+        self, batch: Iterable[np.ndarray] | np.ndarray, **kwargs
     ) -> list[np.ndarray]:
         if isinstance(batch, np.ndarray):
             text = batch.squeeze().tolist()

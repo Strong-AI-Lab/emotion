@@ -51,7 +51,7 @@ def main(input_dir: Path, resample: bool):
     transcripts = {}
     for p in paths:
         trn_file = p.with_suffix(".txt")
-        with open(trn_file, "r") as fid:
+        with open(trn_file) as fid:
             transcripts[p.stem] = fid.read().strip()
     write_annotations(transcripts, "transcript")
 

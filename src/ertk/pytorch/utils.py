@@ -12,8 +12,6 @@
     spectrogram
 """
 
-from typing import Optional
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -229,9 +227,9 @@ def spectrogram(
     n_mels: int = 128,
     htk_mel: bool = False,
     n_chroma: int = 12,
-    clip_db: Optional[float] = None,
+    clip_db: float | None = None,
     fmin: float = 0,
-    fmax: Optional[float] = 8000,
+    fmax: float | None = 8000,
     power: int = 2,
     to_db: bool = True,
 ):

@@ -12,7 +12,7 @@
 
 from collections.abc import Callable
 from functools import wraps
-from typing import Any, Optional, Union
+from typing import Any
 
 import keras
 import numpy as np
@@ -27,15 +27,15 @@ __all__ = [
     "TFModelFunction",
 ]
 
-TFModelFunction = Callable[..., Union[keras.Model, Pipeline]]
+TFModelFunction = Callable[..., keras.Model | Pipeline]
 
 
 def compile_wrap(
-    model_fn: Optional[TFModelFunction] = None,
+    model_fn: TFModelFunction | None = None,
     opt_cls: type[keras.Optimizer] = keras.optimizers.Adam,
     opt_kwargs: dict[str, Any] = dict(learning_rate=0.0001),
-    metrics: list[Union[str, keras.Metric]] = ["sparse_categorical_accuracy"],
-    loss: Union[str, keras.Loss] = "sparse_categorical_crossentropy",
+    metrics: list[str | keras.Metric] = ["sparse_categorical_accuracy"],
+    loss: str | keras.Loss = "sparse_categorical_crossentropy",
     **compile_kwargs,
 ):
     """Wrapper that takes a model creation function and gives a new

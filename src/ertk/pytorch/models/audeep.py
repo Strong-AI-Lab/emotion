@@ -10,7 +10,7 @@ References
 
 import time
 from pathlib import Path
-from typing import Any, Union
+from typing import Any
 
 import click
 import numpy as np
@@ -128,7 +128,7 @@ class TimeRecurrentAutoencoder(nn.Module):
         return reconstruction, representation
 
 
-def _get_latest_save(directory: Union[str, Path]) -> Path:
+def _get_latest_save(directory: str | Path) -> Path:
     """Gets the path to the latest model checkpoint, assuming it was saved with
     the format 'model-XXXX.pt'
     """
@@ -140,7 +140,7 @@ def _get_latest_save(directory: Union[str, Path]) -> Path:
 
 
 def _save_model(
-    directory: Union[Path, str],
+    directory: Path | str,
     epoch: int,
     model: TimeRecurrentAutoencoder,
     model_args: dict[str, Any],
@@ -214,7 +214,7 @@ def train(
     save_every: int,
     device: str,
 ):
-    print("Reading input from {}".format(input))
+    print(f"Reading input from {input}")
     x = _get_data(input, shuffle=True)[0]
     x = torch.tensor(x)
 
