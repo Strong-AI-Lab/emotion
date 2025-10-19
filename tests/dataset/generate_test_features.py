@@ -7,35 +7,35 @@ from constants import (
     features_3d,
     features_vlen,
     slices_vlen,
+    test_data_dir,
 )
 
 from ertk.dataset import write_features
 
 
 def main():
-    base_dir = Path(__file__).parent / "test_data"
-    assert base_dir.exists()
+    assert test_data_dir.exists()
 
-    with open(base_dir / "all_clips.txt") as fid:
+    with open(test_data_dir / "all_clips.txt") as fid:
         names = [Path(x.strip()).stem for x in fid]
 
-    for format in [".arff", ".csv", ".nc"]:
+    for format in ["arff", "csv", "nc"]:
         write_features(
-            base_dir / "features" / ("features_2d" + format),
+            test_data_dir / f"features/features_2d.{format}",
             features_2d,
             names,
             corpus=corpus_name,
             feature_names=feature_names,
         )
         write_features(
-            base_dir / "features" / ("features_3d" + format),
+            test_data_dir / f"features/features_3d.{format}",
             features_3d,
             names,
             corpus=corpus_name,
             feature_names=feature_names,
         )
         write_features(
-            base_dir / "features" / ("features_vlen" + format),
+            test_data_dir / f"features/features_vlen.{format}",
             features_vlen,
             names,
             corpus=corpus_name,

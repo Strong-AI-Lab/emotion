@@ -31,32 +31,32 @@ def test_get_audio_paths_file_2() -> None:
 # This one is redundant since test_data_dir is absolute due to __file__
 def test_get_audio_paths_absolute() -> None:
     paths = get_audio_paths(audio_dir, absolute=True)
+    assert len(paths) == 12
     for path in paths:
         assert path.is_absolute()
         assert path == audio_dir / path.name
-    assert len(paths) == 12
 
 
 def test_resample(tmp_path: Path) -> None:
     resample_audio(resample_paths, tmp_path)
     paths = list(tmp_path.glob("*.wav"))
+    assert len(paths) == 12
     for path in paths:
         audio, sr = librosa.load(path, sr=None)
         assert sr == 16000
         ref, _ = librosa.load(resample_dir / path.name, sr=None)
         assert np.allclose(audio, ref)
-    assert len(paths) == 12
 
 
 def test_resample_rename(tmp_path: Path) -> None:
     mapping = {x: tmp_path / (x.stem + "_rename.wav") for x in resample_paths}
     resample_rename_clips(mapping)
     paths = list(tmp_path.glob("*.wav"))
+    assert len(paths) == 12
     for path in paths:
         assert path.name.endswith("_rename.wav")
         _, sr = librosa.load(path, sr=None, duration=0)
         assert sr == 16000
-    assert len(paths) == 12
 
 
 def test_write_filelist_path(tmp_path: Path) -> None:

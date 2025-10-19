@@ -148,7 +148,9 @@ class TestFairseq:
 class TestHuggingFace:
     def test_hf_w2v2(self, audio):
         config = huggingface.HuggingFaceExtractorConfig(
-            model="facebook/wav2vec2-base-960h", task="EMBEDDINGS", layer="context"
+            model="facebook/wav2vec2-base-960h",
+            task=huggingface.Task.EMBEDDINGS,
+            layer="context",
         )
         ext = huggingface.HuggingFaceExtractor(config)
         feats = list(ext.process_all(audio, batch_size=1, sr=16000))

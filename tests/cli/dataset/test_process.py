@@ -32,3 +32,56 @@ def test_process_opensmile(tmp_path):
             ]
         )
     assert excinfo.value.code == 0
+
+
+def test_process_opensmile_config(tmp_path):
+    with pytest.raises(SystemExit) as excinfo:
+        main(
+            [
+                "--processor",
+                "opensmile",
+                "--config",
+                f"{test_data_dir}/opensmile_conf.yaml",
+                f"{test_data_dir}/all_clips.txt",
+                f"{tmp_path}/opensmile.csv",
+            ]
+        )
+    assert excinfo.value.code == 0
+
+
+def test_process_batch_size(tmp_path):
+    with pytest.raises(SystemExit) as excinfo:
+        main(
+            [
+                "--processor",
+                "opensmile",
+                "--batch_size",
+                "2",
+                f"{test_data_dir}/all_clips.txt",
+                f"{tmp_path}/opensmile.csv",
+                "opensmile_config=eGeMAPSv02",
+            ]
+        )
+    assert excinfo.value.code == 0
+
+
+def test_process_verbose(tmp_path):
+    with pytest.raises(SystemExit) as excinfo:
+        main(
+            [
+                "--processor",
+                "opensmile",
+                "--verbose",
+                "1",
+                f"{test_data_dir}/all_clips.txt",
+                f"{tmp_path}/opensmile.csv",
+                "opensmile_config=eGeMAPSv02",
+            ]
+        )
+    assert excinfo.value.code == 0
+
+
+def test_list_processors():
+    with pytest.raises(SystemExit) as excinfo:
+        main(["--list_processors"])
+    assert excinfo.value.code == 0
